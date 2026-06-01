@@ -1,0 +1,132 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from typing import List, Any
+from pydantic import BaseModel
+
+from app.api import deps
+from app.schemas import verticals as schemas
+from app.models import verticals as models
+from app.services.agents.hr import HRAgent
+
+router = APIRouter()
+
+class SourceRequest(BaseModel):
+    role: str
+    requirements: str
+    salary: str
+    count: int = 5
+    platforms: List[str] = ["linkedin", "indeed", "ziprecruiter", "greenhouse", "lever"]
+
+class OutreachRequest(BaseModel):
+    channel: str = "free_outreach"
+    subject: str = "Exciting job opportunity: {role}"
+    body_template: str = "Hello {name},\n\nI saw your profile and thought you would be a great fit for our {role} opening..."
+
+class InterviewRequest(BaseModel):
+    tool: str = "free_scheduling"
+
+class StatusUpdateRequest(BaseModel):
+    status: str
+
+@router.get("/", response_model=List[schemas.Candidate])
+def read_candidates(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    skip: int = 0,
+    limit: int = 100
+) -> Any:
+    candidates = db.query(models.Candidate).filter(
+        models.Candidate.tenant_id == tenant_id
+    ).order_by(models.Candidate.created_at.desc()).offset(skip).limit(limit).all()
+    return candidates
+
+@router.post("/", response_model=schemas.Candidate)
+def create_candidate(
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    candidate_in: schemas.CandidateCreate
+) -> Any:
+    candidate = models.Candidate(**candidate_in.dict(), tenant_id=tenant_id)
+    db.add(candidate)
+    db.commit()
+    db.refresh(candidate)
+    return candidate
+
+@router.post("/source")
+async def source_candidates(
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    request: SourceRequest
+) -> Any:
+    agent = HRAgent(db, tenant_id)
+    result = await agent.execute_task({
+        "action": "source_candidates",
+        "parameters": {
+            "role": request.role,
+            "requirements": request.requirements,
+            "salary": request.salary,
+            "count": request.count,
+            "platforms": request.platforms
+        }
+    })
+    return result
+
+@router.post("/{candidate_id}/outreach")
+async def candidate_outreach(
+    candidate_id: str,
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    request: OutreachRequest
+) -> Any:
+    agent = HRAgent(db, tenant_id)
+    result = await agent.execute_task({
+        "action": "candidate_outreach",
+        "parameters": {
+            "candidate_id": candidate_id,
+            "channel": request.channel,
+            "subject": request.subject,
+            "body_template": request.body_template
+        }
+    })
+    return result
+
+@router.post("/{candidate_id}/interview")
+async def schedule_interview(
+    candidate_id: str,
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    request: InterviewRequest
+) -> Any:
+    agent = HRAgent(db, tenant_id)
+    result = await agent.execute_task({
+        "action": "schedule_interview",
+        "parameters": {
+            "candidate_id": candidate_id,
+            "tool": request.tool
+        }
+    })
+    return result
+
+@router.post("/{candidate_id}/status", response_model=schemas.Candidate)
+def update_candidate_status(
+    candidate_id: str,
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    request: StatusUpdateRequest
+) -> Any:
+    candidate = db.query(models.Candidate).filter(
+        models.Candidate.id == candidate_id,
+        models.Candidate.tenant_id == tenant_id
+    ).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    
+    candidate.status = request.status
+    db.commit()
+    db.refresh(candidate)
+    return candidate
