@@ -28,14 +28,12 @@ class MarketingAgent(BaseAgent):
         topic = params.get("topic", "our business")
         platforms = params.get("platforms", ["linkedin"])
         
-        knowledge = self.get_knowledge_context("Marketing")
-        
         self.log_activity("Generate Content", f"Generating {days} days of content about {topic}")
         
         count = 0
         for day in range(1, days + 1):
             for platform in platforms:
-                prompt = f"Create a short engaging post for {platform} about {topic}. {knowledge}"
+                prompt = f"Create a short engaging post for {platform} about {topic}."
                 content = await self.llm.complete(prompt, model="claude-3-haiku-20240307")
                 
                 post = ContentPost(

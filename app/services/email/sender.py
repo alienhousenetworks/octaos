@@ -98,3 +98,44 @@ def send_email(
             except Exception:
                 return False
     return False
+
+
+def send_global_smtp_email(to_email: str, subject: str, body: str) -> bool:
+    """Send an email using global SMTP settings from configuration."""
+    from app.core.config import settings
+    
+    # Check if SMTP settings are missing or contain placeholder values
+    is_placeholder = (
+        not settings.SMTP_USER 
+        or "your_smtp_user" in settings.SMTP_USER 
+        or not settings.SMTP_PASSWORD 
+        or "your_smtp_password" in settings.SMTP_PASSWORD
+    )
+    
+    if is_placeholder:
+        print(f"\n========================================================")
+        print(f"[MOCK EMAIL] TO: {to_email}")
+        print(f"[MOCK EMAIL] SUBJECT: {subject}")
+        print(f"[MOCK EMAIL] BODY:\n{body}")
+        print(f"========================================================\n")
+        return True
+
+    smtp_cred = {
+        "username": settings.SMTP_USER,
+        "password": settings.SMTP_PASSWORD,
+        "host": settings.SMTP_HOST,
+        "port": settings.SMTP_PORT
+    }
+    
+    try:
+        return send_smtp_email(smtp_cred, to_email, subject, body)
+    except Exception as e:
+        print(f"Error sending global SMTP email: {e}")
+        if settings.DEV:
+            print(f"\n========================================================")
+            print(f"[SMTP FAIL - FALLBACK MOCK EMAIL] TO: {to_email}")
+            print(f"[SMTP FAIL - FALLBACK MOCK EMAIL] SUBJECT: {subject}")
+            print(f"[SMTP FAIL - FALLBACK MOCK EMAIL] BODY:\n{body}")
+            print(f"========================================================\n")
+            return True
+        return False

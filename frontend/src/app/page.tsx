@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Activity, Users, DollarSign, BarChart3, Briefcase, Zap, BookOpen, LogOut, Calendar, Film, Image as ImageIcon, Edit2, MessageSquare, Send, Clock } from 'lucide-react';
+import { Activity, Users, DollarSign, BarChart3, Briefcase, Zap, BookOpen, LogOut, Calendar, Film, Image as ImageIcon, Edit2, MessageSquare, Send, Clock, ChevronDown, ChevronUp, Sparkles, LayoutGrid, CalendarRange, TrendingUp, BarChart4, Plus, Check, X, Trash2, Bot, Loader2, Cpu, Mail, Phone, Search, Building, Target, ChevronRight, FileText, Upload } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
 
@@ -57,6 +57,24 @@ export default function Home() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [phoneNo, setPhoneNo] = useState('');
+  const [companyWebsite, setCompanyWebsite] = useState('');
+  const [companyEmail, setCompanyEmail] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [otpMethod, setOtpMethod] = useState<'signup' | 'login'>('signup');
+  const [tempEmail, setTempEmail] = useState('');
+
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    if (otpTimer > 0) {
+      const timer = setTimeout(() => setOtpTimer(otpTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [otpTimer]);
 
   // Dashboard States
   const [activeView, setActiveView] = useState('dashboard');
@@ -81,10 +99,49 @@ export default function Home() {
   const [outreachLoading, setOutreachLoading] = useState(false);
   const [interviewLoading, setInterviewLoading] = useState(false);
   
+  // Sales CRM States
+  const [salesLeads, setSalesLeads] = useState<any[]>([]);
+  const [selectedLead, setSelectedLead] = useState<any | null>(null);
+  const [salesSearch, setSalesSearch] = useState('');
+  const [salesStatusFilter, setSalesStatusFilter] = useState('all');
+  const [salesPriorityFilter, setSalesPriorityFilter] = useState('all');
+  const [salesTimeFilter, setSalesTimeFilter] = useState('all');
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [salesActionLoading, setSalesActionLoading] = useState(false);
+  
+  // Edit Lead Fields
+  const [isEditingSalesLead, setIsEditingSalesLead] = useState(false);
+  const [editPersonalEmail, setEditPersonalEmail] = useState('');
+  const [editCompanyEmail, setEditCompanyEmail] = useState('');
+  const [editMobileNo, setEditMobileNo] = useState('');
+  const [editCompanyContactNo, setEditCompanyContactNo] = useState('');
+  const [editNeedOfWhat, setEditNeedOfWhat] = useState('');
+  const [editHowMuch, setEditHowMuch] = useState('');
+  const [editWhy, setEditWhy] = useState('');
+  const [editTargetContext, setEditTargetContext] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editCompany, setEditCompany] = useState('');
+  const [editPriority, setEditPriority] = useState('medium');
+  const [editStatus, setEditStatus] = useState('captured');
+
+  // Lead Upload & Human updates states
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadWithAI, setUploadWithAI] = useState(false);
+  const [uploadingLeads, setUploadingLeads] = useState(false);
+  
+  const [noteText, setNoteText] = useState('');
+  const [noteChannel, setNoteChannel] = useState('note');
+  const [noteDirection, setNoteDirection] = useState('internal');
+  
   // Knowledge Form
   const [kbDept, setKbDept] = useState('Marketing');
   const [kbType, setKbType] = useState('Brand Guidelines');
   const [kbContent, setKbContent] = useState('');
+  const [kbFile, setKbFile] = useState<File | null>(null);
+  const [kbTab, setKbTab] = useState<'upload' | 'text' | 'directives'>('upload');
+  const [isUploading, setIsUploading] = useState(false);
+  const [kbSearch, setKbSearch] = useState('');
 
   // API Key Form
   const [keyProvider, setKeyProvider] = useState('anthropic');
@@ -99,10 +156,21 @@ export default function Home() {
   const [imageProvider, setImageProvider] = useState('openai');
   const [orchProvider, setOrchProvider] = useState('anthropic');
   const [orchModel, setOrchModel] = useState('claude-sonnet-4-6');
+
+  // Orchestrator Chat State
+  const [orchMessages, setOrchMessages] = useState<any[]>([]);
+  const [orchInput, setOrchInput] = useState('');
+  const [orchInlineKeyValue, setOrchInlineKeyValue] = useState('');
+  const orchChatEndRef = useRef<HTMLDivElement>(null);
   const [videoProvider, setVideoProvider] = useState('pika');
   const [generateImages, setGenerateImages] = useState(true);
   const [generateVideos, setGenerateVideos] = useState(true);
   const [campaignPosts, setCampaignPosts] = useState<any[]>([]);
+  const [campaignFilterPlatform, setCampaignFilterPlatform] = useState<string>('all');
+  const [campaignFilterStatus, setCampaignFilterStatus] = useState<string>('all');
+  const [textModel, setTextModel] = useState<string>('gemini-2.5-flash');
+  const [isGeneratorExpanded, setIsGeneratorExpanded] = useState<boolean>(true);
+  const [campaignViewMode, setCampaignViewMode] = useState<'timeline' | 'kanban' | 'analytics'>('timeline');
   
   // Cost Optimization States
   const [optimizationMetrics, setOptimizationMetrics] = useState<any>(null);
@@ -118,6 +186,37 @@ export default function Home() {
   const [editingContent, setEditingContent] = useState('');
   const [editingImageUrl, setEditingImageUrl] = useState('');
   const [editingVideoUrl, setEditingVideoUrl] = useState('');
+  const [editingImagePrompt, setEditingImagePrompt] = useState('');
+  const [editingImagePromptEnabled, setEditingImagePromptEnabled] = useState(false);
+  const [editingVideoPrompt, setEditingVideoPrompt] = useState('');
+  const [editingVideoPromptEnabled, setEditingVideoPromptEnabled] = useState(false);
+  const [editingIsManualMedia, setEditingIsManualMedia] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [generatingMedia, setGeneratingMedia] = useState(false);
+  const [suggestingPrompt, setSuggestingPrompt] = useState(false);
+
+  // Manual creation states
+  const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
+  const [createPostPlatform, setCreatePostPlatform] = useState('linkedin');
+  const [createPostContent, setCreatePostContent] = useState('');
+  const [createPostDay, setCreatePostDay] = useState(1);
+  const [createPostImageUrl, setCreatePostImageUrl] = useState('');
+  const [createPostVideoUrl, setCreatePostVideoUrl] = useState('');
+  const [createPostImagePrompt, setCreatePostImagePrompt] = useState('');
+  const [createPostImagePromptEnabled, setCreatePostImagePromptEnabled] = useState(false);
+  const [createPostVideoPrompt, setCreatePostVideoPrompt] = useState('');
+  const [createPostVideoPromptEnabled, setCreatePostVideoPromptEnabled] = useState(false);
+  const [createPostIsManualMedia, setCreatePostIsManualMedia] = useState(false);
+  const [creatingPost, setCreatingPost] = useState(false);
+  const [editingScheduledAt, setEditingScheduledAt] = useState('');
+  const [createPostScheduledAt, setCreatePostScheduledAt] = useState('');
+
+  // Bulk Campaign Scheduling states
+  const [isBulkScheduleOpen, setIsBulkScheduleOpen] = useState(false);
+  const [bulkStartDate, setBulkStartDate] = useState('');
+  const [bulkEndDate, setBulkEndDate] = useState('');
+  const [bulkPostingTime, setBulkPostingTime] = useState('09:00');
+  const [bulkScheduling, setBulkScheduling] = useState(false);
 
   // Publish-Now + Meta credential modal state
   const [publishingPostId, setPublishingPostId] = useState<string | null>(null);
@@ -126,6 +225,28 @@ export default function Home() {
   const [pendingPublishPostId, setPendingPublishPostId] = useState<string | null>(null);
   const [metaTokenInput, setMetaTokenInput] = useState('');
   const [savingMetaToken, setSavingMetaToken] = useState(false);
+
+  // AI Teams Upgraded States
+  const [isCreateTeamOpen, setIsCreateTeamOpen] = useState(false);
+  const [isEditTeamOpen, setIsEditTeamOpen] = useState(false);
+  const [teamFormName, setTeamFormName] = useState('');
+  const [teamFormAgents, setTeamFormAgents] = useState<string[]>([]);
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  
+  // Interactive testing console
+  const [testAgentName, setTestAgentName] = useState<string | null>(null);
+  const [testAgentTeamId, setTestAgentTeamId] = useState<string | null>(null);
+  const [testInput, setTestInput] = useState('');
+  const [testResponse, setTestResponse] = useState('');
+  const [testAgentLoading, setTestAgentLoading] = useState(false);
+
+  // Expanded agent configuration
+  const [configAgentName, setConfigAgentName] = useState<string | null>(null);
+  const [configAgentTeamId, setConfigAgentTeamId] = useState<string | null>(null);
+  const [configAgentProvider, setConfigAgentProvider] = useState('anthropic');
+  const [configAgentModel, setConfigAgentModel] = useState('claude-sonnet-4-6');
+  const [configAgentInstructions, setConfigAgentInstructions] = useState('');
+  const [savingConfigLoading, setSavingConfigLoading] = useState(false);
 
   // Support States
   const [tickets, setTickets] = useState<any[]>([]);
@@ -224,13 +345,16 @@ export default function Home() {
     }
   };
 
-  const fetchCampaignPosts = async () => {
+  const fetchCampaignPosts = async (collapseIfHasData = false) => {
     if (!token) return;
     try {
       const res = await fetchWithAuth(`${API_URL}/marketing/`);
       if (res.ok) {
         const data = await res.json();
         setCampaignPosts(data);
+        if (collapseIfHasData && data && data.length > 0) {
+          setIsGeneratorExpanded(false);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -249,6 +373,7 @@ export default function Home() {
           days: campaignDays,
           platforms: campaignPlatforms,
           text_provider: textProvider,
+          text_model: textModel,
           image_provider: imageProvider,
           video_provider: videoProvider,
           generate_images: generateImages,
@@ -259,7 +384,7 @@ export default function Home() {
       if (res.ok) {
         alert("30-Day Marketing Campaign has been scheduled for generation! You can monitor progress in the AI Activity Feed.");
         setCampaignTopic('');
-        fetchCampaignPosts();
+        fetchCampaignPosts(true);
       } else {
         alert(`Error: ${data.detail || 'Failed to trigger campaign'}`);
       }
@@ -384,6 +509,42 @@ export default function Home() {
     }
   };
 
+  const handleBulkSchedule = async () => {
+    if (!bulkStartDate || !bulkEndDate || !bulkPostingTime) {
+      alert("Please fill in all bulk scheduling details.");
+      return;
+    }
+    setBulkScheduling(true);
+    try {
+      const startDateTimeStr = `${bulkStartDate}T${bulkPostingTime}:00`;
+      const endDateTimeStr = `${bulkEndDate}T${bulkPostingTime}:00`;
+
+      const res = await fetchWithAuth(`${API_URL}/marketing/posts/bulk-schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start_date: new Date(startDateTimeStr).toISOString(),
+          end_date: new Date(endDateTimeStr).toISOString(),
+          posting_time: bulkPostingTime
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setIsBulkScheduleOpen(false);
+        fetchCampaignPosts();
+        fetchData();
+        alert(`✅ Campaign scheduled successfully!\n${data.message}`);
+      } else {
+        alert(`Error: ${data.detail || 'Failed to bulk schedule campaign'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Network error bulk scheduling campaign posts.");
+    } finally {
+      setBulkScheduling(false);
+    }
+  };
+
   const handleSavePostEdit = async (postId: string) => {
     try {
       const post = campaignPosts.find(p => p.id === postId);
@@ -396,15 +557,42 @@ export default function Home() {
           content: editingContent,
           image_url: editingImageUrl || null,
           video_url: editingVideoUrl || null,
-          scheduled_at: post.scheduled_at
+          scheduled_at: editingScheduledAt ? new Date(editingScheduledAt).toISOString() : null,
+          image_prompt: editingImagePrompt || null,
+          image_prompt_enabled: editingImagePromptEnabled,
+          video_prompt: editingVideoPrompt || null,
+          video_prompt_enabled: editingVideoPromptEnabled,
+          is_manual_media: editingIsManualMedia,
         })
       });
       if (res.ok) {
         setEditingPostId(null);
         fetchCampaignPosts();
+        fetchData();
+      } else {
+        const data = await res.json();
+        alert(`Error saving post: ${data.detail || 'Unknown error'}`);
       }
     } catch (e) {
       console.error(e);
+      alert("Network error saving post edits.");
+    }
+  };
+
+  const formatForDatetimeLocal = (dateStr: string | null) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '';
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const yyyy = d.getFullYear();
+      const mm = pad(d.getMonth() + 1);
+      const dd = pad(d.getDate());
+      const hh = pad(d.getHours());
+      const min = pad(d.getMinutes());
+      return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+    } catch (e) {
+      return '';
     }
   };
 
@@ -413,6 +601,631 @@ export default function Home() {
     setEditingContent(post.content);
     setEditingImageUrl(post.image_url || '');
     setEditingVideoUrl(post.video_url || '');
+    setEditingImagePrompt(post.image_prompt || '');
+    setEditingImagePromptEnabled(post.image_prompt_enabled || false);
+    setEditingVideoPrompt(post.video_prompt || '');
+    setEditingVideoPromptEnabled(post.video_prompt_enabled || false);
+    setEditingIsManualMedia(post.is_manual_media || false);
+    setEditingScheduledAt(formatForDatetimeLocal(post.scheduled_at));
+  };
+
+  const handleFileUpload = async (file: File, isEditing: boolean) => {
+    setUploadingFile(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetchWithAuth(`${API_URL}/marketing/upload-media`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        if (isEditing) {
+          if (file.type.startsWith('video/')) {
+            setEditingVideoUrl(data.url);
+            setEditingImageUrl('');
+          } else {
+            setEditingImageUrl(data.url);
+            setEditingVideoUrl('');
+          }
+          setEditingIsManualMedia(true);
+        } else {
+          if (file.type.startsWith('video/')) {
+            setCreatePostVideoUrl(data.url);
+            setCreatePostImageUrl('');
+          } else {
+            setCreatePostImageUrl(data.url);
+            setCreatePostVideoUrl('');
+          }
+          setCreatePostIsManualMedia(true);
+        }
+      } else {
+        alert(`Upload failed: ${data.detail || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Network error uploading file.");
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const handleGenerateMedia = async (postId: string, mediaType: 'image' | 'video', customPrompt: string) => {
+    if (!customPrompt) {
+      alert("Please enter a media prompt first.");
+      return;
+    }
+    setGeneratingMedia(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/marketing/posts/${postId}/generate-media`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          media_type: mediaType,
+          prompt: customPrompt,
+          provider: mediaType === 'video' ? videoProvider : imageProvider
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (mediaType === 'video') {
+          setEditingVideoUrl(data.video_url || '');
+          setEditingImageUrl('');
+          setEditingVideoPrompt(data.video_prompt || '');
+          setEditingVideoPromptEnabled(true);
+        } else {
+          setEditingImageUrl(data.image_url || '');
+          setEditingVideoUrl('');
+          setEditingImagePrompt(data.image_prompt || '');
+          setEditingImagePromptEnabled(true);
+        }
+        setEditingIsManualMedia(false);
+        fetchCampaignPosts();
+        alert("✅ Media successfully generated and updated via AI!");
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(`Media generation failed: ${errData.detail || data.detail || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Network error generating media.");
+    } finally {
+      setGeneratingMedia(false);
+    }
+  };
+
+  const handleSuggestPrompt = async (content: string, mediaType: 'image' | 'video', isEditing: boolean) => {
+    if (!content) {
+      alert("Please enter post content first so AI can suggest a matching prompt.");
+      return;
+    }
+    setSuggestingPrompt(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/marketing/suggest-prompt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, media_type: mediaType })
+      });
+      const data = await res.json();
+      if (res.ok && data.prompt) {
+        if (isEditing) {
+          if (mediaType === 'image') {
+            setEditingImagePrompt(data.prompt);
+            setEditingImagePromptEnabled(true);
+          } else {
+            setEditingVideoPrompt(data.prompt);
+            setEditingVideoPromptEnabled(true);
+          }
+        } else {
+          if (mediaType === 'image') {
+            setCreatePostImagePrompt(data.prompt);
+            setCreatePostImagePromptEnabled(true);
+          } else {
+            setCreatePostVideoPrompt(data.prompt);
+            setCreatePostVideoPromptEnabled(true);
+          }
+        }
+      } else {
+        alert(`Failed to suggest prompt: ${data.detail || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Network error suggesting prompt.");
+    } finally {
+      setSuggestingPrompt(false);
+    }
+  };
+
+  const renderPostCard = (post: any) => {
+    const isEditing = editingPostId === post.id;
+    const hasVideo = !!post.video_url;
+    const hasImage = !!post.image_url;
+
+    let platformColor = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+    let borderAccent = 'border-l-4 border-l-blue-500';
+    if (post.platform === 'instagram') {
+      platformColor = 'bg-pink-500/10 text-pink-400 border-pink-500/20';
+      borderAccent = 'border-l-4 border-l-pink-500';
+    } else if (post.platform === 'facebook') {
+      platformColor = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
+      borderAccent = 'border-l-4 border-l-indigo-500';
+    }
+
+    let statusColor = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+    if (post.approval_status === 'approved' || post.approval_status === 'scheduled') {
+      statusColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+    }
+    if (post.approval_status === 'published') {
+      statusColor = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+    }
+    if (post.approval_status === 'rejected') {
+      statusColor = 'bg-rose-500/10 text-rose-455 border-rose-500/20';
+    }
+
+    return (
+      <Card key={post.id} className={`glass-panel border-gray-800/80 hover:border-violet-500/40 hover:shadow-violet-500/10 transition-all duration-300 flex flex-col justify-between overflow-hidden rounded-2xl shadow-xl ${borderAccent} bg-gray-950/20`}>
+        <div>
+          {/* Card Header */}
+          <div className="flex items-center justify-between border-b border-gray-805 px-4 py-3 bg-gray-950/40">
+            <div className="flex items-center gap-2">
+              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase border ${platformColor}`}>
+                {post.platform}
+              </span>
+              <span className="text-xs font-extrabold text-gray-400">Day {post.day}</span>
+            </div>
+            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${statusColor}`}>
+              {post.approval_status}
+            </span>
+          </div>
+
+          {/* Card Body */}
+          <div className="p-4 space-y-4">
+            {isEditing ? (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-405 uppercase tracking-wider block">Post Text Content</label>
+                  <Textarea
+                    className="bg-gray-900/60 border-gray-850 text-white focus:border-violet-500 focus:ring-violet-500/20 rounded-xl text-sm min-h-[100px] mt-1"
+                    value={editingContent}
+                    onChange={e => setEditingContent(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-gray-405 uppercase tracking-wider block">Scheduled Date & Time</label>
+                  <Input
+                    type="datetime-local"
+                    className="bg-gray-900/60 border-gray-850 text-white focus:border-violet-500 rounded-xl text-sm mt-1"
+                    value={editingScheduledAt}
+                    onChange={e => setEditingScheduledAt(e.target.value)}
+                  />
+                </div>
+
+                {/* Upload Media Section */}
+                <div className="bg-gray-950/40 border border-gray-850 rounded-2xl p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-300">Media Content</span>
+                    <span className={`text-[9px] font-bold border px-2 py-0.5 rounded-full ${
+                      editingIsManualMedia 
+                        ? 'bg-emerald-500/10 text-emerald-450 border-emerald-500/20' 
+                        : 'bg-violet-500/10 text-violet-405 border-violet-500/20'
+                    }`}>
+                      {editingIsManualMedia ? "Manual Upload" : "AI Generated"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        id={`edit-image-upload-${post.id}`}
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileUpload(file, true);
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={uploadingFile}
+                        onClick={() => document.getElementById(`edit-image-upload-${post.id}`)?.click()}
+                        className="w-full h-9 rounded-xl text-xs border-gray-855 hover:bg-gray-800 hover:text-white bg-transparent flex items-center justify-center gap-1.5"
+                      >
+                        <ImageIcon size={13} className="text-violet-400" />
+                        {uploadingFile ? "Upload Image" : "Upload Image"}
+                      </Button>
+                    </div>
+
+                    <div>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        className="hidden"
+                        id={`edit-video-upload-${post.id}`}
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileUpload(file, true);
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={uploadingFile}
+                        onClick={() => document.getElementById(`edit-video-upload-${post.id}`)?.click()}
+                        className="w-full h-9 rounded-xl text-xs border-gray-855 hover:bg-gray-800 hover:text-white bg-transparent flex items-center justify-center gap-1.5"
+                      >
+                        <Film size={13} className="text-violet-400" />
+                        {uploadingFile ? "Upload Video" : "Upload Video"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Direct URLs inputs */}
+                  <div className="space-y-2 pt-1.5 border-t border-gray-850">
+                    <div>
+                      <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Direct Image URL</label>
+                      <Input
+                        type="text"
+                        placeholder="https://..."
+                        className="bg-gray-900/40 border-gray-855 text-white focus:border-violet-500 rounded-xl h-7 text-[11px] mt-0.5"
+                        value={editingImageUrl}
+                        onChange={e => {
+                          setEditingImageUrl(e.target.value);
+                          if (e.target.value) {
+                            setEditingVideoUrl('');
+                            setEditingIsManualMedia(false);
+                          }
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Direct Video URL</label>
+                      <Input
+                        type="text"
+                        placeholder="https://..."
+                        className="bg-gray-900/40 border-gray-855 text-white focus:border-violet-500 rounded-xl h-7 text-[11px] mt-0.5"
+                        value={editingVideoUrl}
+                        onChange={e => {
+                          setEditingVideoUrl(e.target.value);
+                          if (e.target.value) {
+                            setEditingImageUrl('');
+                            setEditingIsManualMedia(false);
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI Prompt Tool Selector */}
+                <div className="bg-gray-950/40 border border-gray-850 rounded-2xl p-3.5 space-y-3">
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-gray-305">Generation Prompt Options</label>
+                      <span className="text-[9px] text-gray-500">Save instructions locally</span>
+                    </div>
+                    <Select
+                      value={editingImagePromptEnabled ? "image" : editingVideoPromptEnabled ? "video" : "none"}
+                      onValueChange={(val) => {
+                        if (val === "image") {
+                          setEditingImagePromptEnabled(true);
+                          setEditingVideoPromptEnabled(false);
+                        } else if (val === "video") {
+                          setEditingImagePromptEnabled(false);
+                          setEditingVideoPromptEnabled(true);
+                        } else {
+                          setEditingImagePromptEnabled(false);
+                          setEditingVideoPromptEnabled(false);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-9 bg-gray-900/60 border-gray-850 text-white rounded-xl text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-gray-900 border-gray-850 text-white">
+                        <SelectItem value="none">None (No prompt attachment)</SelectItem>
+                        <SelectItem value="image">Image Prompt (For AI Graphics)</SelectItem>
+                        <SelectItem value="video">Video Prompt (For AI Video loops)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Image Prompt Section */}
+                  {editingImagePromptEnabled && (
+                    <div className="space-y-2 pt-2 border-t border-gray-900 animate-in fade-in duration-200">
+                      <label className="text-[10px] font-bold text-violet-400 uppercase tracking-wider block">Image Generation Prompt</label>
+                      <Textarea
+                        placeholder="Describe image to generate or click suggest"
+                        className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 focus:ring-violet-500/20 rounded-xl text-xs min-h-[60px]"
+                        value={editingImagePrompt}
+                        onChange={e => setEditingImagePrompt(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={suggestingPrompt}
+                          onClick={() => handleSuggestPrompt(editingContent || post.content, 'image', true)}
+                          className="flex-1 h-8 rounded-lg text-xs font-semibold border-gray-855 hover:bg-gray-800 hover:text-white bg-transparent text-gray-305 disabled:opacity-50"
+                        >
+                          {suggestingPrompt ? "Suggesting..." : "🪄 Suggest Prompt"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={generatingMedia || !editingImagePrompt}
+                          onClick={() => handleGenerateMedia(post.id, 'image', editingImagePrompt)}
+                          className="flex-1 h-8 rounded-lg text-xs font-semibold bg-violet-650 hover:bg-violet-600 text-white disabled:opacity-50"
+                        >
+                          {generatingMedia ? "Generating..." : "Generate AI Image"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Video Prompt Section */}
+                  {editingVideoPromptEnabled && (
+                    <div className="space-y-2 pt-2 border-t border-gray-900 animate-in fade-in duration-200">
+                      <label className="text-[10px] font-bold text-indigo-405 uppercase tracking-wider block">Video Generation Prompt</label>
+                      <Textarea
+                        placeholder="Describe video loop to generate or click suggest"
+                        className="bg-gray-900/60 border-gray-805 text-white focus:border-indigo-500 focus:ring-indigo-500/20 rounded-xl text-xs min-h-[60px]"
+                        value={editingVideoPrompt}
+                        onChange={e => setEditingVideoPrompt(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={suggestingPrompt}
+                          onClick={() => handleSuggestPrompt(editingContent || post.content, 'video', true)}
+                          className="flex-1 h-8 rounded-lg text-xs font-semibold border-gray-855 hover:bg-gray-800 hover:text-white bg-transparent text-gray-305 disabled:opacity-50"
+                        >
+                          {suggestingPrompt ? "Suggesting..." : "🪄 Suggest Prompt"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={generatingMedia || !editingVideoPrompt}
+                          onClick={() => handleGenerateMedia(post.id, 'video', editingVideoPrompt)}
+                          className="flex-1 h-8 rounded-lg text-xs font-semibold bg-indigo-650 hover:bg-indigo-600 text-white disabled:opacity-50"
+                        >
+                          {generatingMedia ? "Generating..." : "Generate AI Video"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-gray-305 whitespace-pre-wrap leading-relaxed">
+                  {post.content}
+                </p>
+                
+                {/* Visual preview */}
+                {hasVideo ? (
+                  <div className="relative rounded-xl overflow-hidden border border-gray-800/80 shadow-2xl group mt-3 aspect-video">
+                    <video
+                      src={post.video_url}
+                      controls
+                      loop
+                      muted
+                      className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+                    />
+                    <div className="absolute top-2.5 left-2.5 bg-black/75 text-white rounded-full px-2.5 py-1 text-[9px] font-bold flex items-center gap-1.5 border border-white/10 backdrop-blur-md">
+                      <Film size={10} className={post.is_manual_media ? "text-emerald-400" : "text-violet-405"} />
+                      {post.is_manual_media ? "Manual Video" : "AI Video Loop"}
+                    </div>
+                  </div>
+                ) : hasImage ? (
+                  post.image_url?.startsWith('error:') ? (
+                    <div className="rounded-xl border border-rose-955 bg-rose-950/20 px-4 py-3 flex items-start gap-3 mt-3 shadow-inner">
+                      <div className="text-rose-455 mt-0.5 shrink-0">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-rose-455 uppercase tracking-wider mb-0.5">Image Generation Error</p>
+                        <p className="text-[11px] text-rose-300 leading-relaxed">{post.image_url.replace(/^error:/, '')}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="relative rounded-xl overflow-hidden border border-gray-800/80 shadow-2xl group mt-3 aspect-video">
+                      <img
+                        src={post.image_url}
+                        alt="Graphic preview"
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                      <div className="absolute top-2.5 left-2.5 bg-black/75 text-white rounded-full px-2.5 py-1 text-[9px] font-bold flex items-center gap-1.5 border border-white/10 backdrop-blur-md">
+                        <ImageIcon size={10} className={post.is_manual_media ? "text-emerald-400" : "text-violet-405"} />
+                        {post.is_manual_media ? "Manual Graphic" : "AI Graphic"}
+                      </div>
+                    </div>
+                  )
+                ) : null}
+
+                {/* Local Attached Image Prompt Alert Section */}
+                {post.image_prompt_enabled && post.image_prompt && (
+                  <div className="mt-3.5 p-3 rounded-xl border border-violet-900/30 bg-violet-955/20 text-xs animate-in fade-in duration-200">
+                    <div className="flex items-center gap-1.5 text-violet-455 font-extrabold mb-1">
+                      <span>🖼️</span> Image Prompt (Local Only)
+                    </div>
+                    <p className="text-gray-305 italic text-[11px] leading-relaxed">"{post.image_prompt}"</p>
+                  </div>
+                )}
+
+                {/* Local Attached Video Prompt Alert Section */}
+                {post.video_prompt_enabled && post.video_prompt && (
+                  <div className="mt-3.5 p-3 rounded-xl border border-indigo-900/30 bg-indigo-955/20 text-xs animate-in fade-in duration-200">
+                    <div className="flex items-center gap-1.5 text-indigo-405 font-extrabold mb-1">
+                      <span>🎥</span> Video Prompt (Local Only)
+                    </div>
+                    <p className="text-gray-305 italic text-[11px] leading-relaxed">"{post.video_prompt}"</p>
+                  </div>
+                )}
+
+                {/* Scheduled Date/Time Badge */}
+                {post.scheduled_at && (
+                  <div className="mt-3.5 flex items-center gap-1.5 text-xs text-gray-300 bg-gray-900/60 border border-gray-800 px-3 py-2 rounded-xl">
+                    <Calendar size={12} className="text-violet-400" />
+                    <span>Scheduled: {new Date(post.scheduled_at).toLocaleString()}</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Card Footer Actions */}
+        <div className="border-t border-gray-850 px-4 py-3 bg-gray-950/30 flex gap-2 justify-end items-center min-h-[52px]">
+          {isEditing ? (
+            <>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => setEditingPostId(null)}
+                className="h-8 px-3.5 rounded-lg text-xs font-semibold text-gray-400 border-gray-855 hover:bg-gray-800 hover:text-white bg-transparent"
+              >
+                Cancel
+              </Button>
+              <Button 
+                size="sm" 
+                onClick={() => handleSavePostEdit(post.id)}
+                className="h-8 px-3.5 rounded-lg text-xs font-semibold bg-violet-650 hover:bg-violet-600 text-white"
+              >
+                Save Changes
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => startEditing(post)}
+                className="h-8 px-3 rounded-lg text-xs font-semibold text-gray-350 hover:bg-gray-850 hover:text-white border-gray-850 bg-transparent flex items-center gap-1"
+              >
+                <Edit2 size={11} /> Edit
+              </Button>
+              
+              {post.approval_status === 'pending' && (
+                <>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => handleRejectPost(post.id)}
+                    className="h-8 px-3 rounded-lg text-xs font-semibold text-rose-455 hover:bg-rose-955/20 border-rose-955 bg-transparent"
+                  >
+                    Reject
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    onClick={() => handleApprovePost(post.id)}
+                    className="h-8 px-3 rounded-lg text-xs font-semibold bg-emerald-650 hover:bg-emerald-600 text-white"
+                  >
+                    Approve
+                  </Button>
+                </>
+              )}
+
+              {(post.approval_status === 'approved' || post.approval_status === 'scheduled') && (
+                <>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => handleRejectPost(post.id)}
+                    className="h-8 px-3 rounded-lg text-xs font-semibold text-rose-455 hover:bg-rose-955/20 border-rose-955 bg-transparent"
+                  >
+                    Reject
+                  </Button>
+                  {(post.platform === 'instagram' || post.platform === 'facebook' || post.platform === 'linkedin') && (
+                    <Button
+                      size="sm"
+                      onClick={() => handlePublishNow(post.id)}
+                      disabled={publishingPostId === post.id}
+                      className="h-8 px-3 rounded-lg text-xs font-semibold bg-gradient-to-r from-pink-650 to-rose-650 hover:from-pink-600 hover:to-rose-600 text-white shadow-md shadow-pink-500/10 disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      {publishingPostId === post.id ? (
+                        <>
+                          <span className="animate-spin inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full" />
+                          Publishing...
+                        </>
+                      ) : (
+                        <>
+                          <Send size={11} />
+                          Publish Now
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </>
+              )}
+
+              {publishResult && publishingPostId === null && post.id === campaignPosts.find(p => p.approval_status === 'published')?.id && (
+                <span className={`text-[10px] font-semibold ${
+                  publishResult.success ? 'text-emerald-400' : 'text-rose-450'
+                }`}>
+                  {publishResult.message}
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      </Card>
+    );
+  };
+
+  const handleCreateManualPost = async () => {
+    if (!createPostContent) {
+      alert("Please enter post content.");
+      return;
+    }
+    setCreatingPost(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/marketing/posts/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: createPostPlatform,
+          content: createPostContent,
+          day: createPostDay,
+          image_url: createPostImageUrl || null,
+          video_url: createPostVideoUrl || null,
+          image_prompt: createPostImagePrompt || null,
+          image_prompt_enabled: createPostImagePromptEnabled,
+          video_prompt: createPostVideoPrompt || null,
+          video_prompt_enabled: createPostVideoPromptEnabled,
+          is_manual_media: createPostIsManualMedia,
+          scheduled_at: createPostScheduledAt ? new Date(createPostScheduledAt).toISOString() : null,
+        })
+      });
+      if (res.ok) {
+        setIsCreatePostOpen(false);
+        setCreatePostContent('');
+        setCreatePostImageUrl('');
+        setCreatePostVideoUrl('');
+        setCreatePostImagePrompt('');
+        setCreatePostImagePromptEnabled(false);
+        setCreatePostVideoPrompt('');
+        setCreatePostVideoPromptEnabled(false);
+        setCreatePostIsManualMedia(false);
+        setCreatePostScheduledAt('');
+        fetchCampaignPosts();
+        fetchData();
+        alert("✅ Manual post created successfully as draft!");
+      } else {
+        const data = await res.json();
+        alert(`Error: ${data.detail || 'Failed to create post'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Network error creating manual post.");
+    } finally {
+      setCreatingPost(false);
+    }
   };
 
   useEffect(() => {
@@ -568,6 +1381,178 @@ export default function Home() {
     }
   };
 
+  const fetchLeads = async () => {
+    if (!token) return;
+    setSalesLoading(true);
+    try {
+      const queryParams = new URLSearchParams();
+      if (salesStatusFilter && salesStatusFilter !== 'all') queryParams.append('status', salesStatusFilter);
+      if (salesPriorityFilter && salesPriorityFilter !== 'all') queryParams.append('priority', salesPriorityFilter);
+      if (salesSearch) queryParams.append('search', salesSearch);
+      if (salesTimeFilter && salesTimeFilter !== 'all') queryParams.append('time_filter', salesTimeFilter);
+
+      const res = await fetchWithAuth(`${API_URL}/leads/?${queryParams.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSalesLeads(data);
+        if (selectedLead) {
+          const updated = data.find((l: any) => l.id === selectedLead.id);
+          if (updated) {
+            setSelectedLead(updated);
+          }
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSalesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (appState === 'app') {
+      fetchLeads();
+    }
+  }, [salesStatusFilter, salesPriorityFilter, salesSearch, salesTimeFilter, appState]);
+
+  const handleSaveLead = async () => {
+    if (!selectedLead) return;
+    setSalesActionLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/${selectedLead.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editName,
+          company: editCompany,
+          personal_email: editPersonalEmail,
+          company_email: editCompanyEmail,
+          mobile_no: editMobileNo,
+          company_contact_no: editCompanyContactNo,
+          need_of_what: editNeedOfWhat,
+          how_much: editHowMuch,
+          why: editWhy,
+          target_context: editTargetContext,
+          priority: editPriority,
+          status: editStatus
+        })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setSelectedLead(updated);
+        setIsEditingSalesLead(false);
+        fetchLeads();
+        fetchData();
+      } else {
+        alert('Failed to save lead updates');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSalesActionLoading(false);
+    }
+  };
+
+  const handleSendSalesOutreach = async (leadId: string) => {
+    setSalesActionLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/${leadId}/outreach`, {
+        method: 'POST'
+      });
+      if (res.ok) {
+        alert('Sales outreach email sent and recorded in conversation history!');
+        fetchLeads();
+        fetchData();
+      } else {
+        alert('Failed to send sales outreach');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSalesActionLoading(false);
+    }
+  };
+
+  const handleBookSalesMeeting = async (leadId: string) => {
+    setSalesActionLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/${leadId}/schedule_meeting`, {
+        method: 'POST'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Sales meeting successfully scheduled for ${data.meeting_time}! Meet link: ${data.meeting_link}`);
+        fetchLeads();
+        fetchData();
+      } else {
+        alert('Failed to book meeting');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSalesActionLoading(false);
+    }
+  };
+
+  const handleLogHumanUpdate = async () => {
+    if (!selectedLead || !noteText.trim()) return;
+    setSalesActionLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/${selectedLead.id}/timeline-note`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: noteText,
+          channel: noteChannel,
+          direction: noteDirection
+        })
+      });
+      if (res.ok) {
+        setNoteText('');
+        fetchLeads();
+        fetchData();
+      } else {
+        alert('Failed to log human update');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Network error logging human update');
+    } finally {
+      setSalesActionLoading(false);
+    }
+  };
+
+  const handleUploadLeads = async () => {
+    if (!uploadFile) return;
+    setUploadingLeads(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('handle_with_ai', String(uploadWithAI));
+
+      const res = await fetchWithAuth(`${API_URL}/leads/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setIsUploadModalOpen(false);
+        setUploadFile(null);
+        setUploadWithAI(false);
+        fetchLeads();
+        fetchData();
+        alert(`✅ Leads imported successfully!\n${data.message}`);
+      } else {
+        alert(`Error uploading leads: ${data.detail || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Network error uploading leads.");
+    } finally {
+      setUploadingLeads(false);
+    }
+  };
+
   const handleSourceCandidates = async () => {
     if (!hrRole || !hrRequirements) return;
     setHrLoading(true);
@@ -689,10 +1674,11 @@ export default function Home() {
   useEffect(() => {
     if (appState === 'app') {
       fetchData();
-      fetchCampaignPosts();
+      fetchCampaignPosts(true);
       fetchTickets();
       fetchSupportSettings();
       fetchCandidates();
+      fetchLeads();
       fetchMeetings();
       fetchOptimizationMetrics();
       const interval = setInterval(() => {
@@ -700,12 +1686,182 @@ export default function Home() {
         fetchCampaignPosts();
         fetchTickets();
         fetchCandidates();
+        fetchLeads();
         fetchMeetings();
         fetchOptimizationMetrics();
       }, 5000);
       return () => clearInterval(interval);
     }
   }, [appState, token]);
+
+  // AI Teams Upgraded Helper Functions
+  const handleCreateTeam = async () => {
+    if (!teamFormName.trim() || teamFormAgents.length === 0) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/dashboard/teams`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: teamFormName,
+          agents: teamFormAgents,
+          config: {}
+        })
+      });
+      if (res.ok) {
+        setIsCreateTeamOpen(false);
+        setTeamFormName('');
+        setTeamFormAgents([]);
+        const tmRes = await fetchWithAuth(`${API_URL}/dashboard/teams`);
+        if (tmRes.ok) setTeams(await tmRes.json());
+      }
+    } catch (err) {
+      console.error("Failed to create team:", err);
+    }
+  };
+
+  const handleUpdateTeam = async () => {
+    if (!editingTeamId || !teamFormName.trim() || teamFormAgents.length === 0) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/dashboard/teams/${editingTeamId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: teamFormName,
+          agents: teamFormAgents
+        })
+      });
+      if (res.ok) {
+        setIsEditTeamOpen(false);
+        setTeamFormName('');
+        setTeamFormAgents([]);
+        setEditingTeamId(null);
+        const tmRes = await fetchWithAuth(`${API_URL}/dashboard/teams`);
+        if (tmRes.ok) setTeams(await tmRes.json());
+      }
+    } catch (err) {
+      console.error("Failed to update team:", err);
+    }
+  };
+
+  const handleDeleteTeam = async (teamId: string) => {
+    if (!confirm("Are you sure you want to delete this AI Team?")) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/dashboard/teams/${teamId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        const tmRes = await fetchWithAuth(`${API_URL}/dashboard/teams`);
+        if (tmRes.ok) setTeams(await tmRes.json());
+      }
+    } catch (err) {
+      console.error("Failed to delete team:", err);
+    }
+  };
+
+  const handleSaveAgentConfig = async () => {
+    if (!configAgentTeamId || !configAgentName) return;
+    setSavingConfigLoading(true);
+    try {
+      const team = teams.find(t => t.id === configAgentTeamId);
+      if (!team) return;
+      
+      const newConfig = {
+        ...(team.config || {}),
+        [configAgentName]: {
+          provider: configAgentProvider,
+          model: configAgentModel,
+          instructions: configAgentInstructions
+        }
+      };
+      
+      const res = await fetchWithAuth(`${API_URL}/dashboard/teams/${configAgentTeamId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          config: newConfig
+        })
+      });
+      
+      if (res.ok) {
+        const tmRes = await fetchWithAuth(`${API_URL}/dashboard/teams`);
+        if (tmRes.ok) setTeams(await tmRes.json());
+        setConfigAgentName(null);
+        setConfigAgentTeamId(null);
+        setConfigAgentInstructions('');
+      }
+    } catch (err) {
+      console.error("Failed to save agent config:", err);
+    } finally {
+      setSavingConfigLoading(false);
+    }
+  };
+
+  const handleTestAgent = async () => {
+    if (!testAgentName || !testInput.trim()) return;
+    setTestAgentLoading(true);
+    setTestResponse('');
+    try {
+      const team = teams.find(t => t.id === testAgentTeamId);
+      const agentConfig = team?.config?.[testAgentName] || {};
+      
+      const res = await fetchWithAuth(`${API_URL}/dashboard/teams/test-agent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent_name: testAgentName,
+          message: testInput,
+          provider: agentConfig.provider || 'gemini',
+          model: agentConfig.model || 'gemini-2.5-flash',
+          custom_instructions: agentConfig.instructions || ''
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTestResponse(data.response);
+      } else {
+        const errData = await res.json();
+        setTestResponse(`Error: ${errData.detail || 'Failed to get response.'}`);
+      }
+    } catch (err) {
+      setTestResponse(`Error: ${err}`);
+    } finally {
+      setTestAgentLoading(false);
+    }
+  };
+
+  // Orchestrator chat: load from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('orchestrator_chat_messages');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.length > 0) {
+            setOrchMessages(parsed);
+            return;
+          }
+        } catch (_e) { /* ignore parse errors */ }
+      }
+      setOrchMessages([{
+        id: 'welcome',
+        role: 'assistant',
+        content: "Welcome to the Orchestrator AI Console. I coordinate your Marketing, Sales, Support, and HR teams to accomplish complex business goals.\n\nTell me what you'd like to achieve, or click a suggested prompt below.",
+        timestamp: new Date().toISOString()
+      }]);
+    }
+  }, []);
+
+  // Persist orchestrator chat to localStorage
+  useEffect(() => {
+    if (orchMessages.length > 0) {
+      localStorage.setItem('orchestrator_chat_messages', JSON.stringify(orchMessages));
+    }
+  }, [orchMessages]);
+
+  // Auto-scroll orchestrator chat to bottom
+  useEffect(() => {
+    orchChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [orchMessages, loading]);
 
   useEffect(() => {
     if (!selectedTicketId || !token) return;
@@ -728,20 +1884,27 @@ export default function Home() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_URL}/auth/signup`, {
+      const res = await fetch(`${API_URL}/auth/signup/initiate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, company_name: companyName })
+        body: JSON.stringify({
+          name: fullName,
+          email,
+          phone_no: phoneNo,
+          company: companyName || null,
+          company_website: companyWebsite || null,
+          company_email: companyEmail || null,
+          company_address: companyAddress || null,
+          password
+        })
       });
       const data = await res.json();
       if (res.ok) {
-        localStorage.setItem('token', data.access_token);
-        setToken(data.access_token);
-        if (data.tenant_id) {
-          localStorage.setItem('tenant_id', data.tenant_id);
-          setTenantId(data.tenant_id);
-        }
-        setAppState('app');
+        setTempEmail(email);
+        setOtpSent(true);
+        setOtpMethod('signup');
+        setOtpTimer(60);
+        setOtp('');
       } else {
         alert(data.detail || "Signup failed");
       }
@@ -754,14 +1917,35 @@ export default function Home() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const formData = new URLSearchParams();
-      formData.append('username', email);
-      formData.append('password', password);
-      
-      const res = await fetch(`${API_URL}/auth/login`, {
+      const res = await fetch(`${API_URL}/auth/login/initiate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData.toString()
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTempEmail(email);
+        setOtpSent(true);
+        setOtpMethod('login');
+        setOtpTimer(60);
+        setOtp('');
+      } else {
+        alert(data.detail || "Login failed");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Failed to connect to the backend server. Please verify that the backend is running at " + API_URL);
+    }
+  };
+
+  const handleOtpVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const endpoint = otpMethod === 'signup' ? 'signup/verify' : 'login/verify';
+    try {
+      const res = await fetch(`${API_URL}/auth/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: tempEmail, otp })
       });
       const data = await res.json();
       if (res.ok) {
@@ -771,13 +1955,47 @@ export default function Home() {
           localStorage.setItem('tenant_id', data.tenant_id);
           setTenantId(data.tenant_id);
         }
+        // Reset states
+        setOtpSent(false);
+        setOtp('');
+        setTempEmail('');
+        setFullName('');
+        setPhoneNo('');
+        setCompanyName('');
+        setCompanyWebsite('');
+        setCompanyEmail('');
+        setCompanyAddress('');
+        setEmail('');
+        setPassword('');
         setAppState('app');
       } else {
-        alert(data.detail || "Login failed");
+        alert(data.detail || "OTP verification failed");
       }
     } catch (e) {
       console.error(e);
-      alert("Failed to connect to the backend server. Please verify that the backend is running at " + API_URL);
+      alert("Error during OTP verification");
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (otpTimer > 0) return;
+    const endpoint = otpMethod === 'signup' ? 'signup/resend-otp' : 'login/resend-otp';
+    try {
+      const res = await fetch(`${API_URL}/auth/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: tempEmail })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("A new OTP code has been sent to " + tempEmail);
+        setOtpTimer(60);
+      } else {
+        alert(data.detail || "Failed to resend OTP");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error resending OTP");
     }
   };
 
@@ -790,26 +2008,64 @@ export default function Home() {
   };
 
   const handleRunCommand = async () => {
-    if (!prompt) return;
+    const inputText = orchInput.trim() || prompt.trim();
+    if (!inputText) return;
+
+    const userMsg = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: inputText,
+      timestamp: new Date().toISOString()
+    };
+    setOrchMessages(prev => [...prev, userMsg]);
+    setOrchInput('');
+    setPrompt('');
     setLoading(true);
+
     try {
       const res = await fetchWithAuth(`${API_URL}/commands/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, provider: orchProvider, model: orchModel })
+        body: JSON.stringify({ prompt: inputText, provider: orchProvider, model: orchModel })
       });
       const data = await res.json();
+
+      const assistantMsg = {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: data.results?.map((r: any) => r.message || r.status).join('\n') || 'Task delegated to agents.',
+        plan: data.plan,
+        results: data.results,
+        timestamp: new Date().toISOString()
+      };
+      setOrchMessages(prev => [...prev, assistantMsg]);
+
       if (res.ok) {
-        setPrompt('');
         fetchData();
-      } else {
-        alert(`Error: ${data.detail || 'Failed to execute command'}`);
       }
     } catch (e) {
       console.error(e);
+      const errorMsg = {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: 'Sorry, I encountered an error processing your request. Please try again.',
+        timestamp: new Date().toISOString()
+      };
+      setOrchMessages(prev => [...prev, errorMsg]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const clearOrchestratorChat = () => {
+    const welcome = [{
+      id: 'welcome',
+      role: 'assistant',
+      content: "Welcome to the Orchestrator AI Console. I coordinate your Marketing, Sales, Support, and HR teams to accomplish complex business goals.\n\nTell me what you'd like to achieve, or click a suggested prompt below.",
+      timestamp: new Date().toISOString()
+    }];
+    setOrchMessages(welcome);
+    localStorage.setItem('orchestrator_chat_messages', JSON.stringify(welcome));
   };
 
   const addKnowledge = async () => {
@@ -824,6 +2080,52 @@ export default function Home() {
       fetchData();
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const uploadKnowledgeFile = async () => {
+    if (!kbFile) return;
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', kbFile);
+      formData.append('department', kbDept);
+      formData.append('doc_type', kbType);
+
+      const res = await fetchWithAuth(`${API_URL}/commands/knowledge/upload`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (res.ok) {
+        setKbFile(null);
+        fetchData();
+      } else {
+        const errorData = await res.json();
+        alert(errorData.detail || "Failed to upload document");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error uploading document");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const deleteKnowledge = async (docId: string) => {
+    if (!confirm("Are you sure you want to delete this document from the knowledge base?")) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/commands/knowledge/${docId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        fetchData();
+      } else {
+        alert("Failed to delete document");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error deleting document");
     }
   };
 
@@ -1388,6 +2690,80 @@ export default function Home() {
 
   // LOGIN VIEW
   if (appState === 'login') {
+    if (otpSent) {
+      return (
+        <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
+          {/* Ambient background glows */}
+          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[rgba(139,92,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[rgba(59,130,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
+
+          <Card className="w-full max-w-md glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl">
+            <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
+            <CardHeader className="space-y-2 pt-8">
+              <div className="flex justify-center mb-2">
+                <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-2.5 rounded-xl shadow-lg shadow-violet-500/20">
+                  <Zap className="text-white fill-white h-5 w-5 animate-pulse" />
+                </div>
+              </div>
+              <CardTitle className="text-2xl text-center text-white font-extrabold tracking-tight">Security Verification</CardTitle>
+              <CardDescription className="text-center text-gray-400 text-xs">
+                We sent a 6-digit verification code to <strong className="text-violet-300">{tempEmail}</strong>.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 pb-8">
+              <form onSubmit={handleOtpVerify} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-400">One-Time Passcode</label>
+                  <Input 
+                    placeholder="e.g. 123456" 
+                    value={otp} 
+                    onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} 
+                    required 
+                    maxLength={6}
+                    pattern="\d{6}"
+                    inputMode="numeric"
+                    className="bg-gray-900/60 border-gray-800 text-white rounded-xl text-center tracking-widest text-lg font-bold focus:border-violet-500 focus:ring-violet-500/20"
+                  />
+                </div>
+                <button 
+                  className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all hover:scale-[1.02] active:scale-95 mt-2 cursor-pointer flex justify-center items-center" 
+                  type="submit"
+                >
+                  Verify & Log In
+                </button>
+                <div className="flex flex-col items-center gap-2 mt-4 text-xs">
+                  <div className="text-gray-400">
+                    {otpTimer > 0 ? (
+                      <span>Resend OTP in <span className="text-violet-400 font-bold">{otpTimer}s</span></span>
+                    ) : (
+                      <button 
+                        type="button" 
+                        onClick={handleResendOtp}
+                        className="text-violet-400 hover:text-violet-300 font-bold transition-colors cursor-pointer hover:underline"
+                      >
+                        Resend OTP Code
+                      </button>
+                    )}
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setOtpSent(false);
+                      setOtp('');
+                    }}
+                    className="text-gray-500 hover:text-gray-400 transition-colors mt-2 underline"
+                  >
+                    Back to login details
+                  </button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
         {/* Ambient background glows */}
@@ -1434,7 +2810,7 @@ export default function Home() {
                 className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all hover:scale-[1.02] active:scale-95 mt-2 cursor-pointer flex justify-center items-center" 
                 type="submit"
               >
-                Log In
+                Send Verification OTP
               </button>
               <div className="text-center text-xs mt-4 text-gray-400">
                 Don't have an account? <span className="text-violet-400 hover:text-violet-300 cursor-pointer font-bold transition-colors" onClick={() => setAppState('signup')}>Sign up</span>
@@ -1448,14 +2824,88 @@ export default function Home() {
 
   // SIGNUP VIEW
   if (appState === 'signup') {
+    if (otpSent) {
+      return (
+        <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
+          {/* Ambient background glows */}
+          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[rgba(139,92,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[rgba(59,130,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
+
+          <Card className="w-full max-w-md glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl">
+            <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
+            <CardHeader className="space-y-2 pt-8">
+              <div className="flex justify-center mb-2">
+                <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-2.5 rounded-xl shadow-lg shadow-violet-500/20">
+                  <Zap className="text-white fill-white h-5 w-5 animate-pulse" />
+                </div>
+              </div>
+              <CardTitle className="text-2xl text-center text-white font-extrabold tracking-tight">Verify registration</CardTitle>
+              <CardDescription className="text-center text-gray-400 text-xs">
+                We sent a 6-digit verification code to <strong className="text-violet-300">{tempEmail}</strong>.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 pb-8">
+              <form onSubmit={handleOtpVerify} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-400">One-Time Passcode</label>
+                  <Input 
+                    placeholder="e.g. 123456" 
+                    value={otp} 
+                    onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} 
+                    required 
+                    maxLength={6}
+                    pattern="\d{6}"
+                    inputMode="numeric"
+                    className="bg-gray-900/60 border-gray-800 text-white rounded-xl text-center tracking-widest text-lg font-bold focus:border-violet-500 focus:ring-violet-500/20"
+                  />
+                </div>
+                <button 
+                  className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all hover:scale-[1.02] active:scale-95 mt-2 cursor-pointer flex justify-center items-center" 
+                  type="submit"
+                >
+                  Complete Setup
+                </button>
+                <div className="flex flex-col items-center gap-2 mt-4 text-xs">
+                  <div className="text-gray-400">
+                    {otpTimer > 0 ? (
+                      <span>Resend OTP in <span className="text-violet-400 font-bold">{otpTimer}s</span></span>
+                    ) : (
+                      <button 
+                        type="button" 
+                        onClick={handleResendOtp}
+                        className="text-violet-400 hover:text-violet-300 font-bold transition-colors cursor-pointer hover:underline"
+                      >
+                        Resend OTP Code
+                      </button>
+                    )}
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setOtpSent(false);
+                      setOtp('');
+                    }}
+                    className="text-gray-500 hover:text-gray-400 transition-colors mt-2 underline"
+                  >
+                    Back to registration details
+                  </button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
     return (
-      <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
+      <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans flex flex-col justify-center items-center px-4 py-8">
         {/* Ambient background glows */}
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[rgba(139,92,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[rgba(59,130,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
 
-        <Card className="w-full max-w-md glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl">
+        <Card className="w-full max-w-2xl glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl">
           <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
           <CardHeader className="space-y-2 pt-8">
             <div className="flex justify-center mb-2">
@@ -1464,49 +2914,119 @@ export default function Home() {
               </div>
             </div>
             <CardTitle className="text-2xl text-center text-white font-extrabold tracking-tight">Create your workspace</CardTitle>
-            <CardDescription className="text-center text-gray-400 text-xs">Deploy your autonomous workforce in seconds.</CardDescription>
+            <CardDescription className="text-center text-gray-400 text-xs font-semibold">Deploy your autonomous workforce in seconds.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 pb-8">
-            <form onSubmit={handleSignup} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-400">Company Name</label>
-                <Input 
-                  placeholder="e.g. Acme Corp" 
-                  value={companyName} 
-                  onChange={e => setCompanyName(e.target.value)} 
-                  required 
-                  className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
-                />
+            <form onSubmit={handleSignup} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Personal Info */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-violet-400 border-b border-violet-500/10 pb-1.5 flex items-center gap-1.5">
+                    <Zap size={14} className="fill-violet-400" /> Account Owner Info
+                  </h3>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-400">Full Name *</label>
+                    <Input 
+                      placeholder="John Doe" 
+                      value={fullName} 
+                      onChange={e => setFullName(e.target.value)} 
+                      required 
+                      className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-400">Email Address *</label>
+                    <Input 
+                      placeholder="name@company.com" 
+                      type="email" 
+                      value={email} 
+                      onChange={e => setEmail(e.target.value)} 
+                      required 
+                      className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-400">Phone Number *</label>
+                    <Input 
+                      placeholder="+1 (555) 000-0000" 
+                      type="tel"
+                      value={phoneNo} 
+                      onChange={e => setPhoneNo(e.target.value)} 
+                      required 
+                      className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-400">Password *</label>
+                    <Input 
+                      placeholder="••••••••" 
+                      type="password" 
+                      value={password} 
+                      onChange={e => setPassword(e.target.value)} 
+                      required 
+                      className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    />
+                  </div>
+                </div>
+
+                {/* Company Info */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-emerald-400 border-b border-emerald-500/10 pb-1.5 flex items-center gap-1.5">
+                    <Zap size={14} className="fill-emerald-400" /> Company Profile
+                  </h3>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-400">Company Name</label>
+                    <Input 
+                      placeholder="Acme Corp" 
+                      value={companyName} 
+                      onChange={e => setCompanyName(e.target.value)} 
+                      className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-400">Company Website</label>
+                    <Input 
+                      placeholder="https://acme.com" 
+                      type="url"
+                      value={companyWebsite} 
+                      onChange={e => setCompanyWebsite(e.target.value)} 
+                      className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-400">Company Email</label>
+                    <Input 
+                      placeholder="info@acme.com" 
+                      type="email"
+                      value={companyEmail} 
+                      onChange={e => setCompanyEmail(e.target.value)} 
+                      className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-400">Company Address</label>
+                    <Input 
+                      placeholder="123 Business Rd, Suite 100" 
+                      value={companyAddress} 
+                      onChange={e => setCompanyAddress(e.target.value)} 
+                      className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    />
+                  </div>
+                </div>
+
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-400">Email Address</label>
-                <Input 
-                  placeholder="name@company.com" 
-                  type="email" 
-                  value={email} 
-                  onChange={e => setEmail(e.target.value)} 
-                  required 
-                  className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
-                />
+
+              <div className="pt-2">
+                <button 
+                  className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all hover:scale-[1.01] active:scale-95 cursor-pointer flex justify-center items-center text-sm" 
+                  type="submit"
+                >
+                  Send Verification OTP
+                </button>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-400">Password</label>
-                <Input 
-                  placeholder="••••••••" 
-                  type="password" 
-                  value={password} 
-                  onChange={e => setPassword(e.target.value)} 
-                  required 
-                  className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
-                />
-              </div>
-              <button 
-                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all hover:scale-[1.02] active:scale-95 mt-2 cursor-pointer flex justify-center items-center" 
-                type="submit"
-              >
-                Sign Up
-              </button>
-              <div className="text-center text-xs mt-4 text-gray-400">
+
+              <div className="text-center text-xs text-gray-400">
                 Already have an account? <span className="text-violet-400 hover:text-violet-300 cursor-pointer font-bold transition-colors" onClick={() => setAppState('login')}>Log in</span>
               </div>
             </form>
@@ -1536,7 +3056,9 @@ export default function Home() {
         <nav className="flex flex-col gap-1.5 flex-1">
           {[
             { id: 'dashboard', name: 'Operating Dashboard', icon: <BarChart3 size={18} />, color: 'hover:text-violet-400 active-glow-violet' },
+            { id: 'knowledge', name: 'Knowledge Base', icon: <FileText size={18} />, color: 'hover:text-violet-400 active-glow-violet' },
             { id: 'campaigns', name: 'Campaign Planner', icon: <Calendar size={18} />, color: 'hover:text-indigo-400 active-glow-indigo' },
+            { id: 'sales', name: 'Sales CRM', icon: <TrendingUp size={18} />, color: 'hover:text-emerald-400 active-glow-emerald' },
             { id: 'support', name: 'Customer Support', icon: <MessageSquare size={18} />, color: 'hover:text-blue-400 active-glow-blue' },
             { id: 'coordination', name: 'Agent Boardroom', icon: <Users size={18} />, color: 'hover:text-amber-400 active-glow-amber' },
             { id: 'orchestrator', name: 'Orchestrator AI', icon: <Activity size={18} />, color: 'hover:text-purple-400 active-glow-purple' },
@@ -1624,46 +3146,298 @@ export default function Home() {
             </DialogContent>
           </Dialog>
 
-           <Dialog>
-            <DialogTrigger render={<Button variant="secondary" className="bg-[rgba(255,255,255,0.04)] border border-gray-700/60 hover:bg-gray-800 text-gray-300" />}>Knowledge Base</DialogTrigger>
-            <DialogContent className="max-w-2xl glass-panel border-violet-500/20 text-white rounded-3xl">
-              <DialogHeader><DialogTitle className="text-white font-extrabold text-xl">Company Knowledge Base</DialogTitle></DialogHeader>
-              <div className="flex flex-col gap-4 py-4">
-                <div className="flex gap-4">
-                  <Select value={kbDept} onValueChange={(val) => val && setKbDept(val)}>
-                    <SelectTrigger className="w-[180px] bg-gray-900/60 border-gray-800 text-white"><SelectValue placeholder="Department" /></SelectTrigger>
-                    <SelectContent className="bg-gray-900 border-gray-800 text-white">
-                      <SelectItem value="General">General</SelectItem>
-                      <SelectItem value="Marketing">Marketing</SelectItem>
-                      <SelectItem value="Sales">Sales</SelectItem>
-                      <SelectItem value="HR">HR</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={kbType} onValueChange={(val) => val && setKbType(val)}>
-                    <SelectTrigger className="w-[180px] bg-gray-900/60 border-gray-800 text-white"><SelectValue placeholder="Doc Type" /></SelectTrigger>
-                    <SelectContent className="bg-gray-900 border-gray-800 text-white">
-                      <SelectItem value="Brand Guidelines">Brand</SelectItem>
-                      <SelectItem value="FAQ">FAQ</SelectItem>
-                      <SelectItem value="Pricing">Pricing</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Textarea 
-                  placeholder="Paste context here..." 
-                  value={kbContent} 
-                  onChange={e => setKbContent(e.target.value)} 
-                  className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 focus:ring-violet-500/20 min-h-[120px]"
-                />
-                <Button onClick={addKnowledge} className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold">Add to Knowledge Base</Button>
-                <div className="mt-2 text-xs text-gray-400">{knowledge.length} documents stored.</div>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button 
+            variant="secondary" 
+            onClick={() => setActiveView('knowledge')}
+            className="bg-[rgba(255,255,255,0.04)] border border-gray-700/60 hover:bg-gray-800 text-gray-300"
+          >
+            🧠 Knowledge Base
+          </Button>
         </header>
 
         {/* Scrollable View Area */}
         <main className="flex-1 overflow-auto p-8 relative z-10">
           
+          {/* VIEW: KNOWLEDGE BASE */}
+          {activeView === 'knowledge' && (
+            <div className="space-y-6 max-w-7xl mx-auto h-[calc(100vh-140px)] flex flex-col">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-shrink-0">
+                <div>
+                  <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-3">
+                    🧠 Company Knowledge Base
+                  </h1>
+                  <p className="text-gray-400 mt-1">
+                    Upload files or paste raw text context. Deployed AI agents read these resources to formulate answers, target marketing posts, and score candidates.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-12 gap-8 items-stretch bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-3xl p-6 md:p-8 shadow-2xl glass-panel relative overflow-hidden">
+                {/* Left Column: Stored Contexts list */}
+                <div className="md:col-span-5 flex flex-col space-y-4 border-r border-gray-800/80 pr-6 min-h-0 h-full">
+                  <div className="flex items-center justify-between flex-shrink-0">
+                    <h3 className="text-sm font-bold text-gray-300">Stored Contexts ({knowledge.length})</h3>
+                  </div>
+
+                  {/* Search bar */}
+                  <div className="relative flex-shrink-0">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
+                    <Input
+                      placeholder="Search files..."
+                      value={kbSearch}
+                      onChange={e => setKbSearch(e.target.value)}
+                      className="pl-9 bg-gray-950/60 border-gray-800 text-xs text-white rounded-xl placeholder-gray-500 focus:border-violet-500 focus:ring-violet-500/20"
+                    />
+                  </div>
+
+                  {/* Document list */}
+                  <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar min-h-0">
+                    {knowledge
+                      .filter(doc => {
+                        const title = doc.content.startsWith("Source Document: ") 
+                          ? doc.content.match(/^Source Document: ([^\n]+)/)?.[1] || doc.doc_type 
+                          : doc.doc_type;
+                        const matchSearch = (title + ' ' + doc.content + ' ' + doc.department).toLowerCase().includes(kbSearch.toLowerCase());
+                        return matchSearch;
+                      })
+                      .map(doc => {
+                        const isFile = doc.content.startsWith("Source Document: ");
+                        const fileName = isFile 
+                          ? doc.content.match(/^Source Document: ([^\n]+)/)?.[1] || "Uploaded File"
+                          : null;
+                        return (
+                          <div 
+                            key={doc.id} 
+                            className="group flex items-start justify-between gap-3 p-3 bg-gray-900/40 hover:bg-gray-900/80 border border-gray-800/50 hover:border-gray-800 rounded-xl transition-all duration-200"
+                          >
+                            <div className="flex items-start gap-2.5 min-w-0">
+                              <div className={`mt-0.5 p-1.5 rounded-lg ${
+                                doc.doc_type === 'Prompt Directives'
+                                  ? 'bg-amber-500/10 text-amber-400'
+                                  : 'bg-violet-500/10 text-violet-400'
+                              }`}>
+                                {doc.doc_type === 'Prompt Directives' ? <Cpu size={14} /> : <FileText size={14} />}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-white truncate max-w-[160px]" title={fileName || doc.doc_type}>
+                                  {fileName || doc.doc_type}
+                                </p>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-950 border border-gray-800/60 text-gray-400">
+                                    {doc.department}
+                                  </span>
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                    doc.doc_type === "Prompt Directives"
+                                      ? "bg-amber-950/25 border border-amber-900/35 text-amber-400"
+                                      : isFile 
+                                        ? "bg-violet-950/20 border border-violet-900/30 text-violet-400" 
+                                        : "bg-blue-950/20 border border-blue-900/30 text-blue-400"
+                                  }`}>
+                                    {doc.doc_type === "Prompt Directives" ? "AI Directive" : isFile ? "File Upload" : "Raw Text"}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => deleteKnowledge(doc.id)}
+                              className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-rose-400 hover:bg-rose-950/20 rounded transition-all"
+                              title="Delete context"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    
+                    {knowledge.length === 0 && (
+                      <div className="text-center py-12 border border-dashed border-gray-800 rounded-xl text-gray-500 text-xs">
+                        No guidelines stored yet.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Column: Add Knowledge Form */}
+                <div className="md:col-span-7 flex flex-col space-y-4 min-h-0 h-full">
+                  <div className="flex items-center justify-between border-b border-gray-800/80 pb-2 flex-shrink-0">
+                    <h3 className="text-sm font-bold text-white">Add Knowledge Source</h3>
+                    
+                    {/* Tab controls */}
+                    <div className="flex bg-gray-950/60 p-0.5 border border-gray-800 rounded-lg">
+                      <button
+                        onClick={() => {
+                          setKbTab('upload');
+                          if (kbType === 'Prompt Directives') {
+                            setKbType('Brand Guidelines');
+                          }
+                        }}
+                        className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
+                          kbTab === 'upload' 
+                            ? 'bg-violet-600 text-white shadow-sm' 
+                            : 'text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        File Upload
+                      </button>
+                      <button
+                        onClick={() => {
+                          setKbTab('text');
+                          if (kbType === 'Prompt Directives') {
+                            setKbType('Brand Guidelines');
+                          }
+                        }}
+                        className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
+                          kbTab === 'text' 
+                            ? 'bg-violet-600 text-white shadow-sm' 
+                            : 'text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        Manual Text
+                      </button>
+                      <button
+                        onClick={() => {
+                          setKbTab('directives');
+                          setKbType('Prompt Directives');
+                        }}
+                        className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
+                          kbTab === 'directives' 
+                            ? 'bg-amber-600 text-white shadow-sm' 
+                            : 'text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        AI Directives
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Department & Doc Type selectors */}
+                  <div className="grid grid-cols-2 gap-4 flex-shrink-0">
+                    <div className={`space-y-1 ${kbTab === 'directives' ? 'col-span-2' : ''}`}>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Target Department</label>
+                      <Select value={kbDept} onValueChange={(val) => val && setKbDept(val)}>
+                        <SelectTrigger className="w-full bg-gray-900/60 border-gray-800 text-xs text-white">
+                          <SelectValue placeholder="Department" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                          <SelectItem value="General">General / All Teams</SelectItem>
+                          <SelectItem value="Marketing">Marketing AI</SelectItem>
+                          <SelectItem value="Sales">Sales CRM</SelectItem>
+                          <SelectItem value="HR">Hiring & HR</SelectItem>
+                          <SelectItem value="Support">Customer Support</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {kbTab !== 'directives' && (
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Context Category</label>
+                        <Select value={kbType} onValueChange={(val) => val && setKbType(val)}>
+                          <SelectTrigger className="w-full bg-gray-900/60 border-gray-800 text-xs text-white">
+                            <SelectValue placeholder="Doc Type" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                            <SelectItem value="Brand Guidelines">Brand & Tone</SelectItem>
+                            <SelectItem value="FAQ">FAQ & Support Runbook</SelectItem>
+                            <SelectItem value="Pricing">Pricing & Sourcing Rules</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+
+                  {kbTab === 'upload' && (
+                    /* Tab A: Document Upload Zone */
+                    <div className="space-y-4 flex-1 flex flex-col justify-between min-h-0">
+                      <div className="flex-1 min-h-0 border border-dashed border-gray-800 hover:border-violet-500/50 bg-gray-900/20 hover:bg-violet-950/5 rounded-2xl flex flex-col items-center justify-center p-6 text-center transition-all group relative cursor-pointer">
+                        <input
+                          type="file"
+                          accept=".pdf,.docx,.txt,.md,.csv,.json"
+                          onChange={e => {
+                            if (e.target.files && e.target.files[0]) {
+                              setKbFile(e.target.files[0]);
+                            }
+                          }}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <div className="p-3 bg-violet-600/10 text-violet-400 rounded-2xl mb-3 shadow-inner group-hover:scale-110 transition-transform">
+                          <Upload size={20} />
+                        </div>
+                        {kbFile ? (
+                          <div className="space-y-1">
+                            <p className="text-xs font-bold text-white max-w-[240px] truncate">{kbFile.name}</p>
+                            <p className="text-[10px] text-gray-400">{(kbFile.size / 1024).toFixed(1)} KB — Click to change</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <p className="text-xs font-bold text-gray-300">Drag & drop or click to choose file</p>
+                            <p className="text-[10px] text-gray-500">Supports PDF, DOCX, TXT, MD, CSV, JSON</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <Button 
+                        onClick={uploadKnowledgeFile} 
+                        disabled={!kbFile || isUploading}
+                        className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-violet-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isUploading ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            Parsing and uploading document...
+                          </>
+                        ) : (
+                          'Upload & Extract Document'
+                        )}
+                      </Button>
+                    </div>
+                  )}
+
+                  {kbTab === 'text' && (
+                    /* Tab B: Paste Raw Text Area */
+                    <div className="space-y-4 flex-1 flex flex-col justify-between min-h-0">
+                      <Textarea 
+                        placeholder="Paste guidelines, raw details, or FAQ text context here..." 
+                        value={kbContent} 
+                        onChange={e => setKbContent(e.target.value)} 
+                        className="flex-1 bg-gray-900/60 border-gray-800 text-xs text-white focus:border-violet-500 focus:ring-violet-500/20 min-h-0 placeholder-gray-500 resize-none overflow-y-auto"
+                      />
+                      <Button 
+                        onClick={addKnowledge} 
+                        disabled={!kbContent}
+                        className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-violet-500/20 transition-all cursor-pointer flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Add Text Content
+                      </Button>
+                    </div>
+                  )}
+
+                  {kbTab === 'directives' && (
+                    /* Tab C: AI Directives & Instructions */
+                    <div className="space-y-4 flex-1 flex flex-col justify-between min-h-0">
+                      <div className="text-[11px] bg-amber-950/20 border border-amber-900/30 text-amber-300/90 p-3.5 rounded-2xl flex flex-col gap-1.5 flex-shrink-0">
+                        <span className="font-bold flex items-center gap-1">💡 Custom Brand Directives & Instructions</span>
+                        <span>Use this to specify strict global instructions (e.g., website link, email, standard tagline, tone rules, or formatting steps) that agents must follow in all outputs.</span>
+                      </div>
+                      <Textarea 
+                        placeholder="e.g., 'Always append our contact email: sales@mybrand.com and website link: www.mybrand.com to the end of every marketing campaign post. Make sure to sound bold and write in an authoritative tone.'" 
+                        value={kbContent} 
+                        onChange={e => setKbContent(e.target.value)} 
+                        className="flex-1 bg-gray-900/60 border-gray-800 text-xs text-white focus:border-amber-500 focus:ring-amber-500/20 min-h-0 placeholder-gray-600 resize-none overflow-y-auto"
+                      />
+                      <Button 
+                        onClick={addKnowledge} 
+                        disabled={!kbContent}
+                        className="w-full bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-amber-600/20 transition-all cursor-pointer flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Save AI Directive
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* VIEW: DASHBOARD */}
           {activeView === 'dashboard' && (
             <div className="space-y-8 max-w-7xl mx-auto">
@@ -1992,397 +3766,633 @@ export default function Home() {
           {activeView === 'campaigns' && (
             <>
             <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-300">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
+              {/* Header section with brand info and global actions */}
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-center justify-between border-b border-gray-800/80 pb-6">
+                <div className="space-y-1.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 text-[10px] font-bold tracking-wider uppercase">
+                    ⚡ Autonomous Marketing Pipeline
+                  </div>
                   <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-2">
                     <Calendar className="text-violet-400 h-8 w-8" /> Campaign Planner & Review Board
                   </h1>
-                  <p className="text-gray-400 mt-1">Autonomous social media campaigns with high-impact text, images, and videos.</p>
+                  <p className="text-gray-400 text-sm leading-relaxed max-w-2xl">
+                    Design and monitor multi-platform marketing timelines. Customize AI prompt templates, review generated post contents, and schedule live publishing.
+                  </p>
                 </div>
-                {campaignPosts.length > 0 && (
+                <div className="flex flex-wrap items-center gap-3">
                   <Button 
-                    onClick={handleApproveAll} 
-                    className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-[1.02] active:scale-95 transition-all"
+                    onClick={() => setIsGeneratorExpanded(!isGeneratorExpanded)}
+                    className="bg-gray-900 border border-gray-800 hover:bg-gray-800 hover:text-white text-gray-300 font-bold rounded-xl transition-all h-11 px-5 flex items-center gap-2"
                   >
-                    Approve & Schedule All ({campaignPosts.filter(p => p.approval_status === 'pending').length} pending)
+                    <Sparkles className="text-violet-400 h-4 w-4 animate-pulse" />
+                    {isGeneratorExpanded ? "Hide Settings" : "Configure AI Generator"}
+                    {isGeneratorExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </Button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Campaign Generator Form */}
-                <div className="lg:col-span-1 space-y-6">
-                  <Card className="glass-panel border-transparent glow-marketing rounded-3xl overflow-hidden shadow-2xl relative">
-                    <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
-                    <CardHeader>
-                      <CardTitle className="text-xl text-white font-extrabold tracking-tight">Generate New Campaign</CardTitle>
-                      <CardDescription className="text-gray-400 text-xs mt-1">Enter details and AI will generate optimized content and media files for 30 days.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex flex-col gap-2">
-                        <label className="text-xs font-semibold text-gray-400">Company Website, Description or Campaign Idea</label>
-                        <Textarea
-                          placeholder="e.g. 'Generate marketing posts for BlueBottle Cafe. Highlight our organic roast and friendly workspace vibes.'"
-                          className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 focus:ring-violet-500/20 rounded-xl min-h-[120px] text-sm"
-                          value={campaignTopic}
-                          onChange={e => setCampaignTopic(e.target.value)}
-                        />
-                      </div>
-
-                      <div className="flex gap-4">
-                        <div className="flex-1 flex flex-col gap-2">
-                          <label className="text-xs font-semibold text-gray-400">Duration (Days)</label>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={60}
-                            value={campaignDays}
-                            onChange={e => setCampaignDays(parseInt(e.target.value) || 30)}
-                            className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 focus:ring-violet-500/20 rounded-xl h-10"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-semibold text-gray-400 block">Target Platforms</label>
-                        <div className="flex flex-wrap gap-2">
-                          {['linkedin', 'instagram', 'facebook'].map(p => {
-                            const isSelected = campaignPlatforms.includes(p);
-                            return (
-                              <button
-                                key={p}
-                                type="button"
-                                onClick={() => {
-                                  if (isSelected) {
-                                    setCampaignPlatforms(campaignPlatforms.filter(x => x !== p));
-                                  } else {
-                                    setCampaignPlatforms([...campaignPlatforms, p]);
-                                  }
-                                }}
-                                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
-                                  isSelected 
-                                    ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/25 scale-[1.02]' 
-                                    : 'bg-gray-900/40 border-gray-800 text-gray-400 hover:bg-gray-800 hover:text-white'
-                                }`}
-                              >
-                                {p.toUpperCase()}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div className="border-t border-gray-800 pt-4 space-y-3">
-                        <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">AI Configuration</h4>
-                        
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[10px] font-semibold text-gray-400">Text Copywriter Model</label>
-                          <Select value={textProvider} onValueChange={(val) => val && setTextProvider(val)}>
-                            <SelectTrigger className="h-9 bg-gray-900/60 border-gray-800 text-white rounded-xl"><SelectValue /></SelectTrigger>
-                            <SelectContent className="bg-gray-900 border-gray-800 text-white">
-                              <SelectItem value="gemini">Google Gemini 1.5 Flash (Default)</SelectItem>
-                              <SelectItem value="openai">OpenAI GPT-4o</SelectItem>
-                              <SelectItem value="anthropic">Claude 3.5 Sonnet</SelectItem>
-                              <SelectItem value="grok">xAI Grok-2</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1">
-                          <div className="flex flex-col">
-                            <span className="text-xs font-semibold text-gray-300">Generate Images</span>
-                            <span className="text-[10px] text-gray-500">Create custom contextual image graphics</span>
-                          </div>
-                          <input 
-                            type="checkbox" 
-                            checked={generateImages} 
-                            onChange={e => setGenerateImages(e.target.checked)}
-                            className="h-4 w-4 rounded border-gray-800 bg-gray-950 text-violet-600 focus:ring-violet-500/20 focus:ring-offset-gray-950"
-                          />
-                        </div>
-
-                        {generateImages && (
-                          <div className="flex flex-col gap-1 pl-4 border-l-2 border-violet-500/30">
-                            <label className="text-[10px] font-semibold text-gray-400">Image Generation Model</label>
-                            <Select value={imageProvider} onValueChange={(val) => val && setImageProvider(val)}>
-                              <SelectTrigger className="h-8 bg-gray-900/60 border-gray-800 text-white text-xs rounded-xl"><SelectValue /></SelectTrigger>
-                              <SelectContent className="bg-gray-900 border-gray-800 text-white">
-                                <SelectItem value="openai">OpenAI DALL-E 3 (Recommended)</SelectItem>
-                                <SelectItem value="gemini">Google Imagen 4 (Via Gemini)</SelectItem>
-                                <SelectItem value="stability">Stability AI SDXL</SelectItem>
-                                <SelectItem value="grok">xAI Grok-2 Image Gen</SelectItem>
-                                <SelectItem value="anthropic">Anthropic Claude (via DALL-E 3)</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-
-                        <div className="flex items-center justify-between pt-1">
-                          <div className="flex flex-col">
-                            <span className="text-xs font-semibold text-gray-300">Generate Videos</span>
-                            <span className="text-[10px] text-gray-500">Create dynamic looping videos (every 3 days)</span>
-                          </div>
-                          <input 
-                            type="checkbox" 
-                            checked={generateVideos} 
-                            onChange={e => setGenerateVideos(e.target.checked)}
-                            className="h-4 w-4 rounded border-gray-800 bg-gray-950 text-violet-600 focus:ring-violet-500/20 focus:ring-offset-gray-950"
-                          />
-                        </div>
-
-                        {generateVideos && (
-                          <div className="flex flex-col gap-1 pl-4 border-l-2 border-violet-500/30">
-                            <label className="text-[10px] font-semibold text-gray-400">Video Generation Model</label>
-                            <Select value={videoProvider} onValueChange={(val) => val && setVideoProvider(val)}>
-                              <SelectTrigger className="h-8 bg-gray-900/60 border-gray-800 text-white text-xs rounded-xl"><SelectValue /></SelectTrigger>
-                              <SelectContent className="bg-gray-900 border-gray-800 text-white">
-                                <SelectItem value="pika">Pika AI (Recommended)</SelectItem>
-                                <SelectItem value="stable_diffusion">Stable Diffusion Video</SelectItem>
-                                <SelectItem value="gemini">Google Veo (Via Gemini Mock)</SelectItem>
-                                <SelectItem value="grok">Grok Video (Mock)</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-                      </div>
-
-                      <Button 
-                        onClick={handleLaunchCampaign} 
-                        disabled={loading || !campaignTopic} 
-                        className="w-full h-11 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all hover:scale-[1.02] active:scale-95 mt-2 disabled:opacity-50 disabled:scale-100 disabled:shadow-none"
-                      >
-                        {loading ? 'Initializing Pipeline...' : 'Generate 30-Day Campaign'}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Interactive 30-Day Board */}
-                <div className="lg:col-span-2 space-y-6">
-                  {campaignPosts.length === 0 ? (
-                    <Card className="glass-panel border-dashed border-gray-800 p-12 text-center flex flex-col items-center justify-center rounded-3xl min-h-[400px] shadow-2xl">
-                      <div className="text-5xl mb-4 animate-bounce">🗓️</div>
-                      <h3 className="text-lg font-bold text-white">No active marketing campaign</h3>
-                      <p className="text-gray-400 max-w-sm mt-2 text-xs leading-relaxed">Configure your brand topic and launch a campaign. The generated timeline will populate here.</p>
-                    </Card>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[750px] overflow-y-auto pr-2 pb-6">
-                      {campaignPosts.map(post => {
-                        const isEditing = editingPostId === post.id;
-                        const hasVideo = !!post.video_url;
-                        const hasImage = !!post.image_url;
-
-                        let platformColor = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-                        if (post.platform === 'instagram') platformColor = 'bg-pink-500/10 text-pink-400 border-pink-500/20';
-                        if (post.platform === 'facebook') platformColor = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
-
-                        let statusColor = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-                        if (post.approval_status === 'approved') statusColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-                        if (post.approval_status === 'published') statusColor = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-                        if (post.approval_status === 'rejected') statusColor = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
-
-                        return (
-                          <Card key={post.id} className="glass-panel border-gray-800/80 hover:border-violet-500/40 hover:shadow-violet-500/5 transition-all duration-300 flex flex-col justify-between overflow-hidden rounded-2xl shadow-xl">
-                            <div>
-                              <div className="flex items-center justify-between border-b border-gray-800 px-4 py-3 bg-gray-950/40">
-                                <div className="flex items-center gap-2">
-                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase border ${platformColor}`}>
-                                    {post.platform}
-                                  </span>
-                                  <span className="text-xs font-bold text-gray-400">Day {post.day}</span>
-                                </div>
-                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${statusColor}`}>
-                                  {post.approval_status}
-                                </span>
-                              </div>
-
-                              <div className="p-4 space-y-3">
-                                {isEditing ? (
-                                  <div className="space-y-3">
-                                    <Textarea
-                                      className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 focus:ring-violet-500/20 rounded-xl text-sm min-h-[120px]"
-                                      value={editingContent}
-                                      onChange={e => setEditingContent(e.target.value)}
-                                    />
-                                    <div>
-                                      <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Image URL (Optional)</label>
-                                      <Input 
-                                        type="text" 
-                                        className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 focus:ring-violet-500/20 rounded-xl h-8 text-xs mt-1" 
-                                        value={editingImageUrl} 
-                                        onChange={e => setEditingImageUrl(e.target.value)}
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Video URL (Optional)</label>
-                                      <Input 
-                                        type="text" 
-                                        className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 focus:ring-violet-500/20 rounded-xl h-8 text-xs mt-1" 
-                                        value={editingVideoUrl} 
-                                        onChange={e => setEditingVideoUrl(e.target.value)}
-                                      />
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <p className="text-xs text-gray-300 whitespace-pre-wrap leading-relaxed">
-                                      {post.content}
-                                    </p>
-
-                                    {/* Visual preview */}
-                                    {hasVideo ? (
-                                      <div className="relative rounded-xl overflow-hidden border border-gray-800/80 shadow-inner group">
-                                        <video
-                                          src={post.video_url}
-                                          controls
-                                          loop
-                                          muted
-                                          className="w-full h-40 object-cover"
-                                        />
-                                        <div className="absolute top-2 left-2 bg-black/70 text-white rounded-lg px-2 py-0.5 text-[9px] font-bold flex items-center gap-1.5 border border-white/10 backdrop-blur-md">
-                                          <Film size={10} className="text-violet-400" /> AI Video Loop
-                                        </div>
-                                      </div>
-                                    ) : hasImage ? (
-                                      post.image_url?.startsWith('error:') ? (
-                                        <div className="rounded-xl border border-rose-900/50 bg-rose-950/20 px-4 py-3 flex items-start gap-3">
-                                          <div className="text-rose-400 mt-0.5 shrink-0">
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                                          </div>
-                                          <div>
-                                            <p className="text-[10px] font-bold text-rose-400 uppercase tracking-wider mb-0.5">Image Generation Error</p>
-                                            <p className="text-[11px] text-rose-300 leading-relaxed">{post.image_url.replace(/^error:/, '')}</p>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <div className="relative rounded-xl overflow-hidden border border-gray-800/80 shadow-inner group">
-                                          <img
-                                            src={post.image_url}
-                                            alt="Generated graphic preview"
-                                            className="w-full h-40 object-cover transition-transform duration-500 group-hover:scale-105"
-                                          />
-                                          <div className="absolute top-2 left-2 bg-black/70 text-white rounded-lg px-2 py-0.5 text-[9px] font-bold flex items-center gap-1.5 border border-white/10 backdrop-blur-md">
-                                            <ImageIcon size={10} className="text-violet-400" /> AI Graphic
-                                          </div>
-                                        </div>
-                                      )
-                                    ) : null}
-                                  </>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="border-t border-gray-800 px-4 py-3 bg-gray-950/20 flex gap-2 justify-end">
-                              {isEditing ? (
-                                <>
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline" 
-                                    onClick={() => setEditingPostId(null)}
-                                    className="h-8 px-3 rounded-lg text-xs font-semibold text-gray-400 border-gray-800 hover:bg-gray-800 hover:text-white bg-transparent"
-                                  >
-                                    Cancel
-                                  </Button>
-                                  <Button 
-                                    size="sm" 
-                                    onClick={() => handleSavePostEdit(post.id)}
-                                    className="h-8 px-3 rounded-lg text-xs font-semibold bg-violet-600 hover:bg-violet-500 text-white"
-                                  >
-                                    Save
-                                  </Button>
-                                </>
-                              ) : (
-                                <>
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline" 
-                                    onClick={() => startEditing(post)}
-                                    className="h-8 px-3 rounded-lg text-xs font-semibold text-gray-300 hover:bg-gray-800 hover:text-white border-gray-800 bg-transparent flex items-center gap-1"
-                                  >
-                                    <Edit2 size={12} /> Edit
-                                  </Button>
-                                  
-                                  {post.approval_status === 'pending' && (
-                                    <>
-                                      <Button 
-                                        size="sm" 
-                                        variant="outline" 
-                                        onClick={() => handleRejectPost(post.id)}
-                                        className="h-8 px-3 rounded-lg text-xs font-semibold text-rose-400 hover:bg-rose-950/20 border-rose-950/50 bg-transparent"
-                                      >
-                                        Reject
-                                      </Button>
-                                      <Button 
-                                        size="sm" 
-                                        onClick={() => handleApprovePost(post.id)}
-                                        className="h-8 px-3 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white"
-                                      >
-                                        Approve
-                                      </Button>
-                                    </>
-                                  )}
-
-                                  {(post.approval_status === 'approved' || post.approval_status === 'scheduled') &&
-                                    (post.platform === 'instagram' || post.platform === 'facebook' || post.platform === 'linkedin') && (
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handlePublishNow(post.id)}
-                                      disabled={publishingPostId === post.id}
-                                      className="h-8 px-3 rounded-lg text-xs font-semibold bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white shadow-md shadow-pink-500/20 disabled:opacity-50 flex items-center gap-1.5"
-                                    >
-                                      {publishingPostId === post.id ? (
-                                        <>
-                                          <span className="animate-spin inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full" />
-                                          Publishing...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Send size={11} />
-                                          Publish Now
-                                        </>
-                                      )}
-                                    </Button>
-                                  )}
-
-                                  {publishResult && publishingPostId === null && post.id === campaignPosts.find(p => p.approval_status === 'published')?.id && (
-                                    <span className={`text-[10px] font-semibold ${
-                                      publishResult.success ? 'text-emerald-400' : 'text-rose-400'
-                                    }`}>
-                                      {publishResult.message}
-                                    </span>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </Card>
-                        );
-                      })}
-                    </div>
+                  <Button 
+                    onClick={() => setIsCreatePostOpen(true)}
+                    className="bg-gray-900 border border-gray-850 hover:bg-gray-800 hover:text-white text-gray-300 font-bold rounded-xl transition-all h-11 px-5 flex items-center gap-2"
+                  >
+                    <Plus size={14} className="text-violet-400" /> Create Manual Post
+                  </Button>
+                  {campaignPosts.length > 0 && (
+                    <Button 
+                      onClick={() => {
+                        const start = new Date();
+                        const end = new Date();
+                        end.setDate(end.getDate() + 30);
+                        setBulkStartDate(start.toISOString().split('T')[0]);
+                        setBulkEndDate(end.toISOString().split('T')[0]);
+                        setIsBulkScheduleOpen(true);
+                      }}
+                      className="bg-gray-900 border border-gray-850 hover:bg-gray-800 hover:text-white text-gray-300 font-bold rounded-xl transition-all h-11 px-5 flex items-center gap-2"
+                    >
+                      <Calendar className="text-violet-400" size={14} /> Bulk Schedule Campaign
+                    </Button>
+                  )}
+                  {campaignPosts.length > 0 && (
+                    <Button 
+                      onClick={handleApproveAll} 
+                      className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/25 hover:scale-[1.02] active:scale-95 transition-all h-11 px-5"
+                    >
+                      Approve &amp; Schedule All ({campaignPosts.filter(p => p.approval_status === 'pending').length} pending)
+                    </Button>
                   )}
                 </div>
               </div>
-            </div>
 
-            {/* Meta Credential Modal — shown when Publish Now is clicked without Meta key */}
-            {isMetaModalOpen && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-                <div className="bg-gray-950 border border-gray-800 rounded-3xl shadow-2xl shadow-black/50 w-full max-w-lg overflow-hidden">
-                  {/* Header */}
-                  <div className="relative px-6 pt-6 pb-4 border-b border-gray-800 bg-gradient-to-r from-pink-950/40 to-rose-950/30">
-                    <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-pink-500 to-transparent" />
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-pink-600 to-rose-600 flex items-center justify-center shadow-lg shadow-pink-500/30">
-                        <span className="text-xl">📲</span>
-                      </div>
-                      <div>
-                        <h2 className="text-white font-extrabold text-lg tracking-tight">Connect Meta to Publish</h2>
-                        <p className="text-gray-400 text-xs mt-0.5">Required to post on Instagram &amp; Facebook</p>
-                      </div>
+              {/* Dynamic Campaign Stats Row */}
+              {campaignPosts.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-in fade-in duration-500">
+                  <div className="relative overflow-hidden glass-panel border-gray-850 p-5 rounded-2xl bg-gradient-to-br from-gray-900/40 via-gray-950/20 to-violet-950/10 flex items-center justify-between shadow-lg group">
+                    <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-violet-500/5 blur-xl group-hover:bg-violet-500/10 transition-all duration-500" />
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Total Schedule</p>
+                      <h3 className="text-2xl font-extrabold text-white mt-1.5">{campaignPosts.length} Posts</h3>
+                      <p className="text-[10px] text-gray-400 mt-1">Timeline active</p>
+                    </div>
+                    <div className="h-10 w-10 rounded-xl bg-violet-500/10 flex items-center justify-center border border-violet-500/20">
+                      <CalendarRange className="text-violet-400 h-5 w-5" />
                     </div>
                   </div>
+                  <div className="relative overflow-hidden glass-panel border-gray-850 p-5 rounded-2xl bg-gradient-to-br from-gray-900/40 via-gray-950/20 to-amber-950/10 flex items-center justify-between shadow-lg group">
+                    <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-amber-500/5 blur-xl group-hover:bg-amber-500/10 transition-all duration-500" />
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Pending Review</p>
+                      <h3 className="text-2xl font-extrabold text-amber-400 mt-1.5">
+                        {campaignPosts.filter(p => p.approval_status === 'pending').length} Drafts
+                      </h3>
+                      <p className="text-[10px] text-amber-500/70 mt-1">Requires approval</p>
+                    </div>
+                    <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
+                      <Clock className="text-amber-450 h-5 w-5 animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="relative overflow-hidden glass-panel border-gray-850 p-5 rounded-2xl bg-gradient-to-br from-gray-900/40 via-gray-950/20 to-emerald-950/10 flex items-center justify-between shadow-lg group">
+                    <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-emerald-500/5 blur-xl group-hover:bg-emerald-500/10 transition-all duration-500" />
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Approved &amp; Ready</p>
+                      <h3 className="text-2xl font-extrabold text-emerald-400 mt-1.5">
+                        {campaignPosts.filter(p => p.approval_status === 'approved' || p.approval_status === 'scheduled').length} Scheduled
+                      </h3>
+                      <p className="text-[10px] text-emerald-400/70 mt-1">Ready to auto-post</p>
+                    </div>
+                    <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                      <Check className="text-emerald-400 h-5 w-5" />
+                    </div>
+                  </div>
+                  <div className="relative overflow-hidden glass-panel border-gray-850 p-5 rounded-2xl bg-gradient-to-br from-gray-900/40 via-gray-950/20 to-blue-950/10 flex items-center justify-between shadow-lg group">
+                    <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-blue-500/5 blur-xl group-hover:bg-blue-500/10 transition-all duration-500" />
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Sent to Socials</p>
+                      <h3 className="text-2xl font-extrabold text-blue-400 mt-1.5">
+                        {campaignPosts.filter(p => p.approval_status === 'published').length} Active
+                      </h3>
+                      <p className="text-[10px] text-blue-400/70 mt-1">Outreach live</p>
+                    </div>
+                    <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                      <Send className="text-blue-450 h-5 w-5" />
+                    </div>
+                  </div>
+                </div>
+              )}
 
-                  {/* Body */}
-                  <div className="px-6 py-5 space-y-5">
+              {/* Collapsible Campaign Generator Panel */}
+              {isGeneratorExpanded && (
+                <Card className="glass-panel border-transparent glow-marketing rounded-3xl overflow-hidden shadow-2xl relative bg-gray-950/20 w-full animate-in slide-in-from-top duration-300">
+                  <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
+                  <CardHeader className="flex flex-row items-center justify-between border-b border-gray-900/80 pb-4">
+                    <div>
+                      <CardTitle className="text-lg text-white font-extrabold tracking-tight">AI Campaign Generation Engine</CardTitle>
+                      <CardDescription className="text-gray-400 text-xs mt-1">Configure your marketing objective. AI will automatically generate optimized post copywriting and layout structures.</CardDescription>
+                    </div>
+                    {campaignPosts.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsGeneratorExpanded(false)}
+                        className="text-gray-400 hover:text-white"
+                      >
+                        <ChevronUp size={20} />
+                      </Button>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-6 pt-5">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                      
+                      {/* Left: Topic and Duration (7 cols) */}
+                      <div className="lg:col-span-6 space-y-4">
+                        <div className="flex flex-col gap-2">
+                          <label className="text-xs font-semibold text-gray-300">Brand Context, website, topic or campaign ideas</label>
+                          <Textarea
+                            placeholder="e.g. 'Generate marketing posts for BlueBottle Cafe. Highlight our organic roast and friendly workspace vibes.'"
+                            className="bg-gray-900/50 border-gray-850 text-white focus:border-violet-500 focus:ring-violet-500/20 rounded-xl min-h-[110px] text-sm"
+                            value={campaignTopic}
+                            onChange={e => setCampaignTopic(e.target.value)}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="flex flex-col gap-2">
+                            <label className="text-xs font-semibold text-gray-300">Duration (Days)</label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={60}
+                              value={campaignDays}
+                              onChange={e => setCampaignDays(parseInt(e.target.value) || 30)}
+                              className="bg-gray-900/50 border-gray-850 text-white focus:border-violet-500 focus:ring-violet-500/20 rounded-xl h-10 text-sm"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            <label className="text-xs font-semibold text-gray-300 block">Target Platforms</label>
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {['linkedin', 'instagram', 'facebook'].map(p => {
+                                const isSelected = campaignPlatforms.includes(p);
+                                return (
+                                  <button
+                                    key={p}
+                                    type="button"
+                                    onClick={() => {
+                                      if (isSelected) {
+                                        setCampaignPlatforms(campaignPlatforms.filter(x => x !== p));
+                                      } else {
+                                        setCampaignPlatforms([...campaignPlatforms, p]);
+                                      }
+                                    }}
+                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all ${
+                                      isSelected 
+                                        ? 'bg-violet-650 border-violet-500 text-white shadow-lg shadow-violet-500/20 scale-[1.02]' 
+                                        : 'bg-gray-900/40 border-gray-850 text-gray-450 hover:bg-gray-800 hover:text-white'
+                                    }`}
+                                  >
+                                    {p.toUpperCase()}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: AI Pipeline settings (6 cols) */}
+                      <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-4">
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-semibold text-gray-300">Copywriting Model Provider</label>
+                            <Select value={textProvider} onValueChange={(val) => {
+                              if (val) {
+                                setTextProvider(val);
+                                if (val === 'gemini') setTextModel('gemini-2.5-flash');
+                                else if (val === 'openai') setTextModel('gpt-4o');
+                                else if (val === 'anthropic') setTextModel('claude-sonnet-4-6');
+                                else if (val === 'grok') setTextModel('grok-2');
+                              }
+                            }}>
+                              <SelectTrigger className="h-9 bg-gray-900/50 border-gray-850 text-white text-xs rounded-xl"><SelectValue /></SelectTrigger>
+                              <SelectContent className="bg-gray-900 border-gray-850 text-white">
+                                <SelectItem value="gemini">Google Gemini</SelectItem>
+                                <SelectItem value="openai">OpenAI GPT</SelectItem>
+                                <SelectItem value="anthropic">Anthropic Claude</SelectItem>
+                                <SelectItem value="grok">xAI Grok</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-semibold text-gray-300">Copywriting Sub-model</label>
+                            <Select value={textModel} onValueChange={(val) => val && setTextModel(val)}>
+                              <SelectTrigger className="h-9 bg-gray-900/50 border-gray-850 text-white text-xs rounded-xl"><SelectValue /></SelectTrigger>
+                              <SelectContent className="bg-gray-900 border-gray-850 text-white">
+                                {textProvider === 'gemini' && (
+                                  <>
+                                    <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended, Cheap)</SelectItem>
+                                    <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro (Deep context, creative)</SelectItem>
+                                    <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash (High speed)</SelectItem>
+                                    <SelectItem value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite (Lowest cost)</SelectItem>
+                                    <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash (Legacy flash)</SelectItem>
+                                    <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro (Legacy pro)</SelectItem>
+                                  </>
+                                )}
+                                {textProvider === 'openai' && (
+                                  <>
+                                    <SelectItem value="gpt-4o">GPT-4o (High reasoning copywriter)</SelectItem>
+                                    <SelectItem value="gpt-4o-mini">GPT-4o mini (Fast &amp; cost-efficient)</SelectItem>
+                                  </>
+                                )}
+                                {textProvider === 'anthropic' && (
+                                  <>
+                                    <SelectItem value="claude-sonnet-4-6">Claude 3.5 Sonnet (Premium copy)</SelectItem>
+                                    <SelectItem value="claude-haiku-4-5-20251001">Claude 3.5/4.5 Haiku (Fast, low-cost)</SelectItem>
+                                    <SelectItem value="claude-opus-4-8">Claude 3.5 Opus (Advanced logic)</SelectItem>
+                                  </>
+                                )}
+                                {textProvider === 'grok' && (
+                                  <SelectItem value="grok-2">Grok 2 (Social expert)</SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                            <span className="text-[10px] text-gray-500 italic mt-0.5 leading-relaxed">
+                              {textModel.includes("mini") || textModel.includes("flash") || textModel.includes("haiku")
+                                ? "💡 Haiku and Flash models consume less token credit with excellent conversational quality."
+                                : "🚀 Pro & Sonnet models provide deep brand logic and advanced wordplay."}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4 bg-gray-900/10 border border-gray-850 p-3.5 rounded-2xl">
+                          {/* Image Settings */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex flex-col">
+                                <span className="text-xs font-semibold text-gray-300">Generate Custom Images</span>
+                                <span className="text-[10px] text-gray-500">Inject AI graphic assets</span>
+                              </div>
+                              <input 
+                                type="checkbox" 
+                                checked={generateImages} 
+                                onChange={e => setGenerateImages(e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-805 bg-gray-950 text-violet-605 focus:ring-violet-500/20"
+                              />
+                            </div>
+
+                            {generateImages && (
+                              <div className="flex flex-col gap-1 pl-3 border-l-2 border-violet-500/30 animate-in slide-in-from-left duration-200">
+                                <label className="text-[9px] font-semibold text-gray-455">Image Generation Engine</label>
+                                <Select value={imageProvider} onValueChange={(val) => val && setImageProvider(val)}>
+                                  <SelectTrigger className="h-8 bg-gray-900/50 border-gray-850 text-white text-xs rounded-xl"><SelectValue /></SelectTrigger>
+                                  <SelectContent className="bg-gray-900 border-gray-850 text-white">
+                                    <SelectItem value="openai">OpenAI DALL-E 3 (Recommended)</SelectItem>
+                                    <SelectItem value="gemini">Google Imagen 4 (Gemini)</SelectItem>
+                                    <SelectItem value="stability">Stability AI SDXL</SelectItem>
+                                    <SelectItem value="grok">xAI Grok-2 Image Gen</SelectItem>
+                                    <SelectItem value="anthropic">Anthropic (via DALL-E 3)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Video Settings */}
+                          <div className="space-y-2 border-t border-gray-850 pt-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex flex-col">
+                                <span className="text-xs font-semibold text-gray-300">Generate Video Loops</span>
+                                <span className="text-[10px] text-gray-500">Create cinemagraph loops</span>
+                              </div>
+                              <input 
+                                type="checkbox" 
+                                checked={generateVideos} 
+                                onChange={e => setGenerateVideos(e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-805 bg-gray-950 text-violet-605 focus:ring-violet-500/20"
+                              />
+                            </div>
+
+                            {generateVideos && (
+                              <div className="flex flex-col gap-1 pl-3 border-l-2 border-violet-500/30 animate-in slide-in-from-left duration-200">
+                                <label className="text-[9px] font-semibold text-gray-455">Video Generation Engine</label>
+                                <Select value={videoProvider} onValueChange={(val) => val && setVideoProvider(val)}>
+                                  <SelectTrigger className="h-8 bg-gray-900/50 border-gray-850 text-white text-xs rounded-xl"><SelectValue /></SelectTrigger>
+                                  <SelectContent className="bg-gray-900 border-gray-850 text-white">
+                                    <SelectItem value="pika">Pika AI (Recommended)</SelectItem>
+                                    <SelectItem value="stable_diffusion">Stable Diffusion Video</SelectItem>
+                                    <SelectItem value="gemini">Google Veo (Mocked)</SelectItem>
+                                    <SelectItem value="grok">Grok Video (Mocked)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    <div className="flex justify-end gap-3 border-t border-gray-900 pt-4">
+                      {campaignPosts.length > 0 && (
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsGeneratorExpanded(false)}
+                          className="h-10 px-5 rounded-xl text-xs font-semibold text-gray-400 border-gray-850 hover:bg-gray-800 hover:text-white bg-transparent"
+                        >
+                          Cancel
+                        </Button>
+                      )}
+                      <Button 
+                        onClick={handleLaunchCampaign} 
+                        disabled={loading || !campaignTopic} 
+                        className="h-10 px-6 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all hover:scale-[1.01] active:scale-95 disabled:opacity-50"
+                      >
+                        {loading ? 'Generating Timeline...' : 'Launch 30-Day Campaign'}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Main Content Area */}
+              {campaignPosts.length === 0 && (
+                <Card className="glass-panel border-dashed border-gray-805/80 p-12 text-center flex flex-col items-center justify-center rounded-3xl min-h-[420px] shadow-2xl bg-gray-950/10">
+                  <div className="text-5xl mb-4 animate-bounce">🗓️</div>
+                  <h3 className="text-lg font-extrabold text-white tracking-tight">No active campaign posts</h3>
+                  <p className="text-gray-400 max-w-sm mt-2 text-xs leading-relaxed">Configure your brand topic and AI model settings above to launch your automated timeline. Generated post schedules will populate here.</p>
+                </Card>
+              )}
+
+              {campaignPosts.length > 0 && (
+                <div className="space-y-6">
+                  {/* Segmented Tab controls for Board Views */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-800 pb-4">
+                    <div className="flex gap-1.5 bg-gray-950/40 p-1.5 rounded-2xl border border-gray-850">
+                      <button
+                        onClick={() => setCampaignViewMode('timeline')}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                          campaignViewMode === 'timeline'
+                            ? 'bg-violet-650 text-white shadow-lg shadow-violet-500/10'
+                            : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
+                        }`}
+                      >
+                        <CalendarRange size={14} /> Chronological Timeline
+                      </button>
+                      <button
+                        onClick={() => setCampaignViewMode('kanban')}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                          campaignViewMode === 'kanban'
+                            ? 'bg-violet-650 text-white shadow-lg shadow-violet-500/10'
+                            : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
+                        }`}
+                      >
+                        <LayoutGrid size={14} /> Review Kanban Board
+                      </button>
+                      <button
+                        onClick={() => setCampaignViewMode('analytics')}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                          campaignViewMode === 'analytics'
+                            ? 'bg-violet-650 text-white shadow-lg shadow-violet-500/10'
+                            : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
+                        }`}
+                      >
+                        <TrendingUp size={14} /> Campaign Analytics
+                      </button>
+                    </div>
+
+                    {/* Filters bar */}
+                    {campaignViewMode !== 'analytics' && (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2 bg-gray-950/20 px-3 py-1.5 rounded-xl border border-gray-850">
+                          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Platform:</span>
+                          <div className="flex gap-1">
+                            {['all', 'linkedin', 'instagram', 'facebook'].map(plat => (
+                              <button
+                                key={plat}
+                                onClick={() => setCampaignFilterPlatform(plat)}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border uppercase transition-all ${
+                                  campaignFilterPlatform === plat
+                                    ? 'bg-violet-650/20 border-violet-500 text-violet-300'
+                                    : 'bg-transparent border-transparent text-gray-550 hover:text-gray-300'
+                                }`}
+                              >
+                                {plat}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {campaignViewMode === 'timeline' && (
+                          <div className="flex items-center gap-2 bg-gray-950/20 px-3 py-1.5 rounded-xl border border-gray-850">
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status:</span>
+                            <div className="flex gap-1">
+                              {['all', 'pending', 'approved', 'published'].map(st => (
+                                <button
+                                  key={st}
+                                  onClick={() => setCampaignFilterStatus(st)}
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border uppercase transition-all ${
+                                    campaignFilterStatus === st
+                                      ? 'bg-emerald-650/20 border-emerald-500 text-emerald-300'
+                                      : 'bg-transparent border-transparent text-gray-550 hover:text-gray-300'
+                                  }`}
+                                >
+                                  {st}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Render view content depending on campaignViewMode */}
+                  {campaignViewMode === 'timeline' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-300">
+                      {campaignPosts
+                        .filter(post => {
+                          const matchesPlatform = campaignFilterPlatform === 'all' || post.platform === campaignFilterPlatform;
+                          const matchesStatus = campaignFilterStatus === 'all' || post.approval_status === campaignFilterStatus;
+                          return matchesPlatform && matchesStatus;
+                        })
+                        .map(post => renderPostCard(post))}
+                    </div>
+                  )}
+
+                  {campaignViewMode === 'kanban' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-300">
+                      {/* Column 1: Pending Review */}
+                      <div className="space-y-4 bg-gray-900/10 border border-gray-855/60 p-4 rounded-3xl min-h-[500px]">
+                        <div className="flex items-center justify-between border-b border-gray-850 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse" />
+                            <h3 className="font-extrabold text-sm text-gray-200">Pending Review</h3>
+                          </div>
+                          <span className="text-xs bg-amber-500/10 text-amber-405 px-2 py-0.5 rounded-full font-bold">
+                            {campaignPosts.filter(p => p.approval_status === 'pending' && (campaignFilterPlatform === 'all' || p.platform === campaignFilterPlatform)).length}
+                          </span>
+                        </div>
+                        <div className="space-y-4 animate-in fade-in duration-200">
+                          {campaignPosts
+                            .filter(p => p.approval_status === 'pending' && (campaignFilterPlatform === 'all' || p.platform === campaignFilterPlatform))
+                            .map(post => renderPostCard(post))}
+                        </div>
+                      </div>
+
+                      {/* Column 2: Scheduled & Approved */}
+                      <div className="space-y-4 bg-gray-900/10 border border-gray-855/60 p-4 rounded-3xl min-h-[500px]">
+                        <div className="flex items-center justify-between border-b border-gray-850 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                            <h3 className="font-extrabold text-sm text-gray-200">Scheduled &amp; Approved</h3>
+                          </div>
+                          <span className="text-xs bg-emerald-500/10 text-emerald-450 px-2 py-0.5 rounded-full font-bold">
+                            {campaignPosts.filter(p => (p.approval_status === 'approved' || p.approval_status === 'scheduled') && (campaignFilterPlatform === 'all' || p.platform === campaignFilterPlatform)).length}
+                          </span>
+                        </div>
+                        <div className="space-y-4 animate-in fade-in duration-200">
+                          {campaignPosts
+                            .filter(p => (p.approval_status === 'approved' || p.approval_status === 'scheduled') && (campaignFilterPlatform === 'all' || p.platform === campaignFilterPlatform))
+                            .map(post => renderPostCard(post))}
+                        </div>
+                      </div>
+
+                      {/* Column 3: Sent / Published */}
+                      <div className="space-y-4 bg-gray-900/10 border border-gray-855/60 p-4 rounded-3xl min-h-[500px]">
+                        <div className="flex items-center justify-between border-b border-gray-850 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 rounded-full bg-blue-500 animate-pulse" />
+                            <h3 className="font-extrabold text-sm text-gray-200">Sent / Published</h3>
+                          </div>
+                          <span className="text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full font-bold">
+                            {campaignPosts.filter(p => p.approval_status === 'published' && (campaignFilterPlatform === 'all' || p.platform === campaignFilterPlatform)).length}
+                          </span>
+                        </div>
+                        <div className="space-y-4 animate-in fade-in duration-200">
+                          {campaignPosts
+                            .filter(p => p.approval_status === 'published' && (campaignFilterPlatform === 'all' || p.platform === campaignFilterPlatform))
+                            .map(post => renderPostCard(post))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {campaignViewMode === 'analytics' && (
+                    <div className="space-y-6 animate-in fade-in duration-300">
+                      {/* Metric widgets */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <Card className="glass-panel border-gray-850 p-4 rounded-2xl bg-gray-950/20">
+                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Campaign Engagement</p>
+                          <h3 className="text-xl font-extrabold text-white mt-1">4.82%</h3>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <span className="text-[10px] text-emerald-450 font-bold">▲ +12.3%</span>
+                            <span className="text-[10px] text-gray-500">vs industry avg</span>
+                          </div>
+                        </Card>
+                        <Card className="glass-panel border-gray-850 p-4 rounded-2xl bg-gray-950/20">
+                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Projected Reach</p>
+                          <h3 className="text-xl font-extrabold text-white mt-1">125.4K</h3>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <span className="text-[10px] text-emerald-455 font-bold">▲ +18.4%</span>
+                            <span className="text-[10px] text-gray-500">organic timeline</span>
+                          </div>
+                        </Card>
+                        <Card className="glass-panel border-gray-850 p-4 rounded-2xl bg-gray-955/20">
+                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">AI Content Savings</p>
+                          <h3 className="text-xl font-extrabold text-white mt-1">$2,450</h3>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <span className="text-[10px] text-gray-400">Estimated value of copy/media</span>
+                          </div>
+                        </Card>
+                        <Card className="glass-panel border-gray-850 p-4 rounded-2xl bg-gray-955/20">
+                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Brand Sentiment</p>
+                          <h3 className="text-xl font-extrabold text-white mt-1">94.1%</h3>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <span className="text-[10px] text-emerald-450 font-bold">▲ +2.8%</span>
+                            <span className="text-[10px] text-gray-500">positive score</span>
+                          </div>
+                        </Card>
+                      </div>
+
+                      {/* Charts and details */}
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        {/* Reach comparison */}
+                        <div className="lg:col-span-8 bg-gray-950/20 border border-gray-850 p-5 rounded-3xl space-y-4">
+                          <h4 className="text-xs font-bold text-white uppercase tracking-wider">Engagement &amp; Reach by Channel</h4>
+                          <div className="space-y-3.5">
+                            <div>
+                              <div className="flex justify-between text-xs mb-1">
+                                <span className="text-gray-300">LinkedIn (Professional Content)</span>
+                                <span className="text-gray-400 font-semibold">54K impressions (5.2% ER)</span>
+                              </div>
+                              <div className="h-2 w-full bg-gray-900 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-500 rounded-full" style={{ width: '65%' }} />
+                              </div>
+                            </div>
+                            <div>
+                              <div className="flex justify-between text-xs mb-1">
+                                <span className="text-gray-300">Instagram (Visual Assets &amp; Loops)</span>
+                                <span className="text-gray-400 font-semibold">48K impressions (4.7% ER)</span>
+                              </div>
+                              <div className="h-2 w-full bg-gray-900 rounded-full overflow-hidden">
+                                <div className="h-full bg-pink-500 rounded-full" style={{ width: '58%' }} />
+                              </div>
+                            </div>
+                            <div>
+                              <div className="flex justify-between text-xs mb-1">
+                                <span className="text-gray-300">Facebook (Narrative &amp; Community)</span>
+                                <span className="text-gray-400 font-semibold">23.4K impressions (3.8% ER)</span>
+                              </div>
+                              <div className="h-2 w-full bg-gray-900 rounded-full overflow-hidden">
+                                <div className="h-full bg-indigo-500 rounded-full" style={{ width: '28%' }} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Cost breakdown */}
+                        <div className="lg:col-span-4 bg-gray-955/10 border border-gray-850 p-5 rounded-3xl flex flex-col justify-between">
+                          <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-3">Copywriter Resource Distribution</h4>
+                          <div className="flex justify-center items-center py-4">
+                            <svg className="w-32 h-32 transform -rotate-90">
+                              <circle cx="64" cy="64" r="50" fill="transparent" stroke="#1f2937" strokeWidth="12" />
+                              <circle cx="64" cy="64" r="50" fill="transparent" stroke="#8b5cf6" strokeWidth="12" strokeDasharray="314" strokeDashoffset="120" />
+                              <circle cx="64" cy="64" r="50" fill="transparent" stroke="#10b981" strokeWidth="12" strokeDasharray="314" strokeDashoffset="250" />
+                            </svg>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-400">
+                            <div className="flex items-center gap-1.5">
+                              <span className="h-2.5 w-2.5 rounded bg-violet-500 shrink-0" />
+                              <span>AI Generated (82%)</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="h-2.5 w-2.5 rounded bg-emerald-500 shrink-0" />
+                              <span>Manual Content (18%)</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              </div>
+
+              {isMetaModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+                  <div className="bg-gray-950 border border-gray-800 rounded-3xl shadow-2xl shadow-black/50 w-full max-w-lg overflow-hidden">
+                    {/* Header */}
+                    <div className="relative px-6 pt-6 pb-4 border-b border-gray-800 bg-gradient-to-r from-pink-950/40 to-rose-950/30">
+                      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-pink-500 to-transparent" />
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-pink-600 to-rose-600 flex items-center justify-center shadow-lg shadow-pink-500/30">
+                          <span className="text-xl">📲</span>
+                        </div>
+                        <div>
+                          <h2 className="text-white font-extrabold text-lg tracking-tight">Connect Meta to Publish</h2>
+                          <p className="text-gray-400 text-xs mt-0.5">Required to post on Instagram &amp; Facebook</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Body */}
+                    <div className="px-6 py-5 space-y-5">
                     <div className="bg-blue-950/30 border border-blue-900/40 rounded-xl p-4 text-xs text-blue-200 leading-relaxed space-y-1">
                       <p className="font-bold text-blue-100 text-sm">How to get your Meta Page Access Token:</p>
                       <ol className="list-decimal pl-4 space-y-1 text-blue-300">
@@ -2430,6 +4440,332 @@ export default function Home() {
                         'Save Token &amp; Publish Now'
                       )}
                     </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Bulk Schedule Dialog */}
+            {isBulkScheduleOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="bg-gray-950 border border-gray-800 rounded-3xl shadow-2xl shadow-black/50 w-full max-w-md overflow-hidden relative">
+                  <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
+                  
+                  {/* Header */}
+                  <div className="px-6 pt-6 pb-4 border-b border-gray-800 bg-gradient-to-r from-violet-950/20 to-indigo-950/10 flex items-center justify-between">
+                    <div>
+                      <h2 className="text-white font-extrabold text-lg tracking-tight flex items-center gap-2">
+                        <span>📅</span> Bulk Schedule Campaign
+                      </h2>
+                      <p className="text-gray-400 text-xs mt-0.5">Distribute pending posts evenly over a date range.</p>
+                    </div>
+                    <button 
+                      onClick={() => setIsBulkScheduleOpen(false)}
+                      className="text-gray-450 hover:text-white transition-colors"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </div>
+
+                  {/* Body */}
+                  <div className="px-6 py-5 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-semibold text-gray-400">Start Date</label>
+                        <Input
+                          type="date"
+                          value={bulkStartDate}
+                          onChange={e => setBulkStartDate(e.target.value)}
+                          className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 rounded-xl h-10"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-semibold text-gray-400">End Date</label>
+                        <Input
+                          type="date"
+                          value={bulkEndDate}
+                          onChange={e => setBulkEndDate(e.target.value)}
+                          className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 rounded-xl h-10"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-semibold text-gray-400">Posting Time (Daily)</label>
+                      <Input
+                        type="time"
+                        value={bulkPostingTime}
+                        onChange={e => setBulkPostingTime(e.target.value)}
+                        className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 rounded-xl h-10"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-6 py-4 border-t border-gray-800 bg-gray-950/40 flex gap-3 justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsBulkScheduleOpen(false)}
+                      className="h-10 px-4 rounded-xl text-xs font-semibold text-gray-400 border-gray-800 hover:bg-gray-800 hover:text-white bg-transparent"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={bulkScheduling || !bulkStartDate || !bulkEndDate || !bulkPostingTime}
+                      onClick={handleBulkSchedule}
+                      className="h-10 px-4 rounded-xl text-xs font-semibold bg-violet-650 hover:bg-violet-600 text-white disabled:opacity-50"
+                    >
+                      {bulkScheduling ? "Scheduling..." : "Schedule Posts"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+
+
+            {/* Create Manual Post Dialog */}
+            {isCreatePostOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+                <div className="bg-gray-950 border border-gray-800 rounded-3xl shadow-2xl shadow-black/50 w-full max-w-xl overflow-hidden relative">
+                  <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
+                  
+                  {/* Header */}
+                  <div className="px-6 pt-6 pb-4 border-b border-gray-800 bg-gradient-to-r from-violet-950/20 to-indigo-950/10 flex items-center justify-between">
+                    <div>
+                      <h2 className="text-white font-extrabold text-lg tracking-tight flex items-center gap-2">
+                        <span>📝</span> Create Manual Post Draft
+                      </h2>
+                      <p className="text-gray-400 text-xs mt-0.5">Add a new manual post to your marketing campaign timeline.</p>
+                    </div>
+                    <button 
+                      onClick={() => setIsCreatePostOpen(false)}
+                      className="text-gray-450 hover:text-white transition-colors"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </div>
+
+                  {/* Body */}
+                  <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-semibold text-gray-400">Platform</label>
+                        <Select value={createPostPlatform} onValueChange={(val) => val && setCreatePostPlatform(val)}>
+                          <SelectTrigger className="h-10 bg-gray-900/60 border-gray-800 text-white rounded-xl">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                            <SelectItem value="linkedin">LinkedIn</SelectItem>
+                            <SelectItem value="instagram">Instagram</SelectItem>
+                            <SelectItem value="facebook">Facebook</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-semibold text-gray-400">Timeline Day</label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={createPostDay}
+                          onChange={e => setCreatePostDay(parseInt(e.target.value) || 1)}
+                          className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 rounded-xl h-10"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-semibold text-gray-400">Post Text Content</label>
+                      <Textarea
+                        placeholder="Write your post content here..."
+                        className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 rounded-xl min-h-[100px] text-sm"
+                        value={createPostContent}
+                        onChange={e => setCreatePostContent(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-semibold text-gray-400">Scheduled Date & Time (Optional)</label>
+                      <Input
+                        type="datetime-local"
+                        className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 rounded-xl h-10"
+                        value={createPostScheduledAt}
+                        onChange={e => setCreatePostScheduledAt(e.target.value)}
+                      />
+                    </div>
+
+                    {/* Upload Media section */}
+                    <div className="bg-gray-950/40 border border-gray-900 rounded-2xl p-3.5 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-300">Upload Post Media</span>
+                        {createPostIsManualMedia && (
+                          <span className="text-[9px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                            Manual Upload Active
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            id="create-image-upload"
+                            onChange={e => {
+                              const file = e.target.files?.[0];
+                              if (file) handleFileUpload(file, false);
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={uploadingFile}
+                            onClick={() => document.getElementById("create-image-upload")?.click()}
+                            className="w-full h-10 rounded-xl text-xs border-gray-805 hover:bg-gray-800 hover:text-white bg-transparent flex items-center justify-center gap-1.5"
+                          >
+                            <ImageIcon size={14} className="text-violet-400" />
+                            {uploadingFile ? "Uploading..." : "Upload Image File"}
+                          </Button>
+                        </div>
+
+                        <div>
+                          <input
+                            type="file"
+                            accept="video/*"
+                            className="hidden"
+                            id="create-video-upload"
+                            onChange={e => {
+                              const file = e.target.files?.[0];
+                              if (file) handleFileUpload(file, false);
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={uploadingFile}
+                            onClick={() => document.getElementById("create-video-upload")?.click()}
+                            className="w-full h-10 rounded-xl text-xs border-gray-805 hover:bg-gray-800 hover:text-white bg-transparent flex items-center justify-center gap-1.5"
+                          >
+                            <Film size={14} className="text-violet-400" />
+                            {uploadingFile ? "Uploading..." : "Upload Video File"}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {(createPostImageUrl || createPostVideoUrl) && (
+                        <div className="pt-2 border-t border-gray-900 animate-in fade-in duration-200">
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Uploaded Preview URL</label>
+                          <div className="text-xs text-gray-400 bg-gray-900/60 p-2 rounded-xl border border-gray-850 truncate">
+                            {createPostImageUrl || createPostVideoUrl}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* AI Prompt Tool Selector */}
+                    <div className="bg-gray-950/40 border border-gray-900 rounded-2xl p-3.5 space-y-3">
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-gray-300">Generation Prompt Options</label>
+                          <span className="text-[9px] text-gray-500">Choose if you want to attach a prompt</span>
+                        </div>
+                        <Select
+                          value={createPostImagePromptEnabled ? "image" : createPostVideoPromptEnabled ? "video" : "none"}
+                          onValueChange={(val) => {
+                            if (val === "image") {
+                              setCreatePostImagePromptEnabled(true);
+                              setCreatePostVideoPromptEnabled(false);
+                            } else if (val === "video") {
+                              setCreatePostImagePromptEnabled(false);
+                              setCreatePostVideoPromptEnabled(true);
+                            } else {
+                              setCreatePostImagePromptEnabled(false);
+                              setCreatePostVideoPromptEnabled(false);
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-10 bg-gray-900/60 border-gray-800 text-white rounded-xl text-xs">
+                            <SelectValue placeholder="Select Prompt Option" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                            <SelectItem value="none">None (No prompt attachment)</SelectItem>
+                            <SelectItem value="image">Image Prompt (For AI Graphics)</SelectItem>
+                            <SelectItem value="video">Video Prompt (For AI Video loops)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Image Prompt */}
+                      {createPostImagePromptEnabled && (
+                        <div className="space-y-2 pt-2 border-t border-gray-900 animate-in fade-in duration-200">
+                          <label className="text-[10px] font-bold text-violet-400 uppercase tracking-wider block">Image Generation Prompt</label>
+                          <Textarea
+                            placeholder="Describe image (e.g. 'Warm grading, clean workspace')"
+                            className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 rounded-xl text-xs min-h-[60px]"
+                            value={createPostImagePrompt}
+                            onChange={e => setCreatePostImagePrompt(e.target.value)}
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={suggestingPrompt}
+                            onClick={() => handleSuggestPrompt(createPostContent, 'image', false)}
+                            className="w-full h-8 rounded-lg text-xs font-semibold border-gray-800 hover:bg-gray-800 hover:text-white bg-transparent text-gray-300 disabled:opacity-50"
+                          >
+                            {suggestingPrompt ? "Suggesting..." : "🪄 Suggest Image Prompt"}
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Video Prompt */}
+                      {createPostVideoPromptEnabled && (
+                        <div className="space-y-2 pt-2 border-t border-gray-900 animate-in fade-in duration-200">
+                          <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block">Video Generation Prompt</label>
+                          <Textarea
+                            placeholder="Describe video loop (e.g. 'Sun rays shifting, loop video')"
+                            className="bg-gray-900/60 border-gray-800 text-white focus:border-indigo-500 rounded-xl text-xs min-h-[60px]"
+                            value={createPostVideoPrompt}
+                            onChange={e => setCreatePostVideoPrompt(e.target.value)}
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={suggestingPrompt}
+                            onClick={() => handleSuggestPrompt(createPostContent, 'video', false)}
+                            className="w-full h-8 rounded-lg text-xs font-semibold border-gray-800 hover:bg-gray-800 hover:text-white bg-transparent text-gray-300 disabled:opacity-50"
+                          >
+                            {suggestingPrompt ? "Suggesting..." : "🪄 Suggest Video Prompt"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-6 py-4 border-t border-gray-800 bg-gray-950/40 flex gap-3 justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsCreatePostOpen(false)}
+                      className="h-10 px-4 rounded-xl text-xs font-semibold text-gray-400 border-gray-800 hover:bg-gray-800 hover:text-white bg-transparent"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={creatingPost || !createPostContent}
+                      onClick={handleCreateManualPost}
+                      className="h-10 px-4 rounded-xl text-xs font-semibold bg-violet-650 hover:bg-violet-600 text-white disabled:opacity-50"
+                    >
+                      {creatingPost ? "Creating..." : "Create Post Draft"}
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -2735,232 +5071,893 @@ export default function Home() {
 
           {/* VIEW: ORCHESTRATOR */}
           {activeView === 'orchestrator' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto animate-in fade-in duration-300">
-              <div className="lg:col-span-1 flex flex-col gap-6">
-                <Card className="glass-panel border-transparent glow-support rounded-3xl overflow-hidden shadow-2xl relative">
-                  <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-blue-500 to-transparent" />
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg text-white font-bold">Set a Goal</CardTitle>
-                    <CardDescription className="text-gray-400 text-xs">e.g. "Get me 50 gym customers this month"</CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-3">
-                    <Textarea 
-                      placeholder="What should the AI team accomplish?"
-                      className="bg-gray-900/60 border-gray-800 text-white focus:border-blue-500 focus:ring-blue-500/20 rounded-xl text-base min-h-[100px] resize-none"
-                      value={prompt} onChange={e => setPrompt(e.target.value)}
-                    />
-                    
-                    <div className="grid grid-cols-2 gap-3 mt-1">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">AI Provider</label>
-                        <Select value={orchProvider} onValueChange={(val) => {
-                          if (val) {
-                            setOrchProvider(val);
-                            if (val === 'anthropic') setOrchModel('claude-sonnet-4-6');
-                            else if (val === 'openai') setOrchModel('gpt-4o');
-                            else if (val === 'gemini') setOrchModel('gemini-2.5-pro');
-                          }
-                        }}>
-                          <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-10 text-xs focus:border-blue-500 focus:ring-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-gray-900 border-gray-800 text-white">
-                            <SelectItem value="anthropic">Anthropic Claude</SelectItem>
-                            <SelectItem value="openai">OpenAI GPT</SelectItem>
-                            <SelectItem value="gemini">Google Gemini</SelectItem>
-                          </SelectContent>
-                        </Select>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 max-w-[1600px] mx-auto animate-in fade-in duration-300" style={{ height: 'calc(100vh - 140px)' }}>
+              {/* LEFT: Chat Console - 8 cols */}
+              <div className="lg:col-span-8 flex flex-col h-full min-h-0">
+                <Card className="flex-1 flex flex-col glass-panel border-transparent rounded-3xl overflow-hidden shadow-2xl relative min-h-0">
+                  {/* Decorative top gradient */}
+                  <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-500" />
+
+                  {/* HEADER */}
+                  <div className="px-5 py-3 border-b border-gray-800/60 bg-gray-950/40 flex items-center justify-between gap-3 flex-wrap flex-shrink-0">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                        <Cpu size={18} className="text-white" />
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">AI Model</label>
-                        <Select value={orchModel} onValueChange={(val) => val && setOrchModel(val)}>
-                          <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-10 text-xs focus:border-blue-500 focus:ring-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-gray-900 border-gray-800 text-white">
-                            {orchProvider === 'anthropic' && (
-                              <>
-                                <SelectItem value="claude-sonnet-4-6">Claude 4.6 Sonnet</SelectItem>
-                                <SelectItem value="claude-opus-4-8">Claude 4.8 Opus</SelectItem>
-                                <SelectItem value="claude-haiku-4-5-20251001">Claude 4.5 Haiku</SelectItem>
-                              </>
-                            )}
-                            {orchProvider === 'openai' && (
-                              <>
-                                <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                                <SelectItem value="gpt-4o-mini">GPT-4o-mini</SelectItem>
-                              </>
-                            )}
-                            {orchProvider === 'gemini' && (
-                              <>
-                                <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
-                                <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
-                                <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
-                              </>
-                            )}
-                          </SelectContent>
-                        </Select>
+                      <div>
+                        <h3 className="font-extrabold text-white text-sm tracking-tight">Orchestrator AI</h3>
+                        <p className="text-[10px] text-gray-400 font-medium">Multi-agent task coordinator</p>
                       </div>
+                      <span className="ml-1 flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> Online
+                      </span>
                     </div>
 
-                    <Button 
-                      onClick={handleRunCommand} 
-                      disabled={loading} 
-                      className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100"
-                    >
-                      {loading ? 'Orchestrating Teams...' : 'Execute Goal'}
-                    </Button>
-                  </CardContent>
-                </Card>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Integration Status Pills */}
+                      <div className="hidden md:flex items-center gap-1">
+                        {['anthropic', 'openai', 'gemini', 'meta', 'linkedin', 'smtp', 'apollo'].map(prov => (
+                          <span key={prov} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border transition-colors ${
+                            configuredProviders.includes(prov)
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : 'bg-gray-900/40 text-gray-600 border-gray-800'
+                          }`}>
+                            {prov === 'anthropic' ? 'Claude' : prov === 'openai' ? 'GPT' : prov === 'gemini' ? 'Gemini' : prov === 'meta' ? 'Meta' : prov === 'linkedin' ? 'LinkedIn' : prov === 'smtp' ? 'SMTP' : 'Apollo'}
+                          </span>
+                        ))}
+                      </div>
 
-                <Card className="flex-1 glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl overflow-hidden shadow-2xl relative h-[450px] flex flex-col">
-                  <CardHeader className="pb-3 border-b border-gray-800">
-                    <CardTitle className="text-sm font-bold text-white">AI Activity Feed</CardTitle>
+                      {/* Model Selectors */}
+                      <Select value={orchProvider} onValueChange={(val) => {
+                        if (val) {
+                          setOrchProvider(val);
+                          if (val === 'anthropic') setOrchModel('claude-sonnet-4-6');
+                          else if (val === 'openai') setOrchModel('gpt-4o');
+                          else if (val === 'gemini') setOrchModel('gemini-2.5-pro');
+                        }
+                      }}>
+                        <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white rounded-lg h-7 text-[10px] w-[100px] focus:border-violet-500 focus:ring-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                          <SelectItem value="anthropic">Claude</SelectItem>
+                          <SelectItem value="openai">OpenAI</SelectItem>
+                          <SelectItem value="gemini">Gemini</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={orchModel} onValueChange={(val) => val && setOrchModel(val)}>
+                        <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white rounded-lg h-7 text-[10px] w-[120px] focus:border-violet-500 focus:ring-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                          {orchProvider === 'anthropic' && (
+                            <>
+                              <SelectItem value="claude-sonnet-4-6">Sonnet 4.6</SelectItem>
+                              <SelectItem value="claude-opus-4-8">Opus 4.8</SelectItem>
+                              <SelectItem value="claude-haiku-4-5-20251001">Haiku 4.5</SelectItem>
+                            </>
+                          )}
+                          {orchProvider === 'openai' && (
+                            <>
+                              <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                              <SelectItem value="gpt-4o-mini">GPT-4o-mini</SelectItem>
+                            </>
+                          )}
+                          {orchProvider === 'gemini' && (
+                            <>
+                              <SelectItem value="gemini-2.5-pro">2.5 Pro</SelectItem>
+                              <SelectItem value="gemini-2.5-flash">2.5 Flash</SelectItem>
+                              <SelectItem value="gemini-2.0-flash">2.0 Flash</SelectItem>
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+
+                      {/* Clear Chat */}
+                      <button
+                        onClick={clearOrchestratorChat}
+                        className="h-7 w-7 rounded-lg bg-gray-900/60 border border-gray-800 text-gray-400 hover:text-rose-400 hover:border-rose-500/30 hover:bg-rose-950/20 flex items-center justify-center transition-all"
+                        title="Clear chat history"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* MESSAGES AREA */}
+                  <div className="flex-1 overflow-y-auto p-5 space-y-5 min-h-0">
+                    {orchMessages.map((msg: any) => (
+                      <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                        {msg.role !== 'user' && (
+                          <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center mr-3 mt-1 flex-shrink-0 shadow-lg shadow-violet-500/20">
+                            <Bot size={14} className="text-white" />
+                          </div>
+                        )}
+                        <div className={`max-w-[80%] ${
+                          msg.role === 'user'
+                            ? 'bg-gradient-to-br from-violet-600 to-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-lg shadow-violet-500/15'
+                            : 'bg-gray-900/60 border border-gray-800/60 text-gray-100 rounded-2xl rounded-tl-sm px-4 py-3'
+                        }`}>
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+
+                          {/* Execution Blueprint */}
+                          {msg.plan?.tasks && msg.plan.tasks.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-gray-700/40 space-y-2">
+                              <span className="text-[10px] uppercase font-black tracking-widest text-violet-400 flex items-center gap-1.5">
+                                <Sparkles size={10} /> Execution Blueprint
+                              </span>
+                              {msg.plan.tasks.map((task: any, idx: number) => (
+                                <div key={idx} className="flex items-center gap-2.5 bg-gray-950/50 rounded-xl px-3 py-2 border border-gray-800/40">
+                                  <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                                    task.department === 'Marketing' ? 'bg-violet-500' :
+                                    task.department === 'Sales' ? 'bg-emerald-500' :
+                                    task.department === 'Support' ? 'bg-blue-500' :
+                                    task.department === 'HR' ? 'bg-amber-500' :
+                                    task.department === 'System' ? 'bg-rose-500' :
+                                    'bg-gray-500'
+                                  }`} />
+                                  <span className="text-[11px] font-bold text-white">{task.department}</span>
+                                  <span className="text-[10px] text-gray-400 font-medium">→ {task.action}</span>
+                                  {task.parameters && Object.keys(task.parameters).length > 0 && (
+                                    <span className="text-[9px] text-gray-500 ml-auto hidden sm:inline truncate max-w-[180px]">
+                                      {JSON.stringify(task.parameters).slice(0, 60)}
+                                    </span>
+                                  )}
+                                  <Check size={11} className="text-emerald-400 ml-auto flex-shrink-0" />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Inline API Key Config for action_required responses */}
+                          {msg.results?.some((r: any) => r.status === 'action_required') && (
+                            <div className="mt-3 pt-3 border-t border-gray-700/40">
+                              <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 space-y-2.5">
+                                <span className="text-[10px] uppercase font-black tracking-widest text-amber-400 flex items-center gap-1">
+                                  <Zap size={10} /> Quick Connect
+                                </span>
+                                <div className="flex gap-2">
+                                  <Input
+                                    type="text"
+                                    placeholder="Paste your API key here..."
+                                    value={orchInlineKeyValue}
+                                    onChange={e => setOrchInlineKeyValue(e.target.value)}
+                                    className="bg-gray-950/60 border-gray-800 text-white focus:border-amber-500 focus:ring-amber-500/20 rounded-lg h-8 text-xs flex-1"
+                                  />
+                                  <Button
+                                    onClick={async () => {
+                                      if (!orchInlineKeyValue) return;
+                                      let detectedProvider = 'anthropic';
+                                      if (orchInlineKeyValue.startsWith('sk-ant')) detectedProvider = 'anthropic';
+                                      else if (orchInlineKeyValue.startsWith('sk-')) detectedProvider = 'openai';
+                                      else if (orchInlineKeyValue.startsWith('AIza')) detectedProvider = 'gemini';
+                                      try {
+                                        await fetchWithAuth(`${API_URL}/commands/keys`, {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ provider: detectedProvider, key: orchInlineKeyValue })
+                                        });
+                                        setOrchInlineKeyValue('');
+                                        fetchData();
+                                        const successMsg = {
+                                          id: `system-${Date.now()}`,
+                                          role: 'assistant' as const,
+                                          content: `✅ ${detectedProvider} API key saved successfully. I'm now fully operational — what would you like me to do?`,
+                                          timestamp: new Date().toISOString()
+                                        };
+                                        setOrchMessages(prev => [...prev, successMsg]);
+                                      } catch (err) {
+                                        console.error(err);
+                                      }
+                                    }}
+                                    className="h-8 px-3 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.02] active:scale-95"
+                                  >
+                                    Save
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          <span className={`text-[9px] mt-2 block text-right font-medium ${
+                            msg.role === 'user' ? 'text-violet-200' : 'text-gray-500'
+                          }`}>
+                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Typing Indicator */}
+                    {loading && (
+                      <div className="flex justify-start animate-in fade-in duration-300">
+                        <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center mr-3 mt-1 flex-shrink-0 shadow-lg shadow-violet-500/20">
+                          <Bot size={14} className="text-white" />
+                        </div>
+                        <div className="bg-gray-900/60 border border-gray-800/60 rounded-2xl rounded-tl-sm px-5 py-4">
+                          <div className="flex items-center gap-2">
+                            <div className="flex gap-1">
+                              <span className="h-2 w-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="h-2 w-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="h-2 w-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                            <span className="text-xs text-gray-400 font-medium ml-1">Orchestrating teams...</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div ref={orchChatEndRef} />
+                  </div>
+
+                  {/* QUICK PROMPT CHIPS */}
+                  <div className="px-5 py-2.5 border-t border-gray-800/30 bg-gray-950/20 flex-shrink-0">
+                    <div className="flex flex-wrap gap-2">
+                      {apps.some((a: any) => a.app_name === 'Restaurant Growth Pack') && (
+                        <button
+                          onClick={() => setOrchInput("Trigger the daily special post for Restaurant Pack. Create a draft of today's specials for Instagram.")}
+                          className="text-[11px] font-semibold px-3 py-1.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20 hover:border-violet-500/40 transition-all hover:scale-[1.03] active:scale-95"
+                        >
+                          🍔 Post daily specials
+                        </button>
+                      )}
+                      {apps.some((a: any) => a.app_name === 'SaaS Outreach System') && (
+                        <button
+                          onClick={() => setOrchInput("Execute the SaaS Outreach System. Source 5 CTOs at early-stage AI startups in New York.")}
+                          className="text-[11px] font-semibold px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:border-emerald-500/40 transition-all hover:scale-[1.03] active:scale-95"
+                        >
+                          🚀 Source SaaS leads
+                        </button>
+                      )}
+                      {apps.some((a: any) => a.app_name === 'Real Estate Lead Engine') && (
+                        <button
+                          onClick={() => setOrchInput("Generate property descriptions using the Real Estate Lead Engine for 456 Oak Ave. Premium luxury pool description.")}
+                          className="text-[11px] font-semibold px-3 py-1.5 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/20 hover:bg-pink-500/20 hover:border-pink-500/40 transition-all hover:scale-[1.03] active:scale-95"
+                        >
+                          🏡 Generate listings
+                        </button>
+                      )}
+                      {apps.some((a: any) => a.app_name === 'Creative Content Lab') && (
+                        <button
+                          onClick={() => setOrchInput("Create an SEO Blog Outline with the Creative Content Lab on 'How AI employees are transforming small businesses'.")}
+                          className="text-[11px] font-semibold px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 hover:border-amber-500/40 transition-all hover:scale-[1.03] active:scale-95"
+                        >
+                          ✨ Write blog outline
+                        </button>
+                      )}
+                      {apps.length === 0 && (
+                        <>
+                          <button
+                            onClick={() => setOrchInput("Find 5 marketing agencies in San Francisco and email them a partnership proposal.")}
+                            className="text-[11px] font-semibold px-3 py-1.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20 hover:border-violet-500/40 transition-all hover:scale-[1.03] active:scale-95"
+                          >
+                            🔍 Find leads & email
+                          </button>
+                          <button
+                            onClick={() => setOrchInput("Create a 7-day Instagram content campaign about healthy meal prep tips.")}
+                            className="text-[11px] font-semibold px-3 py-1.5 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/20 hover:bg-pink-500/20 hover:border-pink-500/40 transition-all hover:scale-[1.03] active:scale-95"
+                          >
+                            📸 Create content campaign
+                          </button>
+                          <button
+                            onClick={() => setOrchInput("Source 5 senior React developers with 4+ years experience, salary $130k/year.")}
+                            className="text-[11px] font-semibold px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 hover:border-amber-500/40 transition-all hover:scale-[1.03] active:scale-95"
+                          >
+                            👨‍💻 Hire developers
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* INPUT AREA */}
+                  <div className="px-5 py-4 border-t border-gray-800/60 bg-gray-950/40 flex-shrink-0">
+                    <div className="flex gap-3 items-end">
+                      <div className="flex-1 relative">
+                        <Textarea
+                          placeholder="Tell me what your business needs..."
+                          value={orchInput}
+                          onChange={e => setOrchInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleRunCommand();
+                            }
+                          }}
+                          className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 focus:ring-violet-500/20 rounded-xl text-sm min-h-[48px] max-h-[120px] resize-none pr-4 py-3"
+                          rows={1}
+                        />
+                      </div>
+                      <Button
+                        onClick={handleRunCommand}
+                        disabled={loading || !orchInput.trim()}
+                        className="h-12 w-12 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:scale-100 flex items-center justify-center flex-shrink-0"
+                      >
+                        {loading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+
+              {/* RIGHT: Sidebar - 4 cols */}
+              <div className="lg:col-span-4 flex flex-col gap-5 h-full min-h-0">
+                {/* Activity Feed */}
+                <Card className="flex-1 glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl overflow-hidden shadow-2xl relative flex flex-col min-h-0">
+                  <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
+                  <CardHeader className="pb-2 border-b border-gray-800/60 flex-shrink-0">
+                    <CardTitle className="text-sm font-bold text-white flex items-center gap-2">
+                      <Activity size={14} className="text-violet-400" />
+                      Live Activity Feed
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-4 space-y-4 overflow-y-auto flex-1">
+                  <CardContent className="p-3 space-y-3 overflow-y-auto flex-1 min-h-0">
                     {timeline.length === 0 && <p className="text-xs text-gray-500 text-center mt-10">No recent activity.</p>}
-                    {timeline.map((log) => (
-                      <div key={log.id} className="flex gap-3 text-xs border-l-2 border-violet-500/30 pl-3 pb-3 relative">
-                        <span className="absolute left-[-5px] top-1.5 h-2.5 w-2.5 rounded-full bg-violet-500 border border-gray-950 shadow-md" />
+                    {timeline.slice(0, 20).map((log: any) => (
+                      <div key={log.id} className="flex gap-2.5 text-xs border-l-2 border-violet-500/30 pl-2.5 pb-2 relative">
+                        <span className="absolute left-[-4px] top-1.5 h-2 w-2 rounded-full bg-violet-500 border border-gray-950 shadow-md" />
                         <div className="flex flex-col w-full">
                           <div className="flex justify-between w-full">
-                            <span className="font-semibold text-white">{log.agent_name}</span>
-                            <span className="text-[10px] text-gray-500">{new Date(log.created_at).toLocaleTimeString()}</span>
+                            <span className="font-semibold text-white text-[11px]">{log.agent_name}</span>
+                            <span className="text-[9px] text-gray-500">{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
-                          <span className="text-violet-400 font-medium mt-0.5">{log.action}</span>
-                          <span className="text-gray-300 mt-1 leading-relaxed">{log.description}</span>
+                          <span className="text-violet-400 font-medium text-[10px] mt-0.5">{log.action}</span>
+                          <span className="text-gray-400 text-[10px] mt-0.5 leading-relaxed" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{log.description}</span>
                         </div>
                       </div>
                     ))}
                   </CardContent>
                 </Card>
-              </div>
 
-              <div className="lg:col-span-2">
-                <Card className="h-full glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl overflow-hidden shadow-2xl relative h-full flex flex-col">
-                  <CardHeader className="pb-3 border-b border-gray-800">
-                    <CardTitle className="text-xl text-white font-extrabold">Approvals Pipeline</CardTitle>
+                {/* Quick Approvals */}
+                <Card className="glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl overflow-hidden shadow-2xl relative flex flex-col flex-shrink-0" style={{ maxHeight: '340px' }}>
+                  <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
+                  <CardHeader className="pb-2 border-b border-gray-800/60 flex-shrink-0">
+                    <CardTitle className="text-sm font-bold text-white flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <Check size={14} className="text-emerald-400" />
+                        Approvals
+                      </span>
+                      {((queue.posts?.length || 0) + (queue.leads?.length || 0)) > 0 && (
+                        <span className="text-[10px] bg-violet-500/10 text-violet-400 border border-violet-500/20 px-2 py-0.5 rounded-full font-bold">
+                          {(queue.posts?.length || 0) + (queue.leads?.length || 0)} pending
+                        </span>
+                      )}
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-6">
-                    <Tabs defaultValue="marketing" className="w-full">
-                      <TabsList className="grid w-full max-w-[400px] grid-cols-2 bg-gray-950/60 p-1 border border-gray-800 rounded-xl mb-6">
-                        <TabsTrigger value="marketing" className="rounded-lg text-xs font-semibold text-gray-400 data-[state=active]:bg-violet-600 data-[state=active]:text-white transition-all">Marketing Queue</TabsTrigger>
-                        <TabsTrigger value="sales" className="rounded-lg text-xs font-semibold text-gray-400 data-[state=active]:bg-emerald-600 data-[state=active]:text-white transition-all">Sales Leads</TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="marketing">
-                        <div className="border border-gray-800 rounded-2xl overflow-hidden bg-[rgba(0,0,0,0.15)] shadow-inner">
-                          <Table>
-                            <TableHeader className="bg-gray-950/40 border-b border-gray-800">
-                              <TableRow className="border-gray-800 hover:bg-transparent">
-                                <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-xs p-4">Day / Platform</TableHead>
-                                <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-xs p-4">Content Preview</TableHead>
-                                <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-xs p-4 text-right">Action</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody className="divide-y divide-gray-800">
-                              {(!queue.posts || queue.posts.length === 0) && (
-                                <TableRow className="hover:bg-transparent">
-                                  <TableCell colSpan={3} className="text-center py-8 text-gray-500 font-medium">Queue is empty.</TableCell>
-                                </TableRow>
-                              )}
-                              {queue.posts?.map((post) => (
-                                <TableRow key={post.id} className="border-gray-800 hover:bg-gray-900/20">
-                                  <TableCell className="p-4 whitespace-nowrap">
-                                    <div className="flex flex-col">
-                                      <span className="text-xs font-extrabold uppercase text-violet-400">{post.platform}</span>
-                                      <span className="text-[10px] text-gray-500 font-bold mt-0.5">Day {post.day}</span>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="p-4"><div className="max-w-sm truncate text-xs text-gray-300 leading-relaxed">{post.content}</div></TableCell>
-                                  <TableCell className="p-4 text-right">
-                                    <div className="flex gap-2 justify-end">
-                                      <Button 
-                                        size="sm" 
-                                        variant="outline" 
-                                        onClick={() => handleRejectPost(post.id)}
-                                        className="h-8 text-xs font-semibold text-rose-400 border-rose-900/30 hover:bg-rose-950/20"
-                                      >
-                                        Reject
-                                      </Button>
-                                      <Button 
-                                        size="sm" 
-                                        onClick={() => handleApprovePost(post.id)}
-                                        className="h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white"
-                                      >
-                                        Approve
-                                      </Button>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                  <CardContent className="p-3 space-y-2 overflow-y-auto flex-1 min-h-0">
+                    {(!queue.posts || queue.posts.length === 0) && (!queue.leads || queue.leads.length === 0) && (
+                      <p className="text-xs text-gray-500 text-center py-6">No pending approvals.</p>
+                    )}
+                    {queue.posts?.slice(0, 5).map((post: any) => (
+                      <div key={post.id} className="bg-gray-950/40 border border-gray-800/40 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-extrabold uppercase text-violet-400">{post.platform}</span>
+                          <span className="text-[9px] text-gray-500 font-bold">Day {post.day}</span>
                         </div>
-                      </TabsContent>
-                      <TabsContent value="sales">
-                        <div className="border border-gray-800 rounded-2xl overflow-hidden bg-[rgba(0,0,0,0.15)] shadow-inner">
-                          <Table>
-                            <TableHeader className="bg-gray-950/40 border-b border-gray-800">
-                              <TableRow className="border-gray-800 hover:bg-transparent">
-                                <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-xs p-4">Lead Name</TableHead>
-                                <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-xs p-4">Company</TableHead>
-                                <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-xs p-4">Source</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody className="divide-y divide-gray-800">
-                              {(!queue.leads || queue.leads.length === 0) && (
-                                <TableRow className="hover:bg-transparent">
-                                  <TableCell colSpan={3} className="text-center py-8 text-gray-500 font-medium">No leads found.</TableCell>
-                                </TableRow>
-                              )}
-                              {queue.leads?.map((lead) => (
-                                <TableRow key={lead.id} className="border-gray-800 hover:bg-gray-900/20">
-                                  <TableCell className="p-4 font-bold text-white text-xs">{lead.name}</TableCell>
-                                  <TableCell className="p-4 text-xs text-gray-300">{lead.company}</TableCell>
-                                  <TableCell className="p-4">
-                                    <span className="text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded uppercase tracking-wider">
-                                      {lead.source}
-                                    </span>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                        <p className="text-[11px] text-gray-300 leading-relaxed" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{post.content}</p>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRejectPost(post.id)}
+                            className="h-6 text-[10px] font-semibold text-rose-400 border-rose-900/30 hover:bg-rose-950/20 flex-1 rounded-lg"
+                          >
+                            Reject
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleApprovePost(post.id)}
+                            className="h-6 text-[10px] font-semibold bg-emerald-600 hover:bg-emerald-500 text-white flex-1 rounded-lg"
+                          >
+                            Approve
+                          </Button>
                         </div>
-                      </TabsContent>
-                    </Tabs>
+                      </div>
+                    ))}
+                    {queue.leads?.slice(0, 4).map((lead: any) => (
+                      <div key={lead.id} className="bg-gray-950/40 border border-gray-800/40 rounded-xl p-3 flex items-center justify-between">
+                        <div className="flex flex-col">
+                          <span className="text-[11px] font-bold text-white">{lead.name}</span>
+                          <span className="text-[10px] text-gray-400">{lead.company}</span>
+                        </div>
+                        <span className="text-[9px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded uppercase">{lead.source}</span>
+                      </div>
+                    ))}
                   </CardContent>
                 </Card>
               </div>
             </div>
           )}
 
+
           {/* VIEW: TEAMS */}
           {activeView === 'teams' && (
-            <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-300">
-              <div>
-                <h1 className="text-4xl font-extrabold text-white tracking-tight">Autonomous AI Teams</h1>
-                <p className="text-gray-400 mt-1">Deploy specialized autonomous AI agents tailored for your business goals.</p>
+            <div className="max-w-6xl mx-auto space-y-6 pb-16 animate-in fade-in duration-300">
+              {/* Header */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800/60 pb-6">
+                <div>
+                  <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-3">
+                    <Users className="text-violet-500 h-9 w-9" /> Autonomous AI Teams
+                  </h1>
+                  <p className="text-gray-400 mt-1">Deploy specialized autonomous AI agents tailored for your business goals.</p>
+                </div>
+                <Button 
+                  onClick={() => {
+                    setTeamFormName('');
+                    setTeamFormAgents([]);
+                    setIsCreateTeamOpen(true);
+                  }}
+                  className="bg-violet-600 hover:bg-violet-500 text-white font-bold h-10 rounded-xl px-5 shadow-lg shadow-violet-500/20 flex items-center gap-2 hover:scale-[1.02] active:scale-95 transition-all"
+                >
+                  <Plus size={16} /> Create Custom Team
+                </Button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {teams.map(team => (
-                  <Card key={team.id} className="glass-panel border-transparent hover:border-violet-500/30 transition-all duration-300 rounded-3xl overflow-hidden shadow-2xl relative p-6">
-                    <CardHeader className="p-0 pb-4">
-                      <CardTitle className="text-white font-extrabold text-xl">{team.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <h4 className="text-[10px] font-bold text-gray-400 mb-3 uppercase tracking-wider">Agents Included</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {team.agents.map((agent: string) => (
-                          <span key={agent} className="bg-violet-500/10 text-violet-400 border border-violet-500/20 rounded-xl text-xs font-bold px-3 py-1.5">
-                            {agent}
-                          </span>
-                        ))}
+
+              {/* Teams List */}
+              <div className="grid grid-cols-1 gap-8">
+                {teams.map(team => {
+                  const isDefaultTeam = team.name === "Growth Team" || team.name === "Operations Team";
+                  return (
+                    <Card key={team.id} className="glass-panel border-transparent hover:border-violet-500/10 transition-all duration-300 rounded-3xl overflow-hidden shadow-2xl relative p-6 md:p-8">
+                      <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-violet-600 to-indigo-600" />
+                      
+                      {/* Team Header Card */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-gray-800/60">
+                        <div>
+                          <div className="flex items-center gap-2.5">
+                            <h2 className="text-2xl font-black text-white">{team.name}</h2>
+                            {isDefaultTeam ? (
+                              <span className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-bold">
+                                Default Team
+                              </span>
+                            ) : (
+                              <span className="text-[10px] bg-violet-500/10 text-violet-400 border border-violet-500/20 px-2 py-0.5 rounded-full font-bold">
+                                Custom Team
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-gray-400 text-xs mt-1">Created on {new Date(team.created_at || Date.now()).toLocaleDateString()}</p>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingTeamId(team.id);
+                              setTeamFormName(team.name);
+                              setTeamFormAgents(team.agents);
+                              setIsEditTeamOpen(true);
+                            }}
+                            className="bg-transparent border-gray-800 text-gray-450 hover:text-white hover:bg-gray-900 rounded-xl h-8 text-xs font-bold"
+                          >
+                            <Edit2 size={12} className="mr-1.5" /> Edit Team
+                          </Button>
+                          {!isDefaultTeam && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDeleteTeam(team.id)}
+                              className="bg-transparent border-rose-950/30 text-rose-400 hover:bg-rose-950/20 hover:border-rose-900/30 rounded-xl h-8 text-xs font-bold"
+                            >
+                              <Trash2 size={12} className="mr-1.5" /> Delete
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
+
+                      {/* Team Stats */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-6 border-b border-gray-800/40">
+                        {team.name === "Growth Team" ? (
+                          <>
+                            <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Leads Sourced</span>
+                              <span className="text-2xl font-black text-white mt-1 block">1,420</span>
+                            </div>
+                            <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Campaign Posts</span>
+                              <span className="text-2xl font-black text-white mt-1 block">124</span>
+                            </div>
+                            <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Outreach DMs</span>
+                              <span className="text-2xl font-black text-white mt-1 block">458</span>
+                            </div>
+                            <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Est. Revenue</span>
+                              <span className="text-2xl font-black text-emerald-400 mt-1 block">$18,450</span>
+                            </div>
+                          </>
+                        ) : team.name === "Operations Team" ? (
+                          <>
+                            <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Tickets Closed</span>
+                              <span className="text-2xl font-black text-white mt-1 block">4,812</span>
+                            </div>
+                            <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Avg Response</span>
+                              <span className="text-2xl font-black text-white mt-1 block">4.2m</span>
+                            </div>
+                            <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Auto-Replies</span>
+                              <span className="text-2xl font-black text-white mt-1 block">94.2%</span>
+                            </div>
+                            <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Invoices Matched</span>
+                              <span className="text-2xl font-black text-emerald-400 mt-1 block">98.7%</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Active Tasks</span>
+                              <span className="text-2xl font-black text-white mt-1 block">8</span>
+                            </div>
+                            <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Success Rate</span>
+                              <span className="text-2xl font-black text-emerald-400 mt-1 block">99.2%</span>
+                            </div>
+                            <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Uptime</span>
+                              <span className="text-2xl font-black text-white mt-1 block">100%</span>
+                            </div>
+                            <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Total Logs</span>
+                              <span className="text-2xl font-black text-white mt-1 block">34</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Agents Section */}
+                      <div className="pt-6">
+                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                          <Bot size={14} className="text-violet-400" /> Active Agents in Team
+                        </h3>
+                        <div className="space-y-4">
+                          {team.agents.map((agent: string) => {
+                            const agentConfig = team.config?.[agent] || {};
+                            const isConfiguring = configAgentName === agent && configAgentTeamId === team.id;
+                            const isTesting = testAgentName === agent && testAgentTeamId === team.id;
+                            
+                            return (
+                              <div key={agent} className="bg-gray-950/40 border border-gray-800/40 rounded-2xl p-4 md:p-5 relative transition-all hover:bg-gray-950/60">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                  <div className="flex items-start gap-3">
+                                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/10 flex-shrink-0 mt-0.5">
+                                      <Bot size={20} className="text-white" />
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <h4 className="font-extrabold text-white text-sm">{agent}</h4>
+                                        <span className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full text-[9px] font-bold">
+                                          <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse" /> Running / Idle
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-gray-450 mt-1 leading-relaxed">
+                                        {agent === "Sales AI" ? "Prospecting, scraping, lead generation, and outbound sequencing." :
+                                         agent === "Marketing AI" ? "Content strategy, social media copy, and image/video production." :
+                                         agent === "Support AI" ? "Ticket analysis, customer auto-responses, and sentiment classification." :
+                                         agent === "Finance AI" ? "Invoice routing, ledger validation, and expense analysis." :
+                                         agent === "HR AI" ? "Candidate screening, spec matching, and outreach planning." :
+                                         agent === "CEO AI" ? "Strategic multi-agent planning and cross-team goal orchestration." :
+                                         "Autonomous business operations execution."}
+                                      </p>
+                                      
+                                      {/* Saved Provider / Model Badge */}
+                                      <div className="flex gap-2 mt-2">
+                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-gray-900 border border-gray-800 text-gray-400 uppercase">
+                                          Provider: {agentConfig.provider || "System default"}
+                                        </span>
+                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-gray-900 border border-gray-800 text-gray-400">
+                                          Model: {agentConfig.model || "Auto-routed"}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Action Buttons */}
+                                  <div className="flex items-center gap-2 self-end sm:self-center">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        if (isTesting) {
+                                          setTestAgentName(null);
+                                          setTestAgentTeamId(null);
+                                        } else {
+                                          setTestAgentName(agent);
+                                          setTestAgentTeamId(team.id);
+                                          setTestInput('');
+                                          setTestResponse('');
+                                          setConfigAgentName(null);
+                                          setConfigAgentTeamId(null);
+                                        }
+                                      }}
+                                      className={`h-8 text-[11px] font-bold rounded-xl px-3 flex items-center gap-1.5 transition-all ${
+                                        isTesting 
+                                          ? 'bg-violet-600 text-white hover:bg-violet-500 border-transparent shadow-lg shadow-violet-500/20'
+                                          : 'bg-transparent border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900'
+                                      }`}
+                                    >
+                                      <Send size={11} /> Test Chat
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        if (isConfiguring) {
+                                          setConfigAgentName(null);
+                                          setConfigAgentTeamId(null);
+                                        } else {
+                                          setConfigAgentName(agent);
+                                          setConfigAgentTeamId(team.id);
+                                          setConfigAgentProvider(agentConfig.provider || 'anthropic');
+                                          setConfigAgentModel(agentConfig.model || 'claude-sonnet-4-6');
+                                          setConfigAgentInstructions(agentConfig.instructions || '');
+                                          setTestAgentName(null);
+                                          setTestAgentTeamId(null);
+                                        }
+                                      }}
+                                      className={`h-8 text-[11px] font-bold rounded-xl px-3 flex items-center gap-1.5 transition-all ${
+                                        isConfiguring
+                                          ? 'bg-indigo-600 text-white hover:bg-indigo-500 border-transparent shadow-lg shadow-indigo-500/20'
+                                          : 'bg-transparent border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900'
+                                      }`}
+                                    >
+                                      <Cpu size={11} /> Configure
+                                    </Button>
+                                  </div>
+                                </div>
+
+                                {/* CONFIGURATION DRAWER */}
+                                {isConfiguring && (
+                                  <div className="mt-4 pt-4 border-t border-gray-900/60 flex flex-col gap-4 animate-in slide-in-from-top-2 duration-200">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase block">LLM Provider</label>
+                                        <Select 
+                                          value={configAgentProvider} 
+                                          onValueChange={(val) => {
+                                            if (val) {
+                                              setConfigAgentProvider(val);
+                                              if (val === 'anthropic') setConfigAgentModel('claude-sonnet-4-6');
+                                              else if (val === 'openai') setConfigAgentModel('gpt-4o');
+                                              else if (val === 'gemini') setConfigAgentModel('gemini-2.5-pro');
+                                            }
+                                          }}
+                                        >
+                                          <SelectTrigger className="bg-gray-900 border-gray-800 text-white h-9 text-xs focus:ring-0">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                                            <SelectItem value="anthropic">Claude (Anthropic)</SelectItem>
+                                            <SelectItem value="openai">OpenAI</SelectItem>
+                                            <SelectItem value="gemini">Google Gemini</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase block">Model</label>
+                                        <Select 
+                                          value={configAgentModel} 
+                                          onValueChange={(val) => val && setConfigAgentModel(val)}
+                                        >
+                                          <SelectTrigger className="bg-gray-900 border-gray-800 text-white h-9 text-xs focus:ring-0">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                                            {configAgentProvider === 'anthropic' && (
+                                              <>
+                                                <SelectItem value="claude-sonnet-4-6">Claude 3.5 Sonnet 4.6</SelectItem>
+                                                <SelectItem value="claude-opus-4-8">Claude 3 Opus 4.8</SelectItem>
+                                                <SelectItem value="claude-haiku-4-5-20251001">Claude 3.5 Haiku 4.5</SelectItem>
+                                              </>
+                                            )}
+                                            {configAgentProvider === 'openai' && (
+                                              <>
+                                                <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                                                <SelectItem value="gpt-4o-mini">GPT-4o-mini</SelectItem>
+                                              </>
+                                            )}
+                                            {configAgentProvider === 'gemini' && (
+                                              <>
+                                                <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+                                                <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                                                <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
+                                              </>
+                                            )}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-bold text-gray-500 uppercase block">Custom System Prompt/Instructions</label>
+                                      <Textarea
+                                        placeholder={`Enter custom rules or brand guidelines specific to ${agent}...`}
+                                        value={configAgentInstructions}
+                                        onChange={e => setConfigAgentInstructions(e.target.value)}
+                                        className="bg-gray-900 border-gray-800 text-white text-xs min-h-[80px] max-h-[200px] rounded-xl focus:border-violet-500"
+                                      />
+                                    </div>
+                                    <div className="flex gap-2 justify-end">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          setConfigAgentName(null);
+                                          setConfigAgentTeamId(null);
+                                        }}
+                                        className="h-8 border-gray-800 text-gray-400 hover:text-white rounded-xl text-xs"
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        onClick={handleSaveAgentConfig}
+                                        disabled={savingConfigLoading}
+                                        className="h-8 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-bold"
+                                      >
+                                        {savingConfigLoading ? <Loader2 size={12} className="animate-spin mr-1.5" /> : null}
+                                        Save Configuration
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* TEST CONSOLE DRAWER */}
+                                {isTesting && (
+                                  <div className="mt-4 pt-4 border-t border-gray-900/60 flex flex-col gap-4 animate-in slide-in-from-top-2 duration-200">
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-bold text-gray-500 uppercase block">Test Prompt Input</label>
+                                      <div className="flex gap-2 items-end">
+                                        <Textarea
+                                          placeholder={`Ask ${agent} to perform a sample task... (e.g. "Create a sales email to Google executives")`}
+                                          value={testInput}
+                                          onChange={e => setTestInput(e.target.value)}
+                                          className="bg-gray-900 border-gray-800 text-white text-xs min-h-[48px] max-h-[120px] rounded-xl flex-1 focus:border-violet-500"
+                                        />
+                                        <Button
+                                          onClick={handleTestAgent}
+                                          disabled={testAgentLoading || !testInput.trim()}
+                                          className="h-10 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-bold px-4 flex items-center justify-center"
+                                        >
+                                          {testAgentLoading ? <Loader2 size={14} className="animate-spin" /> : "Send"}
+                                        </Button>
+                                      </div>
+                                    </div>
+                                    {testResponse && (
+                                      <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase block">Agent Response</label>
+                                        <div className="bg-gray-900/80 border border-gray-800 text-gray-250 p-4 rounded-2xl text-xs font-mono whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto">
+                                          {testResponse}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
               </div>
+
+              {/* Dialog for Creating Team */}
+              <Dialog open={isCreateTeamOpen} onOpenChange={setIsCreateTeamOpen}>
+                <DialogContent className="glass-panel border-violet-500/20 text-white rounded-3xl max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="text-white font-extrabold text-xl">Create Custom AI Team</DialogTitle>
+                  </DialogHeader>
+                  <div className="flex flex-col gap-4 py-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 uppercase">Team Name</label>
+                      <Input 
+                        placeholder="e.g. Operations & Finance Team" 
+                        value={teamFormName} 
+                        onChange={e => setTeamFormName(e.target.value)}
+                        className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-400 uppercase block">Select AI Agents</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {['Sales AI', 'Marketing AI', 'Support AI', 'Finance AI', 'HR AI', 'CEO AI'].map(agent => {
+                          const isSelected = teamFormAgents.includes(agent);
+                          return (
+                            <button
+                              key={agent}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setTeamFormAgents(teamFormAgents.filter(a => a !== agent));
+                                } else {
+                                  setTeamFormAgents([...teamFormAgents, agent]);
+                                }
+                              }}
+                              className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${
+                                isSelected 
+                                  ? 'bg-violet-600/20 border-violet-500 text-violet-300 shadow-md shadow-violet-500/5' 
+                                  : 'bg-gray-900/40 border-gray-800 text-gray-400 hover:border-gray-700'
+                              }`}
+                            >
+                              <span>{agent}</span>
+                              {isSelected && <Check size={12} className="text-violet-400" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <Button 
+                      onClick={handleCreateTeam}
+                      disabled={!teamFormName.trim() || teamFormAgents.length === 0}
+                      className="bg-violet-600 hover:bg-violet-500 text-white font-bold h-10 rounded-xl mt-2 w-full transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-violet-500/20"
+                    >
+                      Create Team
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              {/* Dialog for Editing Team */}
+              <Dialog open={isEditTeamOpen} onOpenChange={setIsEditTeamOpen}>
+                <DialogContent className="glass-panel border-violet-500/20 text-white rounded-3xl max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="text-white font-extrabold text-xl">Modify AI Team</DialogTitle>
+                  </DialogHeader>
+                  <div className="flex flex-col gap-4 py-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 uppercase">Team Name</label>
+                      <Input 
+                        placeholder="Team Name" 
+                        value={teamFormName} 
+                        onChange={e => setTeamFormName(e.target.value)}
+                        className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-400 uppercase block">Select AI Agents</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {['Sales AI', 'Marketing AI', 'Support AI', 'Finance AI', 'HR AI', 'CEO AI'].map(agent => {
+                          const isSelected = teamFormAgents.includes(agent);
+                          return (
+                            <button
+                              key={agent}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setTeamFormAgents(teamFormAgents.filter(a => a !== agent));
+                                } else {
+                                  setTeamFormAgents([...teamFormAgents, agent]);
+                                }
+                              }}
+                              className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${
+                                isSelected 
+                                  ? 'bg-violet-600/20 border-violet-500 text-violet-300 shadow-md shadow-violet-500/5' 
+                                  : 'bg-gray-900/40 border-gray-800 text-gray-400 hover:border-gray-700'
+                              }`}
+                            >
+                              <span>{agent}</span>
+                              {isSelected && <Check size={12} className="text-violet-400" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <Button 
+                      onClick={handleUpdateTeam}
+                      disabled={!teamFormName.trim() || teamFormAgents.length === 0}
+                      className="bg-violet-600 hover:bg-violet-500 text-white font-bold h-10 rounded-xl mt-2 w-full transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-violet-500/20"
+                    >
+                      Save Changes
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           )}
 
@@ -4205,6 +7202,556 @@ export default function Home() {
             </div>
           )}
 
+          {/* VIEW: Sales CRM */}
+          {activeView === 'sales' && (
+            <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-300">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-2">
+                    <TrendingUp className="text-emerald-400 h-8 w-8 animate-pulse" /> Sales CRM Dashboard
+                  </h1>
+                  <p className="text-gray-400 mt-1">Autonomous B2B prospect sourcing, outreach sequencing, contact enrichment, and conversion tracking.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={() => setIsUploadModalOpen(true)}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-all h-11 px-5 flex items-center gap-2 shadow-lg shadow-emerald-500/25"
+                  >
+                    <Plus size={16} /> Upload Leads (CSV/JSON)
+                  </Button>
+                </div>
+              </div>
+
+              {/* Statistics Ribbon */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { title: "Total Leads Sourced", val: salesLeads.length, desc: "Total B2B leads captured", icon: <Users className="h-4 w-4 text-emerald-400" /> },
+                  { title: "Outreach Sent", val: salesLeads.filter(l => l.status === 'contacted' || l.status === 'replied' || l.status === 'meeting_scheduled').length, desc: "Outbound campaigns run", icon: <Send className="h-4 w-4 text-blue-400" /> },
+                  { title: "Prospect Replies", val: salesLeads.filter(l => l.status === 'replied').length, desc: "Inbound interested responses", icon: <MessageSquare className="h-4 w-4 text-violet-400" /> },
+                  { title: "Meetings Scheduled", val: salesLeads.filter(l => l.status === 'meeting_scheduled').length, desc: "Meetings booked in calendar", icon: <Calendar className="h-4 w-4 text-amber-400" /> },
+                ].map((stat, i) => (
+                  <Card key={i} className="glass-panel border-transparent shadow-lg rounded-2xl relative overflow-hidden p-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{stat.title}</p>
+                        <h3 className="text-2xl font-black text-white mt-1">{stat.val}</h3>
+                        <p className="text-[10px] text-gray-450 mt-0.5">{stat.desc}</p>
+                      </div>
+                      <div className="p-2 bg-gray-950/40 rounded-lg border border-gray-800">
+                        {stat.icon}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Split Screen Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                {/* Left Pane: Leads List */}
+                <div className="lg:col-span-2 space-y-4">
+                  <Card className="glass-panel border-transparent rounded-3xl p-6 shadow-2xl relative">
+                    <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
+                    
+                    {/* Filter Bar */}
+                    <div className="flex flex-col md:flex-row gap-3 items-center mb-6">
+                      <div className="relative flex-1 w-full">
+                        <Search className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
+                        <Input
+                          placeholder="Search leads by name, company, email..."
+                          value={salesSearch}
+                          onChange={e => setSalesSearch(e.target.value)}
+                          className="pl-9 bg-gray-900/60 border-gray-800 text-white rounded-xl h-10 w-full focus:border-emerald-500 focus:ring-emerald-500/20"
+                        />
+                      </div>
+                      
+                      <div className="flex gap-2 w-full md:w-auto">
+                        <Select value={salesStatusFilter} onValueChange={val => setSalesStatusFilter(val || 'all')}>
+                          <SelectTrigger className="w-[130px] bg-gray-900/60 border-gray-800 text-xs text-gray-300 rounded-xl h-10">
+                            <SelectValue placeholder="Status" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-950 border-gray-800 text-gray-300">
+                            <SelectItem value="all">All Statuses</SelectItem>
+                            <SelectItem value="captured">Captured</SelectItem>
+                            <SelectItem value="enriched">Enriched</SelectItem>
+                            <SelectItem value="contacted">Contacted</SelectItem>
+                            <SelectItem value="replied">Replied</SelectItem>
+                            <SelectItem value="meeting_scheduled">Meetings</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        <Select value={salesPriorityFilter} onValueChange={val => setSalesPriorityFilter(val || 'all')}>
+                          <SelectTrigger className="w-[110px] bg-gray-900/60 border-gray-800 text-xs text-gray-300 rounded-xl h-10">
+                            <SelectValue placeholder="Priority" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-950 border-gray-800 text-gray-300">
+                            <SelectItem value="all">All Priorities</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="low">Low</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        <Select value={salesTimeFilter} onValueChange={val => setSalesTimeFilter(val || 'all')}>
+                          <SelectTrigger className="w-[110px] bg-gray-900/60 border-gray-800 text-xs text-gray-300 rounded-xl h-10">
+                            <SelectValue placeholder="Time" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-950 border-gray-800 text-gray-300">
+                            <SelectItem value="all">All Time</SelectItem>
+                            <SelectItem value="day">Past 24h</SelectItem>
+                            <SelectItem value="week">Past Week</SelectItem>
+                            <SelectItem value="month">Past Month</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Table / List Container */}
+                    <div className="border border-gray-800/80 rounded-2xl overflow-hidden bg-[rgba(0,0,0,0.15)] max-h-[600px] overflow-y-auto custom-scrollbar">
+                      <Table>
+                        <TableHeader className="bg-gray-950/40 border-b border-gray-800 sticky top-0 z-10">
+                          <TableRow className="border-gray-800 hover:bg-transparent">
+                            <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-[10px] p-4">Lead</TableHead>
+                            <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-[10px] p-4">Source</TableHead>
+                            <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-[10px] p-4 text-center">Score</TableHead>
+                            <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-[10px] p-4">Priority</TableHead>
+                            <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-[10px] p-4">Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody className="divide-y divide-gray-850">
+                          {salesLoading ? (
+                            <TableRow className="hover:bg-transparent">
+                              <TableCell colSpan={5} className="text-center py-16">
+                                <Loader2 className="h-6 w-6 animate-spin text-emerald-400 mx-auto" />
+                                <p className="text-xs text-gray-400 mt-2">Loading CRM database...</p>
+                              </TableCell>
+                            </TableRow>
+                          ) : salesLeads.length === 0 ? (
+                            <TableRow className="hover:bg-transparent">
+                              <TableCell colSpan={5} className="text-center py-16 text-xs text-gray-500 font-medium">
+                                No sales leads found matching these filters.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            salesLeads.map(lead => {
+                              const isSelected = selectedLead?.id === lead.id;
+                              return (
+                                <TableRow
+                                  key={lead.id}
+                                  onClick={() => {
+                                    setSelectedLead(lead);
+                                    setIsEditingSalesLead(false);
+                                  }}
+                                  className={`border-gray-800/60 cursor-pointer transition-colors duration-155 ${
+                                    isSelected 
+                                      ? 'bg-emerald-500/10 hover:bg-emerald-500/15 border-l-2 border-l-emerald-500' 
+                                      : 'hover:bg-gray-900/30'
+                                  }`}
+                                >
+                                  <TableCell className="p-4">
+                                    <div className="font-extrabold text-white text-xs">{lead.name}</div>
+                                    <div className="text-[10px] text-gray-450 flex items-center gap-1 mt-0.5">
+                                      <Building size={10} /> {lead.company}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="p-4">
+                                    <span className="text-[9px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded uppercase tracking-wider max-w-[140px] truncate block text-center">
+                                      {lead.source?.split(":")[0] || lead.source}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="p-4 text-center">
+                                    <span className={`text-[10px] font-mono font-black ${
+                                      lead.score >= 80 ? 'text-emerald-400' : lead.score >= 60 ? 'text-amber-400' : 'text-gray-400'
+                                    }`}>
+                                      {lead.score || 50}/100
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="p-4">
+                                    <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded tracking-wide border ${
+                                      lead.priority === 'high' 
+                                        ? 'bg-rose-500/10 text-rose-450 border-rose-500/20' 
+                                        : lead.priority === 'medium' 
+                                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
+                                          : 'bg-gray-500/10 text-gray-400 border-gray-805'
+                                    }`}>
+                                      {lead.priority || 'medium'}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="p-4">
+                                    <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                      lead.status === 'meeting_scheduled'
+                                        ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20'
+                                        : lead.status === 'replied'
+                                          ? 'bg-violet-500/15 text-violet-400 border border-violet-500/20'
+                                          : lead.status === 'contacted'
+                                            ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20'
+                                            : lead.status === 'enriched'
+                                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
+                                              : 'bg-gray-800/80 text-gray-450 border border-gray-700/40'
+                                    }`}>
+                                      {lead.status === 'meeting_scheduled' ? 'meeting' : lead.status}
+                                    </span>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Right Pane: Lead Detail Panel */}
+                <div className="lg:col-span-1">
+                  {!selectedLead ? (
+                    <Card className="glass-panel border-transparent rounded-3xl p-8 text-center flex flex-col items-center justify-center h-[550px] shadow-2xl relative">
+                      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
+                      <div className="text-5xl mb-4">🎯</div>
+                      <h3 className="text-base font-bold text-white">No Lead Selected</h3>
+                      <p className="text-xs text-gray-455 max-w-[200px] mt-1 leading-relaxed">
+                        Select a sales prospect from the list on the left to view enrichment details and actions.
+                      </p>
+                    </Card>
+                  ) : (
+                    <Card className="glass-panel border-transparent rounded-3xl p-6 shadow-2xl relative flex flex-col min-h-[600px] overflow-hidden">
+                      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
+                      
+                      {/* Identity Section */}
+                      <div className="flex justify-between items-start mb-6">
+                        <div>
+                          <h2 className="text-xl font-extrabold text-white leading-tight">{selectedLead.name}</h2>
+                          <p className="text-xs text-gray-450 flex items-center gap-1.5 mt-0.5">
+                            <Building size={11} className="text-emerald-400" /> {selectedLead.company}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1.5">
+                          <span className={`text-[10px] font-mono font-black border px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border-emerald-500/20`}>
+                            Score: {selectedLead.score || 50}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Detail Body */}
+                      <div className="flex-1 space-y-5 overflow-y-auto max-h-[460px] pr-1 custom-scrollbar">
+                        
+                        {/* Edit Mode Toggle */}
+                        <div className="flex justify-between items-center border-b border-gray-800/80 pb-3">
+                          <span className="text-[10px] text-gray-400 font-extrabold uppercase tracking-widest">Prospect Details</span>
+                          <button
+                            onClick={() => {
+                              if (isEditingSalesLead) {
+                                setIsEditingSalesLead(false);
+                              } else {
+                                setEditName(selectedLead.name || '');
+                                setEditCompany(selectedLead.company || '');
+                                setEditPersonalEmail(selectedLead.personal_email || '');
+                                setEditCompanyEmail(selectedLead.company_email || '');
+                                setEditMobileNo(selectedLead.mobile_no || '');
+                                setEditCompanyContactNo(selectedLead.company_contact_no || '');
+                                setEditNeedOfWhat(selectedLead.need_of_what || '');
+                                setEditHowMuch(selectedLead.how_much || '');
+                                setEditWhy(selectedLead.why || '');
+                                setEditTargetContext(selectedLead.target_context || '');
+                                setEditPriority(selectedLead.priority || 'medium');
+                                setEditStatus(selectedLead.status || 'captured');
+                                setIsEditingSalesLead(true);
+                              }
+                            }}
+                            className="text-xs text-emerald-400 hover:text-emerald-300 font-bold transition-colors flex items-center gap-1"
+                          >
+                            {isEditingSalesLead ? <><X size={12} /> Cancel</> : <><Edit2 size={12} /> Edit Details</>}
+                          </button>
+                        </div>
+
+                        {isEditingSalesLead ? (
+                          /* Edit Inline Form */
+                          <div className="space-y-4 text-xs">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-450 uppercase">Name</label>
+                                <Input value={editName} onChange={e => setEditName(e.target.value)} className="bg-gray-950 border-gray-800 h-8 rounded-lg text-white" />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-450 uppercase">Company</label>
+                                <Input value={editCompany} onChange={e => setEditCompany(e.target.value)} className="bg-gray-955 border-gray-800 h-8 rounded-lg text-white" />
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-450 uppercase">Personal Email</label>
+                                <Input value={editPersonalEmail} onChange={e => setEditPersonalEmail(e.target.value)} className="bg-gray-950 border-gray-800 h-8 rounded-lg text-white" />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-450 uppercase">Company Email</label>
+                                <Input value={editCompanyEmail} onChange={e => setEditCompanyEmail(e.target.value)} className="bg-gray-950 border-gray-800 h-8 rounded-lg text-white" />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-450 uppercase">Mobile No</label>
+                                <Input value={editMobileNo} onChange={e => setEditMobileNo(e.target.value)} className="bg-gray-950 border-gray-800 h-8 rounded-lg text-white" />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-450 uppercase">Company Contact No</label>
+                                <Input value={editCompanyContactNo} onChange={e => setEditCompanyContactNo(e.target.value)} className="bg-gray-950 border-gray-800 h-8 rounded-lg text-white" />
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-gray-450 uppercase">Need of what</label>
+                              <Input value={editNeedOfWhat} onChange={e => setEditNeedOfWhat(e.target.value)} className="bg-gray-950 border-gray-800 h-8 rounded-lg text-white" />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-450 uppercase">How Much (Budget)</label>
+                                <Input value={editHowMuch} onChange={e => setEditHowMuch(e.target.value)} className="bg-gray-950 border-gray-800 h-8 rounded-lg text-white" />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-450 uppercase">Priority</label>
+                                <Select value={editPriority} onValueChange={val => setEditPriority(val || 'medium')}>
+                                  <SelectTrigger className="bg-gray-955 border-gray-800 h-8 text-xs text-gray-300 rounded-lg">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-gray-950 border-gray-800 text-gray-300">
+                                    <SelectItem value="low">Low</SelectItem>
+                                    <SelectItem value="medium">Medium</SelectItem>
+                                    <SelectItem value="high">High</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-gray-450 uppercase">Why (Reason/Pain Point)</label>
+                              <Textarea value={editWhy} onChange={e => setEditWhy(e.target.value)} className="bg-gray-950 border-gray-800 text-white rounded-lg text-xs min-h-[60px]" />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-gray-450 uppercase">Target Context</label>
+                              <Textarea value={editTargetContext} onChange={e => setEditTargetContext(e.target.value)} className="bg-gray-950 border-gray-800 text-white rounded-lg text-xs min-h-[65px]" />
+                            </div>
+
+                            <Button
+                              onClick={handleSaveLead}
+                              disabled={salesActionLoading}
+                              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-9 rounded-lg shadow-lg shadow-emerald-500/20"
+                            >
+                              {salesActionLoading ? 'Saving changes...' : 'Save Prospect Details'}
+                            </Button>
+                          </div>
+                        ) : (
+                          /* View Details Mode */
+                          <div className="space-y-5">
+                            
+                            {/* Contact Card */}
+                            <div className="space-y-2.5 bg-gray-900/40 p-4 rounded-2xl border border-gray-850">
+                              <div className="flex items-center gap-2 text-xs font-bold text-white border-b border-gray-800/60 pb-1.5">
+                                <Users size={13} className="text-emerald-400" /> Contact Channels
+                              </div>
+                              <div className="space-y-1.5 text-xs text-gray-350">
+                                <div className="flex justify-between">
+                                  <span className="text-[10px] text-gray-450 font-semibold">Personal Email:</span>
+                                  <span className="font-mono text-white flex items-center gap-1 select-all">{selectedLead.personal_email || 'Not enriched'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-[10px] text-gray-450 font-semibold">Company Email:</span>
+                                  <span className="font-mono text-white flex items-center gap-1 select-all">{selectedLead.company_email || selectedLead.email || 'Not enriched'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-[10px] text-gray-455 font-semibold">Mobile No:</span>
+                                  <span className="font-mono text-white select-all">{selectedLead.mobile_no || selectedLead.phone || 'Not enriched'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-[10px] text-gray-455 font-semibold">Company Contact No:</span>
+                                  <span className="font-mono text-white select-all">{selectedLead.company_contact_no || 'Not enriched'}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Business Opportunity details */}
+                            <div className="space-y-3 bg-gray-900/40 p-4 rounded-2xl border border-gray-850">
+                              <div className="flex items-center gap-2 text-xs font-bold text-white border-b border-gray-800/60 pb-1.5">
+                                <Target size={13} className="text-emerald-400" /> Business Intent
+                              </div>
+                              
+                              <div className="space-y-3 text-xs">
+                                <div>
+                                  <span className="text-[10px] text-gray-450 font-bold uppercase block tracking-wide">Need Description</span>
+                                  <p className="text-gray-200 mt-1 leading-relaxed">{selectedLead.need_of_what || 'Awaiting sales agent analysis'}</p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <span className="text-[10px] text-gray-450 font-bold uppercase block tracking-wide">Deal Valuation</span>
+                                    <p className="text-emerald-400 font-extrabold mt-0.5">{selectedLead.how_much || 'Under negotiation'}</p>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] text-gray-450 font-bold uppercase block tracking-wide">Priority Setting</span>
+                                    <span className={`inline-block text-[9px] font-extrabold uppercase px-2 py-0.5 rounded tracking-wide border mt-0.5 ${
+                                      selectedLead.priority === 'high' 
+                                        ? 'bg-rose-500/10 text-rose-450 border-rose-500/20' 
+                                        : selectedLead.priority === 'medium' 
+                                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
+                                          : 'bg-gray-500/10 text-gray-400 border-gray-800'
+                                    }`}>
+                                      {selectedLead.priority || 'medium'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <span className="text-[10px] text-gray-455 font-bold uppercase block tracking-wide">Pain point context (Why)</span>
+                                  <p className="text-gray-300 mt-1 leading-relaxed">{selectedLead.why || 'Awaiting detail enrichment'}</p>
+                                </div>
+
+                                <div>
+                                  <span className="text-[10px] text-gray-455 font-bold uppercase block tracking-wide">Target Segment Context</span>
+                                  <p className="text-gray-300 mt-1 leading-relaxed">{selectedLead.target_context || 'Not enriched yet'}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Outreach Actions Center */}
+                            <div className="space-y-2 bg-gray-900/40 p-4 rounded-2xl border border-gray-850">
+                              <div className="flex items-center gap-2 text-xs font-bold text-white border-b border-gray-800/60 pb-1.5">
+                                <Activity size={13} className="text-emerald-400" /> Outreach Actions
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-2 pt-1">
+                                <Button
+                                  onClick={() => handleSendSalesOutreach(selectedLead.id)}
+                                  disabled={salesActionLoading}
+                                  variant="outline"
+                                  className="border-gray-800 hover:bg-gray-800 text-white rounded-xl text-xs h-9 bg-transparent shadow"
+                                >
+                                  {salesActionLoading ? 'Sending...' : '✉️ Send Outreach'}
+                                </Button>
+                                <Button
+                                  onClick={() => handleBookSalesMeeting(selectedLead.id)}
+                                  disabled={salesActionLoading}
+                                  variant="outline"
+                                  className="border-gray-800 hover:bg-gray-800 text-white rounded-xl text-xs h-9 bg-transparent shadow"
+                                >
+                                  {salesActionLoading ? 'Booking...' : '📅 Book Meeting'}
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Log Human Update Form */}
+                            <div className="space-y-3 bg-gray-900/40 p-4 rounded-2xl border border-gray-850">
+                              <div className="flex items-center gap-2 text-xs font-bold text-white border-b border-gray-800/60 pb-1.5">
+                                <MessageSquare size={13} className="text-emerald-400" /> Log Human Update / Note
+                              </div>
+                              
+                              <div className="space-y-2 text-xs">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="flex flex-col gap-1">
+                                    <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Channel</label>
+                                    <Select value={noteChannel} onValueChange={val => setNoteChannel(val || 'note')}>
+                                      <SelectTrigger className="h-8 bg-gray-950 border-gray-800 text-[11px] text-gray-300 rounded-lg">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent className="bg-gray-950 border-gray-850 text-gray-305">
+                                        <SelectItem value="note">Internal Note</SelectItem>
+                                        <SelectItem value="call">Phone Call</SelectItem>
+                                        <SelectItem value="email">Email Interaction</SelectItem>
+                                        <SelectItem value="whatsapp">WhatsApp Text</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Direction</label>
+                                    <Select value={noteDirection} onValueChange={val => setNoteDirection(val || 'outbound')}>
+                                      <SelectTrigger className="h-8 bg-gray-950 border-gray-800 text-[11px] text-gray-300 rounded-lg">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent className="bg-gray-950 border-gray-850 text-gray-305">
+                                        <SelectItem value="outbound">Outbound Contact</SelectItem>
+                                        <SelectItem value="inbound">Inbound Response</SelectItem>
+                                        <SelectItem value="internal">Internal Only</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                                
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Update Details</label>
+                                  <Textarea
+                                    placeholder="Spoke with prospect, wants demo next week, etc."
+                                    value={noteText}
+                                    onChange={e => setNoteText(e.target.value)}
+                                    className="bg-gray-950 border-gray-800 text-white rounded-lg text-xs min-h-[50px] placeholder:text-gray-600 focus:border-emerald-500 focus:ring-emerald-500/20"
+                                  />
+                                </div>
+
+                                <Button
+                                  onClick={handleLogHumanUpdate}
+                                  disabled={salesActionLoading || !noteText.trim()}
+                                  className="w-full bg-emerald-650 hover:bg-emerald-600 text-white font-bold h-8 rounded-lg text-xs shadow-md shadow-emerald-500/10"
+                                >
+                                  {salesActionLoading ? 'Saving...' : 'Log Human Update'}
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Conversation timeline history */}
+                            <div className="space-y-3">
+                              <div className="text-[10px] text-gray-400 font-extrabold uppercase tracking-widest">Outreach History</div>
+                              
+                              {(!selectedLead.data?.conversation || selectedLead.data.conversation.length === 0) ? (
+                                <div className="text-center py-4 bg-gray-900/10 border border-dashed border-gray-800 rounded-2xl text-xs text-gray-500 font-medium">
+                                  No outreach sequence started yet.
+                                </div>
+                              ) : (
+                                <div className="space-y-3 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-[1px] before:bg-gray-800">
+                                  {selectedLead.data.conversation.map((msg: any, index: number) => (
+                                    <div key={index} className="flex gap-3 relative z-10 text-xs">
+                                      <div className={`h-6.5 w-6.5 rounded-full flex items-center justify-center text-[10px] shadow border ${
+                                        msg.direction === 'outbound' 
+                                          ? 'bg-blue-600/15 border-blue-500/20 text-blue-400' 
+                                          : 'bg-emerald-600/15 border-emerald-500/20 text-emerald-400'
+                                      }`}>
+                                        ➔
+                                      </div>
+                                      <div className="flex-1 bg-gray-900/35 border border-gray-850 p-3 rounded-2xl shadow">
+                                        <div className="flex justify-between items-center gap-2">
+                                          <span className="font-bold text-white capitalize text-[11px] flex items-center gap-1.5">
+                                            {msg.direction === 'outbound' ? 'Outbound' : 'Inbound'}
+                                            <span className="text-[9px] bg-gray-800 text-gray-455 border border-gray-750 px-1.5 py-0.5 rounded font-mono uppercase">
+                                              {msg.channel || 'smtp'}
+                                            </span>
+                                          </span>
+                                          <span className="text-[9px] text-gray-450 font-mono">
+                                            {msg.at ? new Date(msg.at).toLocaleDateString() : 'Just now'}
+                                          </span>
+                                        </div>
+                                        {msg.subject && (
+                                          <div className="text-[10px] text-emerald-400 font-bold mt-1">Subj: {msg.subject}</div>
+                                        )}
+                                        <p className="text-[11px] text-gray-300 leading-relaxed mt-1.5 whitespace-pre-wrap">{msg.content}</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                          </div>
+                        )}
+
+                      </div>
+                    </Card>
+                  )}
+                </div>
+
+              </div>
+            </div>
+          )}
+
           {/* VIEW: AI COST CONTROL */}
           {activeView === 'ai_optimization' && (
             <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-300">
@@ -4503,6 +8050,101 @@ export default function Home() {
                     </p>
                   </div>
                 </Card>
+              </div>
+            </div>
+          )}
+
+          {/* Upload Leads Dialog */}
+          {isUploadModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-gray-950 border border-gray-800 rounded-3xl shadow-2xl shadow-black/50 w-full max-w-md overflow-hidden relative">
+                <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
+                
+                {/* Header */}
+                <div className="px-6 pt-6 pb-4 border-b border-gray-800 bg-gradient-to-r from-emerald-950/20 to-teal-950/10 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-white font-extrabold text-lg tracking-tight flex items-center gap-2">
+                      <span>📥</span> Upload Leads Database
+                    </h2>
+                    <p className="text-gray-400 text-xs mt-0.5">Import CSV or JSON files. AI can automatically enrich and handle outreach.</p>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setIsUploadModalOpen(false);
+                      setUploadFile(null);
+                      setUploadWithAI(false);
+                    }}
+                    className="text-gray-455 hover:text-white transition-colors"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="px-6 py-5 space-y-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-semibold text-gray-400">Select File (CSV or JSON)</label>
+                    <div className="border border-dashed border-gray-800 rounded-2xl p-6 text-center hover:border-emerald-500/50 transition-colors bg-gray-900/20">
+                      <label
+                        htmlFor="csv-leads-file"
+                        className="cursor-pointer mx-auto border border-gray-800 hover:border-gray-750 text-gray-300 hover:text-white rounded-xl mb-2 text-xs h-9 bg-transparent px-4 py-2 inline-flex items-center justify-center font-semibold hover:bg-gray-800/40 transition-all"
+                      >
+                        Choose File
+                      </label>
+                      <input
+                        type="file"
+                        accept=".csv,.json,text/csv,application/json"
+                        id="csv-leads-file"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) setUploadFile(file);
+                        }}
+                      />
+                      <p className="text-xs text-gray-400">
+                        {uploadFile ? `Selected: ${uploadFile.name}` : "No file selected. Supports .csv and .json format."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 bg-gray-900/40 p-3.5 rounded-2xl border border-gray-850">
+                    <input
+                      type="checkbox"
+                      id="checkbox-handle-ai"
+                      checked={uploadWithAI}
+                      onChange={e => setUploadWithAI(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-800 text-emerald-600 focus:ring-emerald-500 bg-gray-900 mt-0.5"
+                    />
+                    <label htmlFor="checkbox-handle-ai" className="text-xs text-gray-300 cursor-pointer select-none">
+                      <span className="font-bold text-white block">Ask AI agent to handle these leads</span>
+                      Automatically enrich contact profiles, calculate score, and generate custom outreach templates.
+                    </label>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-gray-800 bg-gray-950/40 flex gap-3 justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsUploadModalOpen(false);
+                      setUploadFile(null);
+                      setUploadWithAI(false);
+                    }}
+                    className="h-10 px-4 rounded-xl text-xs font-semibold text-gray-400 border-gray-800 hover:bg-gray-800 hover:text-white bg-transparent"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={uploadingLeads || !uploadFile}
+                    onClick={handleUploadLeads}
+                    className="h-10 px-4 rounded-xl text-xs font-semibold bg-emerald-650 hover:bg-emerald-600 text-white disabled:opacity-50"
+                  >
+                    {uploadingLeads ? "Uploading..." : "Upload & Process"}
+                  </Button>
+                </div>
               </div>
             </div>
           )}

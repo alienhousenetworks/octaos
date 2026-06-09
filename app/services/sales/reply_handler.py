@@ -194,7 +194,6 @@ class SalesReplyHandler(BaseAgent):
     async def _classify_reply(
         self, lead: Lead, content: str, subject: Optional[str]
     ) -> Dict[str, Any]:
-        knowledge = self.get_knowledge_context("Sales")
         outbound = (lead.data or {}).get("outbound_body", "")
         history = (lead.data or {}).get("conversation") or []
         history_text = ""
@@ -202,9 +201,6 @@ class SalesReplyHandler(BaseAgent):
             history_text += f"{msg.get('direction', '?').upper()} ({msg.get('channel')}): {msg.get('content', '')}\n"
 
         prompt = f"""You are a sales assistant analyzing a REAL inbound message from a prospect.
-
-Company context:
-{knowledge}
 
 Lead: {lead.name} at {lead.company}
 Our last outreach:

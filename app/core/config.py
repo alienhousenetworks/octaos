@@ -49,6 +49,14 @@ class Settings(BaseSettings):
     YELP_API_KEY: Optional[str] = None
     PINTEREST_ACCESS_TOKEN: Optional[str] = None
 
+    # SMTP & DEV SETTINGS
+    DEV: bool = True
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM: Optional[str] = None
+
     class Config:
         case_sensitive = True
         env_file = ".env"

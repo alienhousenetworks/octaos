@@ -17,8 +17,18 @@ class Lead(Base):
     source = Column(String)
     score = Column(Integer, default=0)
     status = Column(String, default="captured")
+    personal_email = Column(String, nullable=True)
+    company_email = Column(String, nullable=True)
+    mobile_no = Column(String, nullable=True)
+    company_contact_no = Column(String, nullable=True)
+    need_of_what = Column(Text, nullable=True)
+    how_much = Column(String, nullable=True)
+    why = Column(Text, nullable=True)
+    target_context = Column(Text, nullable=True)
+    priority = Column(String, default="medium")
     data = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 class ContentPost(Base):
     __tablename__ = "content_posts"
@@ -28,6 +38,13 @@ class ContentPost(Base):
     content = Column(Text)
     image_url = Column(String, nullable=True)
     video_url = Column(String, nullable=True)
+    media_prompt = Column(Text, nullable=True)
+    media_prompt_enabled = Column(Boolean, default=False)
+    image_prompt = Column(Text, nullable=True)
+    image_prompt_enabled = Column(Boolean, default=False)
+    video_prompt = Column(Text, nullable=True)
+    video_prompt_enabled = Column(Boolean, default=False)
+    is_manual_media = Column(Boolean, default=False)
     day = Column(Integer, nullable=True)
     status = Column(String, default="draft")
     approval_status = Column(String, default="pending") # pending, approved, rejected, published

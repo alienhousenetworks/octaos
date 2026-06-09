@@ -13,6 +13,11 @@ class Tenant(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
+    # Company fields
+    company_website = Column(String, nullable=True)
+    company_email = Column(String, nullable=True)
+    company_address = Column(String, nullable=True)
+    
     users = relationship("User", back_populates="tenant")
     api_credentials = relationship("APICredential", back_populates="tenant")
 
@@ -24,6 +29,13 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
+    
+    # User Profile & Verification fields
+    name = Column(String, nullable=True)
+    phone_no = Column(String, nullable=True)
+    is_verified = Column(Boolean, default=False)
+    otp = Column(String, nullable=True)
+    otp_expires_at = Column(DateTime(timezone=True), nullable=True)
     
     tenant = relationship("Tenant", back_populates="users")
 

@@ -72,11 +72,20 @@ class SalesAgent(BaseAgent):
                     tenant_id=self.tenant_id,
                     name=data["name"],
                     email=data["email"],
-                    phone=data.get("phone", ""),
+                    phone=data.get("phone", data.get("mobile_no", "")),
                     company=data["company"],
                     source=f"{provider.upper()}: {query}",
                     status="captured",
                     score=random.randint(60, 95),
+                    personal_email=data.get("personal_email"),
+                    company_email=data.get("company_email"),
+                    mobile_no=data.get("mobile_no", data.get("phone")),
+                    company_contact_no=data.get("company_contact_no"),
+                    need_of_what=data.get("need_of_what"),
+                    how_much=data.get("how_much"),
+                    why=data.get("why"),
+                    target_context=data.get("target_context"),
+                    priority=data.get("priority", "medium")
                 )
                 self.db.add(lead)
                 self.db.flush()
@@ -154,10 +163,35 @@ class SalesAgent(BaseAgent):
     async def _generate_simulated_leads(self, query: str, count: int) -> list:
         prompt = f"""Generate exactly {count} highly realistic business leads for search query: '{query}'.
 The leads must look extremely authentic, with plausible names, company domains, verified-looking email formats, and contact details.
+For each lead, you must also generate:
+- personal_email (distinct from company email, e.g. @gmail.com)
+- company_email
+- mobile_no
+- company_contact_no
+- need_of_what (what product/service they need from us)
+- how_much (budget range, e.g. "$5,000 - $10,000" or similar)
+- why (reason/pain point for their need)
+- target_context (background details, size of the company, recent developments)
+- priority (one of: 'low', 'medium', 'high')
+
 Output a JSON array only. Do not add markdown formatting or conversational text outside of the JSON.
 JSON format:
 [
-  {{"name": "Contact Name", "email": "name@company.com", "phone": "+1-555-019-2834", "company": "Company LLC"}}
+  {{
+    "name": "Contact Name",
+    "email": "name@company.com",
+    "company": "Company LLC",
+    "personal_email": "personal@gmail.com",
+    "company_email": "name@company.com",
+    "phone": "+1-555-019-2834",
+    "mobile_no": "+1-555-019-2834",
+    "company_contact_no": "+1-555-019-2222",
+    "need_of_what": "AI customer support automation",
+    "how_much": "$10,000/year",
+    "why": "Experiencing high ticket volume and long response times",
+    "target_context": "SaaS company with 50 employees expanding to EU market",
+    "priority": "high"
+  }}
 ]"""
         response = await self.llm.complete(prompt=prompt, provider="anthropic", model="claude-3-haiku-20240307")
         try:
@@ -170,7 +204,16 @@ JSON format:
                     "name": f"Lead Professional {i+1}",
                     "email": f"contact{i+1}@domain-{query.replace(' ', '')}.com",
                     "phone": f"+1-555-010-{1000 + i}",
-                    "company": f"{query.capitalize()} Solutions {i+1}"
+                    "company": f"{query.capitalize()} Solutions {i+1}",
+                    "personal_email": f"personal_{i+1}@gmail.com",
+                    "company_email": f"contact{i+1}@domain-{query.replace(' ', '')}.com",
+                    "mobile_no": f"+1-555-010-{1000 + i}",
+                    "company_contact_no": f"+1-555-010-{2000 + i}",
+                    "need_of_what": "Sales lead nurturing AI tool",
+                    "how_much": "$5,000/year",
+                    "why": "Sales reps manual outreach bottleneck",
+                    "target_context": "Growth stage logistics company",
+                    "priority": "medium"
                 }
                 for i in range(count)
             ]
@@ -219,12 +262,10 @@ JSON format:
         sent_count = 0
         for lead in leads:
             # Personalize template
-            knowledge = self.get_knowledge_context("Sales")
             prompt = f"""Write a personalized sales email/outreach message.
 Lead Name: {lead.name}
 Lead Company: {lead.company}
 Lead Source: {lead.source}
-Context: {knowledge}
 Base Template: {body_template}
 Subject: {subject}
 Output a JSON object with keys 'subject' and 'body'. No other text."""

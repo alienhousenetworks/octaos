@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch
 from app.services.ai_gateway.routing import AIRoutingEngine
 from app.services.ai_gateway.caching import PromptOptimizationEngine
 from app.services.ai_gateway.cost_optimizer import AICostOptimizer
@@ -117,3 +118,36 @@ async def test_gateway_failover_sequence(db_session=None):
         model="gpt-4o"
     )
     assert "mock" in response.lower()
+
+@pytest.mark.asyncio
+@patch("app.services.ai_gateway.ai_gateway.executeCached")
+async def test_llm_gateway_knowledge_injection(mock_execute_cached):
+    from app.services.llm_gateway import LLMGateway
+    from app.models.agents import KnowledgeDocument
+    from unittest.mock import MagicMock, patch
+    
+    mock_db = MagicMock(spec=Session)
+    mock_doc = MagicMock(spec=KnowledgeDocument)
+    mock_doc.doc_type = "Standard Operating Procedure"
+    mock_doc.department = "Marketing"
+    mock_doc.content = "Always use brand colors."
+    
+    mock_query = MagicMock()
+    mock_db.query.return_value = mock_query
+    mock_query.filter.return_value = mock_query
+    mock_query.all.return_value = [mock_doc]
+    
+    gateway = LLMGateway(mock_db, "test-tenant-id")
+    mock_execute_cached.return_value = "Mock response"
+    
+    response = await gateway.complete(
+        prompt="Create a marketing campaign post for Instagram",
+        system_prompt="You are a creative writer."
+    )
+    
+    assert mock_execute_cached.called
+    kwargs = mock_execute_cached.call_args.kwargs
+    
+    assert "You are a creative writer." in kwargs["system_prompt"]
+    assert "Always use brand colors." in kwargs["system_prompt"]
+    assert "Standard Operating Procedure" in kwargs["system_prompt"]

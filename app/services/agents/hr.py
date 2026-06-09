@@ -222,7 +222,6 @@ JSON format:
 
         sent_count = 0
         for cand in candidates:
-            knowledge = self.get_knowledge_context("HR")
             scorecard = cand.scorecard or {}
             
             prompt = f"""Write a personalized recruiter outreach email.
@@ -231,7 +230,6 @@ Role Opening: {cand.role}
 Candidate Skills: {', '.join(scorecard.get('skills', []))}
 Experience Summary: {scorecard.get('experience_summary', '')}
 Salary Budget: {scorecard.get('salary_expectation', '')}
-Context: {knowledge}
 Base Template: {body_template}
 Subject: {subject}
 Output a JSON object with keys 'subject' and 'body'. No other text."""

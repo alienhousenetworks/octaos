@@ -31,7 +31,12 @@ class BaseAgent:
         if not docs:
             return ""
         
-        context = "Company Guidelines & Knowledge Base:\n"
+        context = (
+            "Company Guidelines & Knowledge Base:\n"
+            "CRITICAL INSTRUCTION: You must strictly adhere to the company guidelines, brand rules, "
+            "contact details (e.g. email, phone), and websites listed below. Incorporate them "
+            "into your generated output (social posts, emails, replies, etc.) whenever relevant.\n\n"
+        )
         for doc in docs:
             context += f"- [{doc.doc_type}]: {doc.content}\n"
         return context

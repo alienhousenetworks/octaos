@@ -9,6 +9,7 @@ class AITeam(Base):
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
     name = Column(String, nullable=False)
     agents = Column(JSON, nullable=False) # List of agent names like ["Sales AI", "Marketing AI"]
+    config = Column(JSON, nullable=True, default={}) # Configuration dict
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class InstalledApp(Base):

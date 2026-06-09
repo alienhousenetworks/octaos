@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Any
+from typing import Any, List, Optional, Dict
 from pydantic import BaseModel
 from app.api import deps
 from app.models.teams import AITeam, InstalledApp, AgentMetric
@@ -61,6 +61,23 @@ def get_dashboard_metrics(
         "automation_success_rate": round(automation_success_rate, 2)
     }
 
+class TeamCreate(BaseModel):
+    name: str
+    agents: List[str]
+    config: Optional[Dict[str, Any]] = {}
+
+class TeamUpdate(BaseModel):
+    name: Optional[str] = None
+    agents: Optional[List[str]] = None
+    config: Optional[Dict[str, Any]] = None
+
+class AgentTestRequest(BaseModel):
+    agent_name: str
+    message: str
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    custom_instructions: Optional[str] = None
+
 @router.get("/teams")
 def get_ai_teams(
     db: Session = Depends(deps.get_db),
@@ -70,13 +87,107 @@ def get_ai_teams(
     # If no teams, create defaults
     if not teams:
         default_teams = [
-            AITeam(tenant_id=tenant_id, name="Growth Team", agents=["Sales AI", "Marketing AI"]),
-            AITeam(tenant_id=tenant_id, name="Operations Team", agents=["Support AI", "Finance AI"])
+            AITeam(tenant_id=tenant_id, name="Growth Team", agents=["Sales AI", "Marketing AI"], config={}),
+            AITeam(tenant_id=tenant_id, name="Operations Team", agents=["Support AI", "Finance AI"], config={})
         ]
         db.add_all(default_teams)
         db.commit()
         teams = default_teams
-    return [{"id": t.id, "name": t.name, "agents": t.agents} for t in teams]
+    return [{"id": t.id, "name": t.name, "agents": t.agents, "config": t.config or {}} for t in teams]
+
+@router.post("/teams")
+def create_ai_team(
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    request: TeamCreate
+) -> Any:
+    team = AITeam(
+        tenant_id=tenant_id,
+        name=request.name,
+        agents=request.agents,
+        config=request.config or {}
+    )
+    db.add(team)
+    db.commit()
+    db.refresh(team)
+    return {"id": team.id, "name": team.name, "agents": team.agents, "config": team.config or {}}
+
+@router.put("/teams/{team_id}")
+def update_ai_team(
+    team_id: str,
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    request: TeamUpdate
+) -> Any:
+    team = db.query(AITeam).filter(AITeam.id == team_id, AITeam.tenant_id == tenant_id).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="AI Team not found")
+    
+    if request.name is not None:
+        team.name = request.name
+    if request.agents is not None:
+        team.agents = request.agents
+    if request.config is not None:
+        current_config = dict(team.config or {})
+        current_config.update(request.config)
+        team.config = current_config
+        
+    db.commit()
+    db.refresh(team)
+    return {"id": team.id, "name": team.name, "agents": team.agents, "config": team.config or {}}
+
+@router.delete("/teams/{team_id}")
+def delete_ai_team(
+    team_id: str,
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    team = db.query(AITeam).filter(AITeam.id == team_id, AITeam.tenant_id == tenant_id).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="AI Team not found")
+    db.delete(team)
+    db.commit()
+    return {"message": "Team deleted successfully"}
+
+@router.post("/teams/test-agent")
+async def test_agent(
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    request: AgentTestRequest
+) -> Any:
+    from app.services.ai_gateway import ai_gateway
+    
+    default_personas = {
+        "Sales AI": "You are Sales AI, an expert outbound sales agent. Focus on qualifying leads, crafting compelling pitches, and scheduling demos.",
+        "Marketing AI": "You are Marketing AI, an expert copywriter and social media strategist. Focus on engaging content, brand consistency, and viral copy.",
+        "Support AI": "You are Support AI, an expert customer satisfaction specialist. Focus on clear, helpful, and empathetic answers to customer tickets.",
+        "Finance AI": "You are Finance AI, an expert financial analyst. Focus on invoice processing, budget analysis, and ledger accuracy.",
+        "HR AI": "You are HR AI, a recruiting specialist. Focus on candidate sourcing, resume evaluation, and interview scheduling.",
+        "CEO AI": "You are CEO AI, the Chief Executive Officer agent. Focus on strategic planning, coordination, and high-level decision making."
+    }
+    
+    base_persona = default_personas.get(request.agent_name, f"You are {request.agent_name}, a helpful AI agent.")
+    system_prompt = base_persona
+    if request.custom_instructions:
+        system_prompt += f"\n\nCustom Instructions/Guidelines:\n{request.custom_instructions}"
+        
+    try:
+        response = await ai_gateway.executeRequest(
+            db=db,
+            tenant_id=tenant_id,
+            prompt=request.message,
+            provider=request.provider,
+            model=request.model,
+            system_prompt=system_prompt,
+            task_type=request.agent_name.lower().replace(" ai", "")
+        )
+        return {"response": response, "agent": request.agent_name}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/marketplace/install")
 def install_workflow(

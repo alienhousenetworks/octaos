@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import Any, List, Optional
 from pydantic import BaseModel
@@ -151,7 +151,29 @@ def get_content_queue(
     leads = db.query(Lead).filter(Lead.tenant_id == tenant_id).all()
     
     posts_data = [{"id": p.id, "platform": p.platform, "content": p.content, "day": p.day, "status": p.status, "scheduled_at": p.scheduled_at} for p in posts]
-    leads_data = [{"id": l.id, "name": l.name, "company": l.company, "source": l.source, "status": l.status} for l in leads]
+    leads_data = [
+        {
+            "id": l.id,
+            "name": l.name,
+            "company": l.company,
+            "source": l.source,
+            "status": l.status,
+            "score": l.score,
+            "personal_email": l.personal_email,
+            "company_email": l.company_email,
+            "mobile_no": l.mobile_no or l.phone,
+            "company_contact_no": l.company_contact_no,
+            "need_of_what": l.need_of_what,
+            "how_much": l.how_much,
+            "why": l.why,
+            "target_context": l.target_context,
+            "priority": l.priority,
+            "created_at": l.created_at.isoformat() if l.created_at else None,
+            "updated_at": l.updated_at.isoformat() if l.updated_at else None,
+            "data": l.data
+        }
+        for l in leads
+    ]
     return {"posts": posts_data, "leads": leads_data}
 
 @router.get("/timeline")
@@ -186,3 +208,84 @@ def get_knowledge_docs(
 ) -> Any:
     docs = db.query(KnowledgeDocument).filter(KnowledgeDocument.tenant_id == tenant_id).all()
     return [{"id": d.id, "department": d.department, "doc_type": d.doc_type, "content": d.content, "created_at": d.created_at.isoformat() if d.created_at else None} for d in docs]
+
+@router.post("/knowledge/upload")
+async def upload_knowledge_file(
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    file: UploadFile = File(...),
+    department: str = Form(...),
+    doc_type: str = Form(...)
+) -> Any:
+    import io
+    filename = file.filename
+    content_bytes = await file.read()
+    
+    content = ""
+    if filename.endswith(".pdf"):
+        try:
+            import pypdf
+            pdf_reader = pypdf.PdfReader(io.BytesIO(content_bytes))
+            text_runs = []
+            for page in pdf_reader.pages:
+                t = page.extract_text()
+                if t:
+                    text_runs.append(t)
+            content = "\n".join(text_runs)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to parse PDF: {str(e)}")
+    elif filename.endswith(".docx"):
+        try:
+            import zipfile
+            import xml.etree.ElementTree as ET
+            with zipfile.ZipFile(io.BytesIO(content_bytes)) as docx:
+                xml_content = docx.read('word/document.xml')
+                root = ET.fromstring(xml_content)
+                paragraphs = []
+                for p in root.iter('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p'):
+                    p_text = "".join(node.text for node in p.iter('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t') if node.text)
+                    if p_text:
+                        paragraphs.append(p_text)
+                content = "\n".join(paragraphs)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to parse DOCX: {str(e)}")
+    elif filename.endswith((".txt", ".md", ".json", ".csv")):
+        try:
+            content = content_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            try:
+                content = content_bytes.decode("latin-1")
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Failed to decode text file: {str(e)}")
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file format. Please upload PDF, DOCX, TXT, MD, CSV, or JSON.")
+    
+    if not content.strip():
+        raise HTTPException(status_code=400, detail="Document appears to be empty or has no extractable text.")
+    
+    doc = KnowledgeDocument(
+        tenant_id=tenant_id,
+        department=department,
+        doc_type=doc_type,
+        content=f"Source Document: {filename}\n\n{content}"
+    )
+    db.add(doc)
+    db.commit()
+    return {"message": f"Successfully parsed and added document '{filename}' to Knowledge Base."}
+
+@router.delete("/knowledge/{doc_id}")
+def delete_knowledge_doc(
+    doc_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    doc = db.query(KnowledgeDocument).filter(
+        KnowledgeDocument.id == doc_id,
+        KnowledgeDocument.tenant_id == tenant_id
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Knowledge document not found")
+    db.delete(doc)
+    db.commit()
+    return {"message": "Knowledge document deleted successfully"}

@@ -70,6 +70,45 @@ class LLMGateway:
         elif any(w in combined_text for w in ["finance", "invoice", "billing", "budget"]):
             inferred_task_type = "finance"
 
+        # 1b. Automatically fetch and inject relevant knowledge base documents to system prompt
+        from app.models.agents import KnowledgeDocument
+        dept_map = {
+            "marketing": "Marketing",
+            "sales": "Sales",
+            "support": "Support",
+            "hr": "HR",
+            "finance": "Finance",
+            "general": None
+        }
+        dept_name = dept_map.get(inferred_task_type)
+        
+        try:
+            query = self.db.query(KnowledgeDocument).filter(
+                KnowledgeDocument.tenant_id == self.tenant_id
+            )
+            if dept_name:
+                query = query.filter(KnowledgeDocument.department.in_([dept_name, "General"]))
+            
+            docs = query.all()
+            if docs:
+                knowledge_str = (
+                    "Company Guidelines & Knowledge Base:\n"
+                    "CRITICAL INSTRUCTION: You must strictly adhere to the company guidelines, brand rules, "
+                    "contact details (e.g. email, phone), and websites listed below. Incorporate them "
+                    "into your generated output (social posts, emails, replies, etc.) whenever relevant.\n\n"
+                )
+                for doc in docs:
+                    knowledge_str += f"\n--- {doc.doc_type} ({doc.department}) ---\n{doc.content}\n"
+                
+                if system_prompt:
+                    if "Company Guidelines & Knowledge Base:" not in system_prompt:
+                        system_prompt = f"{system_prompt}\n\n{knowledge_str}"
+                else:
+                    system_prompt = f"You are a helpful AI assistant operating as part of NexusOS.\n\n{knowledge_str}"
+        except Exception as ke:
+            import logging
+            logging.error(f"Failed to query knowledge base for injection: {ke}")
+
         inferred_complexity = "low"
         if model and any(w in model.lower() for w in ["sonnet", "gpt-4o", "pro", "large"]):
             inferred_complexity = "high"

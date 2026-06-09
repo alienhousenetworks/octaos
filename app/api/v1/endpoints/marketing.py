@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Any, Optional
 from pydantic import BaseModel
@@ -10,6 +10,12 @@ from app.schemas import verticals as schemas
 from app.models import verticals as models
 
 router = APIRouter()
+
+
+class GenerateMediaRequest(BaseModel):
+    media_type: str  # "image" or "video"
+    prompt: str
+    provider: Optional[str] = None
 
 
 class ApproveOptions(BaseModel):
@@ -86,10 +92,149 @@ def update_post(
         post.video_url = post_in.video_url
     if post_in.scheduled_at is not None:
         post.scheduled_at = post_in.scheduled_at
+    if post_in.media_prompt is not None:
+        post.media_prompt = post_in.media_prompt
+    if post_in.media_prompt_enabled is not None:
+        post.media_prompt_enabled = post_in.media_prompt_enabled
+    if post_in.image_prompt is not None:
+        post.image_prompt = post_in.image_prompt
+    if post_in.image_prompt_enabled is not None:
+        post.image_prompt_enabled = post_in.image_prompt_enabled
+    if post_in.video_prompt is not None:
+        post.video_prompt = post_in.video_prompt
+    if post_in.video_prompt_enabled is not None:
+        post.video_prompt_enabled = post_in.video_prompt_enabled
+    if post_in.is_manual_media is not None:
+        post.is_manual_media = post_in.is_manual_media
 
     db.commit()
     db.refresh(post)
     return post
+
+
+@router.post("/posts/create", response_model=schemas.ContentPost)
+def create_manual_post(
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    post_in: schemas.ContentPostCreate,
+) -> Any:
+    post = models.ContentPost(
+        tenant_id=tenant_id,
+        platform=post_in.platform,
+        content=post_in.content,
+        image_url=post_in.image_url,
+        video_url=post_in.video_url,
+        media_prompt=post_in.media_prompt,
+        media_prompt_enabled=post_in.media_prompt_enabled,
+        image_prompt=post_in.image_prompt,
+        image_prompt_enabled=post_in.image_prompt_enabled,
+        video_prompt=post_in.video_prompt,
+        video_prompt_enabled=post_in.video_prompt_enabled,
+        is_manual_media=post_in.is_manual_media,
+        day=post_in.day or 1,
+        status="draft",
+        approval_status="pending",
+        scheduled_at=post_in.scheduled_at,
+    )
+    db.add(post)
+    db.commit()
+    db.refresh(post)
+    return post
+
+
+@router.post("/upload-media")
+async def upload_media(
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    file: UploadFile = File(...),
+) -> Any:
+    from app.services.media.storage import _write_bytes
+    content = await file.read()
+    url = _write_bytes(content, file.content_type, prefix="upload")
+    return {"url": url}
+
+
+@router.post("/posts/{post_id}/generate-media", response_model=schemas.ContentPost)
+async def generate_media_for_post(
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    post_id: str,
+    req: GenerateMediaRequest,
+) -> Any:
+    post = (
+        db.query(models.ContentPost)
+        .filter(models.ContentPost.id == post_id, models.ContentPost.tenant_id == tenant_id)
+        .first()
+    )
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    from app.services.llm_gateway import LLMGateway
+    gateway = LLMGateway(db, tenant_id)
+
+    if req.media_type == "video":
+        provider = req.provider or "pika"
+        video_url = await gateway.generate_video(req.prompt, provider=provider)
+        if video_url.startswith("error:"):
+            raise HTTPException(status_code=400, detail=video_url.replace("error:", ""))
+        post.video_url = video_url
+        post.image_url = None
+        post.is_manual_media = False
+        post.video_prompt = req.prompt
+        post.video_prompt_enabled = True
+    else:
+        provider = req.provider or "openai"
+        image_url = await gateway.generate_image(req.prompt, provider=provider)
+        if image_url.startswith("error:"):
+            raise HTTPException(status_code=400, detail=image_url.replace("error:", ""))
+        post.image_url = image_url
+        post.video_url = None
+        post.is_manual_media = False
+        post.image_prompt = req.prompt
+        post.image_prompt_enabled = True
+    db.commit()
+    db.refresh(post)
+    return post
+
+
+class SuggestPromptRequest(BaseModel):
+    content: str
+    media_type: str  # "image" or "video"
+
+
+@router.post("/suggest-prompt")
+async def suggest_prompt(
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    req: SuggestPromptRequest,
+) -> Any:
+    from app.services.llm_gateway import LLMGateway
+    gateway = LLMGateway(db, tenant_id)
+
+    if req.media_type == "video":
+        prompt = (
+            f"Based on the following social media post text, write a detailed, highly descriptive prompt to generate a 5-second video loop/cinemagraph (e.g. for Pika, Runway, or Sora). "
+            f"The video should match the tone and subject of the post. Keep the prompt descriptive, focused on visual actions, movement, lighting, and style. Do not write any introduction or explanation, only output the final prompt text itself.\n\n"
+            f"Post Text:\n{req.content}"
+        )
+    else:
+        prompt = (
+            f"Based on the following social media post text, write a detailed, highly descriptive prompt to generate a high-quality illustration/photo/graphic (e.g. for Midjourney or DALL-E). "
+            f"The image should visually represent the theme of the post. Describe the subject, composition, background, color palette, lighting, and style (e.g., modern photography, warm corporate style, minimalist illustration). Do not write any introduction or explanation, only output the final prompt text itself.\n\n"
+            f"Post Text:\n{req.content}"
+        )
+
+    suggestion = await gateway.complete(
+        prompt=prompt,
+        provider="gemini",
+        system_prompt="You are an expert AI prompt engineer specializing in generating highly effective prompts for Text-to-Image (DALL-E, Midjourney) and Text-to-Video (Pika, Runway, Sora) models based on social media content. Respond with only the prompt itself, clean of markdown formatting, quotes, intro, or wrap-up."
+    )
+    clean_suggestion = suggestion.strip().strip('"\'')
+    return {"prompt": clean_suggestion}
 
 
 def _schedule_post(post: models.ContentPost, publish_now: bool = False) -> None:
@@ -99,11 +244,12 @@ def _schedule_post(post: models.ContentPost, publish_now: bool = False) -> None:
         post.scheduled_at = now
         post.status = "scheduled"
     else:
-        day = post.day or 1
-        scheduled = (now + timedelta(days=day)).replace(hour=9, minute=0, second=0, microsecond=0)
-        if scheduled.tzinfo is None:
-            scheduled = scheduled.replace(tzinfo=timezone.utc)
-        post.scheduled_at = scheduled
+        if post.scheduled_at is None:
+            day = post.day or 1
+            scheduled = (now + timedelta(days=day)).replace(hour=9, minute=0, second=0, microsecond=0)
+            if scheduled.tzinfo is None:
+                scheduled = scheduled.replace(tzinfo=timezone.utc)
+            post.scheduled_at = scheduled
         post.status = "approved"
 
 
@@ -211,3 +357,64 @@ def approve_all_posts(
         publish_scheduled_posts.delay()
 
     return {"message": f"Successfully approved and scheduled {len(posts)} posts."}
+
+
+class BulkScheduleRequest(BaseModel):
+    start_date: datetime
+    end_date: datetime
+    posting_time: str
+
+
+@router.post("/posts/bulk-schedule")
+def bulk_schedule_posts(
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    req: BulkScheduleRequest,
+) -> Any:
+    if req.end_date < req.start_date:
+        raise HTTPException(status_code=400, detail="End date must be on or after start date")
+
+    # Get all posts that are not published
+    posts = (
+        db.query(models.ContentPost)
+        .filter(
+            models.ContentPost.tenant_id == tenant_id,
+            models.ContentPost.approval_status != "published",
+            models.ContentPost.status != "published",
+        )
+        .order_by(models.ContentPost.day.asc(), models.ContentPost.created_at.asc())
+        .all()
+    )
+
+    if not posts:
+        return {"message": "No pending or draft posts found to schedule."}
+
+    try:
+        hour, minute = map(int, req.posting_time.split(":"))
+    except Exception:
+        hour, minute = 9, 0
+
+    n = len(posts)
+    if n == 1:
+        scheduled_time = req.start_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if scheduled_time.tzinfo is None:
+            scheduled_time = scheduled_time.replace(tzinfo=timezone.utc)
+        posts[0].scheduled_at = scheduled_time
+        posts[0].approval_status = "approved"
+        posts[0].status = "approved"
+    else:
+        duration = req.end_date - req.start_date
+        total_seconds = duration.total_seconds()
+        step_seconds = total_seconds / (n - 1)
+        for i, post in enumerate(posts):
+            current_dt = req.start_date + timedelta(seconds=i * step_seconds)
+            scheduled_time = current_dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if scheduled_time.tzinfo is None:
+                scheduled_time = scheduled_time.replace(tzinfo=timezone.utc)
+            post.scheduled_at = scheduled_time
+            post.approval_status = "approved"
+            post.status = "approved"
+
+    db.commit()
+    return {"message": f"Successfully bulk scheduled {n} posts."}

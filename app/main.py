@@ -56,6 +56,34 @@ def startup_db_check():
                 with engine.begin() as conn:
                     conn.execute(text("ALTER TABLE content_posts ADD COLUMN video_url VARCHAR"))
                 print("Successfully added video_url column to content_posts table.")
+            if "media_prompt" not in columns:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE content_posts ADD COLUMN media_prompt TEXT"))
+                print("Successfully added media_prompt column to content_posts table.")
+            if "media_prompt_enabled" not in columns:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE content_posts ADD COLUMN media_prompt_enabled BOOLEAN DEFAULT FALSE"))
+                print("Successfully added media_prompt_enabled column to content_posts table.")
+            if "is_manual_media" not in columns:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE content_posts ADD COLUMN is_manual_media BOOLEAN DEFAULT FALSE"))
+                print("Successfully added is_manual_media column to content_posts table.")
+            if "image_prompt" not in columns:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE content_posts ADD COLUMN image_prompt TEXT"))
+                print("Successfully added image_prompt column to content_posts table.")
+            if "image_prompt_enabled" not in columns:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE content_posts ADD COLUMN image_prompt_enabled BOOLEAN DEFAULT FALSE"))
+                print("Successfully added image_prompt_enabled column to content_posts table.")
+            if "video_prompt" not in columns:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE content_posts ADD COLUMN video_prompt TEXT"))
+                print("Successfully added video_prompt column to content_posts table.")
+            if "video_prompt_enabled" not in columns:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE content_posts ADD COLUMN video_prompt_enabled BOOLEAN DEFAULT FALSE"))
+                print("Successfully added video_prompt_enabled column to content_posts table.")
                 
         if "tickets" in inspector.get_table_names():
             columns = [col["name"] for col in inspector.get_columns("tickets")]
@@ -63,6 +91,26 @@ def startup_db_check():
                 with engine.begin() as conn:
                     conn.execute(text("ALTER TABLE tickets ADD COLUMN customer_contact VARCHAR"))
                 print("Successfully added customer_contact column to tickets table.")
+
+        if "leads" in inspector.get_table_names():
+            columns = [col["name"] for col in inspector.get_columns("leads")]
+            columns_to_add = {
+                "personal_email": "VARCHAR",
+                "company_email": "VARCHAR",
+                "mobile_no": "VARCHAR",
+                "company_contact_no": "VARCHAR",
+                "need_of_what": "TEXT",
+                "how_much": "VARCHAR",
+                "why": "TEXT",
+                "target_context": "TEXT",
+                "priority": "VARCHAR DEFAULT 'medium'",
+                "updated_at": "TIMESTAMP"
+            }
+            with engine.begin() as conn:
+                for col_name, col_type in columns_to_add.items():
+                    if col_name not in columns:
+                        conn.execute(text(f"ALTER TABLE leads ADD COLUMN {col_name} {col_type}"))
+                        print(f"Successfully added column {col_name} to leads table.")
 
         if "provider_usage" in inspector.get_table_names():
             columns = [col["name"] for col in inspector.get_columns("provider_usage")]
@@ -81,6 +129,42 @@ def startup_db_check():
                     if col_name not in columns:
                         conn.execute(text(f"ALTER TABLE provider_usage ADD COLUMN {col_name} {col_type}"))
                         print(f"Successfully added column {col_name} to provider_usage table.")
+
+        if "ai_teams" in inspector.get_table_names():
+            columns = [col["name"] for col in inspector.get_columns("ai_teams")]
+            if "config" not in columns:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE ai_teams ADD COLUMN config JSON"))
+                print("Successfully added config column to ai_teams table.")
+
+        if "users" in inspector.get_table_names():
+            columns = [col["name"] for col in inspector.get_columns("users")]
+            columns_to_add = {
+                "name": "VARCHAR",
+                "phone_no": "VARCHAR",
+                "is_verified": "BOOLEAN DEFAULT FALSE",
+                "otp": "VARCHAR",
+                "otp_expires_at": "TIMESTAMP"
+            }
+            with engine.begin() as conn:
+                for col_name, col_type in columns_to_add.items():
+                    if col_name not in columns:
+                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}"))
+                        print(f"Successfully added column {col_name} to users table.")
+                conn.execute(text("UPDATE users SET is_verified = TRUE WHERE is_verified IS NULL"))
+
+        if "tenants" in inspector.get_table_names():
+            columns = [col["name"] for col in inspector.get_columns("tenants")]
+            columns_to_add = {
+                "company_website": "VARCHAR",
+                "company_email": "VARCHAR",
+                "company_address": "VARCHAR"
+            }
+            with engine.begin() as conn:
+                for col_name, col_type in columns_to_add.items():
+                    if col_name not in columns:
+                        conn.execute(text(f"ALTER TABLE tenants ADD COLUMN {col_name} {col_type}"))
+                        print(f"Successfully added column {col_name} to tenants table.")
     except Exception as e:
         print(f"Error checking/migrating database: {e}")
 

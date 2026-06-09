@@ -371,3 +371,443 @@ def test_marketplace_install_and_uninstall(client, db):
     assert len(installed_resp.json()) == 0
 
 
+def test_manual_post_and_media_upload(client, db):
+    from app.models.verticals import ContentPost
+    
+    subdomain = f"test-{uuid.uuid4()}"
+    tenant_resp = client.post("/api/v1/tenants/", json={"name": "Test Co", "subdomain": subdomain})
+    tenant_id = tenant_resp.json()["id"]
+    tenant_id_override_store["tenant_id"] = tenant_id
+
+    # 1. Test media upload endpoint
+    upload_resp = client.post(
+        "/api/v1/marketing/upload-media",
+        files={"file": ("test.jpg", b"fake-image-bytes", "image/jpeg")}
+    )
+    assert upload_resp.status_code == 200
+    upload_data = upload_resp.json()
+    assert "url" in upload_data
+    assert "/media/upload_" in upload_data["url"]
+
+    # 2. Test manual post creation endpoint
+    create_resp = client.post(
+        "/api/v1/marketing/posts/create",
+        json={
+            "platform": "linkedin",
+            "content": "Manually created post content",
+            "image_url": upload_data["url"],
+            "image_prompt": "Prompt for image",
+            "image_prompt_enabled": True,
+            "video_prompt": "Prompt for video",
+            "video_prompt_enabled": False,
+            "is_manual_media": True,
+            "day": 5
+        }
+    )
+    assert create_resp.status_code == 200
+    post_data = create_resp.json()
+    assert post_data["content"] == "Manually created post content"
+    assert post_data["platform"] == "linkedin"
+    assert post_data["image_url"] == upload_data["url"]
+    assert post_data["image_prompt"] == "Prompt for image"
+    assert post_data["image_prompt_enabled"] is True
+    assert post_data["video_prompt"] == "Prompt for video"
+    assert post_data["video_prompt_enabled"] is False
+    assert post_data["is_manual_media"] is True
+    assert post_data["day"] == 5
+
+    # 3. Test post update endpoint
+    update_resp = client.put(
+        f"/api/v1/marketing/posts/{post_data['id']}",
+        json={
+            "platform": "linkedin",
+            "content": "Updated post content",
+            "image_url": post_data["image_url"],
+            "video_url": "http://localhost:8000/media/some_video.mp4",
+            "image_prompt": "Updated image prompt",
+            "image_prompt_enabled": False,
+            "video_prompt": "Updated video prompt",
+            "video_prompt_enabled": True,
+            "is_manual_media": True,
+            "day": 5
+        }
+    )
+    assert update_resp.status_code == 200
+    updated_post = db.query(ContentPost).filter(ContentPost.id == post_data["id"]).first()
+    assert updated_post.content == "Updated post content"
+    assert updated_post.video_url == "http://localhost:8000/media/some_video.mp4"
+    assert updated_post.image_prompt == "Updated image prompt"
+    assert updated_post.image_prompt_enabled is False
+    assert updated_post.video_prompt == "Updated video prompt"
+    assert updated_post.video_prompt_enabled is True
+    assert updated_post.is_manual_media is True
+
+    # 4. Test custom scheduled_at on creation and approval preservation
+    custom_scheduled_str = "2026-06-10T12:00:00Z"
+    custom_create_resp = client.post(
+        "/api/v1/marketing/posts/create",
+        json={
+            "platform": "instagram",
+            "content": "Custom scheduled post",
+            "scheduled_at": custom_scheduled_str,
+            "day": 1
+        }
+    )
+    assert custom_create_resp.status_code == 200
+    custom_post_data = custom_create_resp.json()
+    assert custom_post_data["scheduled_at"].startswith("2026-06-10T12:00:00")
+
+    # Approve this post and check that custom scheduled_at is preserved
+    approve_resp = client.post(f"/api/v1/marketing/posts/{custom_post_data['id']}/approve")
+    assert approve_resp.status_code == 200
+    approved_custom_post = approve_resp.json()
+    assert approved_custom_post["scheduled_at"].startswith("2026-06-10T12:00:00")
+
+    # Delete all other draft/pending posts to make bulk schedule testing deterministic
+    db.query(ContentPost).filter(ContentPost.id != custom_post_data["id"]).delete()
+    db.commit()
+
+    # Create two more draft posts (to make a total of 3 posts: one approved, two drafts)
+    post2_resp = client.post(
+        "/api/v1/marketing/posts/create",
+        json={
+            "platform": "facebook",
+            "content": "Draft post 2",
+            "day": 2
+        }
+    )
+    post3_resp = client.post(
+        "/api/v1/marketing/posts/create",
+        json={
+            "platform": "linkedin",
+            "content": "Draft post 3",
+            "day": 3
+        }
+    )
+    assert post2_resp.status_code == 200
+    assert post3_resp.status_code == 200
+
+    # 5. Test bulk schedule endpoint
+    bulk_resp = client.post(
+        "/api/v1/marketing/posts/bulk-schedule",
+        json={
+            "start_date": "2026-06-03T00:00:00Z",
+            "end_date": "2026-06-05T00:00:00Z",
+            "posting_time": "10:30"
+        }
+    )
+    assert bulk_resp.status_code == 200
+    assert "Successfully bulk scheduled" in bulk_resp.json()["message"]
+
+    # Verify that the 3 posts are scheduled exactly at 2026-06-03 10:30, 2026-06-04 10:30, and 2026-06-05 10:30 (UTC)
+    posts_in_db = db.query(ContentPost).order_by(ContentPost.day.asc()).all()
+    assert len(posts_in_db) == 3
+
+    # Post 1 (Day 1)
+    assert posts_in_db[0].scheduled_at.hour == 10
+    assert posts_in_db[0].scheduled_at.minute == 30
+    assert posts_in_db[0].scheduled_at.day == 3
+    assert posts_in_db[0].approval_status == "approved"
+
+    # Post 2 (Day 2)
+    assert posts_in_db[1].scheduled_at.hour == 10
+    assert posts_in_db[1].scheduled_at.minute == 30
+    assert posts_in_db[1].scheduled_at.day == 4
+    assert posts_in_db[1].approval_status == "approved"
+
+    # Post 3 (Day 3)
+    assert posts_in_db[2].scheduled_at.hour == 10
+    assert posts_in_db[2].scheduled_at.minute == 30
+    assert posts_in_db[2].scheduled_at.day == 5
+    assert posts_in_db[2].approval_status == "approved"
+
+
+@patch("app.services.llm_gateway.LLMGateway.complete")
+def test_suggest_prompt(mock_complete, client, db):
+    mock_complete.return_value = "A gorgeous sunrise over a coffee shop, modern style"
+
+    subdomain = f"test-{uuid.uuid4()}"
+    tenant_resp = client.post("/api/v1/tenants/", json={"name": "Test Co", "subdomain": subdomain})
+    tenant_id = tenant_resp.json()["id"]
+    tenant_id_override_store["tenant_id"] = tenant_id
+
+    resp = client.post(
+        "/api/v1/marketing/suggest-prompt",
+        json={
+            "content": "Start your morning with a fresh brew! #coffee",
+            "media_type": "image"
+        }
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "prompt" in data
+    assert data["prompt"] == "A gorgeous sunrise over a coffee shop, modern style"
+    mock_complete.assert_called_once()
+
+
+def test_sales_crm_endpoints(client, db):
+    # 1. Setup tenant
+    subdomain = f"test-{uuid.uuid4()}"
+    tenant_resp = client.post("/api/v1/tenants/", json={"name": "Test Sales Co", "subdomain": subdomain})
+    tenant_id = tenant_resp.json()["id"]
+    tenant_id_override_store["tenant_id"] = tenant_id
+
+    # 2. Create a lead
+    create_resp = client.post(
+        "/api/v1/leads/",
+        json={
+            "name": "Bruce Wayne", 
+            "email": "bruce@waynecorp.com", 
+            "company": "Wayne Enterprises", 
+            "source": "manual",
+            "priority": "high",
+            "personal_email": "batman@gmail.com",
+            "company_email": "ceo@waynecorp.com",
+            "mobile_no": "123-456",
+            "company_contact_no": "999-999",
+            "need_of_what": "AI Defense Systems",
+            "how_much": "$1M+",
+            "why": "Safety",
+            "target_context": "Gotham City"
+        }
+    )
+    assert create_resp.status_code == 200
+    lead_data = create_resp.json()
+    lead_id = lead_data["id"]
+
+    # 3. Read leads with filter
+    read_resp = client.get(
+        "/api/v1/leads/",
+        params={"search": "Bruce", "priority": "high", "status": "captured"}
+    )
+    assert read_resp.status_code == 200
+    results = read_resp.json()
+    assert len(results) == 1
+    assert results[0]["name"] == "Bruce Wayne"
+    assert results[0]["personal_email"] == "batman@gmail.com"
+
+    # 4. PATCH lead to change priority and personal_email
+    patch_resp = client.patch(
+        f"/api/v1/leads/{lead_id}",
+        json={"priority": "low", "personal_email": "new_bat@gmail.com"}
+    )
+    assert patch_resp.status_code == 200
+    patched_data = patch_resp.json()
+    assert patched_data["priority"] == "low"
+    assert patched_data["personal_email"] == "new_bat@gmail.com"
+
+    # 5. POST to schedule meeting
+    meet_resp = client.post(f"/api/v1/leads/{lead_id}/schedule_meeting")
+    assert meet_resp.status_code == 200
+    meet_data = meet_resp.json()
+    assert "meeting_link" in meet_data
+    assert "meeting_time" in meet_data
+
+    # Check status changed in db
+    db_lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    assert db_lead.status == "meeting_scheduled"
+
+
+def test_leads_upload_and_note(client, db):
+    # 1. Setup tenant
+    subdomain = f"test-{uuid.uuid4()}"
+    tenant_resp = client.post("/api/v1/tenants/", json={"name": "Test Sales Upload Co", "subdomain": subdomain})
+    tenant_id = tenant_resp.json()["id"]
+    tenant_id_override_store["tenant_id"] = tenant_id
+
+    # 2. Upload CSV file
+    csv_content = (
+        "Name,Company,Email,Phone,Source,Priority,Personal Email,Company Email,Mobile Number,Company Contact Number,Need,Value,Pain Points,Context\n"
+        "Clark Kent,Daily Planet,clark@planet.com,111-222,metro,high,clark@gmail.com,reporter@planet.com,111-222,111-222,AI Writing,$50k,Fast reporting,Metropolis\n"
+    )
+    
+    upload_resp = client.post(
+        "/api/v1/leads/upload",
+        files={"file": ("leads.csv", csv_content.encode("utf-8"), "text/csv")},
+        data={"handle_with_ai": "false"}
+    )
+    assert upload_resp.status_code == 200
+    assert "Successfully uploaded" in upload_resp.json()["message"]
+
+    # Read leads from DB to verify Clark Kent exists
+    db_leads = db.query(Lead).filter(Lead.tenant_id == tenant_id).all()
+    assert len(db_leads) == 1
+    lead = db_leads[0]
+    assert lead.name == "Clark Kent"
+    assert lead.company == "Daily Planet"
+    assert lead.email == "clark@planet.com"
+    assert lead.personal_email == "clark@gmail.com"
+    assert lead.company_email == "reporter@planet.com"
+    assert lead.need_of_what == "AI Writing"
+    assert lead.how_much == "$50k"
+    assert lead.why == "Fast reporting"
+    assert lead.target_context == "Metropolis"
+    assert lead.priority == "high"
+
+    # 3. Add timeline note (human update)
+    note_resp = client.post(
+        f"/api/v1/leads/{lead.id}/timeline-note",
+        json={
+            "content": "Followed up with Clark via phone.",
+            "channel": "call",
+            "direction": "outbound"
+        }
+    )
+    assert note_resp.status_code == 200
+    updated_lead = note_resp.json()
+    conv = updated_lead["data"]["conversation"]
+    assert len(conv) == 1
+    assert conv[0]["content"] == "Followed up with Clark via phone."
+    assert conv[0]["channel"] == "call"
+    assert conv[0]["direction"] == "outbound"
+
+
+def test_leads_upload_robustness(client, db):
+    # 1. Setup tenant
+    subdomain = f"test-{uuid.uuid4()}"
+    tenant_resp = client.post("/api/v1/tenants/", json={"name": "Test Sales Robust Co", "subdomain": subdomain})
+    tenant_id = tenant_resp.json()["id"]
+    tenant_id_override_store["tenant_id"] = tenant_id
+
+    # 2. Upload CSV file with BOM, casing/spacing header mismatches, enclosing quotes
+    csv_content = (
+        "\ufeff\"Name\",\"Company_Name\",\"Email Address\",\"Mobile-Number\",\"Personal_Email\",\"Need Of What\",\"how_much\",\"Pain Points\",\"Target Context\"\n"
+        "\"Bruce Wayne\",\"Wayne Enterprises\",\"bruce@wayne.com\",\"222-333\",\"bruce.personal@gmail.com\",\"Batmobile Upgrade\",\"$1M\",\"Joker activity\",\"Gotham City\"\n"
+    )
+
+    upload_resp = client.post(
+        "/api/v1/leads/upload",
+        files={"file": ("leads_robust.csv", csv_content.encode("utf-8"), "text/csv")},
+        data={"handle_with_ai": "false"}
+    )
+    assert upload_resp.status_code == 200
+    assert "Successfully uploaded" in upload_resp.json()["message"]
+
+    # Verify Wayne exists in DB and is mapped correctly
+    db_leads = db.query(Lead).filter(Lead.tenant_id == tenant_id).all()
+    assert len(db_leads) == 1
+    lead = db_leads[0]
+    assert lead.name == "Bruce Wayne"
+    assert lead.company == "Wayne Enterprises"
+    assert lead.email == "bruce@wayne.com"
+    assert lead.personal_email == "bruce.personal@gmail.com"
+    assert lead.need_of_what == "Batmobile Upgrade"
+    assert lead.how_much == "$1M"
+    assert lead.why == "Joker activity"
+    assert lead.target_context == "Gotham City"
+
+
+def test_knowledge_endpoints(client, db):
+    subdomain = f"test-{uuid.uuid4()}"
+    tenant_resp = client.post("/api/v1/tenants/", json={"name": "Test Co", "subdomain": subdomain})
+    tenant_id = tenant_resp.json()["id"]
+    tenant_id_override_store["tenant_id"] = tenant_id
+
+    # Test POST /knowledge (text input)
+    post_resp = client.post(
+        "/api/v1/commands/knowledge",
+        json={"department": "Marketing", "doc_type": "Brand Guidelines", "content": "Our brand color is violet."}
+    )
+    assert post_resp.status_code == 200
+
+    # Test GET /knowledge
+    get_resp = client.get("/api/v1/commands/knowledge")
+    assert get_resp.status_code == 200
+    docs = get_resp.json()
+    assert len(docs) == 1
+    assert docs[0]["department"] == "Marketing"
+    assert docs[0]["content"] == "Our brand color is violet."
+    doc_id = docs[0]["id"]
+
+    # Test POST /knowledge/upload with raw text file
+    txt_file_content = b"This is text file content for knowledge."
+    upload_txt_resp = client.post(
+        "/api/v1/commands/knowledge/upload",
+        files={"file": ("guide.txt", txt_file_content, "text/plain")},
+        data={"department": "Sales", "doc_type": "Pricing"}
+    )
+    assert upload_txt_resp.status_code == 200
+    assert "Successfully parsed and added document" in upload_txt_resp.json()["message"]
+
+    # Verify both documents exist now
+    get_resp2 = client.get("/api/v1/commands/knowledge")
+    docs2 = get_resp2.json()
+    assert len(docs2) == 2
+    sales_doc = [d for d in docs2 if d["department"] == "Sales"][0]
+    assert sales_doc["content"] == "Source Document: guide.txt\n\nThis is text file content for knowledge."
+
+    # Test DELETE /knowledge/{doc_id}
+    del_resp = client.delete(f"/api/v1/commands/knowledge/{doc_id}")
+    assert del_resp.status_code == 200
+
+    # Verify one document is deleted
+    get_resp3 = client.get("/api/v1/commands/knowledge")
+    docs3 = get_resp3.json()
+    assert len(docs3) == 1
+    assert docs3[0]["id"] == sales_doc["id"]
+
+
+def test_otp_auth_flows(client, db):
+    from app.models.base import User
+    email = "test-otp-user@example.com"
+    password = "secretpassword"
+    
+    # 1. Initiate Signup
+    signup_init_resp = client.post(
+        "/api/v1/auth/signup/initiate",
+        json={
+            "name": "OTP Tester",
+            "email": email,
+            "phone_no": "+1234567890",
+            "company": "OTP Test Corp",
+            "company_website": "https://otptest.com",
+            "company_email": "info@otptest.com",
+            "company_address": "123 Test St",
+            "password": password
+        }
+    )
+    assert signup_init_resp.status_code == 200
+    assert "Verification OTP sent successfully" in signup_init_resp.json()["message"]
+    
+    # Verify user exists but is not verified
+    user_in_db = db.query(User).filter(User.email == email).first()
+    assert user_in_db is not None
+    assert user_in_db.is_verified is False
+    assert user_in_db.otp is not None
+    
+    # 2. Resend Signup OTP
+    resend_resp = client.post(
+        "/api/v1/auth/signup/resend-otp",
+        json={"email": email}
+    )
+    assert resend_resp.status_code == 200
+    
+    # 3. Verify Signup with magic OTP 123456 (in dev mode)
+    verify_resp = client.post(
+        "/api/v1/auth/signup/verify",
+        json={"email": email, "otp": "123456"}
+    )
+    assert verify_resp.status_code == 200
+    assert "access_token" in verify_resp.json()
+    db.refresh(user_in_db)
+    assert user_in_db.is_verified is True
+    
+    # 4. Initiate Login
+    login_init_resp = client.post(
+        "/api/v1/auth/login/initiate",
+        json={"email": email, "password": password}
+    )
+    assert login_init_resp.status_code == 200
+    assert login_init_resp.json()["otp_required"] is True
+    
+    # 5. Verify Login with magic OTP
+    login_verify_resp = client.post(
+        "/api/v1/auth/login/verify",
+        json={"email": email, "otp": "123456"}
+    )
+    assert login_verify_resp.status_code == 200
+    assert "access_token" in login_verify_resp.json()
+
+
+
+

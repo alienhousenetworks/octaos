@@ -55,15 +55,37 @@ def enrich_lead_task(tenant_id: str, lead_id: str):
         # LLM enrichment fallback / supplement
         llm = LLMGateway(db, tenant_id)
         prompt = (
-            f"Enrich this B2B lead with plausible professional details as JSON only.\n"
+            f"Enrich this B2B lead with professional details as JSON only.\n"
             f"Name: {lead.name}\nEmail: {lead.email}\nCompany: {lead.company}\n"
-            f"Output keys: title, industry, company_size, pain_points (array), outreach_angle."
+            f"Output keys: title, industry, company_size, pain_points (array), outreach_angle, "
+            f"personal_email, company_email, mobile_no, company_contact_no, need_of_what, how_much, why, target_context, priority (one of: low, medium, high)."
         )
         response = async_to_sync(llm.complete)(prompt=prompt, provider="gemini")
         try:
             import json
             cleaned = response.strip().strip("```json").strip("```").strip()
-            enrichment["llm"] = json.loads(cleaned)
+            res_dict = json.loads(cleaned)
+            enrichment["llm"] = res_dict
+            
+            # Directly update empty fields on lead
+            if not lead.personal_email:
+                lead.personal_email = res_dict.get("personal_email")
+            if not lead.company_email:
+                lead.company_email = res_dict.get("company_email") or lead.email
+            if not lead.mobile_no:
+                lead.mobile_no = res_dict.get("mobile_no") or lead.phone
+            if not lead.company_contact_no:
+                lead.company_contact_no = res_dict.get("company_contact_no")
+            if not lead.need_of_what:
+                lead.need_of_what = res_dict.get("need_of_what")
+            if not lead.how_much:
+                lead.how_much = res_dict.get("how_much")
+            if not lead.why:
+                lead.why = res_dict.get("why")
+            if not lead.target_context:
+                lead.target_context = res_dict.get("target_context")
+            if not lead.priority or lead.priority == "medium":
+                lead.priority = res_dict.get("priority", "medium")
         except Exception:
             enrichment["llm"] = {"raw": response[:500]}
 
@@ -73,6 +95,48 @@ def enrich_lead_task(tenant_id: str, lead_id: str):
         db.commit()
     finally:
         db.close()
+
+
+@celery_app.task(name="handle_lead_with_ai_task")
+def handle_lead_with_ai_task(tenant_id: str, lead_id: str):
+    from app.services.verticals.sales import SalesService
+    from app.models.verticals import Lead
+    from datetime import datetime
+
+    # 1. Run enrichment
+    enrich_lead_task(tenant_id, lead_id)
+
+    # 2. Run scoring & outreach generation
+    db = SessionLocal()
+    try:
+        lead = db.query(Lead).filter(Lead.id == lead_id, Lead.tenant_id == tenant_id).first()
+        if lead:
+            service = SalesService(db, tenant_id)
+            async_to_sync(service.score_lead)(lead_id)
+            
+            message = async_to_sync(service.generate_outreach)(lead_id)
+            if message:
+                lead.status = "contacted"
+                conv = list((lead.data or {}).get("conversation") or [])
+                conv.append({
+                    "direction": "outbound",
+                    "channel": "smtp",
+                    "content": message,
+                    "subject": f"Partnership Opportunity - {lead.company}",
+                    "at": datetime.utcnow().isoformat()
+                })
+                lead.data = {
+                    **(lead.data or {}),
+                    "outreach_channel": "smtp",
+                    "outbound_subject": f"Partnership Opportunity - {lead.company}",
+                    "outbound_body": message,
+                    "outreach_sent_at": datetime.utcnow().isoformat(),
+                    "conversation": conv
+                }
+                db.commit()
+    finally:
+        db.close()
+
 
 @celery_app.task(name="generate_campaign_task")
 def generate_campaign_task(tenant_id: str, params: dict):
@@ -88,6 +152,7 @@ def generate_campaign_task(tenant_id: str, params: dict):
         days = int(params.get("days", 30))
         platforms = params.get("platforms", ["linkedin", "instagram", "facebook"])
         text_provider = params.get("text_provider", "gemini")
+        text_model = params.get("text_model", None)
         image_provider = params.get("image_provider", "openai")
         video_provider = params.get("video_provider", "pika")
         generate_images = params.get("generate_images", True)
@@ -171,9 +236,18 @@ def generate_campaign_task(tenant_id: str, params: dict):
                         "Output must be copy-paste ready."
                     )
 
-                # ── User prompt with brand context ────────────────────────────
+                # Append brand context to system prompt so prefix remains cacheable
+                system_prompt = (
+                    f"{system_prompt}\n\n"
+                    "CRITICAL: You must incorporate any contact details, websites, brand rules, "
+                    "or specific calls-to-action defined in the Brand/Campaign Context below "
+                    "into the final post text (e.g., in the call-to-action or final paragraph) "
+                    "wherever appropriate.\n\n"
+                    f"Brand/Campaign Context:\n{brand_context}"
+                )
+
+                # ── User prompt ────────────────────────────
                 prompt = (
-                    f"Brand/Campaign Context:\n{brand_context}\n\n"
                     f"Campaign Day: {day} of {days}\n"
                     f"Platform: {platform.upper()}\n\n"
                     f"Write the {platform} post for Day {day}. "
@@ -183,7 +257,7 @@ def generate_campaign_task(tenant_id: str, params: dict):
 
                 content = async_to_sync(llm.complete)(
                     prompt=prompt,
-                    model=None,
+                    model=text_model,
                     provider=text_provider,
                     system_prompt=system_prompt
                 )
