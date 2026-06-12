@@ -261,11 +261,13 @@ JSON format:
 
         sent_count = 0
         for lead in leads:
-            # Personalize template
             prompt = f"""Write a personalized sales email/outreach message.
 Lead Name: {lead.name}
 Lead Company: {lead.company}
 Lead Source: {lead.source}
+Lead Intent/Need: {lead.need_of_what or 'N/A'}
+Lead Pain Points (Why): {lead.why or 'N/A'}
+Target Context: {lead.target_context or 'N/A'}
 Base Template: {body_template}
 Subject: {subject}
 Output a JSON object with keys 'subject' and 'body'. No other text."""

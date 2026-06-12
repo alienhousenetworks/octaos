@@ -5,11 +5,11 @@
 #
 #  What this does (in order):
 #   1. Checks / installs system dependencies (nginx, node, python3, redis, postgres)
-#   2. Creates or updates the .env file (prompts for missing values)
+#   2. Creates or updates the .env file (auto-detects IP, generates secrets, prompts)
 #   3. Pulls latest code from git
 #   4. Sets up Python virtualenv & installs backend deps
 #   5. Initialises / migrates the PostgreSQL database
-#   6. Builds the Next.js frontend
+#   6. Builds the Next.js frontend (with RAM optimization for cheap VPS)
 #   7. Writes systemd services for: API (uvicorn), Celery worker, Celery beat
 #   8. Configures nginx as reverse proxy for both backend & frontend
 #   9. Optionally provisions a Let's Encrypt SSL certificate
@@ -65,6 +65,15 @@ apt-get update -qq
 for pkg in git curl nginx postgresql postgresql-contrib redis-server python3 python3-pip python3-venv certbot python3-certbot-nginx; do
   apt_install "$pkg"
 done
+
+# Ensure database and redis are enabled & started
+systemctl enable postgresql --quiet
+systemctl start postgresql
+success "PostgreSQL running ✓"
+
+systemctl enable redis-server --quiet
+systemctl start redis-server
+success "Redis running ✓"
 
 # Node.js 20 LTS (via NodeSource) – skip if already present
 if ! command -v node &>/dev/null || [[ "$(node -v | cut -d. -f1 | tr -d 'v')" -lt 18 ]]; then
@@ -123,23 +132,56 @@ if [[ ! -f "$ENV_FILE" ]]; then
   fi
 fi
 
+# Auto-detect VPS public IP to make deployment easier
+info "Detecting server public IP..."
+DETECTED_IP=$(curl -s --max-time 3 https://ipinfo.io/ip || curl -s --max-time 3 https://ifconfig.me || echo "127.0.0.1")
+success "Public IP detected: $DETECTED_IP"
+
 echo ""
 echo -e "${YELLOW}Please provide the following configuration values.${NC}"
-echo -e "${YELLOW}Press Enter to keep an existing value.${NC}"
+echo -e "${YELLOW}Press Enter to keep an existing or default value.${NC}"
 echo ""
 
 # ── Domain & Server ───────────────────────────────────────────────────────────
-prompt_var "DOMAIN"    "Your domain name (e.g. nexusos.example.com)" ""
-prompt_var "SERVER_IP" "Your server's public IP address"              ""
+prompt_var "DOMAIN"    "Your domain name (e.g. nexusos.example.com - or hit Enter to use IP)" "$DETECTED_IP"
+prompt_var "SERVER_IP" "Your server's public IP address"              "$DETECTED_IP"
 
-# Load domain for use in this script
+# Load domain & IP for use in this script
 DOMAIN=$(grep -E "^DOMAIN=" "$ENV_FILE" | cut -d'=' -f2-)
 SERVER_IP=$(grep -E "^SERVER_IP=" "$ENV_FILE" | cut -d'=' -f2-)
+
+# Determine protocol & SSL configuration early to build Next.js with correct API URL
+if [[ "$DOMAIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || [[ "$DOMAIN" == "localhost" ]]; then
+  USE_SSL=false
+  PROTOCOL="http"
+  info "Domain is an IP address or localhost; SSL certificate request will be skipped."
+else
+  read -r -p "  Enable Let's Encrypt SSL (HTTPS)? [Y/n]: " do_ssl
+  if [[ "${do_ssl:-y}" =~ ^[Yy]$ ]]; then
+    USE_SSL=true
+    PROTOCOL="https"
+  else
+    USE_SSL=false
+    PROTOCOL="http"
+  fi
+fi
 
 # ── Database ──────────────────────────────────────────────────────────────────
 prompt_var "POSTGRES_SERVER"   "PostgreSQL host"           "localhost"
 prompt_var "POSTGRES_USER"     "PostgreSQL username"       "nexusos"
-prompt_var "POSTGRES_PASSWORD" "PostgreSQL password"       ""
+
+# Auto-generate DB password if missing or default
+current_pg_pass=$(grep -E "^POSTGRES_PASSWORD=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- || true)
+if [[ -z "$current_pg_pass" || "$current_pg_pass" == *"CHANGE_ME"* ]]; then
+  generated_pg_pass=$(openssl rand -hex 16)
+  if grep -q "^POSTGRES_PASSWORD=" "$ENV_FILE"; then
+    sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${generated_pg_pass}|" "$ENV_FILE"
+  else
+    echo "POSTGRES_PASSWORD=${generated_pg_pass}" >> "$ENV_FILE"
+  fi
+  success "POSTGRES_PASSWORD auto-generated ✓"
+fi
+
 prompt_var "POSTGRES_DB"       "PostgreSQL database name"  "nexusos"
 
 # ── Redis ─────────────────────────────────────────────────────────────────────
@@ -162,18 +204,19 @@ prompt_var "SMTP_PASSWORD" "SMTP password"     ""
 prompt_var "SMTP_FROM"     "SMTP from address" ""
 
 # ── App Security ──────────────────────────────────────────────────────────────
-if ! grep -q "^SECRET_KEY=" "$ENV_FILE" || grep -q "CHANGE_ME" "$ENV_FILE"; then
+current_secret_key=$(grep -E "^SECRET_KEY=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- || true)
+if [[ -z "$current_secret_key" || "$current_secret_key" == *"CHANGE_ME"* ]]; then
   generated_key=$(openssl rand -hex 32)
   if grep -q "^SECRET_KEY=" "$ENV_FILE"; then
     sed -i "s|^SECRET_KEY=.*|SECRET_KEY=${generated_key}|" "$ENV_FILE"
   else
     echo "SECRET_KEY=${generated_key}" >> "$ENV_FILE"
   fi
-  success "SECRET_KEY auto-generated"
+  success "SECRET_KEY auto-generated ✓"
 fi
 
 # ── Frontend API URL ──────────────────────────────────────────────────────────
-NEXT_PUBLIC_API_URL="https://${DOMAIN}/api/v1"
+NEXT_PUBLIC_API_URL="${PROTOCOL}://${DOMAIN}/api/v1"
 if grep -q "^NEXT_PUBLIC_API_URL=" "$ENV_FILE"; then
   sed -i "s|^NEXT_PUBLIC_API_URL=.*|NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}|" "$ENV_FILE"
 else
@@ -181,7 +224,11 @@ else
 fi
 
 # Mark dev=false for production
-sed -i "s|^DEV=.*|DEV=false|" "$ENV_FILE" 2>/dev/null || echo "DEV=false" >> "$ENV_FILE"
+if grep -q "^DEV=" "$ENV_FILE"; then
+  sed -i "s|^DEV=.*|DEV=false|" "$ENV_FILE"
+else
+  echo "DEV=false" >> "$ENV_FILE"
+fi
 
 success ".env configured ✓"
 
@@ -197,9 +244,16 @@ cd "$APP_DIR"
 
 if git rev-parse --git-dir &>/dev/null; then
   BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  info "Fetching latest changes from Git..."
+  git fetch --all
   info "Pulling latest from branch: $BRANCH"
-  git pull origin "$BRANCH" || warn "git pull failed – continuing with existing code"
-  success "Code up to date"
+  if ! git pull origin "$BRANCH"; then
+    warn "Git pull failed. You might have uncommitted local changes on the VPS."
+    warn "To overwrite local changes and pull:  git reset --hard origin/$BRANCH"
+    warn "Continuing deployment with existing code..."
+  else
+    success "Code up to date"
+  fi
 else
   warn "Not a git repository – skipping pull"
 fi
@@ -224,11 +278,6 @@ sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='${PG_DB}'" |
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${PG_DB} TO ${PG_USER};" -q
 success "PostgreSQL ready ✓"
 
-# Start Redis
-systemctl enable redis-server --quiet
-systemctl start redis-server
-success "Redis running ✓"
-
 # =============================================================================
 # 5. Python Backend – virtualenv & deps
 # =============================================================================
@@ -236,18 +285,17 @@ header "Backend Setup"
 
 info "Creating/updating virtualenv …"
 python3 -m venv "$VENV_DIR"
-source "$VENV_DIR/bin/activate"
 
-pip install --upgrade pip -q
-pip install -r "$APP_DIR/requirements.txt" -q
+info "Upgrading pip …"
+"$VENV_DIR/bin/pip" install --upgrade pip -q
+
+info "Installing python dependencies …"
+"$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt" -q
 success "Python dependencies installed ✓"
 
 info "Running database init/migration …"
-cd "$APP_DIR"
-python3 init_db.py || warn "init_db.py had warnings (may be safe to ignore)"
+"$VENV_DIR/bin/python3" "$APP_DIR/init_db.py" || warn "init_db.py had warnings (may be safe to ignore)"
 success "Database initialised ✓"
-
-deactivate
 
 # =============================================================================
 # 6. Next.js Frontend – install & build
@@ -263,8 +311,8 @@ EOF
 
 info "Installing npm dependencies …"
 npm ci --silent
-info "Building Next.js production bundle …"
-npm run build
+info "Building Next.js production bundle (optimized for RAM size) …"
+NODE_OPTIONS="--max-old-space-size=1024" npm run build
 success "Frontend built ✓"
 
 # =============================================================================
@@ -278,7 +326,6 @@ chown -R "$APP_USER":"$APP_USER" "$LOG_DIR"
 # =============================================================================
 header "Systemd Services"
 
-PYTHON_BIN="$VENV_DIR/bin/python"
 UVICORN_BIN="$VENV_DIR/bin/uvicorn"
 CELERY_BIN="$VENV_DIR/bin/celery"
 
@@ -304,7 +351,7 @@ StandardError=append:${LOG_DIR}/api-error.log
 WantedBy=multi-user.target
 EOF
 
-# ── 8b. Celery Worker ─────────────────────────────────────────────────────────
+# ── 8b. Celery Worker (Correct App target: app.worker.tasks) ─────────────────
 cat > /etc/systemd/system/nexusos-worker.service <<EOF
 [Unit]
 Description=NexusOS Celery Worker
@@ -316,7 +363,7 @@ Type=simple
 User=${APP_USER}
 WorkingDirectory=${APP_DIR}
 EnvironmentFile=${ENV_FILE}
-ExecStart=${CELERY_BIN} -A app.worker.celery_app worker --loglevel=info --concurrency=4
+ExecStart=${CELERY_BIN} -A app.worker.tasks worker --loglevel=info --concurrency=4
 Restart=always
 RestartSec=10
 StandardOutput=append:${LOG_DIR}/worker.log
@@ -326,7 +373,7 @@ StandardError=append:${LOG_DIR}/worker-error.log
 WantedBy=multi-user.target
 EOF
 
-# ── 8c. Celery Beat ───────────────────────────────────────────────────────────
+# ── 8c. Celery Beat (Correct App target: app.worker.tasks) ───────────────────
 cat > /etc/systemd/system/nexusos-beat.service <<EOF
 [Unit]
 Description=NexusOS Celery Beat Scheduler
@@ -338,7 +385,7 @@ Type=simple
 User=${APP_USER}
 WorkingDirectory=${APP_DIR}
 EnvironmentFile=${ENV_FILE}
-ExecStart=${CELERY_BIN} -A app.worker.celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
+ExecStart=${CELERY_BIN} -A app.worker.tasks beat --loglevel=info --scheduler celery.beat:PersistentScheduler
 Restart=always
 RestartSec=10
 StandardOutput=append:${LOG_DIR}/beat.log
@@ -348,9 +395,20 @@ StandardError=append:${LOG_DIR}/beat-error.log
 WantedBy=multi-user.target
 EOF
 
-# ── 8d. Next.js Frontend ──────────────────────────────────────────────────────
+# ── 8d. Next.js Frontend (Dynamic Standalone vs Fallback Service) ────────────
 NODE_BIN="$(which node)"
 NPM_BIN="$(which npm)"
+
+if [[ -d "$FRONTEND_DIR/.next/standalone" ]]; then
+  FRONTEND_EXEC="${NODE_BIN} ${FRONTEND_DIR}/.next/standalone/server.js"
+  # Copy static assets for Next.js standalone runner
+  cp -r "$FRONTEND_DIR/.next/static"   "$FRONTEND_DIR/.next/standalone/.next/static"   2>/dev/null || true
+  cp -r "$FRONTEND_DIR/public"         "$FRONTEND_DIR/.next/standalone/public"          2>/dev/null || true
+  success "Next.js standalone assets copied ✓"
+else
+  FRONTEND_EXEC="${NPM_BIN} run start"
+  success "Using 'npm run start' fallback for frontend ✓"
+fi
 
 cat > /etc/systemd/system/nexusos-frontend.service <<EOF
 [Unit]
@@ -364,7 +422,7 @@ WorkingDirectory=${FRONTEND_DIR}
 Environment=NODE_ENV=production
 Environment=PORT=3000
 EnvironmentFile=${ENV_FILE}
-ExecStart=${NODE_BIN} ${FRONTEND_DIR}/.next/standalone/server.js
+ExecStart=${FRONTEND_EXEC}
 Restart=always
 RestartSec=5
 StandardOutput=append:${LOG_DIR}/frontend.log
@@ -373,13 +431,6 @@ StandardError=append:${LOG_DIR}/frontend-error.log
 [Install]
 WantedBy=multi-user.target
 EOF
-
-# Next.js standalone output – copy static assets
-if [[ -d "$FRONTEND_DIR/.next/standalone" ]]; then
-  cp -r "$FRONTEND_DIR/.next/static"   "$FRONTEND_DIR/.next/standalone/.next/static"   2>/dev/null || true
-  cp -r "$FRONTEND_DIR/public"         "$FRONTEND_DIR/.next/standalone/public"          2>/dev/null || true
-  success "Next.js standalone assets copied ✓"
-fi
 
 systemctl daemon-reload
 
@@ -480,29 +531,22 @@ nginx -t && systemctl restart nginx
 success "Nginx configured & restarted ✓"
 
 # =============================================================================
-# 10. Optional: Let's Encrypt SSL
+# 10. Provision Let's Encrypt SSL if chosen early
 # =============================================================================
 header "SSL Certificate"
 
-# Only run certbot if domain is not an IP address
-if [[ ! "$DOMAIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && [[ "$DOMAIN" != *"CHANGE_ME"* ]]; then
-  read -r -p "  Provision Let's Encrypt SSL for ${DOMAIN}? [y/N]: " do_ssl
-  if [[ "$do_ssl" =~ ^[Yy]$ ]]; then
-    read -r -p "  Admin email for certificate notifications: " admin_email
-    certbot --nginx \
-      -d "$DOMAIN" \
-      --non-interactive \
-      --agree-tos \
-      --email "$admin_email" \
-      --redirect
-    success "SSL certificate installed ✓"
-    # Auto-renew via systemd timer (certbot package sets this up on Ubuntu)
-    systemctl enable certbot.timer --quiet 2>/dev/null || true
-  else
-    warn "Skipped SSL – site is running on HTTP only"
-  fi
+if [[ "$USE_SSL" == "true" ]]; then
+  read -r -p "  Admin email for certificate notifications: " admin_email
+  certbot --nginx \
+    -d "$DOMAIN" \
+    --non-interactive \
+    --agree-tos \
+    --email "$admin_email" \
+    --redirect
+  success "SSL certificate installed ✓"
+  systemctl enable certbot.timer --quiet 2>/dev/null || true
 else
-  warn "Skipped SSL – domain appears to be an IP or placeholder"
+  warn "Skipped SSL – site is running on HTTP only"
 fi
 
 # =============================================================================
@@ -559,9 +603,9 @@ echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━�
 echo -e "${GREEN}${BOLD}  NexusOS Deployed Successfully!${NC}"
 echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo -e "  🌐 Frontend  → ${CYAN}http://${DOMAIN}${NC}"
-echo -e "  🔌 API       → ${CYAN}http://${DOMAIN}/api/v1${NC}"
-echo -e "  📖 API Docs  → ${CYAN}http://${DOMAIN}/docs${NC}"
+echo -e "  🌐 Frontend  → ${CYAN}${PROTOCOL}://${DOMAIN}${NC}"
+echo -e "  🔌 API       → ${CYAN}${PROTOCOL}://${DOMAIN}/api/v1${NC}"
+echo -e "  📖 API Docs  → ${CYAN}${PROTOCOL}://${DOMAIN}/docs${NC}"
 echo ""
 echo -e "  Logs in: ${LOG_DIR}/"
 echo -e "    api:      tail -f ${LOG_DIR}/api.log"

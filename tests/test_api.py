@@ -782,10 +782,10 @@ def test_otp_auth_flows(client, db):
     )
     assert resend_resp.status_code == 200
     
-    # 3. Verify Signup with magic OTP 123456 (in dev mode)
+    # 3. Verify Signup with magic OTP 123455 (in dev mode)
     verify_resp = client.post(
         "/api/v1/auth/signup/verify",
-        json={"email": email, "otp": "123456"}
+        json={"email": email, "otp": "123455"}
     )
     assert verify_resp.status_code == 200
     assert "access_token" in verify_resp.json()
@@ -803,7 +803,7 @@ def test_otp_auth_flows(client, db):
     # 5. Verify Login with magic OTP
     login_verify_resp = client.post(
         "/api/v1/auth/login/verify",
-        json={"email": email, "otp": "123456"}
+        json={"email": email, "otp": "123455"}
     )
     assert login_verify_resp.status_code == 200
     assert "access_token" in login_verify_resp.json()

@@ -17,6 +17,8 @@ class LeadBase(BaseModel):
     why: Optional[str] = None
     target_context: Optional[str] = None
     priority: Optional[str] = "medium"
+    status: Optional[str] = "captured"
+    score: Optional[int] = 0
 
 class LeadCreate(LeadBase):
     pass

@@ -207,7 +207,7 @@ def signup_verify(
 
     # Verification logic
     is_valid = False
-    if settings.DEV and verify_in.otp == "123456":
+    if settings.DEV and verify_in.otp == "123455":
         is_valid = True
     elif user.otp and user.otp == verify_in.otp:
         if user.otp_expires_at and user.otp_expires_at > datetime.utcnow():
@@ -305,7 +305,7 @@ def login_verify(
 
     # Verification logic
     is_valid = False
-    if settings.DEV and verify_in.otp == "123456":
+    if settings.DEV and verify_in.otp == "123455":
         is_valid = True
     elif user.otp and user.otp == verify_in.otp:
         if user.otp_expires_at and user.otp_expires_at > datetime.utcnow():
