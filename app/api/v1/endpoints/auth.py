@@ -49,7 +49,7 @@ class SignupVerifyRequest(BaseModel):
 
 class LoginInitiateRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: Optional[str] = None
 
 class LoginVerifyRequest(BaseModel):
     email: EmailStr
@@ -275,7 +275,7 @@ def login_initiate(
     login_in: LoginInitiateRequest,
 ) -> Any:
     user = db.query(User).filter(User.email == login_in.email).first()
-    if not user or not verify_password(login_in.password, user.hashed_password):
+    if not user:
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     
     if not user.is_active:
@@ -289,16 +289,30 @@ def login_initiate(
             headers={"X-Verification-Required": "true"}
         )
 
-    # Generate OTP
-    otp = generate_otp()
-    user.otp = otp
-    user.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
-    db.add(user)
-    db.commit()
+    if login_in.password is not None and login_in.password != "":
+        # PASSWORD LOGIN FLOW
+        if not verify_password(login_in.password, user.hashed_password):
+            raise HTTPException(status_code=400, detail="Incorrect email or password")
+        
+        access_token = create_access_token(subject=user.id)
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "tenant_id": user.tenant_id,
+            "otp_required": False
+        }
+    else:
+        # OTP LOGIN FLOW
+        # Generate OTP
+        otp = generate_otp()
+        user.otp = otp
+        user.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
+        db.add(user)
+        db.commit()
 
-    # Send OTP
-    send_otp(user.email, otp, purpose="login")
-    return {"message": "Login OTP sent successfully", "email": user.email, "otp_required": True}
+        # Send OTP
+        send_otp(user.email, otp, purpose="login")
+        return {"message": "Login OTP sent successfully", "email": user.email, "otp_required": True}
 
 
 @router.post("/login/verify", response_model=Token)

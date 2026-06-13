@@ -43,6 +43,7 @@ export default function AuthForms({
   const [otpTimer, setOtpTimer] = useState(0);
   const [otpMethod, setOtpMethod] = useState<'signup' | 'login'>('signup');
   const [tempEmail, setTempEmail] = useState('');
+  const [loginMode, setLoginMode] = useState<'password' | 'otp'>('password');
 
   // Invitation verify & accept states
   const [invitationDetails, setInvitationDetails] = useState<{company_name: string, email?: string} | null>(null);
@@ -152,18 +153,43 @@ export default function AuthForms({
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload: any = { email };
+      if (loginMode === 'password') {
+        if (!password) {
+          alert("Please enter your password");
+          return;
+        }
+        payload.password = password;
+      }
+      
       const res = await fetch(`${API_URL}/auth/login/initiate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (res.ok) {
-        setTempEmail(email);
-        setOtpSent(true);
-        setOtpMethod('login');
-        setOtpTimer(60);
-        setOtp('');
+        if (data.otp_required === false) {
+          localStorage.setItem('token', data.access_token);
+          setToken(data.access_token);
+          if (data.tenant_id) {
+            localStorage.setItem('tenant_id', data.tenant_id);
+            setTenantId(data.tenant_id);
+          }
+          // Reset states
+          setOtpSent(false);
+          setOtp('');
+          setTempEmail('');
+          setEmail('');
+          setPassword('');
+          setAppState('app');
+        } else {
+          setTempEmail(email);
+          setOtpSent(true);
+          setOtpMethod('login');
+          setOtpTimer(60);
+          setOtp('');
+        }
       } else {
         alert(data.detail || "Login failed");
       }
@@ -427,9 +453,39 @@ export default function AuthForms({
               )}
             </div>
             <CardTitle className="text-2xl text-center text-white font-extrabold tracking-tight">Access Your Workspace</CardTitle>
-            <CardDescription className="text-center text-gray-400 text-xs">Enter your email and password. A one-time code (OTP) will be sent.</CardDescription>
+            <CardDescription className="text-center text-gray-400 text-xs">
+              {loginMode === 'password' 
+                ? "Enter your email and password to log in directly." 
+                : "Enter your email. A one-time code (OTP) will be sent."}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 pb-8">
+            {/* Tabs Toggle */}
+            <div className="flex bg-gray-950/60 p-1 rounded-xl border border-gray-800">
+              <button
+                type="button"
+                onClick={() => setLoginMode('password')}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                  loginMode === 'password'
+                    ? 'bg-[rgba(255,255,255,0.06)] text-white shadow'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Password Login
+              </button>
+              <button
+                type="button"
+                onClick={() => setLoginMode('otp')}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                  loginMode === 'otp'
+                    ? 'bg-[rgba(255,255,255,0.06)] text-white shadow'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                OTP Login
+              </button>
+            </div>
+
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-400">Email Address</label>
@@ -441,23 +497,27 @@ export default function AuthForms({
                   className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20 h-11 text-sm"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-400">Password</label>
-                <Input 
-                  placeholder="••••••••" 
-                  type="password" 
-                  value={password} 
-                  onChange={e => setPassword(e.target.value)} 
-                  className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20 h-11 text-sm"
-                />
-              </div>
+              
+              {loginMode === 'password' && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-400">Password</label>
+                  <Input 
+                    placeholder="••••••••" 
+                    type="password" 
+                    required={loginMode === 'password'}
+                    value={password} 
+                    onChange={e => setPassword(e.target.value)} 
+                    className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20 h-11 text-sm"
+                  />
+                </div>
+              )}
 
               <div className="pt-2">
                 <button 
                   className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all hover:scale-[1.01] active:scale-95 cursor-pointer flex justify-center items-center text-sm" 
                   type="submit"
                 >
-                  Send Login OTP
+                  {loginMode === 'password' ? "Log In" : "Send Login OTP"}
                 </button>
               </div>
 
