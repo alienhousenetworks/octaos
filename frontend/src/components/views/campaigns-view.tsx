@@ -15,6 +15,7 @@ import {
 
 interface CampaignsViewProps {
   token: string | null;
+  activeView?: string;
   API_URL: string;
   fetchWithAuth: (url: string, options?: any) => Promise<Response>;
   fetchData: () => Promise<void>;
@@ -23,6 +24,7 @@ interface CampaignsViewProps {
 
 export default function CampaignsView({
   token,
+  activeView,
   API_URL,
   fetchWithAuth,
   fetchData,
@@ -86,12 +88,16 @@ export default function CampaignsView({
   const [metaTokenInput, setMetaTokenInput] = useState('');
   const [savingMetaToken, setSavingMetaToken] = useState(false);
 
-  // Fetch campaign posts on token load
+  // Fetch campaign posts periodically when active
   useEffect(() => {
-    if (token) {
+    if (token && activeView === 'campaigns') {
       fetchCampaignPosts(true);
+      const interval = setInterval(() => {
+        fetchCampaignPosts(false);
+      }, 5000);
+      return () => clearInterval(interval);
     }
-  }, [token]);
+  }, [token, activeView]);
 
   // Handler functions
     const fetchCampaignPosts = async (collapseIfHasData = false) => {

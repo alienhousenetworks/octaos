@@ -497,6 +497,7 @@ export default function Home() {
           <div className={activeView === 'campaigns' ? 'block' : 'hidden'}>
             <CampaignsView 
               token={token} 
+              activeView={activeView}
               API_URL={API_URL} 
               fetchWithAuth={fetchWithAuth} 
               fetchData={fetchData} 
