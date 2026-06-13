@@ -117,7 +117,7 @@ header "Restarting Services"
 
 info "Restarting OctaOS systemd services..."
 for svc in octaos-api octaos-worker octaos-beat octaos-frontend; do
-  if systemctl list-units --type=service | grep -Fq "${svc}.service"; then
+  if systemctl list-unit-files --type=service | grep -Fq "${svc}.service"; then
     systemctl restart "$svc"
     success "$svc restarted"
   else
