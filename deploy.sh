@@ -102,7 +102,7 @@ prompt_var() {
     return
   fi
 
-  if [[ -n "$default" ]]; then
+  if [[ $# -ge 3 ]]; then
     read -r -p "  ${BOLD}${var}${NC} (${desc}) [${default}]: " input
     input="${input:-$default}"
   else
