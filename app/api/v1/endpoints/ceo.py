@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import Any, List, Optional
+from datetime import datetime
 from pydantic import BaseModel
 
 from app.api import deps
@@ -40,7 +41,6 @@ class WorkflowResponse(BaseModel):
     class Config:
         from_attributes = True
 
-from datetime import datetime
 
 @router.get("/workflows", response_model=List[WorkflowResponse])
 def get_ceo_workflows(
