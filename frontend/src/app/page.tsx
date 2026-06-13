@@ -198,7 +198,7 @@ export default function Home() {
       'Authorization': `Bearer ${token}`
     };
     const res = await fetch(url, { ...options, headers });
-    if (res.status === 401 || res.status === 403) {
+    if (res.status === 401) {
       handleLogout();
     }
     return res;
@@ -608,26 +608,30 @@ export default function Home() {
             />
           </div>
 
-          <div className={activeView === 'members' ? 'block' : 'hidden'}>
-            <MembersView 
-              token={token} 
-              API_URL={API_URL} 
-              fetchWithAuth={fetchWithAuth} 
-              fetchData={fetchData} 
-            />
-          </div>
+          {userProfile?.role === 'admin' && (
+            <div className={activeView === 'members' ? 'block' : 'hidden'}>
+              <MembersView 
+                token={token} 
+                API_URL={API_URL} 
+                fetchWithAuth={fetchWithAuth} 
+                fetchData={fetchData} 
+              />
+            </div>
+          )}
 
-          <div className={activeView === 'system_admin' ? 'block' : 'hidden'}>
-            <SystemAdminView 
-              token={token} 
-              API_URL={API_URL} 
-              fetchWithAuth={fetchWithAuth}
-              onBrandingUpdate={(newLogoUrl, newFaviconUrl) => {
-                if (newLogoUrl !== undefined) setLogoUrl(newLogoUrl);
-                if (newFaviconUrl !== undefined) setFaviconUrl(newFaviconUrl);
-              }}
-            />
-          </div>
+          {userProfile?.is_system_admin && (
+            <div className={activeView === 'system_admin' ? 'block' : 'hidden'}>
+              <SystemAdminView 
+                token={token} 
+                API_URL={API_URL} 
+                fetchWithAuth={fetchWithAuth}
+                onBrandingUpdate={(newLogoUrl, newFaviconUrl) => {
+                  if (newLogoUrl !== undefined) setLogoUrl(newLogoUrl);
+                  if (newFaviconUrl !== undefined) setFaviconUrl(newFaviconUrl);
+                }}
+              />
+            </div>
+          )}
 
         </main>
       </div>
