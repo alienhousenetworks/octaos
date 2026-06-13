@@ -744,3 +744,17 @@ def poll_and_execute_workflows():
         print(f"Error polling workflows: {e}")
     finally:
         db.close()
+
+
+@celery_app.task(name="run_ceo_workflow_task")
+def run_ceo_workflow_task(tenant_id: str, workflow_id: str):
+    from app.services.agents.ceo import CEOService
+    db = SessionLocal()
+    try:
+        service = CEOService(db, tenant_id)
+        async_to_sync(service.execute_workflow)(workflow_id)
+    except Exception as e:
+        print(f"Error in run_ceo_workflow_task: {e}")
+        raise e
+    finally:
+        db.close()

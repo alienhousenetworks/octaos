@@ -25,6 +25,30 @@ def custom_async_to_sync(async_fn):
 
 asgiref.sync.async_to_sync = custom_async_to_sync
 
+try:
+    import app.worker.tasks
+    app.worker.tasks.async_to_sync = custom_async_to_sync
+except ImportError:
+    pass
+
+try:
+    import app.services.notifications.sales_alerts
+    app.services.notifications.sales_alerts.async_to_sync = custom_async_to_sync
+except ImportError:
+    pass
+
+try:
+    import app.services.social.publish_helpers
+    app.services.social.publish_helpers.async_to_sync = custom_async_to_sync
+except ImportError:
+    pass
+
+try:
+    import app.api.v1.endpoints.marketing
+    app.api.v1.endpoints.marketing.async_to_sync = custom_async_to_sync
+except ImportError:
+    pass
+
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
