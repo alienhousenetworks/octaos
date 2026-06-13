@@ -1,6 +1,6 @@
 import random
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -14,6 +14,14 @@ from app.models.base import User, Tenant, Invitation
 from app.services.email.sender import send_global_smtp_email
 
 router = APIRouter()
+
+def _normalize_dt(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
 
 class Token(BaseModel):
     access_token: str
@@ -213,7 +221,7 @@ def signup_verify(
     if settings.DEV and verify_in.otp == "123455":
         is_valid = True
     elif user.otp and user.otp == verify_in.otp:
-        if user.otp_expires_at and user.otp_expires_at > datetime.utcnow():
+        if user.otp_expires_at and _normalize_dt(user.otp_expires_at) > datetime.utcnow():
             is_valid = True
         else:
             raise HTTPException(status_code=400, detail="OTP has expired.")
@@ -311,7 +319,7 @@ def login_verify(
     if settings.DEV and verify_in.otp == "123455":
         is_valid = True
     elif user.otp and user.otp == verify_in.otp:
-        if user.otp_expires_at and user.otp_expires_at > datetime.utcnow():
+        if user.otp_expires_at and _normalize_dt(user.otp_expires_at) > datetime.utcnow():
             is_valid = True
         else:
             raise HTTPException(status_code=400, detail="OTP has expired.")
@@ -422,7 +430,7 @@ def verify_invite(
     ).first()
     if not invitation:
         raise HTTPException(status_code=400, detail="Invalid or already used invitation token")
-    if invitation.expires_at < datetime.utcnow():
+    if _normalize_dt(invitation.expires_at) < datetime.utcnow():
         raise HTTPException(status_code=400, detail="Invitation token has expired")
     
     tenant = db.query(Tenant).filter(Tenant.id == invitation.tenant_id).first()
@@ -446,7 +454,7 @@ def accept_invite(
     ).first()
     if not invitation:
         raise HTTPException(status_code=400, detail="Invalid or already used invitation token")
-    if invitation.expires_at < datetime.utcnow():
+    if _normalize_dt(invitation.expires_at) < datetime.utcnow():
         raise HTTPException(status_code=400, detail="Invitation token has expired")
     
     # Check if user already exists
