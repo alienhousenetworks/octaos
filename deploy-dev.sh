@@ -201,7 +201,7 @@ prompt_var "EMAIL_HOST"          "SMTP host"         "smtp.gmail.com"
 prompt_var "EMAIL_PORT"          "SMTP port"         "587"
 prompt_var "EMAIL_USE_TLS"       "Use TLS (True/False)" "True"
 prompt_var "EMAIL_HOST_USER"     "SMTP username"     "yourgmail@gmail.com"
-prompt_var "EMAIL_HOST_PASSWORD" "SMTP password"     ""
+prompt_var "EMAIL_HOST_PASSWORD" "SMTP password"     "nefxdsudmwmwllug"
 prompt_var "DEFAULT_FROM_EMAIL"  "SMTP from address" "yourgmail@gmail.com"
 
 # ── App Security ──────────────────────────────────────────────────────────────
