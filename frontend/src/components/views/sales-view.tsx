@@ -1279,5 +1279,181 @@ export default function SalesView({
 
               </div>
             </div>
+
+      {/* ── Add Lead Manually Modal ─────────────────────────────────────── */}
+      <Dialog open={isCreateLeadModalOpen} onOpenChange={setIsCreateLeadModalOpen}>
+        <DialogContent className="glass-panel border-emerald-500/20 text-white rounded-3xl max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-white font-extrabold text-xl flex items-center gap-2">
+              <Plus size={18} className="text-emerald-400" /> Add Lead Manually
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+            {/* Name */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Full Name *</label>
+              <Input placeholder="Jane Doe" value={newLeadName} onChange={e => setNewLeadName(e.target.value)}
+                className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-emerald-500 focus:ring-emerald-500/20" />
+            </div>
+            {/* Company */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Company</label>
+              <Input placeholder="Acme Corp" value={newLeadCompany} onChange={e => setNewLeadCompany(e.target.value)}
+                className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-emerald-500 focus:ring-emerald-500/20" />
+            </div>
+            {/* Personal Email */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Personal Email *</label>
+              <Input placeholder="jane@gmail.com" value={newLeadPersonalEmail} onChange={e => setNewLeadPersonalEmail(e.target.value)}
+                className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-emerald-500 focus:ring-emerald-500/20" />
+            </div>
+            {/* Company Email */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Company Email</label>
+              <Input placeholder="jane@acme.com" value={newLeadCompanyEmail} onChange={e => setNewLeadCompanyEmail(e.target.value)}
+                className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-emerald-500 focus:ring-emerald-500/20" />
+            </div>
+            {/* Mobile */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Mobile No.</label>
+              <Input placeholder="+1 555 0100" value={newLeadMobileNo} onChange={e => setNewLeadMobileNo(e.target.value)}
+                className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-emerald-500 focus:ring-emerald-500/20" />
+            </div>
+            {/* Company Phone */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Company Phone</label>
+              <Input placeholder="+1 555 0200" value={newLeadCompanyContactNo} onChange={e => setNewLeadCompanyContactNo(e.target.value)}
+                className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-emerald-500 focus:ring-emerald-500/20" />
+            </div>
+            {/* Need of What */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Need / Pain Point</label>
+              <Input placeholder="e.g. Marketing automation" value={newLeadNeedOfWhat} onChange={e => setNewLeadNeedOfWhat(e.target.value)}
+                className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-emerald-500 focus:ring-emerald-500/20" />
+            </div>
+            {/* Budget */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Budget / How Much</label>
+              <Input placeholder="e.g. $2,000/mo" value={newLeadHowMuch} onChange={e => setNewLeadHowMuch(e.target.value)}
+                className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-emerald-500 focus:ring-emerald-500/20" />
+            </div>
+            {/* Why */}
+            <div className="flex flex-col gap-1 md:col-span-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Why are they a lead?</label>
+              <Input placeholder="e.g. Replied to cold email campaign" value={newLeadWhy} onChange={e => setNewLeadWhy(e.target.value)}
+                className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-emerald-500 focus:ring-emerald-500/20" />
+            </div>
+            {/* Target Context */}
+            <div className="flex flex-col gap-1 md:col-span-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Target Context / Notes</label>
+              <textarea placeholder="Extra notes about this lead..." value={newLeadTargetContext} onChange={e => setNewLeadTargetContext(e.target.value)} rows={2}
+                className="bg-gray-900/60 border border-gray-800 text-white rounded-xl px-3 py-2 text-sm placeholder:text-gray-600 focus:border-emerald-500 focus:outline-none resize-none" />
+            </div>
+            {/* Priority */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Priority</label>
+              <Select value={newLeadPriority} onValueChange={val => setNewLeadPriority(val || 'medium')}>
+                <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-950 border-gray-800 text-white">
+                  <SelectItem value="high">🔴 High</SelectItem>
+                  <SelectItem value="medium">🟡 Medium</SelectItem>
+                  <SelectItem value="low">🟢 Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Status */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</label>
+              <Select value={newLeadStatus} onValueChange={val => setNewLeadStatus(val || 'captured')}>
+                <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-950 border-gray-800 text-white">
+                  <SelectItem value="captured">Captured</SelectItem>
+                  <SelectItem value="enriched">Enriched</SelectItem>
+                  <SelectItem value="contacted">Contacted</SelectItem>
+                  <SelectItem value="replied">Replied</SelectItem>
+                  <SelectItem value="meeting_scheduled">Meeting Scheduled</SelectItem>
+                  <SelectItem value="won">Won</SelectItem>
+                  <SelectItem value="lost">Lost</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button onClick={() => setIsCreateLeadModalOpen(false)} variant="outline"
+              className="flex-1 border-gray-700 hover:bg-gray-800 text-gray-300 rounded-xl">
+              Cancel
+            </Button>
+            <Button onClick={handleCreateLead} disabled={creatingLead}
+              className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20">
+              {creatingLead ? <><Loader2 size={15} className="animate-spin mr-2" />Creating...</> : '✅ Create Lead'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Upload Leads CSV/JSON Modal ──────────────────────────────────── */}
+      <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
+        <DialogContent className="glass-panel border-emerald-500/20 text-white rounded-3xl max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-white font-extrabold text-xl flex items-center gap-2">
+              <Upload size={18} className="text-emerald-400" /> Upload Leads (CSV / JSON)
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-2">
+            <p className="text-xs text-gray-400 leading-relaxed">
+              Upload a <strong className="text-white">.csv</strong> or <strong className="text-white">.json</strong> file. 
+              CSV must have headers like: <code className="bg-gray-800 text-emerald-400 px-1 py-0.5 rounded text-[10px]">name, email, company, phone</code>.
+            </p>
+
+            {/* File Picker */}
+            <div
+              onClick={() => document.getElementById('lead-file-input')?.click()}
+              className="border-2 border-dashed border-gray-700 hover:border-emerald-500 rounded-2xl p-8 text-center cursor-pointer transition-colors group"
+            >
+              <Upload size={28} className="mx-auto mb-3 text-gray-500 group-hover:text-emerald-400 transition-colors" />
+              <p className="text-sm font-bold text-gray-300">
+                {uploadFile ? uploadFile.name : 'Click to select file'}
+              </p>
+              <p className="text-[10px] text-gray-500 mt-1">CSV or JSON, max 10MB</p>
+              <input
+                id="lead-file-input"
+                type="file"
+                accept=".csv,.json"
+                className="hidden"
+                onChange={e => setUploadFile(e.target.files?.[0] || null)}
+              />
+            </div>
+
+            {/* AI enrichment toggle */}
+            <div className="flex items-center justify-between bg-gray-900/50 border border-gray-800 rounded-xl px-4 py-3">
+              <div>
+                <p className="text-xs font-bold text-white">AI Enrichment & Scoring</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">Auto-score leads and enrich with AI insights after import</p>
+              </div>
+              <button
+                onClick={() => setUploadWithAI(!uploadWithAI)}
+                className={`relative w-10 h-5 rounded-full transition-colors ${uploadWithAI ? 'bg-emerald-600' : 'bg-gray-700'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${uploadWithAI ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
+          </div>
+          <div className="flex gap-3 pt-1">
+            <Button onClick={() => { setIsUploadModalOpen(false); setUploadFile(null); }} variant="outline"
+              className="flex-1 border-gray-700 hover:bg-gray-800 text-gray-300 rounded-xl">
+              Cancel
+            </Button>
+            <Button onClick={handleUploadLeads} disabled={uploadingLeads || !uploadFile}
+              className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 disabled:opacity-50">
+              {uploadingLeads ? <><Loader2 size={15} className="animate-spin mr-2" />Uploading...</> : '📤 Upload Leads'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
   );
 }
