@@ -268,9 +268,12 @@ PG_USER="$POSTGRES_USER"
 PG_PASS="$POSTGRES_PASSWORD"
 PG_DB="$POSTGRES_DB"
 
-info "Ensuring PostgreSQL user '${PG_USER}' exists …"
-sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='${PG_USER}'" | grep -q 1 || \
+info "Ensuring PostgreSQL user '${PG_USER}' exists and has the correct password …"
+if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='${PG_USER}'" | grep -q 1; then
+  sudo -u postgres psql -c "ALTER USER ${PG_USER} WITH PASSWORD '${PG_PASS}';"
+else
   sudo -u postgres psql -c "CREATE USER ${PG_USER} WITH PASSWORD '${PG_PASS}';"
+fi
 
 info "Ensuring database '${PG_DB}' exists …"
 sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='${PG_DB}'" | grep -q 1 || \
@@ -446,7 +449,16 @@ done
 # =============================================================================
 header "Nginx Configuration"
 
-NGINX_CONF="/etc/nginx/sites-available/octaos"
+# Detect active Nginx configuration structure
+if [[ -d "/etc/nginx/sites-enabled" ]] && grep -r -q "sites-enabled" /etc/nginx/nginx.conf /etc/nginx/conf.d/ 2>/dev/null; then
+  NGINX_CONF="/etc/nginx/sites-available/octaos.conf"
+  NGINX_LINK="/etc/nginx/sites-enabled/octaos.conf"
+  info "Using Nginx sites-available/sites-enabled structure"
+else
+  NGINX_CONF="/etc/nginx/conf.d/octaos.conf"
+  NGINX_LINK="/etc/nginx/conf.d/octaos.conf"
+  info "Using Nginx conf.d structure"
+fi
 
 cat > "$NGINX_CONF" <<EOF
 # ── OctaOS Nginx Config ──────────────────────────────────────────────────────
@@ -525,8 +537,14 @@ server {
 EOF
 
 # Enable site
-ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/octaos
-rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+if [[ "$NGINX_CONF" != "$NGINX_LINK" ]]; then
+  ln -sf "$NGINX_CONF" "$NGINX_LINK"
+fi
+
+# Remove default site symlink if it exists to avoid port 80/443 conflict
+if [[ -d "/etc/nginx/sites-enabled" ]]; then
+  rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+fi
 
 nginx -t && systemctl restart nginx
 success "Nginx configured & restarted ✓"
