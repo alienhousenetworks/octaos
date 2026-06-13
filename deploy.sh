@@ -450,15 +450,33 @@ done
 header "Nginx Configuration"
 
 # Detect active Nginx configuration structure
-if [[ -d "/etc/nginx/sites-enabled" ]] && grep -r -q "sites-enabled" /etc/nginx/nginx.conf /etc/nginx/conf.d/ 2>/dev/null; then
-  NGINX_CONF="/etc/nginx/sites-available/octaos.conf"
-  NGINX_LINK="/etc/nginx/sites-enabled/octaos.conf"
-  info "Using Nginx sites-available/sites-enabled structure"
-else
+if [[ -d "/etc/nginx/conf.d" ]] && grep -qE "^\s*include\s+.*conf\.d/\*\.conf" /etc/nginx/nginx.conf; then
   NGINX_CONF="/etc/nginx/conf.d/octaos.conf"
   NGINX_LINK="/etc/nginx/conf.d/octaos.conf"
-  info "Using Nginx conf.d structure"
+  info "Detected active Nginx conf.d structure"
+elif [[ -d "/etc/nginx/sites-enabled" ]] && grep -qE "^\s*include\s+.*sites-enabled/" /etc/nginx/nginx.conf; then
+  NGINX_CONF="/etc/nginx/sites-available/octaos.conf"
+  NGINX_LINK="/etc/nginx/sites-enabled/octaos.conf"
+  info "Detected active Nginx sites-enabled structure"
+else
+  # Fallback: if conf.d directory exists, use it, otherwise sites-enabled
+  if [[ -d "/etc/nginx/conf.d" ]]; then
+    NGINX_CONF="/etc/nginx/conf.d/octaos.conf"
+    NGINX_LINK="/etc/nginx/conf.d/octaos.conf"
+    info "Fallback: Using Nginx conf.d structure"
+  else
+    NGINX_CONF="/etc/nginx/sites-available/octaos.conf"
+    NGINX_LINK="/etc/nginx/sites-enabled/octaos.conf"
+    info "Fallback: Using Nginx sites-enabled structure"
+  fi
 fi
+
+# Clean up any potential conflicting config files from previous runs to avoid duplication or inactive config conflicts
+rm -f /etc/nginx/sites-available/octaos \
+      /etc/nginx/sites-enabled/octaos \
+      /etc/nginx/sites-available/octaos.conf \
+      /etc/nginx/sites-enabled/octaos.conf \
+      /etc/nginx/conf.d/octaos.conf 2>/dev/null || true
 
 cat > "$NGINX_CONF" <<EOF
 # ── OctaOS Nginx Config ──────────────────────────────────────────────────────
