@@ -415,6 +415,7 @@ export default function SalesView({
   };
 
   return (
+    <>
     <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-300">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -1279,6 +1280,7 @@ export default function SalesView({
 
               </div>
             </div>
+    </div>
 
       {/* ── Add Lead Manually Modal ─────────────────────────────────────── */}
       <Dialog open={isCreateLeadModalOpen} onOpenChange={setIsCreateLeadModalOpen}>
@@ -1455,6 +1457,6 @@ export default function SalesView({
         </DialogContent>
       </Dialog>
 
-    </div>
+    </>
   );
 }
