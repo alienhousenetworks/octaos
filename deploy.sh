@@ -457,7 +457,7 @@ limit_req_zone \$binary_remote_addr zone=api_limit:10m rate=30r/s;
 
 server {
     listen 80;
-    server_name ${DOMAIN} ${SERVER_IP};
+    server_name ${DOMAIN};
 
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN"   always;
