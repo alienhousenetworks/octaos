@@ -224,6 +224,15 @@ else
   echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" >> "$ENV_FILE"
 fi
 
+# ── Public Base URL (for media/branding uploads) ──────────────────────────────
+PUBLIC_BASE_URL="${PROTOCOL}://${DOMAIN}"
+if grep -q "^PUBLIC_BASE_URL=" "$ENV_FILE"; then
+  sed -i "s|^PUBLIC_BASE_URL=.*|PUBLIC_BASE_URL=${PUBLIC_BASE_URL}|" "$ENV_FILE"
+else
+  echo "PUBLIC_BASE_URL=${PUBLIC_BASE_URL}" >> "$ENV_FILE"
+fi
+success "PUBLIC_BASE_URL set to ${PUBLIC_BASE_URL} ✓"
+
 # Mark dev=false for production
 if grep -q "^DEV=" "$ENV_FILE"; then
   sed -i "s|^DEV=.*|DEV=false|" "$ENV_FILE"
