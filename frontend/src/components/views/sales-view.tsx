@@ -1455,5 +1455,6 @@ export default function SalesView({
         </DialogContent>
       </Dialog>
 
+    </div>
   );
 }
