@@ -34,13 +34,11 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
           {logoUrl ? (
             <img src={logoUrl} alt="OctaOS Logo" className="h-10 w-auto max-w-[180px] object-contain" />
           ) : (
-            <>
-              <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-2 rounded-xl shadow-lg shadow-violet-500/20">
-                <Zap className="text-white fill-white h-5 w-5 animate-pulse" />
-              </div>
-              <span>Octa<span className="text-violet-400">OS</span></span>
-            </>
+            <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-2 rounded-xl shadow-lg shadow-violet-500/20">
+              <Zap className="text-white fill-white h-5 w-5 animate-pulse" />
+            </div>
           )}
+          <span>Octa<span className="text-violet-400">Os</span></span>
         </div>
         <div className="flex items-center gap-6">
           <button 

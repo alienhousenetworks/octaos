@@ -370,13 +370,11 @@ export default function Home() {
           {logoUrl ? (
             <img src={logoUrl} alt="OctaOS Logo" className="h-8 w-auto max-w-[140px] object-contain" />
           ) : (
-            <>
-              <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-1.5 rounded-lg shadow-lg shadow-violet-500/20">
-                <Zap className="text-white fill-white h-4.5 w-4.5 animate-pulse" />
-              </div>
-              <span>Octa<span className="text-violet-400">OS</span></span>
-            </>
+            <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-1.5 rounded-lg shadow-lg shadow-violet-500/20">
+              <Zap className="text-white fill-white h-4.5 w-4.5 animate-pulse" />
+            </div>
           )}
+          <span>Octa<span className="text-violet-400">Os</span></span>
         </div>
         <nav className="flex flex-col gap-1.5 flex-1">
           {getFilteredNavItems().map((item) => {

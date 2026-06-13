@@ -271,7 +271,7 @@ export default function AuthForms({
         <Card className="w-full max-w-md glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl animate-in fade-in zoom-in-95 duration-300">
           <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
           <CardHeader className="space-y-2 pt-8">
-            <div className="flex justify-center mb-2">
+            <div className="flex justify-center items-center gap-3 mb-2">
               {logoUrl ? (
                 <img src={logoUrl} alt="OctaOS Logo" className="h-12 w-auto max-w-[160px] object-contain" />
               ) : (
@@ -279,6 +279,7 @@ export default function AuthForms({
                   <Zap className="text-white fill-white h-5 w-5 animate-pulse" />
                 </div>
               )}
+              <span className="text-white font-extrabold text-2xl tracking-tight">OctaOs</span>
             </div>
             <CardTitle className="text-2xl text-center text-white font-extrabold tracking-tight">
               {verifyingInvite ? "Verifying invitation..." : `Join ${invitationDetails?.company_name || 'Organization'}`}
@@ -375,7 +376,7 @@ export default function AuthForms({
         <Card className="w-full max-w-md glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl">
           <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
           <CardHeader className="space-y-2 pt-8">
-            <div className="flex justify-center mb-2">
+            <div className="flex justify-center items-center gap-3 mb-2">
               {logoUrl ? (
                 <img src={logoUrl} alt="OctaOS Logo" className="h-12 w-auto max-w-[160px] object-contain" />
               ) : (
@@ -383,6 +384,7 @@ export default function AuthForms({
                   <Zap className="text-white fill-white h-5 w-5 animate-pulse" />
                 </div>
               )}
+              <span className="text-white font-extrabold text-2xl tracking-tight">OctaOs</span>
             </div>
             <CardTitle className="text-2xl text-center text-white font-extrabold tracking-tight">
               {otpMethod === 'signup' ? "Confirm Verification Code" : "Security Verification"}
@@ -443,7 +445,7 @@ export default function AuthForms({
         <Card className="w-full max-w-md glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl animate-in fade-in zoom-in-95 duration-300">
           <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
           <CardHeader className="space-y-2 pt-8">
-            <div className="flex justify-center mb-2">
+            <div className="flex justify-center items-center gap-3 mb-2">
               {logoUrl ? (
                 <img src={logoUrl} alt="OctaOS Logo" className="h-12 w-auto max-w-[160px] object-contain" />
               ) : (
@@ -451,6 +453,7 @@ export default function AuthForms({
                   <Zap className="text-white fill-white h-5 w-5 animate-pulse" />
                 </div>
               )}
+              <span className="text-white font-extrabold text-2xl tracking-tight">OctaOs</span>
             </div>
             <CardTitle className="text-2xl text-center text-white font-extrabold tracking-tight">Access Your Workspace</CardTitle>
             <CardDescription className="text-center text-gray-400 text-xs">
@@ -542,7 +545,7 @@ export default function AuthForms({
       <Card className="w-full max-w-2xl glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl animate-in fade-in zoom-in-95 duration-300">
         <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
         <CardHeader className="space-y-2 pt-8">
-          <div className="flex justify-center mb-2">
+          <div className="flex justify-center items-center gap-3 mb-2">
               {logoUrl ? (
                 <img src={logoUrl} alt="OctaOS Logo" className="h-12 w-auto max-w-[160px] object-contain" />
               ) : (
@@ -550,6 +553,7 @@ export default function AuthForms({
                   <Zap className="text-white fill-white h-5 w-5 animate-pulse" />
                 </div>
               )}
+              <span className="text-white font-extrabold text-2xl tracking-tight">OctaOs</span>
             </div>
           <CardTitle className="text-2xl text-center text-white font-extrabold tracking-tight">Deploy Your Workspace</CardTitle>
           <CardDescription className="text-center text-gray-400 text-xs">Create your admin profile and company details. Setup takes 30 seconds.</CardDescription>
