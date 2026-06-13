@@ -27,7 +27,7 @@ class CEOService:
         Takes a business objective and generates a structured DAG workflow with tasks assigned to departments.
         """
         system_prompt = (
-            "You are the CEO AI, the top-level orchestrator of NexusOS. "
+            "You are the CEO AI, the top-level orchestrator of OctaOS. "
             "Your job is to analyze the user's business objective and break it down into a highly structured "
             "Directed Acyclic Graph (DAG) of tasks across departments: Marketing, Sales, Support, HR, Finance. "
             "You MUST create between 4 to 6 connected tasks that logically lead to achieving the objective. "

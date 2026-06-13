@@ -45,6 +45,10 @@ def create_superuser():
         else:
             print(f"Found existing Tenant (Company): {company_name}")
 
+        # Prompt for Global System Admin
+        is_admin_input = input("Should this user be a Global System Admin? (y/n): ").strip().lower()
+        is_system_admin = is_admin_input in ["y", "yes"]
+
         # Create superuser
         user = User(
             email=email,
@@ -52,12 +56,15 @@ def create_superuser():
             tenant_id=tenant.id,
             is_superuser=True,
             is_verified=True,
-            is_active=True
+            is_active=True,
+            role="admin",
+            is_system_admin=is_system_admin
         )
         db.add(user)
         db.commit()
         db.refresh(user)
-        print(f"Successfully created superuser: {email}")
+        admin_type = "Global System Admin" if is_system_admin else "Standard Tenant Admin"
+        print(f"Successfully created superuser ({admin_type}): {email}")
 
     finally:
         db.close()

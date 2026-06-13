@@ -24,7 +24,7 @@ class BoardroomService:
             return {"needs_meeting": False}
 
         system_prompt = (
-            "You are the NexusOS Triaging System. Classify the customer support ticket to decide if it "
+            "You are the OctaOS Triaging System. Classify the customer support ticket to decide if it "
             "requires a boardroom meeting with the CEO AI and other departments (Sales, Finance, HR, Marketing) to resolve.\n"
             "Requirements for meeting:\n"
             "- Sales Lead: Customer wants to purchase, asking for enterprise plans, bulk discounts, custom pricing, or partnerships.\n"

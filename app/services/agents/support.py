@@ -305,7 +305,7 @@ class SupportAgent(BaseAgent):
             msg = MIMEMultipart()
             msg["From"] = from_email
             msg["To"] = recipient
-            msg["Subject"] = f"Re: NexusOS Customer Support Inquiry"
+            msg["Subject"] = f"Re: OctaOS Customer Support Inquiry"
             msg.attach(MIMEText(content, "plain"))
             
             server = smtplib.SMTP(smtp_server, smtp_port)

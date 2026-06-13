@@ -37,7 +37,27 @@ class User(Base):
     otp = Column(String, nullable=True)
     otp_expires_at = Column(DateTime(timezone=True), nullable=True)
     
+    # SaaS Multi-Tenancy & Access Control fields
+    role = Column(String, default="member")
+    allowed_sections = Column(JSON, nullable=True)
+    is_system_admin = Column(Boolean, default=False)
+    
     tenant = relationship("Tenant", back_populates="users")
+
+class Invitation(Base):
+    __tablename__ = "invitations"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    created_by_id = Column(String, ForeignKey("users.id"), nullable=False)
+    email = Column(String, nullable=True)
+    token = Column(String, unique=True, index=True, nullable=False)
+    is_used = Column(Boolean, default=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    tenant = relationship("Tenant")
+    creator = relationship("User", foreign_keys=[created_by_id])
+
 
 class APICredential(Base):
     __tablename__ = "api_credentials"
@@ -86,4 +106,10 @@ class AIBatchJob(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     tenant = relationship("Tenant")
+
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+    key = Column(String, primary_key=True, index=True)
+    value = Column(String, nullable=True)
+
 

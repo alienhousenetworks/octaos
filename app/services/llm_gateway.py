@@ -42,6 +42,10 @@ class LLMGateway:
         if key:
             return key
         
+        # If tenant_id is present, do NOT fall back to environment variables
+        if self.tenant_id:
+            return ""
+        
         if provider == "anthropic":
             return settings.SHARED_CLAUDE_KEY or settings.ANTHROPIC_API_KEY
         elif provider == "openai":
@@ -104,7 +108,7 @@ class LLMGateway:
                     if "Company Guidelines & Knowledge Base:" not in system_prompt:
                         system_prompt = f"{system_prompt}\n\n{knowledge_str}"
                 else:
-                    system_prompt = f"You are a helpful AI assistant operating as part of NexusOS.\n\n{knowledge_str}"
+                    system_prompt = f"You are a helpful AI assistant operating as part of OctaOS.\n\n{knowledge_str}"
         except Exception as ke:
             import logging
             logging.error(f"Failed to query knowledge base for injection: {ke}")

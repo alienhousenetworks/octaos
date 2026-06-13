@@ -29,13 +29,14 @@ def parse_smtp_credentials(key_str: str) -> Optional[Dict[str, Any]]:
 
 def send_smtp_email(smtp_cred: dict, to_email: str, subject: str, body: str) -> bool:
     msg = MIMEMultipart()
-    msg["From"] = smtp_cred["username"]
+    msg["From"] = smtp_cred.get("from_addr") or smtp_cred["username"]
     msg["To"] = to_email
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "plain"))
 
     server = smtplib.SMTP(smtp_cred["host"], smtp_cred["port"])
-    server.starttls()
+    if smtp_cred.get("use_tls", True):
+        server.starttls()
     server.login(smtp_cred["username"], smtp_cred["password"])
     server.send_message(msg)
     server.quit()
@@ -124,7 +125,9 @@ def send_global_smtp_email(to_email: str, subject: str, body: str) -> bool:
         "username": settings.SMTP_USER,
         "password": settings.SMTP_PASSWORD,
         "host": settings.SMTP_HOST,
-        "port": settings.SMTP_PORT
+        "port": settings.SMTP_PORT,
+        "from_addr": settings.SMTP_FROM,
+        "use_tls": getattr(settings, "EMAIL_USE_TLS", True)
     }
     
     try:

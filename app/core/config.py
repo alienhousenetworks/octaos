@@ -3,7 +3,7 @@ from pydantic import validator
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "NexusOS"
+    PROJECT_NAME: str = "OctaOS"
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = "secret" # In production, this should be a real secret
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7 # 7 days
@@ -56,6 +56,28 @@ class Settings(BaseSettings):
     SMTP_USER: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
     SMTP_FROM: Optional[str] = None
+
+    EMAIL_HOST: Optional[str] = None
+    EMAIL_PORT: Optional[int] = None
+    EMAIL_USE_TLS: bool = True
+    EMAIL_HOST_USER: Optional[str] = None
+    EMAIL_HOST_PASSWORD: Optional[str] = None
+    DEFAULT_FROM_EMAIL: Optional[str] = None
+
+    def __init__(self, **values: Any):
+        super().__init__(**values)
+        if self.EMAIL_HOST is not None:
+            self.SMTP_HOST = self.EMAIL_HOST
+        if self.EMAIL_PORT is not None:
+            self.SMTP_PORT = self.EMAIL_PORT
+        if self.EMAIL_HOST_USER is not None:
+            self.SMTP_USER = self.EMAIL_HOST_USER
+        if self.EMAIL_HOST_PASSWORD is not None:
+            self.SMTP_PASSWORD = self.EMAIL_HOST_PASSWORD
+        if self.DEFAULT_FROM_EMAIL is not None:
+            self.SMTP_FROM = self.DEFAULT_FROM_EMAIL
+        elif self.EMAIL_HOST_USER is not None:
+            self.SMTP_FROM = self.EMAIL_HOST_USER
 
     class Config:
         case_sensitive = True

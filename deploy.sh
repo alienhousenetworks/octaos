@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  NexusOS – Full Production Deploy Script
+#  OctaOS – Full Production Deploy Script
 #  Usage: sudo bash deploy.sh
 #
 #  What this does (in order):
@@ -35,7 +35,7 @@ ENV_FILE="$APP_DIR/.env"
 ENV_EXAMPLE="$APP_DIR/.env.example"
 VENV_DIR="$APP_DIR/venv"
 FRONTEND_DIR="$APP_DIR/frontend"
-LOG_DIR="/var/log/nexusos"
+LOG_DIR="/var/log/octaos"
 APP_USER="${SUDO_USER:-$(whoami)}"   # run services as the invoking user, not root
 
 # ── Must-run-as-root check ────────────────────────────────────────────────────
@@ -143,7 +143,7 @@ echo -e "${YELLOW}Press Enter to keep an existing or default value.${NC}"
 echo ""
 
 # ── Domain & Server ───────────────────────────────────────────────────────────
-prompt_var "DOMAIN"    "Your domain name (e.g. nexusos.example.com - or hit Enter to use IP)" "$DETECTED_IP"
+prompt_var "DOMAIN"    "Your domain name (e.g. octaos.example.com - or hit Enter to use IP)" "$DETECTED_IP"
 prompt_var "SERVER_IP" "Your server's public IP address"              "$DETECTED_IP"
 
 # Load domain & IP for use in this script
@@ -168,7 +168,7 @@ fi
 
 # ── Database ──────────────────────────────────────────────────────────────────
 prompt_var "POSTGRES_SERVER"   "PostgreSQL host"           "localhost"
-prompt_var "POSTGRES_USER"     "PostgreSQL username"       "nexusos"
+prompt_var "POSTGRES_USER"     "PostgreSQL username"       "octaos"
 
 # Auto-generate DB password if missing or default
 current_pg_pass=$(grep -E "^POSTGRES_PASSWORD=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- || true)
@@ -182,7 +182,7 @@ if [[ -z "$current_pg_pass" || "$current_pg_pass" == *"CHANGE_ME"* ]]; then
   success "POSTGRES_PASSWORD auto-generated ✓"
 fi
 
-prompt_var "POSTGRES_DB"       "PostgreSQL database name"  "nexusos"
+prompt_var "POSTGRES_DB"       "PostgreSQL database name"  "octaos"
 
 # ── Redis ─────────────────────────────────────────────────────────────────────
 prompt_var "REDIS_HOST" "Redis host" "localhost"
@@ -197,11 +197,12 @@ if [[ "$has_openai" =~ ^[Yy]$ ]]; then
 fi
 
 # ── SMTP ──────────────────────────────────────────────────────────────────────
-prompt_var "SMTP_HOST"     "SMTP host"         "smtp.gmail.com"
-prompt_var "SMTP_PORT"     "SMTP port"         "587"
-prompt_var "SMTP_USER"     "SMTP username"     ""
-prompt_var "SMTP_PASSWORD" "SMTP password"     ""
-prompt_var "SMTP_FROM"     "SMTP from address" ""
+prompt_var "EMAIL_HOST"          "SMTP host"         "smtp.gmail.com"
+prompt_var "EMAIL_PORT"          "SMTP port"         "587"
+prompt_var "EMAIL_USE_TLS"       "Use TLS (True/False)" "True"
+prompt_var "EMAIL_HOST_USER"     "SMTP username"     "yourgmail@gmail.com"
+prompt_var "EMAIL_HOST_PASSWORD" "SMTP password"     ""
+prompt_var "DEFAULT_FROM_EMAIL"  "SMTP from address" "yourgmail@gmail.com"
 
 # ── App Security ──────────────────────────────────────────────────────────────
 current_secret_key=$(grep -E "^SECRET_KEY=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- || true)
@@ -330,9 +331,9 @@ UVICORN_BIN="$VENV_DIR/bin/uvicorn"
 CELERY_BIN="$VENV_DIR/bin/celery"
 
 # ── 8a. API (uvicorn) ─────────────────────────────────────────────────────────
-cat > /etc/systemd/system/nexusos-api.service <<EOF
+cat > /etc/systemd/system/octaos-api.service <<EOF
 [Unit]
-Description=NexusOS FastAPI Backend
+Description=OctaOS FastAPI Backend
 After=network.target postgresql.service redis.service
 Requires=postgresql.service redis.service
 
@@ -341,7 +342,7 @@ Type=simple
 User=${APP_USER}
 WorkingDirectory=${APP_DIR}
 EnvironmentFile=${ENV_FILE}
-ExecStart=${UVICORN_BIN} app.main:app --host 127.0.0.1 --port 8000 --workers 4
+ExecStart=${UVICORN_BIN} app.main:app --host 127.0.0.1 --port 8001 --workers 4
 Restart=always
 RestartSec=5
 StandardOutput=append:${LOG_DIR}/api.log
@@ -352,9 +353,9 @@ WantedBy=multi-user.target
 EOF
 
 # ── 8b. Celery Worker (Correct App target: app.worker.tasks) ─────────────────
-cat > /etc/systemd/system/nexusos-worker.service <<EOF
+cat > /etc/systemd/system/octaos-worker.service <<EOF
 [Unit]
-Description=NexusOS Celery Worker
+Description=OctaOS Celery Worker
 After=network.target redis.service postgresql.service
 Requires=redis.service
 
@@ -374,11 +375,11 @@ WantedBy=multi-user.target
 EOF
 
 # ── 8c. Celery Beat (Correct App target: app.worker.tasks) ───────────────────
-cat > /etc/systemd/system/nexusos-beat.service <<EOF
+cat > /etc/systemd/system/octaos-beat.service <<EOF
 [Unit]
-Description=NexusOS Celery Beat Scheduler
+Description=OctaOS Celery Beat Scheduler
 After=network.target redis.service
-Requires=nexusos-worker.service
+Requires=octaos-worker.service
 
 [Service]
 Type=simple
@@ -410,17 +411,17 @@ else
   success "Using 'npm run start' fallback for frontend ✓"
 fi
 
-cat > /etc/systemd/system/nexusos-frontend.service <<EOF
+cat > /etc/systemd/system/octaos-frontend.service <<EOF
 [Unit]
-Description=NexusOS Next.js Frontend
-After=network.target nexusos-api.service
+Description=OctaOS Next.js Frontend
+After=network.target octaos-api.service
 
 [Service]
 Type=simple
 User=${APP_USER}
 WorkingDirectory=${FRONTEND_DIR}
 Environment=NODE_ENV=production
-Environment=PORT=3000
+Environment=PORT=3001
 EnvironmentFile=${ENV_FILE}
 ExecStart=${FRONTEND_EXEC}
 Restart=always
@@ -434,7 +435,7 @@ EOF
 
 systemctl daemon-reload
 
-for svc in nexusos-api nexusos-worker nexusos-beat nexusos-frontend; do
+for svc in octaos-api octaos-worker octaos-beat octaos-frontend; do
   systemctl enable "$svc" --quiet
   systemctl restart "$svc"
   success "$svc enabled & started ✓"
@@ -445,10 +446,10 @@ done
 # =============================================================================
 header "Nginx Configuration"
 
-NGINX_CONF="/etc/nginx/sites-available/nexusos"
+NGINX_CONF="/etc/nginx/sites-available/octaos"
 
 cat > "$NGINX_CONF" <<EOF
-# ── NexusOS Nginx Config ──────────────────────────────────────────────────────
+# ── OctaOS Nginx Config ──────────────────────────────────────────────────────
 # Auto-generated by deploy.sh
 
 # Rate limiting zone
@@ -471,7 +472,7 @@ server {
     # ── API ──────────────────────────────────────────────────────────────────
     location /api/ {
         limit_req zone=api_limit burst=50 nodelay;
-        proxy_pass         http://127.0.0.1:8000;
+        proxy_pass         http://127.0.0.1:8001;
         proxy_http_version 1.1;
         proxy_set_header   Upgrade          \$http_upgrade;
         proxy_set_header   Connection       "upgrade";
@@ -486,14 +487,14 @@ server {
 
     # ── Media (FastAPI static) ────────────────────────────────────────────────
     location /media/ {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:8001;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
     }
 
     # ── API Docs ─────────────────────────────────────────────────────────────
     location ~ ^/(docs|redoc|openapi.json) {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:8001;
         proxy_set_header Host \$host;
     }
 
@@ -510,7 +511,7 @@ server {
 
     # ── Frontend (Next.js) ────────────────────────────────────────────────────
     location / {
-        proxy_pass         http://127.0.0.1:3000;
+        proxy_pass         http://127.0.0.1:3001;
         proxy_http_version 1.1;
         proxy_set_header   Upgrade         \$http_upgrade;
         proxy_set_header   Connection      "upgrade";
@@ -524,7 +525,7 @@ server {
 EOF
 
 # Enable site
-ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/nexusos
+ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/octaos
 rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
 
 nginx -t && systemctl restart nginx
@@ -578,18 +579,18 @@ check_service() {
   fi
 }
 
-for svc in postgresql redis-server nginx nexusos-api nexusos-worker nexusos-beat nexusos-frontend; do
+for svc in postgresql redis-server nginx octaos-api octaos-worker octaos-beat octaos-frontend; do
   check_service "$svc"
 done
 
 # Quick HTTP smoke test
-if curl -sf "http://localhost:8000/" > /dev/null 2>&1; then
+if curl -sf "http://localhost:8001/" > /dev/null 2>&1; then
   success "Backend API responding ✓"
 else
   warn "Backend API not yet responding – may still be starting up"
 fi
 
-if curl -sf "http://localhost:3000/" > /dev/null 2>&1; then
+if curl -sf "http://localhost:3001/" > /dev/null 2>&1; then
   success "Frontend responding ✓"
 else
   warn "Frontend not yet responding – may still be starting up"
@@ -600,7 +601,7 @@ fi
 # =============================================================================
 echo ""
 echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}${BOLD}  NexusOS Deployed Successfully!${NC}"
+echo -e "${GREEN}${BOLD}  OctaOS Deployed Successfully!${NC}"
 echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "  🌐 Frontend  → ${CYAN}${PROTOCOL}://${DOMAIN}${NC}"
@@ -613,5 +614,5 @@ echo -e "    worker:   tail -f ${LOG_DIR}/worker.log"
 echo -e "    frontend: tail -f ${LOG_DIR}/frontend.log"
 echo ""
 echo -e "  Restart all services:"
-echo -e "    ${YELLOW}sudo systemctl restart nexusos-api nexusos-worker nexusos-beat nexusos-frontend nginx${NC}"
+echo -e "    ${YELLOW}sudo systemctl restart octaos-api octaos-worker octaos-beat octaos-frontend nginx${NC}"
 echo ""

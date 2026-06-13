@@ -144,7 +144,10 @@ def startup_db_check():
                 "phone_no": "VARCHAR",
                 "is_verified": "BOOLEAN DEFAULT FALSE",
                 "otp": "VARCHAR",
-                "otp_expires_at": "TIMESTAMP"
+                "otp_expires_at": "TIMESTAMP",
+                "role": "VARCHAR DEFAULT 'member'",
+                "allowed_sections": "JSON",
+                "is_system_admin": "BOOLEAN DEFAULT FALSE"
             }
             with engine.begin() as conn:
                 for col_name, col_type in columns_to_add.items():
@@ -152,6 +155,26 @@ def startup_db_check():
                         conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}"))
                         print(f"Successfully added column {col_name} to users table.")
                 conn.execute(text("UPDATE users SET is_verified = TRUE WHERE is_verified IS NULL"))
+                conn.execute(text("UPDATE users SET role = 'member' WHERE role IS NULL"))
+                conn.execute(text("UPDATE users SET is_system_admin = FALSE WHERE is_system_admin IS NULL"))
+
+        if "invitations" not in inspector.get_table_names():
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    CREATE TABLE invitations (
+                        id VARCHAR PRIMARY KEY,
+                        tenant_id VARCHAR NOT NULL,
+                        created_by_id VARCHAR NOT NULL,
+                        email VARCHAR,
+                        token VARCHAR UNIQUE NOT NULL,
+                        is_used BOOLEAN DEFAULT FALSE,
+                        expires_at TIMESTAMP NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(tenant_id) REFERENCES tenants(id),
+                        FOREIGN KEY(created_by_id) REFERENCES users(id)
+                    )
+                """))
+            print("Successfully created invitations table.")
 
         if "tenants" in inspector.get_table_names():
             columns = [col["name"] for col in inspector.get_columns("tenants")]
@@ -165,6 +188,15 @@ def startup_db_check():
                     if col_name not in columns:
                         conn.execute(text(f"ALTER TABLE tenants ADD COLUMN {col_name} {col_type}"))
                         print(f"Successfully added column {col_name} to tenants table.")
+        if "system_settings" not in inspector.get_table_names():
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    CREATE TABLE system_settings (
+                        key VARCHAR PRIMARY KEY,
+                        value VARCHAR
+                    )
+                """))
+            print("Successfully created system_settings table.")
     except Exception as e:
         print(f"Error checking/migrating database: {e}")
 
@@ -172,4 +204,4 @@ def startup_db_check():
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to NexusOS API"}
+    return {"message": "Welcome to OctaOS API"}

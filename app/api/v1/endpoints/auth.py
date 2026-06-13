@@ -1,6 +1,7 @@
 import random
+import secrets
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -9,7 +10,7 @@ from pydantic import BaseModel, EmailStr
 from app.api import deps
 from app.core.config import settings
 from app.core.security import verify_password, get_password_hash, create_access_token
-from app.models.base import User, Tenant
+from app.models.base import User, Tenant, Invitation
 from app.services.email.sender import send_global_smtp_email
 
 router = APIRouter()
@@ -55,14 +56,14 @@ def generate_otp() -> str:
 
 
 def send_otp(email: str, otp: str, purpose: str = "verification"):
-    subject = f"Your NexusOS {purpose.capitalize()} Code"
+    subject = f"Your OctaOS {purpose.capitalize()} Code"
     body = (
         f"Hello,\n\n"
         f"Your 6-digit one-time passcode (OTP) for {purpose} is: {otp}\n\n"
         f"This code will expire in 10 minutes.\n\n"
         f"If you did not request this code, please ignore this email.\n\n"
         f"Best regards,\n"
-        f"The NexusOS Team"
+        f"The OctaOS Team"
     )
     send_global_smtp_email(email, subject, body)
 
@@ -95,7 +96,8 @@ def signup(
         hashed_password=get_password_hash(user_in.password),
         tenant_id=tenant.id,
         is_superuser=True,
-        is_verified=True
+        is_verified=True,
+        role="admin"
     )
     db.add(user)
     db.commit()
@@ -176,7 +178,8 @@ def signup_initiate(
             name=signup_in.name,
             phone_no=signup_in.phone_no,
             is_verified=False,
-            is_superuser=True
+            is_superuser=True,
+            role="admin"
         )
         db.add(user)
 
@@ -362,5 +365,204 @@ def read_current_user(
         "email": current_user.email,
         "tenant_id": current_user.tenant_id,
         "name": getattr(current_user, "name", None),
-        "phone_no": getattr(current_user, "phone_no", None)
+        "phone_no": getattr(current_user, "phone_no", None),
+        "role": getattr(current_user, "role", "member"),
+        "allowed_sections": getattr(current_user, "allowed_sections", None),
+        "is_system_admin": getattr(current_user, "is_system_admin", False)
+    }
+
+class InviteCreate(BaseModel):
+    email: Optional[EmailStr] = None
+
+class InviteAccept(BaseModel):
+    token: str
+    name: str
+    email: EmailStr
+    password: str
+
+class MemberPermissionsUpdate(BaseModel):
+    role: Optional[str] = None
+    allowed_sections: Optional[List[str]] = None
+
+@router.post("/invite")
+def create_invite(
+    invite_in: InviteCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    token = secrets.token_urlsafe(32)
+    # Expires in 7 days
+    expires_at = datetime.utcnow() + timedelta(days=7)
+    
+    invitation = Invitation(
+        tenant_id=current_user.tenant_id,
+        created_by_id=current_user.id,
+        email=invite_in.email,
+        token=token,
+        is_used=False,
+        expires_at=expires_at
+    )
+    db.add(invitation)
+    db.commit()
+    db.refresh(invitation)
+    return {
+        "token": token,
+        "expires_at": expires_at,
+        "invite_url": f"/?token={token}"
+    }
+
+@router.get("/invite/verify")
+def verify_invite(
+    token: str,
+    db: Session = Depends(deps.get_db)
+):
+    invitation = db.query(Invitation).filter(
+        Invitation.token == token,
+        Invitation.is_used == False
+    ).first()
+    if not invitation:
+        raise HTTPException(status_code=400, detail="Invalid or already used invitation token")
+    if invitation.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Invitation token has expired")
+    
+    tenant = db.query(Tenant).filter(Tenant.id == invitation.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    return {
+        "token": invitation.token,
+        "company_name": tenant.name,
+        "email": invitation.email
+    }
+
+@router.post("/invite/accept", response_model=Token)
+def accept_invite(
+    accept_in: InviteAccept,
+    db: Session = Depends(deps.get_db)
+):
+    invitation = db.query(Invitation).filter(
+        Invitation.token == accept_in.token,
+        Invitation.is_used == False
+    ).first()
+    if not invitation:
+        raise HTTPException(status_code=400, detail="Invalid or already used invitation token")
+    if invitation.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Invitation token has expired")
+    
+    # Check if user already exists
+    existing_user = db.query(User).filter(User.email == accept_in.email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User with this email already exists")
+    
+    # Create new user associated with the tenant
+    new_user = User(
+        email=accept_in.email,
+        hashed_password=get_password_hash(accept_in.password),
+        tenant_id=invitation.tenant_id,
+        name=accept_in.name,
+        role="member",
+        is_active=True,
+        is_verified=True,
+        is_superuser=False,
+        allowed_sections=None
+    )
+    db.add(new_user)
+    
+    # Mark token as used
+    invitation.is_used = True
+    db.add(invitation)
+    db.commit()
+    db.refresh(new_user)
+    
+    access_token = create_access_token(subject=new_user.id)
+    return {"access_token": access_token, "token_type": "bearer", "tenant_id": new_user.tenant_id}
+
+@router.get("/members")
+def list_members(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can manage members")
+    
+    users = db.query(User).filter(User.tenant_id == current_user.tenant_id).all()
+    return [{
+        "id": u.id,
+        "name": u.name,
+        "email": u.email,
+        "role": u.role,
+        "allowed_sections": u.allowed_sections,
+        "is_active": u.is_active,
+        "is_verified": u.is_verified
+    } for u in users]
+
+@router.put("/members/{user_id}/permissions")
+def update_member_permissions(
+    user_id: str,
+    permissions_in: MemberPermissionsUpdate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can manage members")
+    
+    user = db.query(User).filter(
+        User.id == user_id,
+        User.tenant_id == current_user.tenant_id
+    ).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Member not found")
+        
+    if permissions_in.role is not None:
+        if permissions_in.role not in ["admin", "member"]:
+            raise HTTPException(status_code=400, detail="Invalid role")
+        user.role = permissions_in.role
+        
+    if permissions_in.allowed_sections is not None:
+        user.allowed_sections = permissions_in.allowed_sections
+        
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {
+        "id": user.id,
+        "role": user.role,
+        "allowed_sections": user.allowed_sections
+    }
+
+@router.delete("/members/{user_id}")
+def delete_member(
+    user_id: str,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can manage members")
+        
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+        
+    user = db.query(User).filter(
+        User.id == user_id,
+        User.tenant_id == current_user.tenant_id
+    ).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Member not found")
+        
+    db.delete(user)
+    db.commit()
+    return {"message": "Member removed successfully"}
+
+
+@router.get("/settings")
+def get_public_settings(db: Session = Depends(deps.get_db)):
+    """Public endpoint to fetch site branding settings (logo, favicon)."""
+    from app.models.base import SystemSetting
+    settings_rows = db.query(SystemSetting).filter(
+        SystemSetting.key.in_(["logo_url", "favicon_url"])
+    ).all()
+    result = {row.key: row.value for row in settings_rows}
+    return {
+        "logo_url": result.get("logo_url"),
+        "favicon_url": result.get("favicon_url"),
     }

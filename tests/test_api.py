@@ -97,7 +97,7 @@ def client(db):
 def test_root(client):
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json() == {"message": "Welcome to NexusOS API"}
+    assert response.json() == {"message": "Welcome to OctaOS API"}
 
 def test_create_tenant(client):
     subdomain = f"test-{uuid.uuid4()}"
