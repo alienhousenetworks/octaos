@@ -1280,7 +1280,6 @@ export default function SalesView({
 
               </div>
             </div>
-    </div>
 
       {/* ── Add Lead Manually Modal ─────────────────────────────────────── */}
       <Dialog open={isCreateLeadModalOpen} onOpenChange={setIsCreateLeadModalOpen}>
