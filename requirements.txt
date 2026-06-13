@@ -21,3 +21,6 @@ google-auth
 google-auth-oauthlib
 google-auth-httplib2
 pypdf
+pydantic[email]
+email-validator
+bcrypt==4.3.0
