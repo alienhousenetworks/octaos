@@ -221,7 +221,7 @@ def signup_verify(
     if settings.DEV and verify_in.otp == "123455":
         is_valid = True
     elif user.otp and user.otp == verify_in.otp:
-        if user.otp_expires_at and _normalize_dt(user.otp_expires_at) > datetime.utcnow():
+        if user.otp_expires_at and _normalize_dt(user.otp_expires_at) > _normalize_dt(datetime.utcnow()):
             is_valid = True
         else:
             raise HTTPException(status_code=400, detail="OTP has expired.")
@@ -319,7 +319,7 @@ def login_verify(
     if settings.DEV and verify_in.otp == "123455":
         is_valid = True
     elif user.otp and user.otp == verify_in.otp:
-        if user.otp_expires_at and _normalize_dt(user.otp_expires_at) > datetime.utcnow():
+        if user.otp_expires_at and _normalize_dt(user.otp_expires_at) > _normalize_dt(datetime.utcnow()):
             is_valid = True
         else:
             raise HTTPException(status_code=400, detail="OTP has expired.")
@@ -430,7 +430,7 @@ def verify_invite(
     ).first()
     if not invitation:
         raise HTTPException(status_code=400, detail="Invalid or already used invitation token")
-    if _normalize_dt(invitation.expires_at) < datetime.utcnow():
+    if _normalize_dt(invitation.expires_at) < _normalize_dt(datetime.utcnow()):
         raise HTTPException(status_code=400, detail="Invitation token has expired")
     
     tenant = db.query(Tenant).filter(Tenant.id == invitation.tenant_id).first()
@@ -454,7 +454,7 @@ def accept_invite(
     ).first()
     if not invitation:
         raise HTTPException(status_code=400, detail="Invalid or already used invitation token")
-    if _normalize_dt(invitation.expires_at) < datetime.utcnow():
+    if _normalize_dt(invitation.expires_at) < _normalize_dt(datetime.utcnow()):
         raise HTTPException(status_code=400, detail="Invitation token has expired")
     
     # Check if user already exists
