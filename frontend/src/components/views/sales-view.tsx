@@ -10,7 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   TrendingUp, Search, Upload, Plus, Edit2, MessageSquare, Send, Clock, 
-  ChevronRight, Calendar, Loader2, Bot, Check, X, Phone, Mail, Building, Users, LayoutGrid, Target, Cpu, Sparkles, Activity 
+  ChevronRight, Calendar, Loader2, Bot, Check, X, Phone, Mail, Building, Users, LayoutGrid, Target, Cpu, Sparkles, Activity,
+  Download, CheckSquare, AlertCircle, ListFilter, Trash2
 } from 'lucide-react';
 
 interface SalesViewProps {
@@ -20,6 +21,25 @@ interface SalesViewProps {
   fetchData: () => Promise<void>;
   timeline: any[];
 }
+
+const parseBudget = (budgetString: string | null | undefined): number => {
+  if (!budgetString) return 0;
+  // standard cleaning: remove spaces, $, commas
+  let clean = budgetString.toLowerCase().replace(/[\s\$,]/g, '');
+  if (!clean) return 0;
+  let multiplier = 1;
+  if (clean.includes('k')) {
+    multiplier = 1000;
+    clean = clean.replace('k', '');
+  } else if (clean.includes('m')) {
+    multiplier = 1000000;
+    clean = clean.replace('m', '');
+  }
+  // Remove everything except numbers and decimals
+  clean = clean.replace(/[^0-9\.]/g, '');
+  const numeric = parseFloat(clean);
+  return isNaN(numeric) ? 0 : numeric * multiplier;
+};
 
 export default function SalesView({
   token,
@@ -56,6 +76,8 @@ export default function SalesView({
   const [editStatus, setEditStatus] = useState('captured');
   const [editScore, setEditScore] = useState(0);
   const [editAssignedTo, setEditAssignedTo] = useState('Sales AI Agent');
+  const [editNextFollowupDate, setEditNextFollowupDate] = useState('');
+  const [editFollowupNotes, setEditFollowupNotes] = useState('');
 
   // Lead Upload & Human updates states
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -66,6 +88,12 @@ export default function SalesView({
   const [noteText, setNoteText] = useState('');
   const [noteChannel, setNoteChannel] = useState('note');
   const [noteDirection, setNoteDirection] = useState('internal');
+  
+  // Timeline activities filter
+  const [timelineFilter, setTimelineFilter] = useState('all');
+  
+  // Action checklist task input
+  const [newTaskTitle, setNewTaskTitle] = useState('');
 
   // Manual Lead Creation and View Mode States (CRM)
   const [salesViewMode, setSalesViewMode] = useState<'pipeline' | 'list'>('pipeline');
@@ -86,6 +114,8 @@ export default function SalesView({
   const [newLeadStatus, setNewLeadStatus] = useState('captured');
   const [newLeadScore, setNewLeadScore] = useState(0);
   const [newLeadAssignedTo, setNewLeadAssignedTo] = useState('Sales AI Agent');
+  const [newLeadNextFollowupDate, setNewLeadNextFollowupDate] = useState('');
+  const [newLeadFollowupNotes, setNewLeadFollowupNotes] = useState('');
   const [creatingLead, setCreatingLead] = useState(false);
 
   // Fetch leads when filters change
@@ -131,6 +161,8 @@ export default function SalesView({
       setEditStatus(selectedLead.status || 'captured');
       setEditScore(selectedLead.score || 0);
       setEditAssignedTo(selectedLead.assigned_to || 'Sales AI Agent');
+      setEditNextFollowupDate(selectedLead.data?.next_followup_date || '');
+      setEditFollowupNotes(selectedLead.data?.followup_notes || '');
     } else {
       setIsEditingSalesLead(false);
     }
@@ -188,7 +220,12 @@ export default function SalesView({
           priority: editPriority,
           status: editStatus,
           score: Number(editScore) || 0,
-          assigned_to: editAssignedTo
+          assigned_to: editAssignedTo,
+          data: {
+            ...(selectedLead.data || {}),
+            next_followup_date: editNextFollowupDate,
+            followup_notes: editFollowupNotes
+          }
         })
       });
       if (res.ok) {
@@ -341,7 +378,11 @@ export default function SalesView({
           status: newLeadStatus || 'captured',
           score: Number(newLeadScore) || 0,
           source: 'Manual Entry',
-          assigned_to: newLeadAssignedTo
+          assigned_to: newLeadAssignedTo,
+          data: {
+            next_followup_date: newLeadNextFollowupDate || null,
+            followup_notes: newLeadFollowupNotes || null
+          }
         })
       });
       if (res.ok) {
@@ -362,6 +403,8 @@ export default function SalesView({
         setNewLeadStatus('captured');
         setNewLeadScore(0);
         setNewLeadAssignedTo('Sales AI Agent');
+        setNewLeadNextFollowupDate('');
+        setNewLeadFollowupNotes('');
         fetchLeads();
         fetchData();
         alert("✅ Lead created successfully!");
@@ -374,6 +417,153 @@ export default function SalesView({
       alert("Network error creating lead.");
     } finally {
       setCreatingLead(false);
+    }
+  };
+
+  // CSV Leads Exporter
+  const exportLeadsToCSV = () => {
+    if (salesLeads.length === 0) {
+      alert("No leads to export.");
+      return;
+    }
+    const headers = [
+      "ID", "Name", "Company", "Personal Email", "Company Email", "Mobile No", "Company Contact No",
+      "Need", "Budget/Valuation", "Why", "Priority", "Status", "Score", "Assigned To", "Source", "Next Follow-up Date", "Follow-up Notes"
+    ];
+    
+    const rows = salesLeads.map(lead => [
+      lead.id,
+      lead.name || "",
+      lead.company || "",
+      lead.personal_email || "",
+      lead.company_email || lead.email || "",
+      lead.mobile_no || lead.phone || "",
+      lead.company_contact_no || "",
+      lead.need_of_what || "",
+      lead.how_much || "",
+      lead.why || "",
+      lead.priority || "medium",
+      lead.status || "captured",
+      lead.score || 50,
+      lead.assigned_to || "Sales AI Agent",
+      lead.source || "Manual Entry",
+      lead.data?.next_followup_date || "",
+      lead.data?.followup_notes || ""
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `sales_leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Checklist / Tasks operations
+  const handleAddTask = async (title: string) => {
+    if (!selectedLead || !title.trim()) return;
+    const currentTasks = selectedLead.data?.tasks || [];
+    const newTask = {
+      id: Math.random().toString(36).substring(2, 9),
+      title: title.trim(),
+      completed: false,
+      created_at: new Date().toISOString()
+    };
+    const updatedTasks = [...currentTasks, newTask];
+    
+    setSalesActionLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/${selectedLead.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: {
+            ...(selectedLead.data || {}),
+            tasks: updatedTasks
+          }
+        })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setSelectedLead(updated);
+        setNewTaskTitle('');
+        fetchLeads();
+        fetchData();
+      } else {
+        alert('Failed to add task');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSalesActionLoading(false);
+    }
+  };
+
+  const handleToggleTask = async (taskId: string) => {
+    if (!selectedLead) return;
+    const currentTasks = selectedLead.data?.tasks || [];
+    const updatedTasks = currentTasks.map((t: any) => 
+      t.id === taskId ? { ...t, completed: !t.completed } : t
+    );
+    
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/${selectedLead.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: {
+            ...(selectedLead.data || {}),
+            tasks: updatedTasks
+          }
+        })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setSelectedLead(updated);
+        fetchLeads();
+        fetchData();
+      } else {
+        alert('Failed to toggle task');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!selectedLead) return;
+    const currentTasks = selectedLead.data?.tasks || [];
+    const updatedTasks = currentTasks.filter((t: any) => t.id !== taskId);
+    
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/${selectedLead.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: {
+            ...(selectedLead.data || {}),
+            tasks: updatedTasks
+          }
+        })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setSelectedLead(updated);
+        fetchLeads();
+        fetchData();
+      } else {
+        alert('Failed to delete task');
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -442,6 +632,25 @@ export default function SalesView({
     }
   };
 
+  const activePipelineValue = salesLeads
+    .filter(l => !['won', 'lost'].includes(l.status))
+    .reduce((sum, l) => sum + parseBudget(l.how_much), 0);
+  const closedRevenue = salesLeads
+    .filter(l => l.status === 'won')
+    .reduce((sum, l) => sum + parseBudget(l.how_much), 0);
+  const wonCount = salesLeads.filter(l => l.status === 'won').length;
+  const lostCount = salesLeads.filter(l => l.status === 'lost').length;
+  const totalClosed = wonCount + lostCount;
+  const winRate = totalClosed > 0 ? Math.round((wonCount / totalClosed) * 100) : 0;
+
+  const fmtCurrency = (val: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0
+    }).format(val);
+  };
+
   return (
     <>
     <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-300">
@@ -452,7 +661,13 @@ export default function SalesView({
                   </h1>
                   <p className="text-gray-400 mt-1">Autonomous B2B prospect sourcing, outreach sequencing, contact enrichment, and conversion tracking.</p>
                 </div>
-                 <div className="flex items-center gap-3">
+                 <div className="flex items-center gap-3 flex-wrap">
+                  <Button
+                    onClick={exportLeadsToCSV}
+                    className="bg-gray-900 hover:bg-gray-800 text-white border border-gray-800 hover:border-gray-700 font-bold rounded-xl transition-all h-11 px-5 flex items-center gap-2 shadow-lg"
+                  >
+                    <Download size={16} /> Export to CSV
+                  </Button>
                   <Button
                     onClick={() => setIsCreateLeadModalOpen(true)}
                     className="bg-gray-900 hover:bg-gray-800 text-white border border-gray-800 hover:border-gray-700 font-bold rounded-xl transition-all h-11 px-5 flex items-center gap-2 shadow-lg"
@@ -471,10 +686,10 @@ export default function SalesView({
               {/* Statistics Ribbon */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { title: "Total Leads Sourced", val: salesLeads.length, desc: "Total B2B leads captured", icon: <Users className="h-4 w-4 text-emerald-400" /> },
-                  { title: "Outreach Sent", val: salesLeads.filter(l => l.status === 'contacted' || l.status === 'replied' || l.status === 'meeting_scheduled').length, desc: "Outbound campaigns run", icon: <Send className="h-4 w-4 text-blue-400" /> },
-                  { title: "Prospect Replies", val: salesLeads.filter(l => l.status === 'replied').length, desc: "Inbound interested responses", icon: <MessageSquare className="h-4 w-4 text-violet-400" /> },
-                  { title: "Meetings Scheduled", val: salesLeads.filter(l => l.status === 'meeting_scheduled').length, desc: "Meetings booked in calendar", icon: <Calendar className="h-4 w-4 text-amber-400" /> },
+                  { title: "Total Leads", val: salesLeads.length, desc: "Total B2B leads captured", icon: <Users className="h-4 w-4 text-emerald-400" /> },
+                  { title: "Active Pipeline", val: fmtCurrency(activePipelineValue), desc: "Current open opportunities", icon: <TrendingUp className="h-4 w-4 text-blue-400" /> },
+                  { title: "Closed Revenue", val: fmtCurrency(closedRevenue), desc: "Total won deal value", icon: <Target className="h-4 w-4 text-violet-400" /> },
+                  { title: "Win Rate", val: `${winRate}%`, desc: `${wonCount} won / ${lostCount} lost deals`, icon: <Calendar className="h-4 w-4 text-amber-400" /> },
                 ].map((stat, i) => (
                   <Card key={i} className="glass-panel border-transparent shadow-lg rounded-2xl relative overflow-hidden p-4">
                     <div className="flex justify-between items-start">
@@ -604,6 +819,10 @@ export default function SalesView({
                           { id: 'lost', label: 'Closed Lost', color: 'border-t-rose-500', glow: 'shadow-rose-500/5' },
                         ].map(stage => {
                           const stageLeads = salesLeads.filter(l => l.status === stage.id);
+                          const stagePipelineValue = stageLeads.reduce((sum, l) => sum + parseBudget(l.how_much), 0);
+                          const stageAvgScore = stageLeads.length > 0 
+                            ? Math.round(stageLeads.reduce((sum, l) => sum + (l.score || 0), 0) / stageLeads.length) 
+                            : 0;
                           return (
                             <div
                               key={stage.id}
@@ -635,17 +854,25 @@ export default function SalesView({
                               className="flex-shrink-0 w-64 bg-gray-950/40 border border-gray-800 rounded-2xl p-3 flex flex-col min-h-[460px] max-h-[580px] overflow-hidden"
                             >
                               {/* Column Header */}
-                              <div className={`border-t-2 ${stage.color} pt-2 pb-2.5 flex items-center justify-between flex-shrink-0`}>
-                                <span className="text-xs font-bold text-white tracking-wide">{stage.label}</span>
-                                <span className="text-[10px] bg-gray-900 border border-gray-800 text-gray-400 font-bold px-2 py-0.5 rounded-full">
-                                  {stageLeads.length}
-                                </span>
+                              <div className={`border-t-2 ${stage.color} pt-2 pb-1.5 flex flex-col flex-shrink-0 border-b border-gray-900/80 mb-2`}>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-white tracking-wide">{stage.label}</span>
+                                  <span className="text-[10px] bg-gray-900 border border-gray-800 text-gray-400 font-bold px-2 py-0.5 rounded-full">
+                                    {stageLeads.length}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between items-center text-[9px] text-gray-500 mt-1 font-semibold">
+                                  <span>Val: <span className="text-emerald-500">{fmtCurrency(stagePipelineValue)}</span></span>
+                                  <span>Avg: <span className="text-amber-400">★ {stageAvgScore}</span></span>
+                                </div>
                               </div>
                               
                               {/* Column Scrollable Body */}
                               <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar min-h-0">
                                 {stageLeads.map(lead => {
                                   const isSelected = selectedLead?.id === lead.id;
+                                  const isOverdue = lead.data?.next_followup_date && 
+                                    new Date(lead.data.next_followup_date) < new Date(new Date().setHours(0,0,0,0));
                                   return (
                                     <div
                                       key={lead.id}
@@ -663,7 +890,14 @@ export default function SalesView({
                                           : 'border-gray-850'
                                       }`}
                                     >
-                                      <div className="font-extrabold text-white text-xs leading-tight mb-1 truncate">{lead.name || 'Unnamed Lead'}</div>
+                                      <div className="flex justify-between items-start gap-1 mb-1">
+                                        <div className="font-extrabold text-white text-xs leading-tight truncate flex-1">{lead.name || 'Unnamed Lead'}</div>
+                                        {isOverdue && (
+                                          <span className="flex-shrink-0 text-[8px] font-bold bg-rose-500/10 text-rose-450 border border-rose-500/20 px-1 py-0.5 rounded flex items-center gap-0.5 animate-pulse" title="Follow-up overdue!">
+                                            <AlertCircle size={8} /> OVERDUE
+                                          </span>
+                                        )}
+                                      </div>
                                       <div className="text-[10px] text-gray-450 truncate mb-1">{lead.company || 'No Company'}</div>
                                       
                                       <div className="flex flex-col gap-1 mb-2 pt-1 border-t border-gray-800/40">
@@ -979,13 +1213,33 @@ export default function SalesView({
                               </div>
                             </div>
 
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-450 uppercase">Next Follow-up Date</label>
+                                <Input 
+                                  type="date" 
+                                  value={editNextFollowupDate} 
+                                  onChange={e => setEditNextFollowupDate(e.target.value)} 
+                                  className="bg-gray-950 border-gray-800 h-8 rounded-lg text-white" 
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-455 uppercase">Follow-up Notes / Next Action</label>
+                                <Input 
+                                  value={editFollowupNotes} 
+                                  onChange={e => setEditFollowupNotes(e.target.value)} 
+                                  className="bg-gray-950 border-gray-800 h-8 rounded-lg text-white" 
+                                />
+                              </div>
+                            </div>
+
                             <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-gray-450 uppercase">Why (Reason/Pain Point)</label>
+                              <label className="text-[10px] font-bold text-gray-455 uppercase">Why (Reason/Pain Point)</label>
                               <Textarea value={editWhy} onChange={e => setEditWhy(e.target.value)} className="bg-gray-950 border-gray-800 text-white rounded-lg text-xs min-h-[60px]" />
                             </div>
 
                             <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-gray-450 uppercase">Target Context</label>
+                              <label className="text-[10px] font-bold text-gray-455 uppercase">Target Context</label>
                               <Textarea value={editTargetContext} onChange={e => setEditTargetContext(e.target.value)} className="bg-gray-950 border-gray-800 text-white rounded-lg text-xs min-h-[65px]" />
                             </div>
 
@@ -1085,6 +1339,96 @@ export default function SalesView({
                                 <div>
                                   <span className="text-[10px] text-gray-455 font-bold uppercase block tracking-wide">Target Segment Context</span>
                                   <p className="text-gray-300 mt-1 leading-relaxed">{selectedLead.target_context || 'Not enriched yet'}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Follow-up Scheduler Card */}
+                            <div className="space-y-2.5 bg-gray-900/40 p-4 rounded-2xl border border-gray-850">
+                              <div className="flex items-center gap-2 text-xs font-bold text-white border-b border-gray-800/60 pb-1.5">
+                                <Calendar size={13} className="text-emerald-400" /> Next Follow-up Schedule
+                              </div>
+                              <div className="space-y-1.5 text-xs text-gray-350">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] text-gray-450 font-semibold">Planned Date:</span>
+                                  {selectedLead.data?.next_followup_date ? (
+                                    <span className={`font-mono font-bold px-2 py-0.5 rounded text-[10px] ${
+                                      new Date(selectedLead.data.next_followup_date) < new Date(new Date().setHours(0,0,0,0))
+                                        ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center gap-1'
+                                        : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                    }`}>
+                                      {new Date(selectedLead.data.next_followup_date) < new Date(new Date().setHours(0,0,0,0)) && <AlertCircle size={10} className="animate-bounce" />}
+                                      {selectedLead.data.next_followup_date}
+                                      {new Date(selectedLead.data.next_followup_date) < new Date(new Date().setHours(0,0,0,0)) && " (Overdue)"}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-500 italic">No follow-up scheduled</span>
+                                  )}
+                                </div>
+                                {selectedLead.data?.followup_notes && (
+                                  <div className="mt-1 pt-1.5 border-t border-gray-800/40">
+                                    <span className="text-[9px] text-gray-450 font-bold uppercase tracking-wider block">Planned Action / Notes</span>
+                                    <p className="text-gray-200 mt-0.5 leading-relaxed text-[11px]">{selectedLead.data.followup_notes}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Action Checklist (Tasks) Card */}
+                            <div className="space-y-3 bg-gray-900/40 p-4 rounded-2xl border border-gray-850">
+                              <div className="flex items-center justify-between text-xs font-bold text-white border-b border-gray-800/60 pb-1.5">
+                                <div className="flex items-center gap-2">
+                                  <CheckSquare size={13} className="text-emerald-400" /> Action Checklist ({(selectedLead.data?.tasks || []).filter((t: any) => t.completed).length}/{(selectedLead.data?.tasks || []).length})
+                                </div>
+                              </div>
+                              
+                              <div className="space-y-2 text-xs">
+                                {!(selectedLead.data?.tasks) || selectedLead.data.tasks.length === 0 ? (
+                                  <p className="text-gray-500 italic text-[11px] py-1">No action items defined. Add one below!</p>
+                                ) : (
+                                  <div className="space-y-1.5 max-h-[150px] overflow-y-auto custom-scrollbar pr-1">
+                                    {selectedLead.data.tasks.map((task: any) => (
+                                      <div key={task.id} className="flex items-center justify-between gap-2 bg-gray-950/30 p-2 rounded-lg border border-gray-850/50 hover:bg-gray-950/60 transition-colors">
+                                        <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                                          <input
+                                            type="checkbox"
+                                            checked={task.completed}
+                                            onChange={() => handleToggleTask(task.id)}
+                                            className="rounded border-gray-800 bg-gray-950 text-emerald-500 focus:ring-emerald-500/25 h-3.5 w-3.5 cursor-pointer"
+                                          />
+                                          <span className={`text-[11px] truncate ${task.completed ? 'line-through text-gray-500' : 'text-gray-200'}`}>
+                                            {task.title}
+                                          </span>
+                                        </label>
+                                        <button
+                                          onClick={() => handleDeleteTask(task.id)}
+                                          className="text-gray-500 hover:text-rose-400 transition-colors p-0.5 rounded"
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                
+                                <div className="flex gap-2 mt-2 pt-1 border-t border-gray-800/40">
+                                  <Input
+                                    placeholder="Add custom task..."
+                                    value={newTaskTitle}
+                                    onChange={e => setNewTaskTitle(e.target.value)}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') {
+                                        handleAddTask(newTaskTitle);
+                                      }
+                                    }}
+                                    className="bg-gray-950 border-gray-800 h-8 rounded-lg text-xs flex-1 text-white placeholder:text-gray-650"
+                                  />
+                                  <Button
+                                    onClick={() => handleAddTask(newTaskTitle)}
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-8 px-3 rounded-lg text-xs"
+                                  >
+                                    Add
+                                  </Button>
                                 </div>
                               </div>
                             </div>
@@ -1321,57 +1665,95 @@ export default function SalesView({
 
                             {/* Conversation timeline history */}
                             <div className="space-y-3">
-                              <div className="text-[10px] text-gray-400 font-extrabold uppercase tracking-widest">Outreach History</div>
-                              
-                              {(!selectedLead.data?.conversation || selectedLead.data.conversation.length === 0) ? (
-                                <div className="text-center py-4 bg-gray-900/10 border border-dashed border-gray-800 rounded-2xl text-xs text-gray-500 font-medium">
-                                  No outreach sequence started yet.
-                                </div>
-                              ) : (
-                                <div className="space-y-3 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-[1px] before:bg-gray-800">
-                                  {selectedLead.data.conversation.map((msg: any, index: number) => (
-                                    <div key={index} className="flex gap-3 relative z-10 text-xs">
-                                      <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs shadow border ${
-                                        msg.author?.includes('AI')
-                                          ? 'bg-purple-600/15 border-purple-500/20 text-purple-400'
-                                          : msg.direction === 'outbound' 
-                                            ? 'bg-blue-600/15 border-blue-500/20 text-blue-400' 
-                                            : msg.direction === 'inbound'
-                                              ? 'bg-emerald-600/15 border-emerald-500/20 text-emerald-400'
-                                              : 'bg-amber-600/15 border-amber-500/20 text-amber-450'
-                                      }`}>
-                                        {msg.author?.includes('AI') ? '🤖' : '👤'}
-                                      </div>
-                                      <div className="flex-1 bg-gray-900/35 border border-gray-850 p-3 rounded-2xl shadow">
-                                        <div className="flex justify-between items-center gap-2">
-                                          <span className="font-bold text-white capitalize text-[11px] flex items-center gap-1.5 flex-wrap">
-                                            {msg.direction === 'outbound' ? 'Outbound' : msg.direction === 'inbound' ? 'Inbound' : 'Note'}
-                                            <span className="text-[9px] bg-gray-800 text-gray-455 border border-gray-750 px-1.5 py-0.5 rounded font-mono uppercase">
-                                              {msg.channel || 'smtp'}
-                                            </span>
-                                            {msg.author && (
-                                              <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold border ${
-                                                msg.author.includes('AI') 
-                                                  ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' 
-                                                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                              }`}>
-                                                {msg.author}
-                                              </span>
-                                            )}
-                                          </span>
-                                          <span className="text-[9px] text-gray-450 font-mono">
-                                            {msg.at ? new Date(msg.at).toLocaleDateString() : 'Just now'}
-                                          </span>
-                                        </div>
-                                        {msg.subject && (
-                                          <div className="text-[10px] text-emerald-400 font-bold mt-1">Subj: {msg.subject}</div>
-                                        )}
-                                        <p className="text-[11px] text-gray-300 leading-relaxed mt-1.5 whitespace-pre-wrap">{msg.content}</p>
-                                      </div>
-                                    </div>
+                              <div className="flex items-center justify-between text-xs font-bold text-white border-b border-gray-800/60 pb-1.5">
+                                <span className="text-[10px] text-gray-400 font-extrabold uppercase tracking-widest">Outreach History</span>
+                                <div className="flex gap-1 bg-gray-950/60 p-0.5 border border-gray-850 rounded-lg">
+                                  {[
+                                    { id: 'all', label: 'All' },
+                                    { id: 'email', label: 'Emails' },
+                                    { id: 'call', label: 'Calls' },
+                                    { id: 'note', label: 'Notes' },
+                                    { id: 'meeting', label: 'Meetings' }
+                                  ].map(t => (
+                                    <button
+                                      key={t.id}
+                                      onClick={() => setTimelineFilter(t.id)}
+                                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all ${
+                                        timelineFilter === t.id
+                                          ? 'bg-emerald-600 text-white'
+                                          : 'text-gray-400 hover:text-white'
+                                      }`}
+                                    >
+                                      {t.label}
+                                    </button>
                                   ))}
                                 </div>
-                              )}
+                              </div>
+                              
+                              {(() => {
+                                const conversation = selectedLead.data?.conversation || [];
+                                const filteredConversation = conversation.filter((msg: any) => {
+                                  if (timelineFilter === 'all') return true;
+                                  const channel = (msg.channel || '').toLowerCase();
+                                  if (timelineFilter === 'email') {
+                                    return channel === 'email' || channel === 'smtp';
+                                  }
+                                  if (timelineFilter === 'meeting') {
+                                    return channel === 'meeting' || channel.includes('meet') || (msg.subject || '').toLowerCase().includes('meeting') || (msg.content || '').toLowerCase().includes('meeting');
+                                  }
+                                  return channel === timelineFilter;
+                                });
+                                
+                                return filteredConversation.length === 0 ? (
+                                  <div className="text-center py-4 bg-gray-900/10 border border-dashed border-gray-800 rounded-2xl text-xs text-gray-500 font-medium">
+                                    No matching outreach history found.
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-[1px] before:bg-gray-800">
+                                    {filteredConversation.map((msg: any, index: number) => (
+                                      <div key={index} className="flex gap-3 relative z-10 text-xs">
+                                        <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs shadow border ${
+                                          msg.author?.includes('AI')
+                                            ? 'bg-purple-600/15 border-purple-500/20 text-purple-400'
+                                            : msg.direction === 'outbound' 
+                                              ? 'bg-blue-600/15 border-blue-500/20 text-blue-400' 
+                                              : msg.direction === 'inbound'
+                                                ? 'bg-emerald-600/15 border-emerald-500/20 text-emerald-400'
+                                                : 'bg-amber-600/15 border-amber-500/20 text-amber-450'
+                                        }`}>
+                                          {msg.author?.includes('AI') ? '🤖' : '👤'}
+                                        </div>
+                                        <div className="flex-1 bg-gray-900/35 border border-gray-850 p-3 rounded-2xl shadow">
+                                          <div className="flex justify-between items-center gap-2">
+                                            <span className="font-bold text-white capitalize text-[11px] flex items-center gap-1.5 flex-wrap">
+                                              {msg.direction === 'outbound' ? 'Outbound' : msg.direction === 'inbound' ? 'Inbound' : 'Note'}
+                                              <span className="text-[9px] bg-gray-800 text-gray-455 border border-gray-750 px-1.5 py-0.5 rounded font-mono uppercase">
+                                                {msg.channel || 'smtp'}
+                                              </span>
+                                              {msg.author && (
+                                                <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold border ${
+                                                  msg.author.includes('AI') 
+                                                    ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' 
+                                                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                                }`}>
+                                                  {msg.author}
+                                                </span>
+                                              )}
+                                            </span>
+                                            <span className="text-[9px] text-gray-450 font-mono">
+                                              {msg.at ? new Date(msg.at).toLocaleDateString() : 'Just now'}
+                                            </span>
+                                          </div>
+                                          {msg.subject && (
+                                            <div className="text-[10px] text-emerald-400 font-bold mt-1">Subj: {msg.subject}</div>
+                                          )}
+                                          <p className="text-[11px] text-gray-300 leading-relaxed mt-1.5 whitespace-pre-wrap">{msg.content}</p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                           </div>
@@ -1502,6 +1884,18 @@ export default function SalesView({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            {/* Next Follow-up Date */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Next Follow-up Date</label>
+              <Input type="date" value={newLeadNextFollowupDate} onChange={e => setNewLeadNextFollowupDate(e.target.value)}
+                className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-emerald-500 focus:ring-emerald-500/20" />
+            </div>
+            {/* Follow-up Notes */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Follow-up Notes / Next Action</label>
+              <Input placeholder="Prepare proposal, send agenda..." value={newLeadFollowupNotes} onChange={e => setNewLeadFollowupNotes(e.target.value)}
+                className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-emerald-500 focus:ring-emerald-500/20" />
             </div>
           </div>
           <div className="flex gap-3 pt-2">

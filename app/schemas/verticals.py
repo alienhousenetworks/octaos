@@ -20,6 +20,7 @@ class LeadBase(BaseModel):
     status: Optional[str] = "captured"
     score: Optional[int] = 0
     assigned_to: Optional[str] = "Sales AI Agent"
+    data: Optional[dict] = None
 
 class LeadCreate(LeadBase):
     pass
@@ -29,7 +30,6 @@ class Lead(LeadBase):
     tenant_id: str
     score: int
     status: str
-    data: Optional[dict] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
