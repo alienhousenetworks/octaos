@@ -61,17 +61,20 @@ async def source_candidates(
     request: SourceRequest
 ) -> Any:
     agent = HRAgent(db, tenant_id)
-    result = await agent.execute_task({
-        "action": "source_candidates",
-        "parameters": {
-            "role": request.role,
-            "requirements": request.requirements,
-            "salary": request.salary,
-            "count": request.count,
-            "platforms": request.platforms
-        }
-    })
-    return result
+    try:
+        result = await agent.execute_task({
+            "action": "source_candidates",
+            "parameters": {
+                "role": request.role,
+                "requirements": request.requirements,
+                "salary": request.salary,
+                "count": request.count,
+                "platforms": request.platforms
+            }
+        })
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/{candidate_id}/outreach")
 async def candidate_outreach(
@@ -82,16 +85,19 @@ async def candidate_outreach(
     request: OutreachRequest
 ) -> Any:
     agent = HRAgent(db, tenant_id)
-    result = await agent.execute_task({
-        "action": "candidate_outreach",
-        "parameters": {
-            "candidate_id": candidate_id,
-            "channel": request.channel,
-            "subject": request.subject,
-            "body_template": request.body_template
-        }
-    })
-    return result
+    try:
+        result = await agent.execute_task({
+            "action": "candidate_outreach",
+            "parameters": {
+                "candidate_id": candidate_id,
+                "channel": request.channel,
+                "subject": request.subject,
+                "body_template": request.body_template
+            }
+        })
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/{candidate_id}/interview")
 async def schedule_interview(
@@ -102,14 +108,17 @@ async def schedule_interview(
     request: InterviewRequest
 ) -> Any:
     agent = HRAgent(db, tenant_id)
-    result = await agent.execute_task({
-        "action": "schedule_interview",
-        "parameters": {
-            "candidate_id": candidate_id,
-            "tool": request.tool
-        }
-    })
-    return result
+    try:
+        result = await agent.execute_task({
+            "action": "schedule_interview",
+            "parameters": {
+                "candidate_id": candidate_id,
+                "tool": request.tool
+            }
+        })
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/{candidate_id}/status", response_model=schemas.Candidate)
 def update_candidate_status(

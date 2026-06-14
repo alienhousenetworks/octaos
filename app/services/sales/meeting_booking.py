@@ -77,28 +77,26 @@ def book_meeting_for_lead(
         .filter_by(tenant_id=tenant_id, provider="google_calendar")
         .first()
     )
-    if tool == "google_calendar" and calendar_cred and calendar_cred.encrypted_key:
-        try:
-            creds_dict = json.loads(decrypt_api_key(calendar_cred.encrypted_key))
-            actual_meet_url, event_start = create_google_calendar_event(
-                creds_dict,
-                lead.email or f"{lead.phone}@placeholder.local",
-                f"Meeting: {lead.company} / {lead.name}",
-                f"Sales discussion with {lead.name}",
-            )
-            if actual_meet_url:
-                meet_url = actual_meet_url
-            if event_start:
-                meeting_starts_at = event_start
-                meeting_time = event_start.strftime("%A %d %b %Y, %H:%M UTC")
-            calendar_booked = True
-        except Exception as exc:
-            if log_activity:
-                log_activity(
-                    "Calendar API Error",
-                    f"Google Calendar error: {exc}. Using placeholder Meet link.",
-                    "pending",
+    if tool == "google_calendar":
+        if calendar_cred and calendar_cred.encrypted_key:
+            try:
+                creds_dict = json.loads(decrypt_api_key(calendar_cred.encrypted_key))
+                actual_meet_url, event_start = create_google_calendar_event(
+                    creds_dict,
+                    lead.email or f"{lead.phone}@placeholder.local",
+                    f"Meeting: {lead.company} / {lead.name}",
+                    f"Sales discussion with {lead.name}",
                 )
+                if actual_meet_url:
+                    meet_url = actual_meet_url
+                if event_start:
+                    meeting_starts_at = event_start
+                    meeting_time = event_start.strftime("%A %d %b %Y, %H:%M UTC")
+                calendar_booked = True
+            except Exception as exc:
+                raise ValueError(f"Google Calendar API Error: {exc}. Please verify your Google Workspace connection.")
+        else:
+            raise ValueError("No Google Calendar credentials found. Please connect Google Workspace under Platform Setup -> API Settings to schedule calendar events.")
 
     lead.status = "meeting_scheduled"
     lead.data = {

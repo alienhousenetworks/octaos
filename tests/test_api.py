@@ -247,9 +247,12 @@ async def test_hr_agent_flow(mock_complete, client, db):
     tenant_id = tenant_resp.json()["id"]
     tenant_id_override_store["tenant_id"] = tenant_id
 
-    # Configure anthropic credential
+    # Configure credentials in test DB
     cred_ai = APICredential(tenant_id=tenant_id, provider="anthropic", encrypted_key="sk-ant-test-key")
-    db.add(cred_ai)
+    cred_linkedin = APICredential(tenant_id=tenant_id, provider="linkedin", encrypted_key="fake-linkedin-key")
+    cred_smtp = APICredential(tenant_id=tenant_id, provider="smtp", encrypted_key="smtp://user:pass@host:25")
+    cred_cal = APICredential(tenant_id=tenant_id, provider="google_calendar", encrypted_key="fake-cal-key")
+    db.add_all([cred_ai, cred_linkedin, cred_smtp, cred_cal])
     db.commit()
 
     # Define LLM mock responses
@@ -287,74 +290,27 @@ async def test_hr_agent_flow(mock_complete, client, db):
     }
 
     mock_complete.side_effect = [
-        json.dumps(simulated_candidates),
         json.dumps(outreach_response),
-        json.dumps(interview_response)
+        json.dumps(interview_response),
+        # 5. Test Orchestrator plan
+        json.dumps({
+            "tasks": [
+                {
+                    "department": "HR",
+                    "action": "source_candidates",
+                    "parameters": {"role": "Python Backend Engineer", "requirements": "Python, FastAPI", "salary": "$110k/yr", "count": 1}
+                }
+            ]
+        })
     ]
 
-    # 1. Test Candidate Sourcing Endpoint
-    source_resp = client.post(
-        "/api/v1/hr/source",
-        json={"role": "Frontend Developer", "requirements": "React, TypeScript", "salary": "$120,000/year", "count": 2, "platforms": ["linkedin"]}
-    )
-    assert source_resp.status_code == 200
-    assert source_resp.json()["sourced_count"] == 2
-
-    # Verify candidates are added to DB
-    candidates = db.query(Candidate).filter(Candidate.tenant_id == tenant_id).all()
-    assert len(candidates) == 2
-    assert candidates[0].name == "Jane Doe"
-    assert candidates[0].status == "sourced"
-    
-    # 2. Test Read Candidates Endpoint
-    read_resp = client.get("/api/v1/hr/")
-    assert read_resp.status_code == 200
-    assert len(read_resp.json()) == 2
-
-    # Get a specific candidate's ID
-    jane_cand = [c for c in candidates if c.name == "Jane Doe"][0]
-
-    # 3. Test Candidate Outreach Endpoint
-    outreach_resp = client.post(
-        f"/api/v1/hr/{jane_cand.id}/outreach",
-        json={"channel": "free_outreach", "subject": "Opportunity: {role}", "body_template": "Hi {name}"}
-    )
-    assert outreach_resp.status_code == 200
-    assert outreach_resp.json()["sent_count"] == 1
-    
-    # Refresh candidate status
-    db.refresh(jane_cand)
-    assert jane_cand.status == "screened"
-    assert jane_cand.scorecard["outreach_channel"] == "free_outreach"
-
-    # 4. Test Schedule Interview Endpoint
-    interview_resp = client.post(
-        f"/api/v1/hr/{jane_cand.id}/interview",
-        json={"tool": "free_scheduling"}
-    )
-    assert interview_resp.status_code == 200
-    assert interview_resp.json()["booked_interviews"] == 1
-    
-    db.refresh(jane_cand)
-    assert jane_cand.status == "interviewed"
-    assert jane_cand.scorecard["meeting_time"] == "next Monday at 10 AM"
-    assert "meeting_link" in jane_cand.scorecard
-
-    # 5. Test Orchestrator flow for HR Sourcing & Hiring
-    orchestrator_plan = {
-        "tasks": [
-            {
-                "department": "HR",
-                "action": "source_candidates",
-                "parameters": {"role": "Python Backend Engineer", "requirements": "Python, FastAPI", "salary": "$110k/yr", "count": 1}
-            }
-        ]
-    }
-    
-    # Sequence: Orchestrator plan, then sourcing list
-    mock_complete.side_effect = [
-        json.dumps(orchestrator_plan),
-        json.dumps([{
+    # Mock the real candidates fetching and outreach email sending
+    with patch("app.services.agents.hr.HRAgent._fetch_real_candidates", new_callable=AsyncMock) as mock_fetch, \
+         patch("app.services.agents.hr.HRAgent._send_actual_email") as mock_smtp_send:
+        
+        mock_smtp_send.return_value = True
+        
+        alice_pythonist = [{
             "name": "Alice Pythonist",
             "email": "alice@pythonist.com",
             "skills": ["Python", "FastAPI"],
@@ -362,22 +318,75 @@ async def test_hr_agent_flow(mock_complete, client, db):
             "match_score": 92,
             "requirements_match": "Excellent fit",
             "salary_expectation": "$110k/yr"
-        }])
-    ]
-    
-    orch_resp = client.post(
-        "/api/v1/commands/execute",
-        json={"prompt": "Find a Python Backend Engineer with budget $110k/yr"}
-    )
-    assert orch_resp.status_code == 200
-    assert len(orch_resp.json()["plan"]["tasks"]) == 1
-    
-    # Check that candidates total is now 3
-    total_candidates = db.query(Candidate).filter(Candidate.tenant_id == tenant_id).all()
-    assert len(total_candidates) == 3
-    alice_cand = [c for c in total_candidates if c.name == "Alice Pythonist"][0]
-    assert alice_cand.role == "Python Backend Engineer"
-    assert alice_cand.status == "sourced"
+        }]
+        
+        mock_fetch.side_effect = [
+            simulated_candidates,
+            alice_pythonist
+        ]
+
+        # 1. Test Candidate Sourcing Endpoint
+        source_resp = client.post(
+            "/api/v1/hr/source",
+            json={"role": "Frontend Developer", "requirements": "React, TypeScript", "salary": "$120,000/year", "count": 2, "platforms": ["linkedin"]}
+        )
+        assert source_resp.status_code == 200
+        assert source_resp.json()["sourced_count"] == 2
+
+        # Verify candidates are added to DB
+        candidates = db.query(Candidate).filter(Candidate.tenant_id == tenant_id).all()
+        assert len(candidates) == 2
+        assert candidates[0].name == "Jane Doe"
+        assert candidates[0].status == "sourced"
+        
+        # 2. Test Read Candidates Endpoint
+        read_resp = client.get("/api/v1/hr/")
+        assert read_resp.status_code == 200
+        assert len(read_resp.json()) == 2
+
+        # Get a specific candidate's ID
+        jane_cand = [c for c in candidates if c.name == "Jane Doe"][0]
+
+        # 3. Test Candidate Outreach Endpoint
+        outreach_resp = client.post(
+            f"/api/v1/hr/{jane_cand.id}/outreach",
+            json={"channel": "smtp", "subject": "Opportunity: {role}", "body_template": "Hi {name}"}
+        )
+        assert outreach_resp.status_code == 200
+        assert outreach_resp.json()["sent_count"] == 1
+        
+        # Refresh candidate status
+        db.refresh(jane_cand)
+        assert jane_cand.status == "screened"
+        assert jane_cand.scorecard["outreach_channel"] == "smtp"
+
+        # 4. Test Schedule Interview Endpoint
+        interview_resp = client.post(
+            f"/api/v1/hr/{jane_cand.id}/interview",
+            json={"tool": "free_scheduling"}
+        )
+        assert interview_resp.status_code == 200
+        assert interview_resp.json()["booked_interviews"] == 1
+        
+        db.refresh(jane_cand)
+        assert jane_cand.status == "interviewed"
+        assert jane_cand.scorecard["meeting_time"] == "next Monday at 10 AM"
+        assert "meeting_link" in jane_cand.scorecard
+
+        # 5. Test Orchestrator flow for HR Sourcing & Hiring
+        orch_resp = client.post(
+            "/api/v1/commands/execute",
+            json={"prompt": "Find a Python Backend Engineer with budget $110k/yr"}
+        )
+        assert orch_resp.status_code == 200
+        assert len(orch_resp.json()["plan"]["tasks"]) == 1
+        
+        # Check that candidates total is now 3
+        total_candidates = db.query(Candidate).filter(Candidate.tenant_id == tenant_id).all()
+        assert len(total_candidates) == 3
+        alice_cand = [c for c in total_candidates if c.name == "Alice Pythonist"][0]
+        assert alice_cand.role == "Python Backend Engineer"
+        assert alice_cand.status == "sourced"
 
 def test_marketplace_install_and_uninstall(client, db):
     from app.models.teams import InstalledApp

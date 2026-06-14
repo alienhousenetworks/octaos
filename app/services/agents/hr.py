@@ -53,12 +53,9 @@ class HRAgent(BaseAgent):
                         platform, decrypt_api_key(cred.encrypted_key), role, requirements, count
                     )
                 except Exception as e:
-                    self.log_activity(f"{platform} API Error", f"Failed to fetch real candidates: {e}. Falling back to simulation.", "pending")
-                    candidates_data = await self._simulate_candidates(platform, role, requirements, salary, count)
+                    raise ValueError(f"Failed to fetch candidates from {platform}: {e}. Please check your {platform} API key or settings.")
             else:
-                # Simulated flow
-                self.log_activity(f"{platform} Sourcing", f"No API credentials found for {platform}. Generating simulated candidates.", "pending")
-                candidates_data = await self._simulate_candidates(platform, role, requirements, salary, count)
+                raise ValueError(f"No API credentials found for {platform}. Please configure your API credentials for {platform} under Platform Setup -> API Settings.")
 
             for data in candidates_data:
                 # Check duplicate email
@@ -218,7 +215,7 @@ JSON format:
                 smtp_credentials = self._parse_smtp_credentials(cred.encrypted_key)
             
             if not smtp_credentials:
-                self.log_activity("SMTP Credentials Missing", "No SMTP server details configured. Recruiting email will be simulated.", "pending")
+                raise ValueError("No SMTP server details configured. Please configure SMTP credentials under Platform Setup -> API Settings to send outreach emails.")
 
         sent_count = 0
         for cand in candidates:
@@ -249,13 +246,13 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
 
             # Send or Simulate
             sent_successfully = False
-            if channel == "smtp" and smtp_credentials:
+            if channel == "smtp":
                 try:
                     sent_successfully = self._send_actual_email(
                         smtp_credentials, cand.email, outbound_subject, outbound_body
                     )
                 except Exception as e:
-                    self.log_activity("SMTP Send Fail", f"SMTP error for {cand.email}: {str(e)}. Simulating outreach instead.", "pending")
+                    raise ValueError(f"SMTP email outreach failed for {cand.name} ({cand.email}): {str(e)}. Please check your SMTP settings.")
             elif channel == "gmail":
                 cred = self.db.query(APICredential).filter_by(
                     tenant_id=self.tenant_id, provider="gmail"
@@ -265,15 +262,19 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
                         self._send_gmail_api_email(cred.encrypted_key, cand.email, outbound_subject, outbound_body)
                         sent_successfully = True
                     except Exception as e:
-                        self.log_activity("Gmail Send Fail", f"Gmail error for {cand.email}: {str(e)}. Simulating outreach instead.", "pending")
+                        raise ValueError(f"Gmail API outreach failed for {cand.name} ({cand.email}): {str(e)}. Please check your Gmail connection.")
                 else:
-                    self.log_activity("Gmail Credentials Missing", "No Gmail API credentials found. Simulating outreach instead.", "pending")
+                    raise ValueError("No Gmail API credentials found. Please connect Google Workspace under Platform Setup -> API Settings to send outreach emails.")
+            else:
+                sent_successfully = True
 
-            if not sent_successfully:
-                self.log_activity(
-                    f"Outreach Sent ({channel.upper()})",
-                    f"Recruiter message to candidate: {cand.name} ({cand.email}). Subject: '{outbound_subject}'"
-                )
+            if channel in ("smtp", "gmail") and not sent_successfully:
+                raise ValueError(f"Failed to send email via {channel.upper()} for {cand.name}. Please verify your credentials and connection.")
+
+            self.log_activity(
+                f"Outreach Sent ({channel.upper()})",
+                f"Recruiter message to candidate: {cand.name} ({cand.email}). Subject: '{outbound_subject}'"
+            )
 
             cand.status = "screened"
             cand.scorecard = {
@@ -350,16 +351,19 @@ No other text."""
                 ).first()
 
                 calendar_booked = False
-                if tool == "google_calendar" and calendar_cred and calendar_cred.encrypted_key.strip():
-                    try:
-                        # Call Google Calendar API
-                        meet_url_real, actual_time = self._create_calendar_event(calendar_cred.encrypted_key, cand.email, meeting_time)
-                        if meet_url_real:
-                            meet_url = meet_url_real
-                        meeting_time = actual_time or meeting_time
-                        calendar_booked = True
-                    except Exception as ce:
-                        self.log_activity("Calendar API Error", f"Google Calendar error: {str(ce)}. Booking manually.", "pending")
+                if tool == "google_calendar":
+                    if calendar_cred and calendar_cred.encrypted_key.strip():
+                        try:
+                            # Call Google Calendar API
+                            meet_url_real, actual_time = self._create_calendar_event(calendar_cred.encrypted_key, cand.email, meeting_time)
+                            if meet_url_real:
+                                meet_url = meet_url_real
+                            meeting_time = actual_time or meeting_time
+                            calendar_booked = True
+                        except Exception as ce:
+                            raise ValueError(f"Google Calendar API Error: {str(ce)}. Please verify your Google Workspace connection.")
+                    else:
+                        raise ValueError("No Google Calendar credentials found. Please connect Google Workspace under Platform Setup -> API Settings to schedule calendar events.")
 
                 cand.status = "interviewed"
                 cand.scorecard = {
