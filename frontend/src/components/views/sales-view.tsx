@@ -35,6 +35,8 @@ export default function SalesView({
   const [salesStatusFilter, setSalesStatusFilter] = useState('all');
   const [salesPriorityFilter, setSalesPriorityFilter] = useState('all');
   const [salesTimeFilter, setSalesTimeFilter] = useState('all');
+  const [salesAssignedFilter, setSalesAssignedFilter] = useState('all');
+  const [members, setMembers] = useState<any[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesActionLoading, setSalesActionLoading] = useState(false);
 
@@ -53,6 +55,7 @@ export default function SalesView({
   const [editPriority, setEditPriority] = useState('medium');
   const [editStatus, setEditStatus] = useState('captured');
   const [editScore, setEditScore] = useState(0);
+  const [editAssignedTo, setEditAssignedTo] = useState('Sales AI Agent');
 
   // Lead Upload & Human updates states
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -82,6 +85,7 @@ export default function SalesView({
   const [newLeadPriority, setNewLeadPriority] = useState('medium');
   const [newLeadStatus, setNewLeadStatus] = useState('captured');
   const [newLeadScore, setNewLeadScore] = useState(0);
+  const [newLeadAssignedTo, setNewLeadAssignedTo] = useState('Sales AI Agent');
   const [creatingLead, setCreatingLead] = useState(false);
 
   // Fetch leads when filters change
@@ -89,7 +93,26 @@ export default function SalesView({
     if (token) {
       fetchLeads();
     }
-  }, [salesStatusFilter, salesPriorityFilter, salesSearch, salesTimeFilter, token]);
+  }, [salesStatusFilter, salesPriorityFilter, salesSearch, salesTimeFilter, salesAssignedFilter, token]);
+
+  // Fetch members list on mount
+  useEffect(() => {
+    if (token) {
+      fetchMembers();
+    }
+  }, [token]);
+
+  const fetchMembers = async () => {
+    try {
+      const res = await fetchWithAuth(`${API_URL}/auth/members`);
+      if (res.ok) {
+        const data = await res.json();
+        setMembers(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch members:", e);
+    }
+  };
 
   // Sync edits if a new lead is selected
   useEffect(() => {
@@ -107,6 +130,7 @@ export default function SalesView({
       setEditPriority(selectedLead.priority || 'medium');
       setEditStatus(selectedLead.status || 'captured');
       setEditScore(selectedLead.score || 0);
+      setEditAssignedTo(selectedLead.assigned_to || 'Sales AI Agent');
     } else {
       setIsEditingSalesLead(false);
     }
@@ -122,6 +146,7 @@ export default function SalesView({
       if (salesPriorityFilter && salesPriorityFilter !== 'all') queryParams.append('priority', salesPriorityFilter);
       if (salesSearch) queryParams.append('search', salesSearch);
       if (salesTimeFilter && salesTimeFilter !== 'all') queryParams.append('time_filter', salesTimeFilter);
+      if (salesAssignedFilter && salesAssignedFilter !== 'all') queryParams.append('assigned_to', salesAssignedFilter);
 
       const res = await fetchWithAuth(`${API_URL}/leads/?${queryParams.toString()}`);
       if (res.ok) {
@@ -162,7 +187,8 @@ export default function SalesView({
           target_context: editTargetContext,
           priority: editPriority,
           status: editStatus,
-          score: Number(editScore) || 0
+          score: Number(editScore) || 0,
+          assigned_to: editAssignedTo
         })
       });
       if (res.ok) {
@@ -314,7 +340,8 @@ export default function SalesView({
           priority: newLeadPriority || 'medium',
           status: newLeadStatus || 'captured',
           score: Number(newLeadScore) || 0,
-          source: 'Manual Entry'
+          source: 'Manual Entry',
+          assigned_to: newLeadAssignedTo
         })
       });
       if (res.ok) {
@@ -334,6 +361,7 @@ export default function SalesView({
         setNewLeadPriority('medium');
         setNewLeadStatus('captured');
         setNewLeadScore(0);
+        setNewLeadAssignedTo('Sales AI Agent');
         fetchLeads();
         fetchData();
         alert("✅ Lead created successfully!");
@@ -482,10 +510,9 @@ export default function SalesView({
                           className="pl-9 bg-gray-900/60 border-gray-800 text-white rounded-xl h-10 w-full focus:border-emerald-500 focus:ring-emerald-500/20"
                         />
                       </div>
-                      
-                      <div className="flex gap-2 w-full md:w-auto">
+                                         <div className="flex gap-2 w-full md:w-auto flex-wrap">
                         <Select value={salesStatusFilter} onValueChange={val => setSalesStatusFilter(val || 'all')}>
-                          <SelectTrigger className="w-[130px] bg-gray-900/60 border-gray-800 text-xs text-gray-305 rounded-xl h-10">
+                          <SelectTrigger className="w-[120px] bg-gray-900/60 border-gray-800 text-xs text-gray-305 rounded-xl h-10">
                             <SelectValue placeholder="Status" />
                           </SelectTrigger>
                           <SelectContent className="bg-gray-950 border-gray-800 text-gray-305">
@@ -501,7 +528,7 @@ export default function SalesView({
                         </Select>
 
                         <Select value={salesPriorityFilter} onValueChange={val => setSalesPriorityFilter(val || 'all')}>
-                          <SelectTrigger className="w-[110px] bg-gray-900/60 border-gray-800 text-xs text-gray-305 rounded-xl h-10">
+                          <SelectTrigger className="w-[100px] bg-gray-900/60 border-gray-800 text-xs text-gray-305 rounded-xl h-10">
                             <SelectValue placeholder="Priority" />
                           </SelectTrigger>
                           <SelectContent className="bg-gray-950 border-gray-800 text-gray-350">
@@ -512,8 +539,23 @@ export default function SalesView({
                           </SelectContent>
                         </Select>
 
+                        <Select value={salesAssignedFilter} onValueChange={val => setSalesAssignedFilter(val || 'all')}>
+                          <SelectTrigger className="w-[125px] bg-gray-900/60 border-gray-800 text-xs text-gray-305 rounded-xl h-10">
+                            <SelectValue placeholder="Assignee" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-950 border-gray-800 text-gray-350">
+                            <SelectItem value="all">All Assignees</SelectItem>
+                            <SelectItem value="Sales AI Agent">Sales AI Agent</SelectItem>
+                            {members.map(member => (
+                              <SelectItem key={member.id} value={member.name || member.email}>
+                                {member.name || member.email}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
                          <Select value={salesTimeFilter} onValueChange={val => setSalesTimeFilter(val || 'all')}>
-                          <SelectTrigger className="w-[110px] bg-gray-900/60 border-gray-800 text-xs text-gray-305 rounded-xl h-10">
+                          <SelectTrigger className="w-[90px] bg-gray-900/60 border-gray-800 text-xs text-gray-305 rounded-xl h-10">
                             <SelectValue placeholder="Time" />
                           </SelectTrigger>
                           <SelectContent className="bg-gray-950 border-gray-800 text-gray-350">
@@ -622,7 +664,14 @@ export default function SalesView({
                                       }`}
                                     >
                                       <div className="font-extrabold text-white text-xs leading-tight mb-1 truncate">{lead.name || 'Unnamed Lead'}</div>
-                                      <div className="text-[10px] text-gray-450 truncate mb-2">{lead.company || 'No Company'}</div>
+                                      <div className="text-[10px] text-gray-450 truncate mb-1">{lead.company || 'No Company'}</div>
+                                      
+                                      <div className="flex flex-col gap-1 mb-2 pt-1 border-t border-gray-800/40">
+                                        <div className="flex justify-between items-center text-[9px] text-gray-500">
+                                          <span className="truncate max-w-[110px] font-medium" title={lead.assigned_to}>👤 {lead.assigned_to || 'Unassigned'}</span>
+                                          <span className="truncate max-w-[95px] text-[8px] bg-gray-950 px-1 py-0.5 rounded text-gray-400" title={lead.source}>{lead.source?.split(':')[0] || lead.source || 'Direct'}</span>
+                                        </div>
+                                      </div>
                                       
                                       <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-gray-800/60">
                                         <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-wide border ${
@@ -660,6 +709,7 @@ export default function SalesView({
                             <TableRow className="border-gray-800 hover:bg-transparent">
                               <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-[10px] p-4">Lead</TableHead>
                               <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-[10px] p-4">Source</TableHead>
+                              <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-[10px] p-4">Assignee</TableHead>
                               <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-[10px] p-4 text-center">Score</TableHead>
                               <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-[10px] p-4">Priority</TableHead>
                               <TableHead className="text-gray-400 font-bold uppercase tracking-wider text-[10px] p-4">Status</TableHead>
@@ -668,14 +718,14 @@ export default function SalesView({
                           <TableBody className="divide-y divide-gray-850">
                             {salesLoading ? (
                               <TableRow className="hover:bg-transparent">
-                                <TableCell colSpan={5} className="text-center py-16">
+                                <TableCell colSpan={6} className="text-center py-16">
                                   <Loader2 className="h-6 w-6 animate-spin text-emerald-400 mx-auto" />
-                                  <p className="text-xs text-gray-450 mt-2">Loading CRM database...</p>
+                                  <p className="text-xs text-gray-455 mt-2">Loading CRM database...</p>
                                 </TableCell>
                               </TableRow>
                             ) : salesLeads.length === 0 ? (
                               <TableRow className="hover:bg-transparent">
-                                <TableCell colSpan={5} className="text-center py-16 text-xs text-gray-500 font-medium">
+                                <TableCell colSpan={6} className="text-center py-16 text-xs text-gray-500 font-medium">
                                   No sales leads found matching these filters.
                                 </TableCell>
                               </TableRow>
@@ -704,6 +754,11 @@ export default function SalesView({
                                     <TableCell className="p-4">
                                       <span className="text-[9px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded uppercase tracking-wider max-w-[140px] truncate block text-center">
                                         {lead.source?.split(":")[0] || lead.source || 'Unknown'}
+                                      </span>
+                                    </TableCell>
+                                    <TableCell className="p-4">
+                                      <span className="text-[11px] text-gray-300 font-medium flex items-center gap-1">
+                                        👤 {lead.assigned_to || 'Unassigned'}
                                       </span>
                                     </TableCell>
                                     <TableCell className="p-4 text-center">
@@ -877,11 +932,11 @@ export default function SalesView({
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-3 gap-2">
                               <div className="space-y-1">
                                 <label className="text-[10px] font-bold text-gray-450 uppercase">Status Stage</label>
                                 <Select value={editStatus} onValueChange={val => setEditStatus(val || 'captured')}>
-                                  <SelectTrigger className="bg-gray-950 border-gray-800 h-8 text-xs text-gray-300 rounded-lg">
+                                  <SelectTrigger className="bg-gray-950 border-gray-800 h-8 text-xs text-gray-305 rounded-lg">
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent className="bg-gray-950 border-gray-800 text-gray-300">
@@ -892,6 +947,22 @@ export default function SalesView({
                                     <SelectItem value="meeting_scheduled">Meeting Booked</SelectItem>
                                     <SelectItem value="won">Closed Won</SelectItem>
                                     <SelectItem value="lost">Closed Lost</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-450 uppercase">Assigned To</label>
+                                <Select value={editAssignedTo} onValueChange={val => setEditAssignedTo(val || 'Sales AI Agent')}>
+                                  <SelectTrigger className="bg-gray-955 border-gray-800 h-8 text-xs text-gray-305 rounded-lg">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-gray-950 border-gray-800 text-gray-300">
+                                    <SelectItem value="Sales AI Agent">Sales AI Agent</SelectItem>
+                                    {members.map(member => (
+                                      <SelectItem key={member.id} value={member.name || member.email}>
+                                        {member.name || member.email}
+                                      </SelectItem>
+                                    ))}
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -930,6 +1001,26 @@ export default function SalesView({
                           /* View Details Mode */
                           <div className="space-y-5">
                             
+                            {/* Ownership & Sourcing Card */}
+                            <div className="space-y-2.5 bg-gray-900/40 p-4 rounded-2xl border border-gray-850">
+                              <div className="flex items-center gap-2 text-xs font-bold text-white border-b border-gray-800/60 pb-1.5">
+                                <Users size={13} className="text-emerald-400" /> Ownership & Sourcing
+                              </div>
+                              <div className="space-y-1.5 text-xs text-gray-350">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] text-gray-450 font-semibold">Sourced From:</span>
+                                  <span className="font-semibold text-white bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded uppercase text-[9px]">{selectedLead.source || 'Manual Entry'}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] text-gray-450 font-semibold">Managed By:</span>
+                                  <span className="font-semibold text-white bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] flex items-center gap-1">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                                    {selectedLead.assigned_to || 'Sales AI Agent'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
                             {/* Contact Card */}
                             <div className="space-y-2.5 bg-gray-900/40 p-4 rounded-2xl border border-gray-850">
                               <div className="flex items-center gap-2 text-xs font-bold text-white border-b border-gray-800/60 pb-1.5">
@@ -1240,20 +1331,33 @@ export default function SalesView({
                                 <div className="space-y-3 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-[1px] before:bg-gray-800">
                                   {selectedLead.data.conversation.map((msg: any, index: number) => (
                                     <div key={index} className="flex gap-3 relative z-10 text-xs">
-                                      <div className={`h-6.5 w-6.5 rounded-full flex items-center justify-center text-[10px] shadow border ${
-                                        msg.direction === 'outbound' 
-                                          ? 'bg-blue-600/15 border-blue-500/20 text-blue-400' 
-                                          : 'bg-emerald-600/15 border-emerald-500/20 text-emerald-400'
+                                      <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs shadow border ${
+                                        msg.author?.includes('AI')
+                                          ? 'bg-purple-600/15 border-purple-500/20 text-purple-400'
+                                          : msg.direction === 'outbound' 
+                                            ? 'bg-blue-600/15 border-blue-500/20 text-blue-400' 
+                                            : msg.direction === 'inbound'
+                                              ? 'bg-emerald-600/15 border-emerald-500/20 text-emerald-400'
+                                              : 'bg-amber-600/15 border-amber-500/20 text-amber-450'
                                       }`}>
-                                        ➔
+                                        {msg.author?.includes('AI') ? '🤖' : '👤'}
                                       </div>
                                       <div className="flex-1 bg-gray-900/35 border border-gray-850 p-3 rounded-2xl shadow">
                                         <div className="flex justify-between items-center gap-2">
-                                          <span className="font-bold text-white capitalize text-[11px] flex items-center gap-1.5">
-                                            {msg.direction === 'outbound' ? 'Outbound' : 'Inbound'}
+                                          <span className="font-bold text-white capitalize text-[11px] flex items-center gap-1.5 flex-wrap">
+                                            {msg.direction === 'outbound' ? 'Outbound' : msg.direction === 'inbound' ? 'Inbound' : 'Note'}
                                             <span className="text-[9px] bg-gray-800 text-gray-455 border border-gray-750 px-1.5 py-0.5 rounded font-mono uppercase">
                                               {msg.channel || 'smtp'}
                                             </span>
+                                            {msg.author && (
+                                              <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold border ${
+                                                msg.author.includes('AI') 
+                                                  ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' 
+                                                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                              }`}>
+                                                {msg.author}
+                                              </span>
+                                            )}
                                           </span>
                                           <span className="text-[9px] text-gray-450 font-mono">
                                             {msg.at ? new Date(msg.at).toLocaleDateString() : 'Just now'}
@@ -1379,6 +1483,23 @@ export default function SalesView({
                   <SelectItem value="meeting_scheduled">Meeting Scheduled</SelectItem>
                   <SelectItem value="won">Won</SelectItem>
                   <SelectItem value="lost">Lost</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Assignee */}
+            <div className="flex flex-col gap-1 md:col-span-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Assignee</label>
+              <Select value={newLeadAssignedTo} onValueChange={val => setNewLeadAssignedTo(val || 'Sales AI Agent')}>
+                <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-950 border-gray-800 text-white">
+                  <SelectItem value="Sales AI Agent">Sales AI Agent (Automated)</SelectItem>
+                  {members.map(member => (
+                    <SelectItem key={member.id} value={member.name || member.email}>
+                      {member.name || member.email}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

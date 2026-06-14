@@ -88,8 +88,22 @@ def client(db):
     def override_get_current_tenant_id():
         return tenant_id_override_store["tenant_id"] or "test-tenant-id"
         
+    def override_get_current_user():
+        from app.models.base import User
+        return User(
+            id="test-user-id",
+            email="test@example.com",
+            name="Test Human Agent",
+            tenant_id=tenant_id_override_store["tenant_id"] or "test-tenant-id",
+            role="admin",
+            is_verified=True,
+            is_active=True
+        )
+
+    from app.api.deps import get_current_user
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_tenant_id] = override_get_current_tenant_id
+    app.dependency_overrides[get_current_user] = override_get_current_user
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()

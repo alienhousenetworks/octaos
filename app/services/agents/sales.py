@@ -75,7 +75,8 @@ class SalesAgent(BaseAgent):
                     how_much=data.get("how_much"),
                     why=data.get("why"),
                     target_context=data.get("target_context"),
-                    priority=data.get("priority", "medium")
+                    priority=data.get("priority", "medium"),
+                    assigned_to="Sales AI Agent"
                 )
                 self.db.add(lead)
                 self.db.flush()
@@ -278,6 +279,7 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
                     "channel": channel,
                     "content": outbound_body,
                     "subject": outbound_subject,
+                    "author": "Sales AI Agent",
                     "at": datetime.now(timezone.utc).isoformat(),
                 }
             )

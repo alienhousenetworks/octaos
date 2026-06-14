@@ -26,6 +26,7 @@ class Lead(Base):
     why = Column(Text, nullable=True)
     target_context = Column(Text, nullable=True)
     priority = Column(String, default="medium")
+    assigned_to = Column(String, default="Sales AI Agent", nullable=True)
     data = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

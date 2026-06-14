@@ -19,6 +19,7 @@ class LeadBase(BaseModel):
     priority: Optional[str] = "medium"
     status: Optional[str] = "captured"
     score: Optional[int] = 0
+    assigned_to: Optional[str] = "Sales AI Agent"
 
 class LeadCreate(LeadBase):
     pass

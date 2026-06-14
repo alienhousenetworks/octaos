@@ -39,6 +39,7 @@ def read_leads(
     priority: Optional[str] = None,
     search: Optional[str] = None,
     time_filter: Optional[str] = None,
+    assigned_to: Optional[str] = None,
     skip: int = 0,
     limit: int = 100
 ) -> Any:
@@ -48,6 +49,8 @@ def read_leads(
         query = query.filter(models.Lead.status == status)
     if priority and priority != "all":
         query = query.filter(models.Lead.priority == priority)
+    if assigned_to and assigned_to != "all":
+        query = query.filter(models.Lead.assigned_to == assigned_to)
     if search:
         search_filter = f"%{search}%"
         query = query.filter(
@@ -108,6 +111,7 @@ async def generate_outreach(
             "channel": "smtp",
             "content": message,
             "subject": f"Partnership Opportunity - {lead.company}",
+            "author": "Sales AI Agent",
             "at": datetime.utcnow().isoformat()
         })
         lead.data = {
@@ -143,6 +147,7 @@ async def schedule_meeting(
         "channel": "google_calendar",
         "content": f"Meeting scheduled for {meeting_time}. Join link: {meeting_link}",
         "subject": "Meeting Confirmation",
+        "author": "Sales AI Agent",
         "at": datetime.utcnow().isoformat()
     })
     lead.data = {
@@ -292,19 +297,23 @@ class TimelineNoteRequest(BaseModel):
     content: str
     channel: Optional[str] = "note"
     direction: Optional[str] = "internal"
+    author: Optional[str] = None
 
 
 @router.post("/{lead_id}/timeline-note", response_model=schemas.Lead)
 def add_timeline_note(
     *,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: Any = Depends(deps.get_current_user),
     lead_id: str,
     req: TimelineNoteRequest
 ) -> Any:
+    tenant_id = current_user.tenant_id
     lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+        
+    author_name = req.author or current_user.name or current_user.email or "Human Agent"
         
     conv = list((lead.data or {}).get("conversation") or [])
     conv.append({
@@ -312,6 +321,7 @@ def add_timeline_note(
         "channel": req.channel or "note",
         "content": req.content,
         "subject": "Human Update",
+        "author": author_name,
         "at": datetime.utcnow().isoformat()
     })
     

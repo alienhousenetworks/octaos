@@ -104,6 +104,7 @@ def startup_db_check():
                 "why": "TEXT",
                 "target_context": "TEXT",
                 "priority": "VARCHAR DEFAULT 'medium'",
+                "assigned_to": "VARCHAR DEFAULT 'Sales AI Agent'",
                 "updated_at": "TIMESTAMP"
             }
             with engine.begin() as conn:
