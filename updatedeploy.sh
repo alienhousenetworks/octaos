@@ -49,13 +49,27 @@ if git rev-parse --git-dir &>/dev/null; then
   BRANCH=$(git rev-parse --abbrev-ref HEAD)
   info "Fetching latest changes from Git..."
   git fetch --all
+  BEFORE=$(git rev-parse HEAD)
   info "Pulling latest from branch: $BRANCH"
   if ! git pull origin "$BRANCH"; then
     warn "Git pull failed. You might have uncommitted local changes on the VPS."
     warn "To overwrite local changes and pull:  git reset --hard origin/$BRANCH"
     warn "Continuing deployment with existing code..."
   else
+    AFTER=$(git rev-parse HEAD)
     success "Code pulled successfully"
+    if [[ "$BEFORE" != "$AFTER" ]]; then
+      info "Changed files in this update:"
+      git diff --name-only "$BEFORE" "$AFTER" | while read -r f; do
+        if [[ "$f" == frontend/* ]]; then
+          echo -e "  ${CYAN}[FRONTEND]${NC} $f"
+        else
+          echo -e "  ${YELLOW}[BACKEND]${NC}  $f"
+        fi
+      done
+    else
+      info "No new commits – code is already up-to-date"
+    fi
   fi
 else
   warn "Not a git repository – skipping pull"
@@ -86,10 +100,16 @@ header "Updating & Building Frontend"
 if [[ -d "$FRONTEND_DIR" ]]; then
   cd "$FRONTEND_DIR"
   
-  # Ensure frontend .env.local matches config
+  # Ensure frontend .env.local has the correct API URL.
+  # Derives from NEXT_PUBLIC_API_URL if set in .env, otherwise falls back to PUBLIC_BASE_URL/api/v1
+  RESOLVED_API_URL="${NEXT_PUBLIC_API_URL:-${PUBLIC_BASE_URL:-}/api/v1}"
+  if [[ -z "$RESOLVED_API_URL" || "$RESOLVED_API_URL" == "/api/v1" ]]; then
+    error "Neither NEXT_PUBLIC_API_URL nor PUBLIC_BASE_URL is set in .env – cannot build frontend correctly."
+  fi
   cat > "$FRONTEND_DIR/.env.local" <<EOF
-NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+NEXT_PUBLIC_API_URL=${RESOLVED_API_URL}
 EOF
+  info "Frontend API URL set to: $RESOLVED_API_URL"
 
   info "Installing frontend dependencies..."
   npm ci --silent || npm install --silent
@@ -109,6 +129,9 @@ EOF
 else
   warn "Frontend directory not found at $FRONTEND_DIR – skipping frontend build"
 fi
+
+# Always return to APP_DIR after frontend work
+cd "$APP_DIR"
 
 # =============================================================================
 # 5. Restart Systemd Services & Nginx
