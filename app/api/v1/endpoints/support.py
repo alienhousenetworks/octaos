@@ -16,11 +16,6 @@ class SettingsRequest(BaseModel):
     whatsapp_auto_reply: bool
     email_auto_reply: bool
 
-class SimulateRequest(BaseModel):
-    channel: str # whatsapp or email
-    sender: str
-    content: str
-    subject: Optional[str] = None
 
 class EmailWebhookRequest(BaseModel):
     sender: str
@@ -113,30 +108,6 @@ def save_support_settings(
     db.commit()
     return {"status": "success", "settings": cred.settings}
 
-@router.post("/simulate")
-async def simulate_incoming(
-    payload: SimulateRequest,
-    db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
-) -> Any:
-    from app.services.agents.support import is_simulation_allowed, SupportAgent
-    if not is_simulation_allowed():
-        raise HTTPException(
-            status_code=400,
-            detail="Simulation is disabled (ALLOW_SIMULATION is set to false/off). Official webhooks and API credentials must be used."
-        )
-    
-    agent = SupportAgent(db, tenant_id)
-    try:
-        res = await agent.handle_incoming_message(
-            channel=payload.channel,
-            sender=payload.sender,
-            content=payload.content,
-            subject=payload.subject
-        )
-        return res
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/whatsapp/webhook/{tenant_id}")
 def verify_whatsapp_webhook(

@@ -85,12 +85,12 @@ async def create_manual_meeting(
     db.add(log)
     db.commit()
 
-    # Trigger simulation asynchronously
+    # Trigger meeting asynchronously
     try:
         celery_app.send_task("run_boardroom_meeting_task", args=[tenant_id, meeting.id])
     except Exception as e:
         print(f"Failed to queue celery task. Running in FastAPI background task: {e}")
         service = BoardroomService(db, tenant_id)
-        background_tasks.add_task(service.run_simulation, meeting.id)
+        background_tasks.add_task(service.run_meeting, meeting.id)
 
     return meeting

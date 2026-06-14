@@ -47,97 +47,37 @@ def client(db):
         yield c
     app.dependency_overrides.clear()
 
-@patch("app.services.llm_gateway.LLMGateway.complete")
-def test_simulate_endpoint_allowed(mock_complete, client, db):
-    # Ensure ALLOW_SIMULATION is set to true
-    with patch.dict(os.environ, {"ALLOW_SIMULATION": "true"}):
-        mock_complete.return_value = "This is a simulated AI response."
-        
-        # Intercept send_task to capture args instead of running inside the request loop
-        calls = []
-        def sync_send_task(name, args=None, kwargs=None, **opts):
-            if name == "auto_reply_task":
-                calls.append(args)
-            return None
 
-        with patch("app.core.celery_app.celery_app.send_task", side_effect=sync_send_task):
-            tenant_id = "test-tenant-id"
-            tenant_id_override_store["tenant_id"] = tenant_id
-
-            # Call simulate endpoint for WhatsApp
-            response = client.post(
-                "/api/v1/support/simulate",
-                json={
-                    "channel": "whatsapp",
-                    "sender": "+1234567890",
-                    "content": "Hello, I need help"
-                }
-            )
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "success"
-            
-        # Execute the Celery task synchronously outside the request's event loop using test DB
-        from app.worker.tasks import auto_reply_task
-        with patch("app.worker.tasks.SessionLocal", TestingSessionLocal):
-            for args in calls:
-                auto_reply_task(*args)
-            
-        # Verify ticket and messages in DB
-        ticket = db.query(Ticket).filter(Ticket.id == data["ticket_id"]).first()
-        assert ticket is not None
-        assert ticket.channel == "whatsapp"
-        assert ticket.customer_contact == "+1234567890"
-
-        messages = db.query(TicketMessage).filter(TicketMessage.ticket_id == ticket.id).all()
-        assert len(messages) == 2
-        assert messages[0].sender == "customer"
-        assert messages[0].content == "Hello, I need help"
-        assert messages[1].sender == "agent"
-        assert messages[1].content == "This is a simulated AI response."
 
 @pytest.mark.asyncio
-async def test_simulate_endpoint_disabled(client, db):
-    # Ensure ALLOW_SIMULATION is set to false
-    with patch.dict(os.environ, {"ALLOW_SIMULATION": "false"}):
-        tenant_id = "test-tenant-id"
-        tenant_id_override_store["tenant_id"] = tenant_id
-
-        # Call simulate endpoint should fail with 400
-        response = client.post(
-            "/api/v1/support/simulate",
-            json={
-                "channel": "whatsapp",
-                "sender": "+1234567890",
-                "content": "Hello, I need help"
-            }
-        )
-        assert response.status_code == 400
-        assert "Simulation is disabled" in response.json()["detail"]
-
-@pytest.mark.asyncio
-async def test_incoming_webhook_no_simulation_missing_credentials(client, db):
-    with patch.dict(os.environ, {"ALLOW_SIMULATION": "false"}):
-        tenant_id = "test-tenant"
-        tenant_id_override_store["tenant_id"] = tenant_id
-        
-        # Webhook should fail because Meta credentials are not configured
-        response = client.post(
-            "/api/v1/support/email/webhook/test-tenant",
-            json={
-                "sender": "customer@example.com",
-                "subject": "Missing keys test",
-                "content": "Please help"
-            }
-        )
-        assert response.status_code == 400
-        assert "SMTP/Email credentials" in response.json()["detail"]
+async def test_incoming_webhook_missing_credentials(client, db):
+    tenant_id = "test-tenant"
+    tenant_id_override_store["tenant_id"] = tenant_id
+    
+    # Webhook should fail because Meta credentials are not configured
+    response = client.post(
+        "/api/v1/support/email/webhook/test-tenant",
+        json={
+            "sender": "customer@example.com",
+            "subject": "Missing keys test",
+            "content": "Please help"
+        }
+    )
+    assert response.status_code == 400
+    assert "SMTP/Email credentials" in response.json()["detail"]
 
 @pytest.mark.asyncio
 @patch("app.core.celery_app.celery_app.send_task")
 async def test_delay_times_by_channel(mock_send_task, client, db):
     tenant_id = "test-tenant"
     tenant_id_override_store["tenant_id"] = tenant_id
+    
+    # Add dummy credentials
+    from app.models.base import APICredential
+    cred_whatsapp = APICredential(tenant_id=tenant_id, provider="meta", encrypted_key="token123", settings={"phone_number_id": "123"})
+    cred_smtp = APICredential(tenant_id=tenant_id, provider="smtp", encrypted_key="token123", settings={"smtp_server": "localhost", "smtp_port": 25, "smtp_username": "user"})
+    db.add_all([cred_whatsapp, cred_smtp])
+    db.commit()
     
     agent = SupportAgent(db, tenant_id)
     
@@ -167,6 +107,12 @@ async def test_delay_times_by_channel(mock_send_task, client, db):
 async def test_collision_prevention_agent_replied(mock_complete, client, db):
     tenant_id = "test-tenant-id"
     tenant_id_override_store["tenant_id"] = tenant_id
+    
+    # Add dummy credentials
+    from app.models.base import APICredential
+    cred_whatsapp = APICredential(tenant_id=tenant_id, provider="meta", encrypted_key="token123", settings={"phone_number_id": "123"})
+    db.add(cred_whatsapp)
+    db.commit()
     agent = SupportAgent(db, tenant_id)
     
     # Customer sends message -> Creates ticket and queues auto-reply

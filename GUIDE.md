@@ -187,7 +187,6 @@ When a lead has been contacted, **replies are handled by Sales AI** (not Support
 3. Ensure lead **email** or **phone** matches the sender exactly.
 4. Run Celery worker + beat.
 
-Demo simulation is **off** by default. Set `ALLOW_SALES_REPLY_SIMULATION=true` only to re-enable fake prospect replies.
 
 ### 4. Email & Bookings (Google Workspace / Gmail / Calendar / SMTP)
 *Allows outreach agents to send emails and schedule meetings.*

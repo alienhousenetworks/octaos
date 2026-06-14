@@ -442,7 +442,7 @@ def run_boardroom_meeting_task(tenant_id: str, meeting_id: str):
     db = SessionLocal()
     try:
         service = BoardroomService(db, tenant_id)
-        async_to_sync(service.run_simulation)(meeting_id)
+        async_to_sync(service.run_meeting)(meeting_id)
     except Exception as e:
         print(f"Error in run_boardroom_meeting_task: {e}")
         raise e
@@ -464,8 +464,8 @@ def check_ticket_coordination_task(tenant_id: str, ticket_id: str):
     finally:
         db.close()
 
-@celery_app.task(name="execute_simulated_batch_task")
-def execute_simulated_batch_task(batch_id: str):
+@celery_app.task(name="execute_local_batch_task")
+def execute_local_batch_task(batch_id: str):
     from app.models.base import AIBatchJob
     from app.services.ai_gateway import ai_gateway
     from datetime import datetime, timezone

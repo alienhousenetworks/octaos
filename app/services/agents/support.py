@@ -15,10 +15,6 @@ from app.core.celery_app import celery_app
 from app.services.notifications.telegram import send_telegram_notification
 import asyncio
 
-def is_simulation_allowed() -> bool:
-    # Default to true, but if explicitly set to off/false/no/0, return False
-    val = os.getenv("ALLOW_SIMULATION", "true").lower()
-    return val not in ("false", "off", "0", "no")
 
 class SupportAgent(BaseAgent):
     def __init__(self, db, tenant_id):
@@ -108,9 +104,8 @@ class SupportAgent(BaseAgent):
                 "lead_id": sales_route.get("lead_id"),
             }
 
-        # 1. Validation check if simulation is disabled
-        if not is_simulation_allowed():
-            self.validate_credentials(channel)
+        # 1. Validation check for credentials
+        self.validate_credentials(channel)
 
         # 2. Look for existing open ticket for sender on this channel
         ticket = self.db.query(Ticket).filter(
@@ -245,22 +240,10 @@ class SupportAgent(BaseAgent):
         self.log_activity("Auto-Reply Sent", f"Auto-reply sent for ticket #{ticket.id[:8]} via {channel}.")
 
     async def send_message(self, channel: str, recipient: str, content: str):
-        is_sim = is_simulation_allowed()
-        
         if channel == "whatsapp":
-            cred = self.db.query(APICredential).filter(
-                APICredential.tenant_id == self.tenant_id,
-                APICredential.provider == "meta",
-            ).first()
-
+            cred = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id, provider="meta").first()
             token, _ = get_decrypted_credential(self.db, self.tenant_id, "meta")
             if not cred or not token or not cred.settings or not cred.settings.get("phone_number_id"):
-                if is_sim:
-                    self.log_activity(
-                        "WhatsApp Sent (Simulation)",
-                        f"Simulated sending WhatsApp to {recipient}: {content[:60]}...",
-                    )
-                    return
                 raise ValueError("WhatsApp Meta API credentials are not configured.")
 
             phone_number_id = cred.settings.get("phone_number_id")
@@ -290,11 +273,7 @@ class SupportAgent(BaseAgent):
             ).first()
             
             if not cred or not cred.encrypted_key or not cred.settings or not cred.settings.get("smtp_server"):
-                if is_sim:
-                    self.log_activity("Email Sent (Simulation)", f"Simulated sending email to {recipient}: {content[:60]}...")
-                    return
-                else:
-                    raise ValueError("SMTP/Email credentials are not configured.")
+                raise ValueError("SMTP/Email credentials are not configured.")
             
             smtp_server = cred.settings.get("smtp_server")
             smtp_port = int(cred.settings.get("smtp_port", 587))

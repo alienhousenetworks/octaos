@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 import httpx
 from app.core.security import decrypt_api_key
 from app.services.sales.meeting_booking import book_meeting_for_lead
-from app.services.sales.reply_handler import is_sales_simulation_allowed
 from app.services.credentials import get_decrypted_credential
 from app.services.email.sender import parse_smtp_credentials, send_smtp_email, send_gmail_email
 
@@ -36,31 +35,22 @@ class SalesAgent(BaseAgent):
         
         self.log_activity("Lead Sourcing", f"Sourcing {count} leads using {provider} for query: '{query}'")
         
-        # Check if we should do simulated lead generation
-        use_fallback = False
         leads_data = []
 
-        if provider in ["free_search", "free_places"]:
-            use_fallback = True
-        else:
-            # Check for API credentials
-            cred = self.db.query(APICredential).filter_by(
-                tenant_id=self.tenant_id, provider=provider
-            ).first()
-            
-            if not cred or "your_api_key" in (cred.encrypted_key or "") or not cred.encrypted_key.strip():
-                self.log_activity("Auth Warning", f"API credentials for {provider} not found or invalid. Falling back to legal free public scraping simulation.", "pending")
-                use_fallback = True
-            else:
-                # Actual API calls
-                try:
-                    leads_data = await self._fetch_real_leads(provider, decrypt_api_key(cred.encrypted_key), query, count)
-                except Exception as e:
-                    self.log_activity("API Error", f"Failed fetching from {provider}: {str(e)}. Falling back to simulation.", "pending")
-                    use_fallback = True
-
-        if use_fallback:
-            leads_data = await self._generate_simulated_leads(query, count)
+        # Check for API credentials
+        cred = self.db.query(APICredential).filter_by(
+            tenant_id=self.tenant_id, provider=provider
+        ).first()
+        
+        if not cred or "your_api_key" in (cred.encrypted_key or "") or not cred.encrypted_key.strip():
+            self.log_activity("Auth Error", f"API credentials for {provider} not found or invalid. Cannot generate leads.", "failed")
+            return {"status": "error", "message": f"Missing credentials for {provider}"}
+        
+        try:
+            leads_data = await self._fetch_real_leads(provider, decrypt_api_key(cred.encrypted_key), query, count)
+        except Exception as e:
+            self.log_activity("API Error", f"Failed fetching from {provider}: {str(e)}.", "failed")
+            return {"status": "error", "message": str(e)}
 
         # Write leads to DB
         created_count = 0
@@ -160,63 +150,7 @@ class SalesAgent(BaseAgent):
             raise Exception("No results returned or invalid API response.")
         return leads
 
-    async def _generate_simulated_leads(self, query: str, count: int) -> list:
-        prompt = f"""Generate exactly {count} highly realistic business leads for search query: '{query}'.
-The leads must look extremely authentic, with plausible names, company domains, verified-looking email formats, and contact details.
-For each lead, you must also generate:
-- personal_email (distinct from company email, e.g. @gmail.com)
-- company_email
-- mobile_no
-- company_contact_no
-- need_of_what (what product/service they need from us)
-- how_much (budget range, e.g. "$5,000 - $10,000" or similar)
-- why (reason/pain point for their need)
-- target_context (background details, size of the company, recent developments)
-- priority (one of: 'low', 'medium', 'high')
 
-Output a JSON array only. Do not add markdown formatting or conversational text outside of the JSON.
-JSON format:
-[
-  {{
-    "name": "Contact Name",
-    "email": "name@company.com",
-    "company": "Company LLC",
-    "personal_email": "personal@gmail.com",
-    "company_email": "name@company.com",
-    "phone": "+1-555-019-2834",
-    "mobile_no": "+1-555-019-2834",
-    "company_contact_no": "+1-555-019-2222",
-    "need_of_what": "AI customer support automation",
-    "how_much": "$10,000/year",
-    "why": "Experiencing high ticket volume and long response times",
-    "target_context": "SaaS company with 50 employees expanding to EU market",
-    "priority": "high"
-  }}
-]"""
-        response = await self.llm.complete(prompt=prompt, provider="anthropic", model="claude-3-haiku-20240307")
-        try:
-            cleaned = response.strip().strip("```json").strip("```").strip()
-            return json.loads(cleaned)
-        except Exception:
-            # Fallback hardcoded if LLM parsing errors
-            return [
-                {
-                    "name": f"Lead Professional {i+1}",
-                    "email": f"contact{i+1}@domain-{query.replace(' ', '')}.com",
-                    "phone": f"+1-555-010-{1000 + i}",
-                    "company": f"{query.capitalize()} Solutions {i+1}",
-                    "personal_email": f"personal_{i+1}@gmail.com",
-                    "company_email": f"contact{i+1}@domain-{query.replace(' ', '')}.com",
-                    "mobile_no": f"+1-555-010-{1000 + i}",
-                    "company_contact_no": f"+1-555-010-{2000 + i}",
-                    "need_of_what": "Sales lead nurturing AI tool",
-                    "how_much": "$5,000/year",
-                    "why": "Sales reps manual outreach bottleneck",
-                    "target_context": "Growth stage logistics company",
-                    "priority": "medium"
-                }
-                for i in range(count)
-            ]
 
     async def _sales_outreach(self, params: dict):
         channel = params.get("channel", "smtp")
@@ -244,9 +178,8 @@ JSON format:
             ).first()
             if cred and cred.encrypted_key:
                 smtp_credentials = parse_smtp_credentials(decrypt_api_key(cred.encrypted_key))
-            
             if not smtp_credentials:
-                self.log_activity("SMTP Credentials Missing", "No SMTP server details configured. Outgoing mail will be simulated.", "pending")
+                self.log_activity("SMTP Credentials Missing", "No SMTP server details configured. Outgoing mail will fail.", "failed")
         elif channel == "gmail":
             cred = self.db.query(APICredential).filter_by(
                 tenant_id=self.tenant_id, provider="gmail"
@@ -257,7 +190,7 @@ JSON format:
                 except:
                     pass
             if not gmail_credentials:
-                self.log_activity("Gmail Credentials Missing", "No Gmail OAuth details configured. Outgoing mail will be simulated.", "pending")
+                self.log_activity("Gmail Credentials Missing", "No Gmail OAuth details configured. Outgoing mail will fail.", "failed")
 
         sent_count = 0
         for lead in leads:
@@ -293,7 +226,7 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
                         smtp_credentials, lead.email, outbound_subject, outbound_body
                     )
                 except Exception as e:
-                    self.log_activity("SMTP Send Fail", f"SMTP error for {lead.email}: {str(e)}. Simulating outreach instead.", "pending")
+                    self.log_activity("SMTP Send Fail", f"SMTP error for {lead.email}: {str(e)}.", "failed")
             elif channel == "gmail" and gmail_credentials:
                 try:
                     result = send_gmail_email(
@@ -307,7 +240,7 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
                             "gmail_message_id": result.get("message_id"),
                         }
                 except Exception as e:
-                    self.log_activity("Gmail Send Fail", f"Gmail error for {lead.email}: {str(e)}. Simulating outreach instead.", "pending")
+                    self.log_activity("Gmail Send Fail", f"Gmail error for {lead.email}: {str(e)}.", "failed")
             elif channel == "whatsapp" and lead.phone:
                 from app.services.agents.support import SupportAgent
 
@@ -324,11 +257,18 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
                     )
 
             if not sent_successfully:
-                # Log simulated send
                 self.log_activity(
-                    f"Outreach Sent ({channel.upper()})",
-                    f"Message to: {lead.name} ({lead.email}). Subject: '{outbound_subject}'"
+                    f"Outreach Failed ({channel.upper()})",
+                    f"Failed to send to: {lead.name} ({lead.email}).",
+                    "failed"
                 )
+                continue
+            
+            self.log_activity(
+                f"Outreach Sent ({channel.upper()})",
+                f"Message to: {lead.name} ({lead.email}). Subject: '{outbound_subject}'",
+                "success"
+            )
 
             lead.status = "contacted"
             conv = list((lead.data or {}).get("conversation") or [])
@@ -391,52 +331,12 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
             self.log_activity(
                 "Awaiting Real Replies",
                 f"{waiting} leads contacted — meetings book automatically when they reply "
-                "(email webhook, WhatsApp webhook, or Gmail poll). "
-                "Set ALLOW_SALES_REPLY_SIMULATION=true only for demo mode.",
+                "(email webhook, WhatsApp webhook, or Gmail poll).",
                 "success",
             )
 
-        if is_sales_simulation_allowed():
-            return await self._schedule_meeting_simulated(params)
-
         self.db.commit()
         return {"status": "success", "booked_meetings": booked_count, "awaiting_replies": waiting}
-
-    async def _schedule_meeting_simulated(self, params: dict):
-        """Demo-only fallback when ALLOW_SALES_REPLY_SIMULATION=true."""
-        tool = params.get("tool", "google_calendar")
-        leads = (
-            self.db.query(Lead)
-            .filter(Lead.tenant_id == self.tenant_id, Lead.status == "contacted")
-            .all()
-        )
-        booked_count = 0
-        for lead in leads:
-            outbound_msg = (lead.data or {}).get("outbound_body", "")
-            prompt = f"""Simulate a prospect reply (demo only) for {lead.name} at {lead.company}.
-Outreach sent:
-{outbound_msg}
-Output JSON: interested (bool), reply_message (str), suggested_time (str or null)."""
-            response = await self.llm.complete(
-                prompt=prompt, provider="anthropic", model="claude-3-haiku-20240307"
-            )
-            try:
-                cleaned = response.strip().strip("```json").strip("```").strip()
-                parsed = json.loads(cleaned)
-            except Exception:
-                parsed = {"interested": False, "reply_message": "", "suggested_time": None}
-            lead.data = {**(lead.data or {}), "prospect_reply": parsed.get("reply_message", ""), "prospect_interested": parsed.get("interested", False)}
-            if parsed.get("interested") and book_meeting_for_lead(
-                self.db,
-                self.tenant_id,
-                lead,
-                tool=tool,
-                suggested_time=parsed.get("suggested_time"),
-                log_activity=self.log_activity,
-            ):
-                booked_count += 1
-        self.db.commit()
-        return {"status": "success", "booked_meetings": booked_count, "mode": "simulated"}
 
     async def daily_routine(self):
         self.log_activity("Daily Routine", "Checking active lead outreach campaigns.", status="success")

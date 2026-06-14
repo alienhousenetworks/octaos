@@ -50,15 +50,15 @@ class BatchExecutionEngine:
                 job.provider_batch_id = provider_batch_id
                 db.commit()
             except Exception as e:
-                logger.error(f"Failed to submit native batch: {e}. Falling back to simulated batching.")
-                # Fallback to simulation
-                from app.worker.tasks import execute_simulated_batch_task
-                execute_simulated_batch_task.delay(batch_id)
+                logger.error(f"Failed to submit native batch: {e}. Falling back to local batching.")
+                # Fallback to local
+                from app.worker.tasks import execute_local_batch_task
+                execute_local_batch_task.delay(batch_id)
         else:
-            # Simulate batch execution using Celery worker
-            logger.info(f"Simulating batch job {batch_id} for {job.provider} / {job.model} via Celery...")
-            from app.worker.tasks import execute_simulated_batch_task
-            execute_simulated_batch_task.delay(batch_id)
+            # Execute local batch using Celery worker
+            logger.info(f"Executing local batch job {batch_id} for {job.provider} / {job.model} via Celery...")
+            from app.worker.tasks import execute_local_batch_task
+            execute_local_batch_task.delay(batch_id)
 
         return job
 
@@ -125,6 +125,6 @@ class BatchExecutionEngine:
         job.failed_tasks = 0
         db.commit()
 
-        # Re-trigger simulated task queue
-        from app.worker.tasks import execute_simulated_batch_task
-        execute_simulated_batch_task.delay(batch_id)
+        # Re-trigger local task queue
+        from app.worker.tasks import execute_local_batch_task
+        execute_local_batch_task.delay(batch_id)

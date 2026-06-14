@@ -74,7 +74,8 @@ async def test_boardroom_inquiry_classification(mock_complete, db):
 
 @pytest.mark.asyncio
 @patch("app.services.llm_gateway.LLMGateway.complete")
-async def test_run_simulation_and_execute_actions(mock_complete, db):
+@patch("app.services.agents.support.SupportAgent.send_message", new_callable=AsyncMock)
+async def test_run_meeting_and_execute_actions(mock_send_message, mock_complete, db):
     # Mock LLM complete returns for different agents in the turn loop
     # Turn 1: Support AI intro
     # Turn 2: Sales AI recommendation
@@ -98,6 +99,11 @@ async def test_run_simulation_and_execute_actions(mock_complete, db):
         approval_status="pending"
     )
     db.add(ticket)
+    
+    from app.models.base import APICredential
+    cred_smtp = APICredential(tenant_id=tenant_id, provider="smtp", encrypted_key="smtp://user:pass@host:25", settings={"smtp_server": "localhost", "smtp_port": 25, "smtp_username": "user"})
+    db.add(cred_smtp)
+    
     db.commit()
     
     classification = {
@@ -110,8 +116,8 @@ async def test_run_simulation_and_execute_actions(mock_complete, db):
     assert meeting is not None
     assert meeting.status == "active"
     
-    # Run simulation
-    await service.run_simulation(meeting.id)
+    # Run meeting
+    await service.run_meeting(meeting.id)
     
     # Refresh meeting from DB
     db.refresh(meeting)

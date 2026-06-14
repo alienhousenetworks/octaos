@@ -40,31 +40,27 @@ Available Agents & Actions:
   - "create_posts": parameters: {{"days": int, "topic": str, "platforms": list}}
   - "generate_campaign": parameters: {{"topic": str, "days": int, "platforms": list, "text_provider": str, "image_provider": str, "video_provider": str, "generate_images": bool, "generate_videos": bool}}
 - Sales:
-  - "generate_leads": parameters: {{"provider": "apollo" | "hunter" | "google_places" | "free_search" | "free_places", "query": str, "count": int}}
+  - "generate_leads": parameters: {{"provider": "apollo" | "hunter" | "google_places", "query": str, "count": int}}
     * Lead Source Decision Rules:
-      - Choose "free_search" (B2B public web directories/scraping simulation) or "free_places" (local business Google Maps scraping simulation) if:
-        1. The user's prompt explicitly mentions "free", "no apollo", "no paid keys", "free sources", etc.
-        2. OR the user doesn't specify a paid platform and the keys for "apollo", "hunter", or "google_places" are NOT in the configured credentials list.
-      - If the user specifies "apollo", "hunter", or "google_places" but its key is missing and they didn't specify free, schedule "request_key" for that provider first.
-      - For local brick-and-mortar business searches (e.g. "gyms in Boston", "plumbers in Texas"), prefer "google_places" (if key configured) or "free_places" (if no key/free requested).
-      - For corporate B2B profiles (e.g. "software companies", "marketing agencies", "founders"), prefer "apollo" or "hunter" (if key configured) or "free_search" (if no key/free requested).
-  - "sales_outreach": parameters: {{"channel": "smtp" | "gmail" | "whatsapp" | "free_outreach", "subject": str, "body_template": str}}
+      - If the user specifies "apollo", "hunter", or "google_places" but its key is missing, schedule "request_key" for that provider first.
+      - For local brick-and-mortar business searches (e.g. "gyms in Boston", "plumbers in Texas"), prefer "google_places" (if key configured).
+      - For corporate B2B profiles (e.g. "software companies", "marketing agencies", "founders"), prefer "apollo" or "hunter" (if key configured).
+  - "sales_outreach": parameters: {{"channel": "smtp" | "gmail" | "whatsapp", "subject": str, "body_template": str}}
     * Outreach Channel Decision Rules:
       - If the user wants to email or contact, check if "smtp" or "gmail" key is configured. If "smtp" is configured, choose "smtp". If "gmail" is configured, choose "gmail".
       - If neither is configured but they asked to email, choose "smtp" as preferred, but if the key is missing, schedule "request_key" for "smtp".
       - If the user requests "whatsapp", check if "whatsapp" is configured. If not, schedule "request_key" for "whatsapp".
-      - If they specify "free outreach" or "simulated outreach", choose "free_outreach".
-  - "schedule_meeting": parameters: {{"tool": "google_calendar" | "free_scheduling", "count": int}}
+  - "schedule_meeting": parameters: {{"tool": "google_calendar", "count": int}}
     * Scheduling Tool Decision Rules:
-      - If "google_calendar" key is configured, choose "google_calendar". Otherwise, default to "free_scheduling".
+      - If "google_calendar" key is configured, choose "google_calendar". If not, schedule "request_key" for "google_calendar".
 - HR:
   - "source_candidates": parameters: {{"role": str, "requirements": str, "salary": str, "count": int}}
-  - "candidate_outreach": parameters: {{"channel": "smtp" | "gmail" | "free_outreach", "subject": str, "body_template": str, "candidate_id": str | None}}
+  - "candidate_outreach": parameters: {{"channel": "smtp" | "gmail", "subject": str, "body_template": str, "candidate_id": str | None}}
     * Candidate Outreach Decision Rules:
-      - If SMTP or gmail credentials aren't present in configured keys, choose "free_outreach".
-  - "schedule_interview": parameters: {{"tool": "google_calendar" | "free_scheduling", "candidate_id": str | None}}
+      - If SMTP or gmail credentials aren't present in configured keys, schedule "request_key" for "smtp".
+  - "schedule_interview": parameters: {{"tool": "google_calendar", "candidate_id": str | None}}
     * Interview Decision Rules:
-      - If "google_calendar" key is configured, choose "google_calendar", otherwise default to "free_scheduling".
+      - If "google_calendar" key is configured, choose "google_calendar". If not, schedule "request_key" for "google_calendar".
 
 - System:
   - "request_key": parameters: {{"provider": str}} - use this to ask the user for a missing key (e.g. "smtp", "apollo", "google_places", "whatsapp", etc.).

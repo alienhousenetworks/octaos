@@ -112,9 +112,9 @@ class BoardroomService:
 
         return meeting
 
-    async def run_simulation(self, meeting_id: str):
+    async def run_meeting(self, meeting_id: str):
         """
-        Runs the turn-based multi-agent discussion simulation in the boardroom.
+        Runs the turn-based multi-agent discussion in the boardroom.
         Updates the transcript in real-time in the DB so the user can watch the discussion unfold.
         """
         meeting = self.db.query(AgentMeeting).filter(AgentMeeting.id == meeting_id).first()
@@ -160,7 +160,7 @@ class BoardroomService:
         })
         meeting.transcript = transcript
         self.db.commit()
-        await asyncio.sleep(2.5) # simulated typing delay
+        await asyncio.sleep(2.5) # typing delay
 
         # Turns 2 onwards: Loop through other participants (excluding CEO AI, we keep CEO AI for last)
         non_ceo_participants = [p for p in participants if p != "CEO AI" and p != initiator]
@@ -317,7 +317,7 @@ class BoardroomService:
             action["status"] = "executing"
             meeting.action_items = actions
             self.db.commit()
-            await asyncio.sleep(2.0) # simulate execution delay
+            await asyncio.sleep(2.0) # execution delay
 
             success = False
             try:
@@ -392,7 +392,7 @@ class BoardroomService:
                             self.db.add(msg)
                             self.db.commit()
 
-                            # Send actual message (simulation/official)
+                            # Send actual message
                             from app.services.agents.support import SupportAgent
                             support_agent = SupportAgent(self.db, self.tenant_id)
                             await support_agent.send_message(ticket.channel, ticket.customer_contact, reply_msg)
@@ -424,7 +424,7 @@ class BoardroomService:
                         self.db.commit()
                         success = True
                     else:
-                        success = True # no candidate found but simulate pass
+                        success = True # no candidate found
 
                 # 4. Fallback/Default for other tasks (Finance, Marketing, etc.)
                 else:

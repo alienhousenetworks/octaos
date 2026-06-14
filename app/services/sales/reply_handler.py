@@ -13,10 +13,6 @@ from app.services.notifications.sales_alerts import send_sales_telegram
 from app.services.sales.meeting_booking import book_meeting_for_lead
 
 
-def is_sales_simulation_allowed() -> bool:
-    val = os.getenv("ALLOW_SALES_REPLY_SIMULATION", "false").lower()
-    return val in ("true", "1", "yes", "on")
-
 
 def sales_auto_reply_enabled(db: Session, tenant_id: str) -> bool:
     cred = (

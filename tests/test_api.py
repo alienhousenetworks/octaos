@@ -150,17 +150,17 @@ async def test_sales_and_orchestrator_flow(mock_complete, client, db):
             {
                 "department": "Sales",
                 "action": "generate_leads",
-                "parameters": {"provider": "free_search", "query": "Bakeries in Boston", "count": 2}
+                "parameters": {"provider": "apollo", "query": "Bakeries in Boston", "count": 2}
             },
             {
                 "department": "Sales",
                 "action": "sales_outreach",
-                "parameters": {"channel": "free_outreach", "subject": "Sweet Deal", "body_template": "Hello {name} from {company}"}
+                "parameters": {"channel": "smtp", "subject": "Sweet Deal", "body_template": "Hello {name} from {company}"}
             },
             {
                 "department": "Sales",
                 "action": "schedule_meeting",
-                "parameters": {"tool": "free_scheduling", "count": 1}
+                "parameters": {"tool": "google_calendar", "count": 1}
             }
         ]
     }
@@ -186,13 +186,25 @@ async def test_sales_and_orchestrator_flow(mock_complete, client, db):
         json.dumps(orchestrator_plan), # Orchestrator plan
         json.dumps(simulated_leads),    # Lead gen
         json.dumps(outreach_response),  # Outreach 1
-        json.dumps(outreach_response),  # Outreach 2
-        json.dumps(meeting_response),   # Meeting reply 1
-        json.dumps(meeting_response)    # Meeting reply 2
+        json.dumps(outreach_response)   # Outreach 2
     ]
 
     # Execute the Orchestrator execute endpoint
-    resp = client.post("/api/v1/commands/execute", json={"prompt": "Find 2 Boston bakeries using free sources, email them, and fix a meeting."})
+    with patch("app.services.agents.sales.SalesAgent._fetch_real_leads", new_callable=AsyncMock) as mock_fetch, \
+         patch("app.services.agents.sales.send_smtp_email") as mock_smtp, \
+         patch("app.services.agents.sales.book_meeting_for_lead") as mock_book:
+        mock_fetch.return_value = simulated_leads
+        mock_smtp.return_value = True
+        mock_book.return_value = True
+        
+        # Add dummy credentials so auth checks pass
+        cred_apollo = APICredential(tenant_id=tenant_id, provider="apollo", encrypted_key="sk-apollo-test-key")
+        cred_smtp = APICredential(tenant_id=tenant_id, provider="smtp", encrypted_key="smtp://user:pass@host:25")
+        cred_google = APICredential(tenant_id=tenant_id, provider="google_calendar", encrypted_key="fake_google_token")
+        db.add_all([cred_apollo, cred_smtp, cred_google])
+        db.commit()
+
+        resp = client.post("/api/v1/commands/execute", json={"prompt": "Find 2 Boston bakeries using free sources, email them, and fix a meeting."})
     if resp.status_code != 200:
         print("FAIL DETAIL:", resp.json())
     assert resp.status_code == 200
@@ -206,9 +218,9 @@ async def test_sales_and_orchestrator_flow(mock_complete, client, db):
     assert leads[0].name == "Alice Baker"
     assert leads[1].name == "Charlie Crust"
     
-    # Check status was updated through contacted to meeting_scheduled
-    assert leads[0].status == "meeting_scheduled"
-    assert leads[1].status == "meeting_scheduled"
+    # Check status was updated to contacted (awaiting real reply)
+    assert leads[0].status == "contacted"
+    assert leads[1].status == "contacted"
 
 @pytest.mark.asyncio
 @patch("app.services.llm_gateway.LLMGateway.complete")
@@ -816,10 +828,10 @@ def test_otp_auth_flows(client, db):
     db.refresh(user_in_db)
     assert user_in_db.is_verified is True
     
-    # 4. Initiate Login
+    # 4. Initiate Login (OTP flow — no password triggers OTP)
     login_init_resp = client.post(
         "/api/v1/auth/login/initiate",
-        json={"email": email, "password": password}
+        json={"email": email}
     )
     assert login_init_resp.status_code == 200
     assert login_init_resp.json()["otp_required"] is True
