@@ -27,12 +27,7 @@ export default function SupportView({
   const [messages, setMessages] = useState<any[]>([]);
   const [replyText, setReplyText] = useState('');
   const [supportSettings, setSupportSettings] = useState({ whatsapp_auto_reply: true, email_auto_reply: true });
-  const [simChannel, setSimChannel] = useState<'whatsapp' | 'email'>('whatsapp');
-  const [simSender, setSimSender] = useState('+15553334444');
-  const [simContent, setSimContent] = useState('');
-  const [simSubject, setSimSubject] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
-  const [simulatingMessage, setSimulatingMessage] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -134,41 +129,7 @@ export default function SupportView({
     }
   };
 
-    const handleSimulateMessage = async () => {
-    if (!simSender.trim() || !simContent.trim()) {
-      alert("Please enter both sender and content.");
-      return;
-    }
-    setSimulatingMessage(true);
-    try {
-      const res = await fetchWithAuth(`${API_URL}/support/simulate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channel: simChannel,
-          sender: simSender,
-          content: simContent,
-          subject: simChannel === 'email' ? (simSubject || 'Support Request') : undefined
-        })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setSimContent('');
-        setSimSubject('');
-        fetchTickets();
-        if (data.ticket_id) {
-          setSelectedTicketId(data.ticket_id);
-          fetchMessages(data.ticket_id);
-        }
-      } else {
-        alert(`Simulation Error: ${data.detail || 'Failed to simulate'}`);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSimulatingMessage(false);
-    }
-  };
+
 
 
   return (
@@ -291,8 +252,8 @@ export default function SupportView({
                   </div>
                 </Card>
 
-                {/* 2. Conversation Thread & Reply - 5 Cols */}
-                <Card className="lg:col-span-5 flex flex-col h-full overflow-hidden glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl p-0 shadow-2xl relative">
+                {/* 2. Conversation Thread & Reply - 9 Cols */}
+                <Card className="lg:col-span-9 flex flex-col h-full overflow-hidden glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl p-0 shadow-2xl relative">
                   {selectedTicketId ? (
                     <>
                       {/* Thread Header */}
@@ -374,93 +335,7 @@ export default function SupportView({
                   )}
                 </Card>
 
-                {/* 3. Interactive Channel Simulator - 4 Cols */}
-                <Card className="lg:col-span-4 flex flex-col h-full glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl shadow-2xl relative glow-support overflow-hidden">
-                  <div className="px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-b border-gray-800/60">
-                    <h3 className="font-bold text-sm flex items-center gap-1.5"><Clock size={14} className="animate-spin" /> Channel Simulator</h3>
-                    <p className="text-[10px] text-blue-100 mt-0.5">Test incoming customer messages and observe AI replies.</p>
-                  </div>
-                  <CardContent className="p-4 space-y-4 flex-1 overflow-y-auto">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-bold text-gray-300">Simulated Channel</label>
-                      <Select 
-                        value={simChannel} 
-                        onValueChange={(val: any) => {
-                          if (val) {
-                            setSimChannel(val);
-                            if (val === 'whatsapp') setSimSender('+15553334444');
-                            else setSimSender('john.doe@example.com');
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="h-9 bg-gray-900/60 border-gray-800 text-white rounded-xl"><SelectValue /></SelectTrigger>
-                        <SelectContent className="bg-gray-900 border-gray-800 text-white">
-                          <SelectItem value="whatsapp">WhatsApp Message</SelectItem>
-                          <SelectItem value="email">Email Inbox</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-bold text-gray-300">Customer Contact Info</label>
-                      <Input
-                        type="text"
-                        placeholder={simChannel === 'whatsapp' ? '+15553334444' : 'customer@example.com'}
-                        value={simSender}
-                        onChange={e => setSimSender(e.target.value)}
-                        className="bg-gray-900/60 border-gray-800 text-white focus:border-blue-500 focus:ring-blue-500/20 rounded-xl h-9 text-xs"
-                      />
-                    </div>
-
-                    {simChannel === 'email' && (
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-bold text-gray-300">Email Subject</label>
-                        <Input
-                          type="text"
-                          placeholder="e.g. Broken links on dashboard"
-                          value={simSubject}
-                          onChange={e => setSimSubject(e.target.value)}
-                          className="bg-gray-900/60 border-gray-800 text-white focus:border-blue-500 focus:ring-blue-500/20 rounded-xl h-9 text-xs"
-                        />
-                      </div>
-                    )}
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-bold text-gray-300">Customer Message Body</label>
-                      <Textarea
-                        placeholder={
-                          simChannel === 'whatsapp' 
-                            ? "e.g. 'Hey there, do you guys offer international shipping? if yes, what are the shipping rates?'"
-                            : "e.g. 'Hello Support Team, I am having issues logging into my account. It says password incorrect but I reset it already. Can you please help?'"
-                        }
-                        value={simContent}
-                        onChange={e => setSimContent(e.target.value)}
-                        className="bg-gray-900/60 border-gray-800 text-white focus:border-blue-500 focus:ring-blue-500/20 rounded-xl min-h-[100px] text-xs resize-none"
-                      />
-                    </div>
-
-                    <div className="pt-2">
-                      <Button
-                        onClick={handleSimulateMessage}
-                        disabled={simulatingMessage || !simSender.trim() || !simContent.trim()}
-                        className="w-full h-10 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100"
-                      >
-                        {simulatingMessage ? 'Sending Mock Message...' : 'Simulate Customer Message'}
-                      </Button>
-                    </div>
-
-                    <div className="rounded-xl bg-blue-950/20 border border-blue-900/30 p-3.5 text-[11px] text-blue-300 space-y-1.5 leading-relaxed">
-                      <p className="font-bold flex items-center gap-1">
-                        <Clock size={12} /> Natural Human-Like Delays:
-                      </p>
-                      <p>• <strong>WhatsApp:</strong> AI replies are delayed by 4-5 minutes.</p>
-                      <p>• <strong>Email:</strong> AI replies are delayed by 20 minutes.</p>
-                      <p className="text-[10px] text-blue-400 mt-1 italic">
-                        *Note: If you send a manual reply during this delay window, the AI will automatically cancel its pending auto-reply.
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
 
               </div>
             </div>

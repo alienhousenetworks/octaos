@@ -90,40 +90,7 @@ export default function Home() {
     return items;
   };
 
-  // Console hooks for error diagnostics
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const originalConsoleError = console.error;
-      console.error = (...args: any[]) => {
-        originalConsoleError.apply(console, args);
-        const message = args.map(arg => {
-          if (arg instanceof Error) return arg.message + "\n" + arg.stack;
-          return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
-        }).join(' ');
-        
-        if (message.includes('Error') || message.includes('failed') || message.includes('mismatch') || message.includes(' hydration ') || message.includes('hydrating')) {
-          alert("React/Console Error Caught:\n" + message);
-        }
-      };
-
-      const handleError = (event: ErrorEvent) => {
-        alert("Global Error Caught:\n" + event.message + "\nAt: " + event.filename + ":" + event.lineno);
-      };
-      
-      const handleRejection = (event: PromiseRejectionEvent) => {
-        alert("Promise Rejection Caught:\n" + event.reason);
-      };
-
-      window.addEventListener('error', handleError);
-      window.addEventListener('unhandledrejection', handleRejection);
-
-      return () => {
-        console.error = originalConsoleError;
-        window.removeEventListener('error', handleError);
-        window.removeEventListener('unhandledrejection', handleRejection);
-      };
-    }
-  }, []);
+  // Note: Debug alert hooks removed — use browser DevTools console for error diagnostics
 
   // Key configurations
   const [keyProvider, setKeyProvider] = useState('anthropic');
@@ -157,9 +124,16 @@ export default function Home() {
     fetchBranding();
   }, []);
 
-  // Apply dynamic favicon whenever faviconUrl changes
+  // Apply dynamic favicon whenever faviconUrl changes (only for valid absolute URLs)
   useEffect(() => {
     if (typeof document !== 'undefined' && faviconUrl) {
+      // Only apply if it's a valid absolute URL — prevents corrupted/relative DB values from causing 404s
+      try {
+        const parsed = new URL(faviconUrl);
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return;
+      } catch {
+        return; // Not a valid URL — skip override, static /favicon.ico remains active
+      }
       let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
       if (!link) {
         link = document.createElement('link');

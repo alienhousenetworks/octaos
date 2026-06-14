@@ -384,7 +384,7 @@ export default function InstructionsView({
                             {configuredProviders.includes('gmail') || configuredProviders.includes('google_calendar') || configuredProviders.includes('smtp') ? 'Configured' : 'Not Connected'}
                           </span>
                           <Button 
-                            onClick={() => { window.location.href = `${API_URL}/api/v1/google/auth?tenant_id=${tenantId}`; }}
+                            onClick={() => { window.location.href = `${API_URL}/google/auth?tenant_id=${tenantId}`; }}
                             className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold h-8 rounded-xl px-4"
                           >
                             Connect Google Account

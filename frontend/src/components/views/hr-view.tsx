@@ -345,7 +345,7 @@ export default function HRView({
                                     <p className="text-xs text-gray-300 whitespace-pre-wrap leading-relaxed mt-1 border-t border-amber-900/20 pt-2">{scorecard.outbound_body}</p>
                                     {scorecard.sent_actual !== undefined && (
                                       <p className="text-[9px] text-gray-500 italic mt-1">
-                                        Status: {scorecard.sent_actual ? "Sent via SMTP" : "Simulated Delivery"}
+                                        Status: {scorecard.sent_actual ? "Sent via SMTP" : "Delivery Error"}
                                       </p>
                                     )}
                                   </div>
@@ -376,7 +376,7 @@ export default function HRView({
                                     </p>
                                     {scorecard.calendar_booked !== undefined && (
                                       <p className="text-[9px] text-gray-500 italic mt-1">
-                                        Status: {scorecard.calendar_booked ? "Created Google Calendar Event" : "Simulated Schedule"}
+                                        Status: {scorecard.calendar_booked ? "Created Google Calendar Event" : "Scheduling Error"}
                                       </p>
                                     )}
                                   </div>
@@ -403,7 +403,7 @@ export default function HRView({
                                   disabled={interviewLoading}
                                   className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold h-9 px-4 rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all hover:scale-[1.02] active:scale-95 text-xs"
                                 >
-                                  {interviewLoading ? 'Scheduling...' : 'Simulate Reply & Book Interview'}
+                                  {interviewLoading ? 'Scheduling...' : 'Process Candidate Reply & Book'}
                                 </Button>
                               )}
                               {candidate.status === 'interviewed' && (
