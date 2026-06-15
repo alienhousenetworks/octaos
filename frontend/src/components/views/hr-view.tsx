@@ -135,7 +135,43 @@ export default function HRView({
     }
   };
 
+  const handleUpdateCandidateStatus = async (candidateId: string, newStatus: string) => {
+    try {
+      const res = await fetchWithAuth(`${API_URL}/hr/${candidateId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        fetchCandidates();
+        fetchData();
+      } else {
+        alert(`Error: ${data.detail || 'Failed to update candidate status'}`);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
+  const handleDeleteCandidate = async (candidateId: string) => {
+    if (!confirm("Are you sure you want to delete this candidate?")) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/hr/${candidateId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        fetchCandidates();
+        fetchData();
+        setSelectedCandidateId(null);
+      } else {
+        const data = await res.json();
+        alert(`Error: ${data.detail || 'Failed to delete candidate'}`);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-300">
@@ -216,8 +252,20 @@ export default function HRView({
                     <h3 className="font-bold text-sm text-white border-b border-gray-800 pb-2">Hiring Pipeline Progress</h3>
                     <div className="space-y-3">
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-400">Sourced Candidates:</span>
+                        <span className="text-gray-400">Total Sourced:</span>
                         <span className="font-bold text-white">{candidates.length}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-400">Sourced (New):</span>
+                        <span className="font-bold text-white">{candidates.filter(c => c.status === 'sourced').length}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-400">Accepted:</span>
+                        <span className="font-bold text-white">{candidates.filter(c => c.status === 'accepted').length}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-400">Rejected:</span>
+                        <span className="font-bold text-white">{candidates.filter(c => c.status === 'rejected').length}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-400">Outreach Sent (Screened):</span>
@@ -251,8 +299,12 @@ export default function HRView({
 
                         let statusColor = 'bg-gray-500/10 text-gray-400 border-gray-500/20';
                         if (candidate.status === 'sourced') statusColor = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+                        if (candidate.status === 'accepted') statusColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+                        if (candidate.status === 'rejected') statusColor = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
                         if (candidate.status === 'screened') statusColor = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-                        if (candidate.status === 'interviewed') statusColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+                        if (candidate.status === 'interviewed') statusColor = 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+                        if (candidate.status === 'offered') statusColor = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
+                        if (candidate.status === 'hired') statusColor = 'bg-teal-500/10 text-teal-400 border-teal-500/20';
 
                         let scoreColor = 'text-emerald-400';
                         if (score < 80) scoreColor = 'text-amber-400';
@@ -385,32 +437,104 @@ export default function HRView({
                             )}
 
                             {/* Actions footer */}
-                            <div className="px-5 py-3 bg-gray-950/30 flex gap-2 justify-end border-t border-gray-800">
-                              {candidate.status === 'sourced' && (
+                            <div className="px-5 py-3 bg-gray-950/30 flex gap-2 justify-between items-center border-t border-gray-800">
+                              {/* Left side actions: Delete */}
+                              <div>
                                 <Button
                                   size="sm"
-                                  onClick={() => handleCandidateOutreach(candidate.id)}
-                                  disabled={outreachLoading}
-                                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold h-9 px-4 rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all hover:scale-[1.02] active:scale-95 text-xs"
+                                  onClick={() => handleDeleteCandidate(candidate.id)}
+                                  className="bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-900/50 font-medium h-9 px-3 rounded-xl transition-all text-xs"
                                 >
-                                  {outreachLoading ? 'Sending...' : 'Send Outreach Email'}
+                                  Delete
                                 </Button>
-                              )}
-                              {candidate.status === 'screened' && (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleScheduleInterview(candidate.id)}
-                                  disabled={interviewLoading}
-                                  className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold h-9 px-4 rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all hover:scale-[1.02] active:scale-95 text-xs"
-                                >
-                                  {interviewLoading ? 'Scheduling...' : 'Process Candidate Reply & Book'}
-                                </Button>
-                              )}
-                              {candidate.status === 'interviewed' && (
-                                <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                                  ✓ Interview Scheduled
-                                </span>
-                              )}
+                              </div>
+
+                              {/* Right side actions: Accept, Reject, Outreach, etc. */}
+                              <div className="flex gap-2 items-center">
+                                {candidate.status === 'sourced' && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleUpdateCandidateStatus(candidate.id, 'accepted')}
+                                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-9 px-4 rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all text-xs"
+                                    >
+                                      Accept
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleUpdateCandidateStatus(candidate.id, 'rejected')}
+                                      className="bg-rose-600 hover:bg-rose-500 text-white font-bold h-9 px-4 rounded-xl shadow-lg shadow-rose-500/20 hover:shadow-rose-500/30 transition-all text-xs"
+                                    >
+                                      Reject
+                                    </Button>
+                                  </>
+                                )}
+
+                                {candidate.status === 'accepted' && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleCandidateOutreach(candidate.id)}
+                                      disabled={outreachLoading}
+                                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold h-9 px-4 rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all text-xs"
+                                    >
+                                      {outreachLoading ? 'Sending...' : 'Send Outreach Email'}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleUpdateCandidateStatus(candidate.id, 'rejected')}
+                                      className="bg-rose-600 hover:bg-rose-500 text-white font-bold h-9 px-4 rounded-xl shadow-lg shadow-rose-500/20 hover:shadow-rose-500/30 transition-all text-xs"
+                                    >
+                                      Reject
+                                    </Button>
+                                  </>
+                                )}
+
+                                {candidate.status === 'rejected' && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleUpdateCandidateStatus(candidate.id, 'accepted')}
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-9 px-4 rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all text-xs"
+                                  >
+                                    Accept
+                                  </Button>
+                                )}
+
+                                {candidate.status === 'screened' && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleScheduleInterview(candidate.id)}
+                                      disabled={interviewLoading}
+                                      className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold h-9 px-4 rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all text-xs"
+                                    >
+                                      {interviewLoading ? 'Scheduling...' : 'Process Candidate Reply & Book'}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleUpdateCandidateStatus(candidate.id, 'rejected')}
+                                      className="bg-rose-600 hover:bg-rose-500 text-white font-bold h-9 px-4 rounded-xl shadow-lg shadow-rose-500/20 hover:shadow-rose-500/30 transition-all text-xs"
+                                    >
+                                      Reject
+                                    </Button>
+                                  </>
+                                )}
+
+                                {candidate.status === 'interviewed' && (
+                                  <>
+                                    <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 mr-2">
+                                      ✓ Interview Scheduled
+                                    </span>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleUpdateCandidateStatus(candidate.id, 'rejected')}
+                                      className="bg-rose-600 hover:bg-rose-500 text-white font-bold h-9 px-4 rounded-xl shadow-lg shadow-rose-500/20 hover:shadow-rose-500/30 transition-all text-xs"
+                                    >
+                                      Reject
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           </Card>
                         );

@@ -196,7 +196,7 @@ JSON format:
         if candidate_id:
             query = query.filter(Candidate.id == candidate_id)
         else:
-            query = query.filter(Candidate.status == "sourced")
+            query = query.filter(Candidate.status.in_(["sourced", "accepted"]))
         
         candidates = query.all()
         if not candidates:

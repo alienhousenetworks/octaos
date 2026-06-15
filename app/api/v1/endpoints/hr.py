@@ -139,3 +139,21 @@ def update_candidate_status(
     db.commit()
     db.refresh(candidate)
     return candidate
+
+@router.delete("/{candidate_id}")
+def delete_candidate(
+    candidate_id: str,
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> Any:
+    candidate = db.query(models.Candidate).filter(
+        models.Candidate.id == candidate_id,
+        models.Candidate.tenant_id == tenant_id
+    ).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    
+    db.delete(candidate)
+    db.commit()
+    return {"status": "success"}

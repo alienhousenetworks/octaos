@@ -344,8 +344,32 @@ async def test_hr_agent_flow(mock_complete, client, db):
         assert read_resp.status_code == 200
         assert len(read_resp.json()) == 2
 
-        # Get a specific candidate's ID
+        # Get specific candidates' IDs
         jane_cand = [c for c in candidates if c.name == "Jane Doe"][0]
+        bob_cand = [c for c in candidates if c.name == "Bob Smith"][0]
+
+        # Test Status Update Endpoint
+        status_resp = client.post(
+            f"/api/v1/hr/{jane_cand.id}/status",
+            json={"status": "accepted"}
+        )
+        assert status_resp.status_code == 200
+        db.refresh(jane_cand)
+        assert jane_cand.status == "accepted"
+
+        # Test Candidate Deletion Endpoint
+        delete_resp = client.delete(f"/api/v1/hr/{bob_cand.id}")
+        assert delete_resp.status_code == 200
+        assert delete_resp.json() == {"status": "success"}
+
+        # Verify candidate is deleted
+        deleted_cand = db.query(Candidate).filter(Candidate.id == bob_cand.id).first()
+        assert deleted_cand is None
+
+        # Verify read candidate response list is now length 1
+        read_resp2 = client.get("/api/v1/hr/")
+        assert read_resp2.status_code == 200
+        assert len(read_resp2.json()) == 1
 
         # 3. Test Candidate Outreach Endpoint
         outreach_resp = client.post(
@@ -381,9 +405,9 @@ async def test_hr_agent_flow(mock_complete, client, db):
         assert orch_resp.status_code == 200
         assert len(orch_resp.json()["plan"]["tasks"]) == 1
         
-        # Check that candidates total is now 3
+        # Check that candidates total is now 2 (1 deleted + 1 newly added)
         total_candidates = db.query(Candidate).filter(Candidate.tenant_id == tenant_id).all()
-        assert len(total_candidates) == 3
+        assert len(total_candidates) == 2
         alice_cand = [c for c in total_candidates if c.name == "Alice Pythonist"][0]
         assert alice_cand.role == "Python Backend Engineer"
         assert alice_cand.status == "sourced"
