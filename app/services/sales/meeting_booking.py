@@ -67,36 +67,34 @@ def book_meeting_for_lead(
     if lead.status == "meeting_scheduled":
         return False
 
-    meeting_time = suggested_time or "Next business day at 10:00 AM UTC"
-    meet_url = f"https://meet.google.com/abc-{random.randint(100, 999)}-xyz"
-    meeting_starts_at = default_meeting_start_utc()
-    calendar_booked = False
-
     calendar_cred = (
         db.query(APICredential)
         .filter_by(tenant_id=tenant_id, provider="google_calendar")
         .first()
     )
-    if tool == "google_calendar":
-        if calendar_cred and calendar_cred.encrypted_key:
-            try:
-                creds_dict = json.loads(decrypt_api_key(calendar_cred.encrypted_key))
-                actual_meet_url, event_start = create_google_calendar_event(
-                    creds_dict,
-                    lead.email or f"{lead.phone}@placeholder.local",
-                    f"Meeting: {lead.company} / {lead.name}",
-                    f"Sales discussion with {lead.name}",
-                )
-                if actual_meet_url:
-                    meet_url = actual_meet_url
-                if event_start:
-                    meeting_starts_at = event_start
-                    meeting_time = event_start.strftime("%A %d %b %Y, %H:%M UTC")
-                calendar_booked = True
-            except Exception as exc:
-                raise ValueError(f"Google Calendar API Error: {exc}. Please verify your Google Workspace connection.")
-        else:
-            raise ValueError("No Google Calendar credentials found. Please connect Google Workspace under Platform Setup -> API Settings to schedule calendar events.")
+    if not calendar_cred or not calendar_cred.encrypted_key.strip():
+        raise ValueError("No Google Calendar credentials found. Please connect Google Workspace under Platform Setup -> API Settings to schedule calendar events.")
+
+    meeting_time = suggested_time or "Next business day at 10:00 AM UTC"
+    meet_url = ""
+    meeting_starts_at = default_meeting_start_utc()
+    calendar_booked = False
+
+    try:
+        creds_dict = json.loads(decrypt_api_key(calendar_cred.encrypted_key))
+        actual_meet_url, event_start = create_google_calendar_event(
+            creds_dict,
+            lead.email or f"{lead.phone}@placeholder.local",
+            f"Meeting: {lead.company} / {lead.name}",
+            f"Sales discussion with {lead.name}",
+        )
+        meet_url = actual_meet_url or f"https://meet.google.com/abc-{lead.id[:8]}"
+        if event_start:
+            meeting_starts_at = event_start
+            meeting_time = event_start.strftime("%A %d %b %Y, %H:%M UTC")
+        calendar_booked = True
+    except Exception as exc:
+        raise ValueError(f"Google Calendar API Error: {exc}. Please verify your Google Workspace connection.")
 
     lead.status = "meeting_scheduled"
     lead.data = {

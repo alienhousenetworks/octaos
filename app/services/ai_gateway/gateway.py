@@ -47,7 +47,7 @@ class AIProviderGateway:
         elif provider_lower == "local":
             return LocalAdapter(api_key=api_key)
         else:
-            return MockAdapter()
+            raise ValueError(f"Provider '{provider}' is not supported. Please configure a valid API key.")
 
     def registerProvider(self, provider_name: str, adapter: BaseProviderAdapter) -> None:
         self.adapters[provider_name.lower()] = adapter
@@ -140,6 +140,9 @@ class AIProviderGateway:
         Handles: Dynamic Routing, Multi-Provider Failover, Cost tracking, and DB logging.
         """
         configured = self._get_configured_providers(db, tenant_id)
+        if not configured:
+            req_prov = provider or "anthropic"
+            raise ValueError(f"No API key configured for provider '{req_prov}'. Please configure your API key under Platform Setup -> API Settings.")
         
         # 1. Routing Decision
         if not provider or not model:
@@ -150,8 +153,8 @@ class AIProviderGateway:
         current_provider = provider
         current_model = model
         
-        # Default chain of fallback providers
-        fallback_chain = ["openai", "anthropic", "gemini", "grok", "groq", "local", "mock"]
+        # Default chain of fallback providers (exclude mock/local)
+        fallback_chain = ["openai", "anthropic", "gemini", "grok", "groq"]
         
         while current_provider:
             tried_providers.append(current_provider)
@@ -160,8 +163,8 @@ class AIProviderGateway:
             # Determine failover source if applicable
             failover_from = tried_providers[-2] if len(tried_providers) > 1 else None
             
-            # If no API key and not local/mock, trigger failover immediately
-            if not api_key and current_provider not in ["local", "mock"]:
+            # If no API key, trigger failover to next configured provider or raise error
+            if not api_key:
                 logger.warning(f"Provider {current_provider} API key missing. Failover triggered.")
                 
                 # Log failed attempt
@@ -181,8 +184,24 @@ class AIProviderGateway:
                 db.add(usage_failed)
                 db.commit()
                 
-                # Select next provider
-                current_provider, current_model = self.failoverProvider(tried_providers, fallback_chain)
+                # Find other configured providers not tried yet
+                configured_remaining = [p for p in configured if p not in tried_providers]
+                if not configured_remaining:
+                    raise ValueError(f"No API key configured for provider '{current_provider}'. Please configure your API key under Platform Setup -> API Settings.")
+                
+                current_provider = configured_remaining[0]
+                if current_provider == "openai":
+                    current_model = "gpt-4o-mini"
+                elif current_provider == "anthropic":
+                    current_model = "claude-haiku-4-5-20251001"
+                elif current_provider == "gemini":
+                    current_model = "gemini-2.5-flash"
+                elif current_provider == "grok":
+                    current_model = "grok-2"
+                elif current_provider == "groq":
+                    current_model = "llama-3.1-8b-instant"
+                else:
+                    current_model = "default-model"
                 continue
                 
             try:
@@ -266,10 +285,27 @@ class AIProviderGateway:
                 db.add(usage_failed)
                 db.commit()
                 
-                # Get next failover target
-                current_provider, current_model = self.failoverProvider(tried_providers, fallback_chain)
+                # Find other configured providers not tried yet
+                configured_remaining = [p for p in configured if p not in tried_providers]
+                if not configured_remaining:
+                    raise ValueError(f"No API key configured for provider '{current_provider}'. Please configure your API key under Platform Setup -> API Settings.")
+                
+                current_provider = configured_remaining[0]
+                if current_provider == "openai":
+                    current_model = "gpt-4o-mini"
+                elif current_provider == "anthropic":
+                    current_model = "claude-haiku-4-5-20251001"
+                elif current_provider == "gemini":
+                    current_model = "gemini-2.5-flash"
+                elif current_provider == "grok":
+                    current_model = "grok-2"
+                elif current_provider == "groq":
+                    current_model = "llama-3.1-8b-instant"
+                else:
+                    current_model = "default-model"
+                continue
 
-        raise Exception("All providers in the failover chain failed.")
+        raise Exception("All configured providers failed.")
 
     def failoverProvider(self, tried_providers: List[str], fallback_chain: List[str]) -> tuple:
         """

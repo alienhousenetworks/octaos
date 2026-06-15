@@ -291,7 +291,6 @@ async def test_hr_agent_flow(mock_complete, client, db):
 
     mock_complete.side_effect = [
         json.dumps(outreach_response),
-        json.dumps(interview_response),
         # 5. Test Orchestrator plan
         json.dumps({
             "tasks": [
@@ -304,11 +303,13 @@ async def test_hr_agent_flow(mock_complete, client, db):
         })
     ]
 
-    # Mock the real candidates fetching and outreach email sending
+    # Mock the real candidates fetching, outreach email sending, and calendar event creation
     with patch("app.services.agents.hr.HRAgent._fetch_real_candidates", new_callable=AsyncMock) as mock_fetch, \
-         patch("app.services.agents.hr.HRAgent._send_actual_email") as mock_smtp_send:
+         patch("app.services.agents.hr.HRAgent._send_actual_email") as mock_smtp_send, \
+         patch("app.services.agents.hr.HRAgent._create_calendar_event") as mock_calendar:
         
         mock_smtp_send.return_value = True
+        mock_calendar.return_value = ("https://meet.google.com/mock-meet", "next Monday at 10 AM")
         
         alice_pythonist = [{
             "name": "Alice Pythonist",

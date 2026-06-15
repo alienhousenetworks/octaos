@@ -137,23 +137,18 @@ class LLMGateway:
             req_model = None
             req_provider = None
 
-        try:
-            return await ai_gateway.executeCached(
-                db=self.db,
-                tenant_id=self.tenant_id,
-                prompt=prompt,
-                model=req_model,
-                provider=req_provider,
-                system_prompt=system_prompt,
-                task_type=inferred_task_type,
-                realtime=inferred_realtime,
-                complexity=inferred_complexity,
-                bulk=inferred_bulk
-            )
-        except Exception as e:
-            import logging
-            logging.error(f"AIProviderGateway failed: {e}. Returning mock fallback response.")
-            return f"Mock fallback response. Prompt: {prompt[:100]}..."
+        return await ai_gateway.executeCached(
+            db=self.db,
+            tenant_id=self.tenant_id,
+            prompt=prompt,
+            model=req_model,
+            provider=req_provider,
+            system_prompt=system_prompt,
+            task_type=inferred_task_type,
+            realtime=inferred_realtime,
+            complexity=inferred_complexity,
+            bulk=inferred_bulk
+        )
 
 
     async def generate_image(self, prompt: str, provider: str = "openai") -> str:

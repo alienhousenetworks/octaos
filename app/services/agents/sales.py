@@ -323,57 +323,33 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
             return {"status": "error", "message": str(e)}
 
         # Step 10: Meeting Conversion
-        update_status(10, "executing", "Aligning calendars and converting intent...", "Starting Step 10: Triggering auto-bookings for interested prospects...")
+        update_status(10, "executing", "Checking calendars and converting real prospect replies...", "Starting Step 10: Processing real interested leads...")
         try:
-            hot_leads = [c for c in scored_leads if c["scoring"]["category"] == "Hot Lead"]
-            lead_for_meeting = hot_leads[0] if hot_leads else scored_leads[0]
+            # Find actual qualified leads who replied with interest
+            interested_leads = self.db.query(Lead).filter(
+                Lead.tenant_id == self.tenant_id,
+                Lead.status == "replied"
+            ).all()
             
-            db_lead = self.db.query(Lead).filter_by(tenant_id=self.tenant_id, email=lead_for_meeting["contact"]["email"]).first()
-            if db_lead:
+            real_interested_lead = None
+            for lead in interested_leads:
+                if (lead.data or {}).get("reply_classification", {}).get("interested"):
+                    real_interested_lead = lead
+                    break
+            
+            if real_interested_lead:
                 from app.services.sales.meeting_booking import book_meeting_for_lead
                 book_meeting_for_lead(
                     db=self.db,
                     tenant_id=self.tenant_id,
-                    lead=db_lead,
+                    lead=real_interested_lead,
                     tool="google_calendar",
-                    suggested_time="Next Thursday at 11:00 AM IST",
+                    suggested_time=real_interested_lead.data.get("reply_classification", {}).get("suggested_time") or "Next Thursday at 11:00 AM IST",
                     log_activity=self.log_activity
                 )
-                
-                conv = list(db_lead.data.get("conversation") or [])
-                conv.insert(1, {
-                    "direction": "inbound",
-                    "channel": "email",
-                    "content": "Hi, this looks interesting. We have been struggling with our outbound and SEO setup. I'm available next Thursday at 11:00 AM IST. Please send over an invite.",
-                    "subject": f"Re: Partnership Opportunity - {profile.company_name} x {db_lead.company}",
-                    "author": db_lead.name,
-                    "at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
-                })
-                
-                db_lead.status = "meeting_scheduled"
-                db_lead.data = {
-                    **(db_lead.data or {}),
-                    "conversation": conv,
-                    "prospect_interested": True,
-                    "reply_intent": "interested",
-                    "reply_classification": {
-                        "intent": "interested",
-                        "interested": True,
-                        "suggested_time": "Next Thursday at 11:00 AM IST",
-                        "summary": "Wants to book a call for next Thursday.",
-                        "should_auto_reply": False
-                    }
-                }
-                
-                m_meetings = self.db.query(AgentMetric).filter_by(tenant_id=self.tenant_id, metric_name="meetings_booked").first()
-                if not m_meetings:
-                    m_meetings = AgentMetric(tenant_id=self.tenant_id, metric_name="meetings_booked", value=0.0)
-                    self.db.add(m_meetings)
-                m_meetings.value += 1.0
-                
-                self.db.commit()
-                
-            update_status(10, "completed", f"Simulated prospect reply & booked calendar meeting for {lead_for_meeting['company_name']}.", "Meeting conversion completed successfully. Calendars synced and team notified.", "completed")
+                update_status(10, "completed", f"Booked calendar meeting for {real_interested_lead.company}.", "Meeting conversion completed successfully. Calendars synced and team notified.", "completed")
+            else:
+                update_status(10, "completed", "Awaiting real prospect replies. No interested leads to book meetings for.", "No meetings scheduled because no prospects have replied with interest yet.", "completed")
         except Exception as e:
             update_status(10, "failed", str(e), f"Error in Step 10: {str(e)}", "failed")
             return {"status": "error", "message": str(e)}
@@ -395,8 +371,7 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
         ).first()
         
         if not cred or "your_api_key" in (cred.encrypted_key or "") or not cred.encrypted_key.strip():
-            self.log_activity("Auth Error", f"API credentials for {provider} not found or invalid. Cannot generate leads.", "failed")
-            return {"status": "error", "message": f"Missing credentials for {provider}"}
+            raise ValueError(f"No API credentials found for {provider}. Please configure your API credentials under Platform Setup -> API Settings.")
         
         try:
             leads_data = await self._fetch_real_leads(provider, decrypt_api_key(cred.encrypted_key), query, count)
@@ -532,7 +507,7 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
             if cred and cred.encrypted_key:
                 smtp_credentials = parse_smtp_credentials(decrypt_api_key(cred.encrypted_key))
             if not smtp_credentials:
-                self.log_activity("SMTP Credentials Missing", "No SMTP server details configured. Outgoing mail will fail.", "failed")
+                raise ValueError("No SMTP credentials configured. Please configure SMTP credentials under Platform Setup -> API Settings.")
         elif channel == "gmail":
             cred = self.db.query(APICredential).filter_by(
                 tenant_id=self.tenant_id, provider="gmail"
@@ -543,7 +518,7 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                 except:
                     pass
             if not gmail_credentials:
-                self.log_activity("Gmail Credentials Missing", "No Gmail OAuth details configured. Outgoing mail will fail.", "failed")
+                raise ValueError("No Gmail API credentials configured. Please connect Google Workspace under Platform Setup -> API Settings.")
 
         sent_count = 0
         for lead in leads:

@@ -78,6 +78,20 @@ async def execute_command(
             provider=request.provider,
             model=request.model
         )
+    except ValueError as e:
+        ve_str = str(e)
+        provider = None
+        for p in ["linkedin", "meta", "facebook", "instagram", "twitter", "gmail", "whatsapp", "apollo", "hunter", "google_places", "google_calendar", "smtp", "greenhouse", "lever", "openai", "anthropic", "gemini"]:
+            if p in ve_str.lower():
+                provider = p
+                break
+        if provider:
+            if provider == "smtp":
+                msg = "I need your SMTP outgoing mail credentials. Please reply with: 'My smtp credential is: smtp://username:password@smtp.mailtrap.io:2525'."
+            else:
+                msg = f"I need your {provider} API key to complete this task. Please reply with 'My {provider} key is: [YOUR_KEY]'."
+            return {"plan": {}, "results": [{"status": "action_required", "message": msg}]}
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     

@@ -97,36 +97,54 @@ Format:
         results = []
         for task in plan.get("tasks", []):
             dept = task.get("department")
-            if dept == "Marketing":
-                agent = MarketingAgent(self.db, self.tenant_id)
-                res = await agent.execute_task(task)
-                results.append(res)
-            elif dept == "Sales":
-                agent = SalesAgent(self.db, self.tenant_id)
-                res = await agent.execute_task(task)
-                results.append(res)
-            elif dept == "Support":
-                agent = SupportAgent(self.db, self.tenant_id)
-                res = await agent.execute_task(task)
-                results.append(res)
-            elif dept == "Finance":
-                agent = FinanceAgent(self.db, self.tenant_id)
-                res = await agent.execute_task(task)
-                results.append(res)
-            elif dept == "HR":
-                agent = HRAgent(self.db, self.tenant_id)
-                res = await agent.execute_task(task)
-                results.append(res)
-            elif dept == "System" and task.get("action") == "request_key":
-                provider = task.get("parameters", {}).get("provider", "unknown")
-                if provider == "smtp":
-                    msg = "I need your SMTP outgoing mail credentials. Please reply with: 'My smtp credential is: smtp://username:password@smtp.mailtrap.io:2525'."
+            try:
+                if dept == "Marketing":
+                    agent = MarketingAgent(self.db, self.tenant_id)
+                    res = await agent.execute_task(task)
+                    results.append(res)
+                elif dept == "Sales":
+                    agent = SalesAgent(self.db, self.tenant_id)
+                    res = await agent.execute_task(task)
+                    results.append(res)
+                elif dept == "Support":
+                    agent = SupportAgent(self.db, self.tenant_id)
+                    res = await agent.execute_task(task)
+                    results.append(res)
+                elif dept == "Finance":
+                    agent = FinanceAgent(self.db, self.tenant_id)
+                    res = await agent.execute_task(task)
+                    results.append(res)
+                elif dept == "HR":
+                    agent = HRAgent(self.db, self.tenant_id)
+                    res = await agent.execute_task(task)
+                    results.append(res)
+                elif dept == "System" and task.get("action") == "request_key":
+                    provider = task.get("parameters", {}).get("provider", "unknown")
+                    if provider == "smtp":
+                        msg = "I need your SMTP outgoing mail credentials. Please reply with: 'My smtp credential is: smtp://username:password@smtp.mailtrap.io:2525'."
+                    else:
+                        msg = f"I need your {provider} API key to complete this task. Please reply with 'My {provider} key is: [YOUR_KEY]'."
+                    self.log_activity("Action Required", msg)
+                    results.append({"status": "action_required", "message": msg})
                 else:
-                    msg = f"I need your {provider} API key to complete this task. Please reply with 'My {provider} key is: [YOUR_KEY]'."
-                self.log_activity("Action Required", msg)
-                results.append({"status": "action_required", "message": msg})
-            else:
-                self.log_activity("Skip Task", f"No agent for {dept}", status="pending")
+                    self.log_activity("Skip Task", f"No agent for {dept}", status="pending")
+            except ValueError as ve:
+                ve_str = str(ve)
+                provider = None
+                # Identify missing provider from exception message
+                for p in ["linkedin", "meta", "facebook", "instagram", "twitter", "gmail", "whatsapp", "apollo", "hunter", "google_places", "google_calendar", "smtp", "greenhouse", "lever", "openai", "anthropic", "gemini"]:
+                    if p in ve_str.lower():
+                        provider = p
+                        break
+                if provider:
+                    if provider == "smtp":
+                        msg = "I need your SMTP outgoing mail credentials. Please reply with: 'My smtp credential is: smtp://username:password@smtp.mailtrap.io:2525'."
+                    else:
+                        msg = f"I need your {provider} API key to complete this task. Please reply with 'My {provider} key is: [YOUR_KEY]'."
+                    self.log_activity("Action Required", msg)
+                    results.append({"status": "action_required", "message": msg})
+                else:
+                    raise ve
         return {"plan": plan, "results": results}
 
     async def run_daily_ops(self):

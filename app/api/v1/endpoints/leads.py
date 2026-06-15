@@ -100,7 +100,23 @@ async def generate_outreach(
     tenant_id: str = Depends(deps.get_current_tenant_id)
 ) -> Any:
     service = SalesService(db, tenant_id)
-    message = await service.generate_outreach(lead_id)
+    try:
+        message = await service.generate_outreach(lead_id)
+    except ValueError as e:
+        ve_str = str(e)
+        provider = None
+        for p in ["linkedin", "meta", "facebook", "instagram", "twitter", "gmail", "whatsapp", "apollo", "hunter", "google_places", "google_calendar", "smtp", "greenhouse", "lever", "openai", "anthropic", "gemini"]:
+            if p in ve_str.lower():
+                provider = p
+                break
+        if provider:
+            if provider == "smtp":
+                msg = "I need your SMTP outgoing mail credentials. Please reply with: 'My smtp credential is: smtp://username:password@smtp.mailtrap.io:2525'."
+            else:
+                msg = f"I need your {provider} API key to complete this task. Please reply with 'My {provider} key is: [YOUR_KEY]'."
+            return {"status": "action_required", "message": msg}
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
     
     lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
     if lead:

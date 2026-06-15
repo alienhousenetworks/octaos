@@ -249,7 +249,7 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
         return {"status": "success", "sent_count": sent_count}
 
     async def _schedule_interview(self, params: dict):
-        tool = params.get("tool", "free_scheduling")
+        tool = params.get("tool", "google_calendar")
         candidate_id = params.get("candidate_id")
 
         query = self.db.query(Candidate).filter(
@@ -258,112 +258,71 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
         if candidate_id:
             query = query.filter(Candidate.id == candidate_id)
         else:
-            query = query.filter(Candidate.status == "screened")
+            query = query.filter(Candidate.status == "accepted")
             
         candidates = query.all()
         if not candidates:
-            self.log_activity("Schedule Interviews", "No screened candidates found. Cannot book interviews.", "success")
+            self.log_activity("Schedule Interviews", "No accepted candidates found. Cannot book interviews.", "success")
             return {"status": "success", "booked_interviews": 0}
 
-        self.log_activity("Interview Scheduling", f"Simulating responses and scheduling interviews for {len(candidates)} candidates.")
+        self.log_activity("Interview Scheduling", f"Scheduling interviews for {len(candidates)} candidates.")
 
         booked_count = 0
         for cand in candidates:
             scorecard = cand.scorecard or {}
-            outbound_msg = scorecard.get("outbound_body", "")
+            meeting_time = scorecard.get("suggested_time") or scorecard.get("meeting_time") or "Next business day at 11:00 AM local time"
+            meet_url = ""
             
-            prompt = f"""We sent this recruiter outreach email to {cand.name} for the {cand.role} position:
----
-{outbound_msg}
----
-Simulate {cand.name}'s reply.
-Rules:
-- There is a 50% probability they are highly interested, suggest an interview time (e.g. next Tuesday at 2 PM), and say yes.
-- There is a 20% probability they ask a clarifying question about remote work/benefits.
-- There is = 30% probability they decline or ignore (no response).
-Output a JSON object with keys:
-'interested': true/false,
-'reply_message': "text of email response",
-'suggested_time': "e.g., Tuesday at 2:00 PM EST or None"
-No other text."""
-            
-            response = await self.llm.complete(prompt=prompt, provider="anthropic", model="claude-3-haiku-20240307")
+            # Check for Google Calendar API
+            calendar_cred = self.db.query(APICredential).filter_by(
+                tenant_id=self.tenant_id, provider="google_calendar"
+            ).first()
+
+            if not calendar_cred or not calendar_cred.encrypted_key.strip():
+                raise ValueError("No Google Calendar credentials found. Please connect Google Workspace under Platform Setup -> API Settings to schedule calendar events.")
+
             try:
-                cleaned = response.strip().strip("```json").strip("```").strip()
-                parsed = json.loads(cleaned)
-            except:
-                parsed = {"interested": False, "reply_message": "No response.", "suggested_time": None}
+                # Call Google Calendar API
+                meet_url_real, actual_time = self._create_calendar_event(calendar_cred.encrypted_key, cand.email, meeting_time)
+                meet_url = meet_url_real or f"https://meet.google.com/hr-{cand.id[:8]}"
+                meeting_time = actual_time or meeting_time
+            except Exception as ce:
+                raise ValueError(f"Google Calendar API Error: {str(ce)}. Please verify your Google Workspace connection.")
 
+            cand.status = "interviewed"
             cand.scorecard = {
-                **scorecard,
-                "candidate_reply": parsed.get("reply_message", ""),
-                "candidate_interested": parsed.get("interested", False),
+                **cand.scorecard,
+                "meeting_time": meeting_time,
+                "meeting_link": meet_url,
+                "calendar_booked": True
             }
-
-            if parsed.get("interested"):
-                meeting_time = parsed.get("suggested_time") or "Next business day at 11:00 AM local time"
-                meet_url = f"https://meet.google.com/hr-{random.randint(100,999)}-xyz"
-                
-                # Check for Google Calendar API
-                calendar_cred = self.db.query(APICredential).filter_by(
-                    tenant_id=self.tenant_id, provider="google_calendar"
-                ).first()
-
-                calendar_booked = False
-                if tool == "google_calendar":
-                    if calendar_cred and calendar_cred.encrypted_key.strip():
-                        try:
-                            # Call Google Calendar API
-                            meet_url_real, actual_time = self._create_calendar_event(calendar_cred.encrypted_key, cand.email, meeting_time)
-                            if meet_url_real:
-                                meet_url = meet_url_real
-                            meeting_time = actual_time or meeting_time
-                            calendar_booked = True
-                        except Exception as ce:
-                            raise ValueError(f"Google Calendar API Error: {str(ce)}. Please verify your Google Workspace connection.")
-                    else:
-                        raise ValueError("No Google Calendar credentials found. Please connect Google Workspace under Platform Setup -> API Settings to schedule calendar events.")
-
-                cand.status = "interviewed"
-                cand.scorecard = {
-                    **cand.scorecard,
-                    "meeting_time": meeting_time,
-                    "meeting_link": meet_url,
-                    "calendar_booked": calendar_booked
-                }
-                booked_count += 1
-                
-                self.log_activity(
-                    "Interview Scheduled",
-                    f"Booked interview with candidate {cand.name} ({cand.role}) for {meeting_time}. Meet: {meet_url}",
-                    "success"
-                )
-                
-                # Update interview metrics
-                metric_int = self.db.query(AgentMetric).filter_by(
-                    tenant_id=self.tenant_id, metric_name="interviews_scheduled"
-                ).first()
-                if not metric_int:
-                    metric_int = AgentMetric(tenant_id=self.tenant_id, metric_name="interviews_scheduled", value=0.0)
-                    self.db.add(metric_int)
-                metric_int.value += 1.0
-                
-                # Also increment general meetings booked metric
-                metric_meet = self.db.query(AgentMetric).filter_by(
-                    tenant_id=self.tenant_id, metric_name="meetings_booked"
-                ).first()
-                if not metric_meet:
-                    metric_meet = AgentMetric(tenant_id=self.tenant_id, metric_name="meetings_booked", value=0.0)
-                    self.db.add(metric_meet)
-                metric_meet.value += 1.0
-                
-                self.db.commit()
-            else:
-                self.log_activity(
-                    "Outreach Followup",
-                    f"Candidate {cand.name} replied: '{parsed.get('reply_message')[:60]}...'",
-                    "pending"
-                )
+            booked_count += 1
+            
+            self.log_activity(
+                "Interview Scheduled",
+                f"Booked interview with candidate {cand.name} ({cand.role}) for {meeting_time}. Meet: {meet_url}",
+                "success"
+            )
+            
+            # Update interview metrics
+            metric_int = self.db.query(AgentMetric).filter_by(
+                tenant_id=self.tenant_id, metric_name="interviews_scheduled"
+            ).first()
+            if not metric_int:
+                metric_int = AgentMetric(tenant_id=self.tenant_id, metric_name="interviews_scheduled", value=0.0)
+                self.db.add(metric_int)
+            metric_int.value += 1.0
+            
+            # Also increment general meetings booked metric
+            metric_meet = self.db.query(AgentMetric).filter_by(
+                tenant_id=self.tenant_id, metric_name="meetings_booked"
+            ).first()
+            if not metric_meet:
+                metric_meet = AgentMetric(tenant_id=self.tenant_id, metric_name="meetings_booked", value=0.0)
+                self.db.add(metric_meet)
+            metric_meet.value += 1.0
+            
+            self.db.commit()
 
         self.db.commit()
         return {"status": "success", "booked_interviews": booked_count}
