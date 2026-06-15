@@ -125,3 +125,34 @@ class AgentMeeting(AgentMeetingBase):
     class Config:
         from_attributes = True
 
+
+class BusinessProfileBase(BaseModel):
+    company_name: Optional[str] = None
+    website: Optional[str] = None
+    industry: Optional[str] = None
+    service_description: Optional[str] = None
+    target_countries: Optional[List[str]] = None
+    target_industries: Optional[List[str]] = None
+    target_company_size: Optional[str] = None
+    target_budget_range: Optional[str] = None
+    target_decision_makers: Optional[List[str]] = None
+    usp: Optional[str] = None
+    case_studies: Optional[str] = None
+    offer_details: Optional[str] = None
+    calendars: Optional[List[str]] = None
+    communication_channels: Optional[List[str]] = None
+    v3_workflow_status: Optional[dict] = None
+
+class BusinessProfileCreate(BusinessProfileBase):
+    pass
+
+class BusinessProfile(BusinessProfileBase):
+    id: str
+    tenant_id: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+

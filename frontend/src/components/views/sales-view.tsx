@@ -60,6 +60,164 @@ export default function SalesView({
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesActionLoading, setSalesActionLoading] = useState(false);
 
+  // Sales AI V3 States
+  const [activeSalesTab, setActiveSalesTab] = useState<'pipeline' | 'config' | 'stepper' | 'analytics'>('pipeline');
+  const [profileCompanyName, setProfileCompanyName] = useState('');
+  const [profileWebsite, setProfileWebsite] = useState('');
+  const [profileIndustry, setProfileIndustry] = useState('');
+  const [profileServiceDescription, setProfileServiceDescription] = useState('');
+  const [profileTargetCountries, setProfileTargetCountries] = useState('India, UAE');
+  const [profileTargetIndustries, setProfileTargetIndustries] = useState('Manufacturing, Healthcare, IT Services');
+  const [profileTargetCompanySize, setProfileTargetCompanySize] = useState('10-100');
+  const [profileTargetBudgetRange, setProfileTargetBudgetRange] = useState('1L-5L');
+  const [profileTargetDecisionMakers, setProfileTargetDecisionMakers] = useState('Founder, CEO, CTO');
+  const [profileUsp, setProfileUsp] = useState('');
+  const [profileCaseStudies, setProfileCaseStudies] = useState('');
+  const [profileOfferDetails, setProfileOfferDetails] = useState('');
+  const [profileCalendars, setProfileCalendars] = useState('https://calendly.com/sales');
+  const [profileCommunicationChannels, setProfileCommunicationChannels] = useState<string[]>(['email', 'whatsapp', 'linkedin']);
+  
+  const [workflowStatus, setWorkflowStatus] = useState<any>({
+    status: 'idle',
+    current_step: 0,
+    steps: {},
+    logs: []
+  });
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  const fetchBusinessProfile = async () => {
+    if (!token) return;
+    setProfileLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/business-profile`);
+      if (res.ok) {
+        const data = await res.json();
+        setProfileCompanyName(data.company_name || '');
+        setProfileWebsite(data.website || '');
+        setProfileIndustry(data.industry || '');
+        setProfileServiceDescription(data.service_description || '');
+        setProfileTargetCountries(Array.isArray(data.target_countries) ? data.target_countries.join(', ') : (data.target_countries || ''));
+        setProfileTargetIndustries(Array.isArray(data.target_industries) ? data.target_industries.join(', ') : (data.target_industries || ''));
+        setProfileTargetCompanySize(data.target_company_size || '');
+        setProfileTargetBudgetRange(data.target_budget_range || '1L-5L');
+        setProfileTargetDecisionMakers(Array.isArray(data.target_decision_makers) ? data.target_decision_makers.join(', ') : (data.target_decision_makers || ''));
+        setProfileUsp(data.usp || '');
+        setProfileCaseStudies(data.case_studies || '');
+        setProfileOfferDetails(data.offer_details || '');
+        setProfileCalendars(Array.isArray(data.calendars) ? data.calendars.join(', ') : (data.calendars || ''));
+        setProfileCommunicationChannels(data.communication_channels || ['email', 'whatsapp']);
+        if (data.v3_workflow_status) {
+          setWorkflowStatus(data.v3_workflow_status);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch business profile:", e);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const fetchWorkflowStatus = async () => {
+    if (!token) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/v3-workflow-status`);
+      if (res.ok) {
+        const data = await res.json();
+        setWorkflowStatus(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch workflow status:", e);
+    }
+  };
+
+  useEffect(() => {
+    let intervalId: any;
+    if (token && workflowStatus.status === 'executing') {
+      intervalId = setInterval(() => {
+        fetchWorkflowStatus();
+        fetchLeads();
+      }, 2000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [token, workflowStatus.status]);
+
+  const handleSaveProfile = async (silent = false) => {
+    if (!token) return false;
+    setProfileSaving(true);
+    try {
+      const countries = profileTargetCountries.split(',').map(s => s.trim()).filter(Boolean);
+      const industries = profileTargetIndustries.split(',').map(s => s.trim()).filter(Boolean);
+      const decisionMakers = profileTargetDecisionMakers.split(',').map(s => s.trim()).filter(Boolean);
+      const calendars = profileCalendars.split(',').map(s => s.trim()).filter(Boolean);
+
+      const res = await fetchWithAuth(`${API_URL}/leads/business-profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company_name: profileCompanyName,
+          website: profileWebsite,
+          industry: profileIndustry,
+          service_description: profileServiceDescription,
+          target_countries: countries,
+          target_industries: industries,
+          target_company_size: profileTargetCompanySize,
+          target_budget_range: profileTargetBudgetRange,
+          target_decision_makers: decisionMakers,
+          usp: profileUsp,
+          case_studies: profileCaseStudies,
+          offer_details: profileOfferDetails,
+          calendars: calendars,
+          communication_channels: profileCommunicationChannels
+        })
+      });
+      if (res.ok) {
+        if (!silent) alert("✅ Business Profile saved successfully!");
+        return true;
+      } else {
+        alert("Failed to save Business Profile.");
+        return false;
+      }
+    } catch (e) {
+      console.error("Save profile error:", e);
+      alert("Network error saving Business Profile.");
+      return false;
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleLaunchV3Workflow = async () => {
+    const saved = await handleSaveProfile(true);
+    if (!saved) return;
+    
+    setSalesActionLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/run-v3-workflow`, {
+        method: 'POST'
+      });
+      if (res.ok) {
+        setWorkflowStatus((prev: any) => ({
+          ...prev,
+          status: 'executing'
+        }));
+        setActiveSalesTab('stepper');
+        alert("🚀 Sales AI V3 Workflow started! Check the Live Agent Stepper tab for real-time logs.");
+      } else {
+        const data = await res.json();
+        alert(`Failed to launch workflow: ${data.detail || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error("Launch V3 workflow error:", e);
+      alert("Network error starting V3 workflow.");
+    } finally {
+      setSalesActionLoading(false);
+    }
+  };
+
+
   // Edit Lead Fields
   const [isEditingSalesLead, setIsEditingSalesLead] = useState(false);
   const [editPersonalEmail, setEditPersonalEmail] = useState('');
@@ -125,12 +283,15 @@ export default function SalesView({
     }
   }, [salesStatusFilter, salesPriorityFilter, salesSearch, salesTimeFilter, salesAssignedFilter, token]);
 
-  // Fetch members list on mount
+  // Fetch members list, business profile and workflow status on mount
   useEffect(() => {
     if (token) {
       fetchMembers();
+      fetchBusinessProfile();
+      fetchWorkflowStatus();
     }
   }, [token]);
+
 
   const fetchMembers = async () => {
     try {
@@ -643,6 +804,63 @@ export default function SalesView({
   const totalClosed = wonCount + lostCount;
   const winRate = totalClosed > 0 ? Math.round((wonCount / totalClosed) * 100) : 0;
 
+  // Analytics calculations
+  const totalLeadsFound = salesLeads.length;
+  const qualifiedLeadsCount = salesLeads.filter(l => (l.score || 0) >= 60).length;
+  const hotLeadsCount = salesLeads.filter(l => (l.score || 0) >= 85 || l.data?.scoring_breakdown?.category === 'Hot Lead').length;
+  const meetingsBookedCount = salesLeads.filter(l => l.status === 'meeting_scheduled').length;
+
+  const contactedLeadsCount = salesLeads.filter(l => ['contacted', 'replied', 'meeting_scheduled', 'won', 'lost'].includes(l.status)).length;
+  const respondedLeadsCount = salesLeads.filter(l => ['replied', 'meeting_scheduled', 'won'].includes(l.status) || l.data?.prospect_interested).length;
+  
+  const responseRatePct = contactedLeadsCount > 0 ? Math.round((respondedLeadsCount / contactedLeadsCount) * 100) : 0;
+  const conversionRatePct = contactedLeadsCount > 0 ? Math.round((meetingsBookedCount / contactedLeadsCount) * 100) : 0;
+
+  const totalRevenuePotential = salesLeads.reduce((sum, l) => sum + parseBudget(l.how_much), 0);
+
+  // Sourcing channel counts
+  const sourcingChannels: { [key: string]: number } = {};
+  salesLeads.forEach(l => {
+    const src = (l.source || 'Unknown').split(':')[0].trim();
+    sourcingChannels[src] = (sourcingChannels[src] || 0) + 1;
+  });
+
+  // Top Industries
+  const topIndustries: { [key: string]: number } = {};
+  salesLeads.forEach(l => {
+    const company = (l.company || '').toLowerCase();
+    const source = (l.source || '').toLowerCase();
+    let foundInd = '';
+    const possible = ['Manufacturing', 'Healthcare', 'IT Services', 'Retail', 'Finance', 'SaaS'];
+    for (const p of possible) {
+      if (company.includes(p.toLowerCase()) || source.includes(p.toLowerCase())) {
+        foundInd = p;
+        break;
+      }
+    }
+    if (!foundInd && l.id) {
+      const idx = l.id.charCodeAt(0) % possible.length;
+      foundInd = possible[idx];
+    } else if (!foundInd) {
+      foundInd = 'Technology';
+    }
+    topIndustries[foundInd] = (topIndustries[foundInd] || 0) + 1;
+  });
+
+  // Campaigns
+  const campaignData: { [key: string]: { leads: number; meetings: number } } = {};
+  salesLeads.forEach(l => {
+    const campaign = l.source || 'Direct Outreach';
+    if (!campaignData[campaign]) {
+      campaignData[campaign] = { leads: 0, meetings: 0 };
+    }
+    campaignData[campaign].leads += 1;
+    if (l.status === 'meeting_scheduled') {
+      campaignData[campaign].meetings += 1;
+    }
+  });
+
+
   const fmtCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -706,8 +924,58 @@ export default function SalesView({
                 ))}
               </div>
 
-              {/* Split Screen Layout */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* V3 Sales AI Navigation Tabs */}
+              <div className="flex gap-2 p-1 bg-gray-950/80 border border-gray-800 rounded-2xl max-w-lg">
+                <button
+                  onClick={() => setActiveSalesTab('pipeline')}
+                  className={`flex-1 py-2 px-4 rounded-xl text-xs font-black tracking-wide transition-all ${
+                    activeSalesTab === 'pipeline'
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/15'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-900/40'
+                  }`}
+                >
+                  🎯 CRM & Pipeline
+                </button>
+                <button
+                  onClick={() => setActiveSalesTab('config')}
+                  className={`flex-1 py-2 px-4 rounded-xl text-xs font-black tracking-wide transition-all ${
+                    activeSalesTab === 'config'
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/15'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-900/40'
+                  }`}
+                >
+                  ⚙️ Business Config
+                </button>
+                <button
+                  onClick={() => setActiveSalesTab('stepper')}
+                  className={`flex-1 py-2 px-4 rounded-xl text-xs font-black tracking-wide transition-all relative ${
+                    activeSalesTab === 'stepper'
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/15'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-900/40'
+                  }`}
+                >
+                  🤖 Live Stepper
+                  {workflowStatus.status === 'executing' && (
+                    <span className="absolute -top-1.5 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveSalesTab('analytics')}
+                  className={`flex-1 py-2 px-4 rounded-xl text-xs font-black tracking-wide transition-all ${
+                    activeSalesTab === 'analytics'
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/15'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-900/40'
+                  }`}
+                >
+                  📈 Revenue Analytics
+                </button>
+              </div>
+
+              {activeSalesTab === 'pipeline' && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
                 {/* Left Pane: Leads List */}
                 <div className="lg:col-span-2 space-y-4">
@@ -1765,6 +2033,548 @@ export default function SalesView({
                 </div>
 
               </div>
+              )}
+
+              {activeSalesTab === 'config' && (
+                <Card className="glass-panel border-transparent rounded-3xl p-8 shadow-2xl relative">
+                  <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
+                  
+                  <div className="mb-6">
+                    <h2 className="text-xl font-extrabold text-white">⚙️ Sales AI V3 Business Configuration</h2>
+                    <p className="text-xs text-gray-400 mt-1">Configure your product/service parameters, unique selling proposition, case studies, and target criteria once. Sales AI will handle discovery and qualification autonomously.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    <div className="space-y-4">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-450 uppercase tracking-wider">Company Name</label>
+                        <Input
+                          placeholder="e.g. Acme Agency"
+                          value={profileCompanyName}
+                          onChange={e => setProfileCompanyName(e.target.value)}
+                          className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11 focus:border-emerald-500 focus:ring-emerald-500/20"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Company Website</label>
+                        <Input
+                          placeholder="e.g. acmeagency.com"
+                          value={profileWebsite}
+                          onChange={e => setProfileWebsite(e.target.value)}
+                          className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11 focus:border-emerald-500 focus:ring-emerald-500/20"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Industry</label>
+                        <Input
+                          placeholder="e.g. Software Development / Marketing"
+                          value={profileIndustry}
+                          onChange={e => setProfileIndustry(e.target.value)}
+                          className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11 focus:border-emerald-500 focus:ring-emerald-500/20"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Service/Product Description</label>
+                        <Textarea
+                          placeholder="Describe what your service or product does in detail..."
+                          value={profileServiceDescription}
+                          onChange={e => setProfileServiceDescription(e.target.value)}
+                          className="bg-gray-900/60 border border-gray-800 text-white rounded-xl p-3 text-sm focus:border-emerald-500 focus:outline-none resize-none min-h-[100px] text-gray-105"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Unique Selling Proposition (USP)</label>
+                        <Textarea
+                          placeholder="What sets your company apart from competitors?"
+                          value={profileUsp}
+                          onChange={e => setProfileUsp(e.target.value)}
+                          className="bg-gray-900/60 border border-gray-800 text-white rounded-xl p-3 text-sm focus:border-emerald-500 focus:outline-none resize-none min-h-[80px] text-gray-105"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Offer Details</label>
+                        <Textarea
+                          placeholder="e.g. 15% discount for manufacturing companies, or custom pricing details..."
+                          value={profileOfferDetails}
+                          onChange={e => setProfileOfferDetails(e.target.value)}
+                          className="bg-gray-900/60 border border-gray-800 text-white rounded-xl p-3 text-sm focus:border-emerald-500 focus:outline-none resize-none min-h-[80px] text-gray-105"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Target Countries (comma separated)</label>
+                        <Input
+                          placeholder="e.g. India, UAE"
+                          value={profileTargetCountries}
+                          onChange={e => setProfileTargetCountries(e.target.value)}
+                          className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11 focus:border-emerald-500 focus:ring-emerald-500/20"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Target Industries (comma separated)</label>
+                        <Input
+                          placeholder="e.g. Manufacturing, Healthcare"
+                          value={profileTargetIndustries}
+                          onChange={e => setProfileTargetIndustries(e.target.value)}
+                          className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11 focus:border-emerald-500 focus:ring-emerald-500/20"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Target Company Size</label>
+                          <Input
+                            placeholder="e.g. 10-100 employees"
+                            value={profileTargetCompanySize}
+                            onChange={e => setProfileTargetCompanySize(e.target.value)}
+                            className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11 focus:border-emerald-500 focus:ring-emerald-500/20"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Target Budget Range</label>
+                          <Select value={profileTargetBudgetRange} onValueChange={val => setProfileTargetBudgetRange(val || '1L-5L')}>
+                            <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11">
+                              <SelectValue placeholder="Budget" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-gray-950 border-gray-800 text-white">
+                              <SelectItem value="20K–1L">20K – 1L (INR)</SelectItem>
+                              <SelectItem value="1L–3L">1L – 3L (INR)</SelectItem>
+                              <SelectItem value="3L–7L">3L – 7L (INR)</SelectItem>
+                              <SelectItem value="7L–15L">7L – 15L (INR)</SelectItem>
+                              <SelectItem value="15L+">15L+ (INR)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Target Decision Makers (comma separated)</label>
+                        <Input
+                          placeholder="e.g. Founder, CEO"
+                          value={profileTargetDecisionMakers}
+                          onChange={e => setProfileTargetDecisionMakers(e.target.value)}
+                          className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11 focus:border-emerald-500 focus:ring-emerald-500/20"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Case Studies / Proof Points</label>
+                        <Textarea
+                          placeholder="e.g. Delivered 30% ROI within 3 months for manufacturing client..."
+                          value={profileCaseStudies}
+                          onChange={e => setProfileCaseStudies(e.target.value)}
+                          className="bg-gray-900/60 border border-gray-800 text-white rounded-xl p-3 text-sm focus:border-emerald-500 focus:outline-none resize-none min-h-[80px] text-gray-105"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Calendar Links (comma separated)</label>
+                        <Input
+                          placeholder="e.g. https://calendly.com/demo"
+                          value={profileCalendars}
+                          onChange={e => setProfileCalendars(e.target.value)}
+                          className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11 focus:border-emerald-500 focus:ring-emerald-500/20"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Communication Channels</label>
+                        <div className="flex gap-4 items-center bg-gray-900/60 border border-gray-800 rounded-xl p-3">
+                          {['email', 'whatsapp', 'linkedin', 'sms', 'telegram'].map(ch => (
+                            <label key={ch} className="flex items-center gap-2 cursor-pointer text-xs capitalize text-gray-300">
+                              <input
+                                type="checkbox"
+                                checked={profileCommunicationChannels.includes(ch)}
+                                onChange={e => {
+                                  if (e.target.checked) {
+                                    setProfileCommunicationChannels(prev => [...prev, ch]);
+                                  } else {
+                                    setProfileCommunicationChannels(prev => prev.filter(c => c !== ch));
+                                  }
+                                }}
+                                className="rounded border-gray-850 bg-gray-950 text-emerald-500 focus:ring-emerald-500/20"
+                              />
+                              {ch}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 pt-6 border-t border-gray-800/40 mt-6">
+                    <Button
+                      onClick={() => handleSaveProfile()}
+                      disabled={profileSaving}
+                      className="bg-gray-900 hover:bg-gray-800 text-white border border-gray-800 hover:border-gray-750 font-bold rounded-xl h-12 px-6 flex-1 transition-all"
+                    >
+                      {profileSaving ? 'Saving...' : '💾 Save Profile Configuration'}
+                    </Button>
+                    <Button
+                      onClick={handleLaunchV3Workflow}
+                      disabled={salesActionLoading || profileSaving}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl h-12 px-6 flex-1 transition-all shadow-lg shadow-emerald-500/25"
+                    >
+                      {salesActionLoading ? 'Starting Agent...' : '🚀 Launch Autonomous Sales AI V3'}
+                    </Button>
+                  </div>
+                </Card>
+              )}
+
+              {activeSalesTab === 'stepper' && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  <Card className="lg:col-span-2 glass-panel border-transparent rounded-3xl p-6 shadow-2xl relative">
+                    <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
+                    
+                    <div className="mb-6 flex justify-between items-center border-b border-gray-800/60 pb-4">
+                      <div>
+                        <h2 className="text-xl font-extrabold text-white flex items-center gap-2">
+                          <Bot className="text-emerald-400 h-6 w-6 animate-pulse" /> Live Sales AI V3 Stepper
+                        </h2>
+                        <p className="text-xs text-gray-400 mt-1">Real-time status of the 10-step autonomous pipeline.</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {workflowStatus.status === 'executing' ? (
+                          <span className="text-xs font-bold text-emerald-450 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse">
+                            <Loader2 size={12} className="animate-spin" /> RUNNING
+                          </span>
+                        ) : workflowStatus.status === 'completed' ? (
+                          <span className="text-xs font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-3 py-1 rounded-full flex items-center gap-1">
+                            <Check size={12} /> COMPLETED
+                          </span>
+                        ) : workflowStatus.status === 'failed' ? (
+                          <span className="text-xs font-bold text-rose-400 bg-rose-500/15 border border-rose-500/25 px-3 py-1 rounded-full flex items-center gap-1">
+                            <X size={12} /> FAILED
+                          </span>
+                        ) : (
+                          <span className="text-xs font-bold text-gray-400 bg-gray-900 border border-gray-800 px-3 py-1 rounded-full">
+                            IDLE / READY
+                          </span>
+                        )}
+                        <Button
+                          onClick={handleLaunchV3Workflow}
+                          disabled={salesActionLoading}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs h-9 px-4 shadow shadow-emerald-500/20"
+                        >
+                          Restart Agent
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6 relative before:absolute before:left-5 before:top-2 before:bottom-2 before:w-[2px] before:bg-gray-850">
+                      {[
+                        { step: "1", name: "Step 1: Understand Service & Generate ICP" },
+                        { step: "2", name: "Step 2: Market Discovery (Free/Paid Sources)" },
+                        { step: "3", name: "Step 3: Lead Qualification & Budget Fit" },
+                        { step: "4", name: "Step 4: Pain Point Discovery & Web Audit" },
+                        { step: "5", name: "Step 5: Decision Maker Lookup & Verification" },
+                        { step: "6", name: "Step 6: Weighted Quality Lead Scoring" },
+                        { step: "7", name: "Step 7: Hyper-Personalized Outreach Generation" },
+                        { step: "8", name: "Step 8: Multi-Channel Sequence Activation" },
+                        { step: "9", name: "Step 9: Conversation AI Response Engine" },
+                        { step: "10", name: "Step 10: Buying Intent & Meeting Conversion" }
+                      ].map((s) => {
+                        const stepData = workflowStatus.steps?.[s.step] || {};
+                        const isActive = workflowStatus.current_step == Number(s.step);
+                        const isCompleted = stepData.status === 'completed' || Number(workflowStatus.current_step) > Number(s.step);
+                        const isFailed = stepData.status === 'failed';
+                        const isExecuting = stepData.status === 'executing' || (isActive && workflowStatus.status === 'executing');
+
+                        return (
+                          <div key={s.step} className="flex gap-4 relative items-start animate-in slide-in-from-bottom-5 duration-250">
+                            <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm border z-10 transition-all ${
+                              isCompleted
+                                ? 'bg-emerald-600/15 border-emerald-500 text-emerald-450 shadow-md shadow-emerald-500/10'
+                                : isFailed
+                                  ? 'bg-rose-600/15 border-rose-500 text-rose-455'
+                                  : isExecuting
+                                    ? 'bg-emerald-500/10 border-emerald-400 text-emerald-400 animate-pulse-glow shadow-md shadow-emerald-500/15'
+                                    : 'bg-gray-950 border-gray-850 text-gray-500'
+                            }`}>
+                              {isCompleted ? <Check size={16} /> : isFailed ? <X size={16} /> : isExecuting ? <Loader2 size={16} className="animate-spin" /> : s.step}
+                            </div>
+
+                            <div className={`flex-1 bg-gray-900/35 border rounded-2xl p-4 transition-all duration-300 ${
+                              isExecuting ? 'border-emerald-500/40 bg-emerald-950/5 shadow' : 'border-gray-850'
+                            }`}>
+                              <h3 className={`text-sm font-black flex items-center gap-2 ${
+                                isCompleted ? 'text-white' : isExecuting ? 'text-emerald-400' : 'text-gray-400'
+                              }`}>
+                                {s.name}
+                              </h3>
+                              
+                              {stepData.result && (
+                                <div className="mt-2 bg-gray-955/50 rounded-xl p-3 border border-gray-900/80 text-xs leading-relaxed max-h-48 overflow-y-auto custom-scrollbar font-medium">
+                                  {stepData.result.startsWith('{') || stepData.result.startsWith('[') ? (
+                                    <pre className="text-[10px] font-mono text-emerald-450 whitespace-pre-wrap">{stepData.result}</pre>
+                                  ) : (
+                                    <p className="text-gray-300">{stepData.result}</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Card>
+
+                  <Card className="lg:col-span-1 glass-panel border-transparent rounded-3xl p-5 shadow-2xl relative flex flex-col h-[650px] overflow-hidden">
+                    <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
+                    
+                    <div className="mb-4 pb-3 border-b border-gray-800/60">
+                      <h3 className="text-sm font-extrabold text-white flex items-center gap-1.5">
+                        <Activity size={14} className="text-emerald-400" /> System Terminal Logs
+                      </h3>
+                      <p className="text-[10px] text-gray-455 mt-0.5">Autonomous execution logger stream.</p>
+                    </div>
+
+                    <div className="flex-1 bg-gray-955 border border-gray-850/80 rounded-2xl p-4 font-mono text-[10px] leading-relaxed text-emerald-400 overflow-y-auto custom-scrollbar flex flex-col-reverse gap-2 shadow-inner">
+                      {workflowStatus.logs && workflowStatus.logs.length > 0 ? (
+                        [...workflowStatus.logs].reverse().map((log: string, idx: number) => (
+                          <div key={idx} className="border-b border-gray-900/60 pb-1.5 last:border-b-0">
+                            <span className="text-gray-500 select-none">&gt; </span>
+                            {log}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-gray-650 italic py-12 text-center">
+                          Waiting for agent start sequence...
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                </div>
+              )}
+
+              {activeSalesTab === 'analytics' && (
+                <div className="space-y-6">
+                  {/* Top Stats Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card className="glass-panel border-transparent rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Leads Sourced</p>
+                          <h3 className="text-2xl font-black text-white mt-1">{totalLeadsFound}</h3>
+                          <p className="text-[9px] text-gray-400 mt-1">Total ICP matches discovered</p>
+                        </div>
+                        <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-emerald-400">
+                          <Users size={16} />
+                        </div>
+                      </div>
+                    </Card>
+
+                    <Card className="glass-panel border-transparent rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Qualified Leads</p>
+                          <h3 className="text-2xl font-black text-white mt-1">{qualifiedLeadsCount}</h3>
+                          <p className="text-[9px] text-gray-400 mt-1">Sourcing budget range met</p>
+                        </div>
+                        <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-emerald-400">
+                          <CheckSquare size={16} />
+                        </div>
+                      </div>
+                    </Card>
+
+                    <Card className="glass-panel border-transparent rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-rose-500 to-transparent" />
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Hot Leads</p>
+                          <h3 className="text-2xl font-black text-white mt-1">{hotLeadsCount}</h3>
+                          <p className="text-[9px] text-gray-400 mt-1">Lead score &gt;= 85 or high intent</p>
+                        </div>
+                        <div className="p-2 bg-rose-500/10 rounded-lg border border-rose-500/20 text-rose-455">
+                          <Target size={16} />
+                        </div>
+                      </div>
+                    </Card>
+
+                    <Card className="glass-panel border-transparent rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-amber-500 to-transparent" />
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Meetings Booked</p>
+                          <h3 className="text-2xl font-black text-white mt-1">{meetingsBookedCount}</h3>
+                          <p className="text-[9px] text-gray-400 mt-1">Calendar invites accepted</p>
+                        </div>
+                        <div className="p-2 bg-amber-500/10 rounded-lg border border-amber-500/20 text-amber-450">
+                          <Calendar size={16} />
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* Performance Metrics Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card className="glass-panel border-transparent rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Response Rate</p>
+                          <h3 className="text-2xl font-black text-white mt-1">{responseRatePct}%</h3>
+                          <p className="text-[9px] text-gray-400 mt-1">Outbound reply engagement</p>
+                        </div>
+                        <div className="p-2 bg-violet-500/10 rounded-lg border border-violet-500/20 text-violet-400">
+                          <MessageSquare size={16} />
+                        </div>
+                      </div>
+                    </Card>
+
+                    <Card className="glass-panel border-transparent rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-blue-500 to-transparent" />
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Meeting Conv. Rate</p>
+                          <h3 className="text-2xl font-black text-white mt-1">{conversionRatePct}%</h3>
+                          <p className="text-[9px] text-gray-400 mt-1">Total contacted to meeting ratio</p>
+                        </div>
+                        <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20 text-blue-400">
+                          <TrendingUp size={16} />
+                        </div>
+                      </div>
+                    </Card>
+
+                    <Card className="glass-panel border-transparent rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Pipeline Value</p>
+                          <h3 className="text-2xl font-black text-emerald-400 mt-1">{fmtCurrency(activePipelineValue)}</h3>
+                          <p className="text-[9px] text-gray-400 mt-1">Value of active opportunities</p>
+                        </div>
+                        <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-emerald-400">
+                          <Sparkles size={16} />
+                        </div>
+                      </div>
+                    </Card>
+
+                    <Card className="glass-panel border-transparent rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-400 to-transparent" />
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Revenue Potential</p>
+                          <h3 className="text-2xl font-black text-emerald-300 mt-1">{fmtCurrency(totalRevenuePotential)}</h3>
+                          <p className="text-[9px] text-gray-400 mt-1">Total value of all pipeline leads</p>
+                        </div>
+                        <div className="p-2 bg-emerald-400/10 rounded-lg border border-emerald-400/20 text-emerald-300">
+                          <TrendingUp size={16} />
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* Breakdown Tables & Lists */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Top Industries */}
+                    <Card className="glass-panel border-transparent rounded-3xl p-5 shadow-xl relative flex flex-col">
+                      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
+                      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                        🏢 Top Sourced Industries
+                      </h3>
+                      <div className="space-y-3 flex-1 overflow-y-auto max-h-[300px] custom-scrollbar">
+                        {Object.entries(topIndustries)
+                          .sort((a, b) => b[1] - a[1])
+                          .map(([industry, count]) => {
+                            const pct = Math.round((count / (totalLeadsFound || 1)) * 100);
+                            return (
+                              <div key={industry} className="space-y-1">
+                                <div className="flex justify-between text-xs">
+                                  <span className="font-extrabold text-gray-300">{industry}</span>
+                                  <span className="font-mono text-gray-400">{count} ({pct}%)</span>
+                                </div>
+                                <div className="h-1.5 w-full bg-gray-900 rounded-full overflow-hidden">
+                                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        {Object.keys(topIndustries).length === 0 && (
+                          <div className="text-center text-xs text-gray-500 py-12">No industry data available</div>
+                        )}
+                      </div>
+                    </Card>
+
+                    {/* Sourcing Channels */}
+                    <Card className="glass-panel border-transparent rounded-3xl p-5 shadow-xl relative flex flex-col">
+                      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
+                      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                        📡 Sourcing Channels
+                      </h3>
+                      <div className="space-y-3 flex-1 overflow-y-auto max-h-[300px] custom-scrollbar">
+                        {Object.entries(sourcingChannels)
+                          .sort((a, b) => b[1] - a[1])
+                          .map(([channel, count]) => {
+                            const pct = Math.round((count / (totalLeadsFound || 1)) * 100);
+                            return (
+                              <div key={channel} className="space-y-1">
+                                <div className="flex justify-between text-xs">
+                                  <span className="font-extrabold text-gray-350">{channel || 'Other'}</span>
+                                  <span className="font-mono text-gray-400">{count} ({pct}%)</span>
+                                </div>
+                                <div className="h-1.5 w-full bg-gray-900 rounded-full overflow-hidden">
+                                  <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        {Object.keys(sourcingChannels).length === 0 && (
+                          <div className="text-center text-xs text-gray-500 py-12">No channel data available</div>
+                        )}
+                      </div>
+                    </Card>
+
+                    {/* Best Campaigns */}
+                    <Card className="glass-panel border-transparent rounded-3xl p-5 shadow-xl relative flex flex-col">
+                      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
+                      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                        🔥 Best Performing Campaigns
+                      </h3>
+                      <div className="space-y-4 flex-1 overflow-y-auto max-h-[300px] custom-scrollbar">
+                        {Object.entries(campaignData)
+                          .sort((a, b) => b[1].meetings - a[1].meetings)
+                          .slice(0, 5)
+                          .map(([campaign, data]) => {
+                            const conv = data.leads > 0 ? Math.round((data.meetings / data.leads) * 100) : 0;
+                            return (
+                              <div key={campaign} className="p-3 bg-gray-950/40 border border-gray-800 rounded-xl flex items-center justify-between">
+                                <div className="min-w-0 flex-1 pr-2">
+                                  <h4 className="text-xs font-black text-white truncate">{campaign}</h4>
+                                  <p className="text-[9px] text-gray-400 mt-0.5">{data.leads} Leads Sourced</p>
+                                </div>
+                                <div className="text-right">
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                    conv >= 40 ? 'bg-emerald-500/10 text-emerald-400' : conv >= 20 ? 'bg-blue-500/10 text-blue-400' : 'bg-gray-800 text-gray-400'
+                                  }`}>
+                                    {conv}% Conv
+                                  </span>
+                                  <p className="text-[9px] text-gray-400 mt-1">{data.meetings} Meetings</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        {Object.keys(campaignData).length === 0 && (
+                          <div className="text-center text-xs text-gray-500 py-12">No campaign data available</div>
+                        )}
+                      </div>
+                    </Card>
+                  </div>
+                </div>
+              )}
+
             </div>
 
       {/* ── Add Lead Manually Modal ─────────────────────────────────────── */}

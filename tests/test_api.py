@@ -892,5 +892,59 @@ def test_otp_auth_flows(client, db):
     assert "access_token" in login_verify_resp.json()
 
 
+def test_business_profile_and_v3_workflow(client, db):
+    # Setup tenant
+    subdomain = f"test-{uuid.uuid4()}"
+    tenant_resp = client.post("/api/v1/tenants/", json={"name": "V3 Test Co", "subdomain": subdomain})
+    tenant_id = tenant_resp.json()["id"]
+    tenant_id_override_store["tenant_id"] = tenant_id
 
+    # 1. Get default profile (should auto-create empty)
+    get_resp = client.get("/api/v1/leads/business-profile")
+    assert get_resp.status_code == 200
+    data = get_resp.json()
+    assert data["company_name"] == ""
+    
+    # 2. Update business profile
+    profile_payload = {
+        "company_name": "Acme Widgets",
+        "website": "https://acme.co",
+        "industry": "Manufacturing",
+        "service_description": "We build great widgets.",
+        "target_countries": ["India", "UAE"],
+        "target_industries": ["Retail", "Healthcare"],
+        "target_company_size": "10-100",
+        "target_budget_range": "1L-5L",
+        "target_decision_makers": ["CEO", "Founder"],
+        "usp": "Fast widgets",
+        "case_studies": "Case study X",
+        "offer_details": "10% off widgets",
+        "calendars": ["https://calendly.com/acme"],
+        "communication_channels": ["email", "linkedin"]
+    }
+    post_resp = client.post("/api/v1/leads/business-profile", json=profile_payload)
+    assert post_resp.status_code == 200
+    updated_data = post_resp.json()
+    assert updated_data["company_name"] == "Acme Widgets"
+    assert updated_data["target_countries"] == ["India", "UAE"]
 
+    # 3. Get profile again to ensure persistence
+    get_resp_2 = client.get("/api/v1/leads/business-profile")
+    assert get_resp_2.status_code == 200
+    assert get_resp_2.json()["company_name"] == "Acme Widgets"
+
+    # 4. Test run workflow launch (mocking celery delay to avoid actual execution background loop here)
+    with patch("app.worker.tasks.run_sales_v3_task.delay") as mock_celery_task:
+        run_resp = client.post("/api/v1/leads/run-v3-workflow")
+        assert run_resp.status_code == 200
+        assert "launched successfully!" in run_resp.json()["message"]
+        mock_celery_task.assert_called_once_with(tenant_id)
+
+    # 5. Check status endpoint
+    status_resp = client.get("/api/v1/leads/v3-workflow-status")
+    assert status_resp.status_code == 200
+    status_data = status_resp.json()
+    assert status_data["status"] == "executing"
+    assert status_data["current_step"] == 1
+    assert "1" in status_data["steps"]
+    assert "logs" in status_data

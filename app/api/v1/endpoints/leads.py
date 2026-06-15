@@ -333,3 +333,143 @@ def add_timeline_note(
     db.commit()
     db.refresh(lead)
     return lead
+
+
+@router.get("/business-profile", response_model=schemas.BusinessProfile)
+def get_business_profile(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    profile = db.query(models.BusinessProfile).filter(models.BusinessProfile.tenant_id == tenant_id).first()
+    if not profile:
+        # Create an empty default profile
+        profile = models.BusinessProfile(
+            tenant_id=tenant_id,
+            company_name="",
+            website="",
+            industry="",
+            service_description="",
+            target_countries=[],
+            target_industries=[],
+            target_company_size="",
+            target_budget_range="",
+            target_decision_makers=[],
+            usp="",
+            case_studies="",
+            offer_details="",
+            calendars=[],
+            communication_channels=[],
+            v3_workflow_status={}
+        )
+        db.add(profile)
+        db.commit()
+        db.refresh(profile)
+    return profile
+
+
+@router.post("/business-profile", response_model=schemas.BusinessProfile)
+def update_business_profile(
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    profile_in: schemas.BusinessProfileCreate
+) -> Any:
+    profile = db.query(models.BusinessProfile).filter(models.BusinessProfile.tenant_id == tenant_id).first()
+    if not profile:
+        profile = models.BusinessProfile(tenant_id=tenant_id)
+        db.add(profile)
+    
+    for field, value in profile_in.dict(exclude_unset=True).items():
+        setattr(profile, field, value)
+        
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+
+@router.post("/run-v3-workflow")
+def run_v3_workflow(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    profile = db.query(models.BusinessProfile).filter(models.BusinessProfile.tenant_id == tenant_id).first()
+    if not profile:
+        raise HTTPException(status_code=400, detail="Please configure your Business Profile first.")
+        
+    # Reset workflow status to starting state
+    profile.v3_workflow_status = {
+        "status": "executing",
+        "current_step": 1,
+        "steps": {
+            "1": { "name": "Understand Service & Generate ICP", "status": "executing", "result": "Analyzing your product/service parameters..." },
+            "2": { "name": "Market Discovery", "status": "pending", "result": "" },
+            "3": { "name": "Lead Qualification", "status": "pending", "result": "" },
+            "4": { "name": "Pain Point Discovery", "status": "pending", "result": "" },
+            "5": { "name": "Decision Maker Discovery", "status": "pending", "result": "" },
+            "6": { "name": "Lead Scoring", "status": "pending", "result": "" },
+            "7": { "name": "Outreach Generation", "status": "pending", "result": "" },
+            "8": { "name": "Multi-Channel Outreach", "status": "pending", "result": "" },
+            "9": { "name": "Conversation AI", "status": "pending", "result": "" },
+            "10": { "name": "Meeting Conversion", "status": "pending", "result": "" }
+        },
+        "logs": [
+            "Initializing OCTAOS Sales AI V3...",
+            "Sourcing settings & launch guidelines."
+        ]
+    }
+    db.commit()
+    
+    # Import and trigger Celery task
+    from app.worker.tasks import run_sales_v3_task
+    run_sales_v3_task.delay(tenant_id)
+    
+    return {"message": "Autonomous Sales AI V3 workflow launched successfully!"}
+
+
+@router.get("/v3-workflow-status")
+def get_v3_workflow_status(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    profile = db.query(models.BusinessProfile).filter(models.BusinessProfile.tenant_id == tenant_id).first()
+    if not profile:
+        return {"status": "idle", "current_step": 0, "steps": {}, "logs": []}
+    return profile.v3_workflow_status or {"status": "idle", "current_step": 0, "steps": {}, "logs": []}
+
+
+@router.post("/run-sequence")
+def run_sequence_stub(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    # Trigger AI outreach for all leads needing it
+    from app.worker.tasks import handle_lead_with_ai_task
+    leads = db.query(models.Lead).filter(models.Lead.tenant_id == tenant_id, models.Lead.status.in_(["captured", "scored"])).all()
+    for lead in leads:
+        handle_lead_with_ai_task.delay(tenant_id, lead.id)
+    return {"message": "Outbound outreach sequence launched!"}
+
+
+@router.post("/run-auto-agent")
+def run_auto_agent_stub(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    # Trigger Sales V3 workflow as the primary action
+    from app.worker.tasks import run_sales_v3_task
+    run_sales_v3_task.delay(tenant_id)
+    return {"message": "Sales Agent Auto-Prospector launched!"}
+
+
+@router.post("/{lead_id}/score")
+def trigger_scoring(
+    lead_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    score_lead_task.delay(tenant_id, lead.id)
+    return {"message": "Lead scoring triggered successfully!"}
+

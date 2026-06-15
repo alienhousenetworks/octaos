@@ -132,3 +132,26 @@ class AgentMeeting(Base):
     transcript = Column(JSON, default=[]) # list of message objects
     action_items = Column(JSON, default=[]) # list of action item objects
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class BusinessProfile(Base):
+    __tablename__ = "business_profiles"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    company_name = Column(String, nullable=True)
+    website = Column(String, nullable=True)
+    industry = Column(String, nullable=True)
+    service_description = Column(Text, nullable=True)
+    target_countries = Column(JSON, nullable=True)
+    target_industries = Column(JSON, nullable=True)
+    target_company_size = Column(String, nullable=True)
+    target_budget_range = Column(String, nullable=True)
+    target_decision_makers = Column(JSON, nullable=True)
+    usp = Column(Text, nullable=True)
+    case_studies = Column(Text, nullable=True)
+    offer_details = Column(Text, nullable=True)
+    calendars = Column(JSON, nullable=True)
+    communication_channels = Column(JSON, nullable=True)
+    v3_workflow_status = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+

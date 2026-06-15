@@ -758,3 +758,17 @@ def run_ceo_workflow_task(tenant_id: str, workflow_id: str):
         raise e
     finally:
         db.close()
+
+@celery_app.task(name="run_sales_v3_task")
+def run_sales_v3_task(tenant_id: str):
+    from app.services.agents.sales import SalesAgent
+    db = SessionLocal()
+    try:
+        agent = SalesAgent(db, tenant_id)
+        async_to_sync(agent.run_sales_ai_v3_workflow)()
+    except Exception as e:
+        print(f"Error in run_sales_v3_task: {e}")
+        raise e
+    finally:
+        db.close()
+
