@@ -96,47 +96,6 @@ class HRAgent(BaseAgent):
         self.log_activity("Sourcing Complete", f"Successfully sourced {created_count} candidate profiles in the database.", "success")
         return {"status": "success", "sourced_count": created_count}
 
-    async def _simulate_candidates(self, platform: str, role: str, requirements: str, salary: str, count: int):
-        prompt = f"""Generate exactly {count} highly realistic candidate profiles for the job opening sourced from {platform}:
-Role: {role}
-Requirements: {requirements}
-Target Salary Budget: {salary}
-
-The profiles must look extremely authentic, representing diverse, qualified individuals with realistic names, contact details, skills, and experience.
-Format the 'notes' or 'experience_summary' to reflect typical information available on {platform}.
-For each candidate, assign a match score (0-100) based on how well their background aligns with the requirements.
-Output a JSON array only. Do not add markdown formatting or conversational text outside of the JSON.
-
-JSON format:
-[
-  {{
-    "name": "Candidate Full Name",
-    "email": "name@example.com",
-    "skills": ["Python", "FastAPI", "React"],
-    "experience_summary": "4 years of experience building web applications... (Include {platform} specific formatting style)",
-    "match_score": 85,
-    "requirements_match": "Strong FastAPI backend experience.",
-    "salary_expectation": "$115,000/year"
-  }}
-]"""
-        response = await self.llm.complete(prompt=prompt, provider="anthropic", model="claude-3-haiku-20240307")
-        try:
-            cleaned = response.strip().strip("```json").strip("```").strip()
-            return json.loads(cleaned)
-        except Exception:
-            return [
-                {
-                    "name": f"Simulated {platform} Candidate {i+1}",
-                    "email": f"{platform.lower()}_{i+1}@example.com",
-                    "skills": [s.strip() for s in requirements.split(",")[:4]] or ["Python"],
-                    "experience_summary": f"Experienced professional from {platform} specialized in {role}.",
-                    "match_score": random.randint(75, 95),
-                    "requirements_match": "Matches core criteria.",
-                    "salary_expectation": salary
-                }
-                for i in range(count)
-            ]
-
     async def _fetch_real_candidates(self, platform: str, api_key: str, role: str, requirements: str, count: int):
         async with httpx.AsyncClient() as client:
             platform = platform.lower()
