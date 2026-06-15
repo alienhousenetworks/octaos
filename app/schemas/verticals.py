@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import Optional, List
 from datetime import datetime
 
@@ -74,6 +74,12 @@ class CampaignCreate(BaseModel):
     video_provider: str = "pika"
     generate_images: bool = True
     generate_videos: bool = True
+
+    @validator("days")
+    def validate_days(cls, v):
+        if v < 1 or v > 30:
+            raise ValueError("Campaign duration must be between 1 and 30 days.")
+        return v
 
 class CandidateBase(BaseModel):
     name: Optional[str] = None

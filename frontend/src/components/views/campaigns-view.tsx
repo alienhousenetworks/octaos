@@ -118,6 +118,10 @@ export default function CampaignsView({
 
     const handleLaunchCampaign = async () => {
     if (!campaignTopic) return;
+    if (campaignDays < 1 || campaignDays > 30) {
+      alert("You can schedule up to 30 days at a time.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetchWithAuth(`${API_URL}/marketing/campaign`, {
@@ -137,7 +141,7 @@ export default function CampaignsView({
       });
       const data = await res.json();
       if (res.ok) {
-        alert("30-Day Marketing Campaign has been scheduled for generation! You can monitor progress in the AI Activity Feed.");
+        alert(`${campaignDays}-Day Marketing Campaign has been scheduled for generation! You can monitor progress in the AI Activity Feed.`);
         setCampaignTopic('');
         fetchCampaignPosts(true);
       } else {
@@ -1138,9 +1142,9 @@ export default function CampaignsView({
                             <Input
                               type="number"
                               min={1}
-                              max={60}
+                              max={30}
                               value={campaignDays}
-                              onChange={e => setCampaignDays(parseInt(e.target.value) || 30)}
+                              onChange={e => setCampaignDays(Math.min(parseInt(e.target.value) || 30, 30))}
                               className="bg-gray-900/50 border-gray-850 text-white focus:border-violet-500 focus:ring-violet-500/20 rounded-xl h-10 text-sm"
                             />
                           </div>
@@ -1324,7 +1328,7 @@ export default function CampaignsView({
                         disabled={loading || !campaignTopic} 
                         className="h-10 px-6 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all hover:scale-[1.01] active:scale-95 disabled:opacity-50"
                       >
-                        {loading ? 'Generating Timeline...' : 'Launch 30-Day Campaign'}
+                        {loading ? 'Generating Timeline...' : `Launch ${campaignDays}-Day Campaign`}
                       </Button>
                     </div>
                   </CardContent>

@@ -20,8 +20,9 @@ class MarketingAgent(BaseAgent):
         from app.worker.tasks import generate_campaign_task
         # Trigger Celery task in background
         generate_campaign_task.delay(self.tenant_id, params)
-        self.log_activity("Campaign Generation", f"Queued 30-day campaign generation in the background.", status="pending")
-        return {"status": "queued", "message": "30-day marketing campaign generation queued in the background."}
+        days = params.get("days", 30)
+        self.log_activity("Campaign Generation", f"Queued {days}-day campaign generation in the background.", status="pending")
+        return {"status": "queued", "message": f"{days}-day marketing campaign generation queued in the background."}
 
     async def _create_posts(self, params: dict):
         days = params.get("days", 3)

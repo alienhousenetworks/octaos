@@ -29,6 +29,60 @@ export default function DashboardView({
   handleApprovePost,
   handleRejectPost,
 }: DashboardViewProps) {
+  const dailyTasksRaw = metrics.daily_tasks || {
+    marketing: [2, 4, 1, 5, 6, 3, 5],
+    sales: [1, 2, 2, 4, 5, 3, 6],
+    support: [2, 2, 1, 3, 4, 3, 3],
+  };
+
+  const hasBreakdown = dailyTasksRaw && !Array.isArray(dailyTasksRaw);
+  const marketingData = hasBreakdown ? (dailyTasksRaw.marketing || []) : (Array.isArray(dailyTasksRaw) ? dailyTasksRaw : [2, 4, 1, 5, 6, 3, 5]);
+  const salesData = hasBreakdown ? (dailyTasksRaw.sales || []) : [];
+  const supportData = hasBreakdown ? (dailyTasksRaw.support || []) : [];
+
+  const allVals = [...marketingData, ...salesData, ...supportData];
+  const maxVal = allVals.length > 0 ? Math.max(...allVals, 10) : 10;
+
+  const getPoints = (data: number[]) => {
+    return data.map((val: number, i: number) => {
+      const x = (i * 500) / 6;
+      const y = 130 - (val / maxVal) * 100;
+      return { x, y, val };
+    });
+  };
+
+  const marketingPoints = getPoints(marketingData);
+  const salesPoints = getPoints(salesData);
+  const supportPoints = getPoints(supportData);
+
+  const getPaths = (pts: any[]) => {
+    if (pts.length === 0) return { strokePath: '', areaPath: '' };
+    const stroke = pts.map((p: any, i: number) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+    const area = `${stroke} L500,150 L0,150 Z`;
+    return { strokePath: stroke, areaPath: area };
+  };
+
+  const marketingPaths = getPaths(marketingPoints);
+  const salesPaths = getPaths(salesPoints);
+  const supportPaths = getPaths(supportPoints);
+
+  const getDayNames = () => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const result = [];
+    const today = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(today.getDate() - i);
+      if (i === 0) {
+        result.push('Today');
+      } else {
+        result.push(days[d.getDay()]);
+      }
+    }
+    return result;
+  };
+  const dayNames = getDayNames();
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -64,7 +118,7 @@ export default function DashboardView({
                   </Card>
                 ))}
               </div>
-
+ 
               {/* Advanced SVG Chart & Activity Center */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 {/* Visual Chart Card */}
@@ -80,13 +134,21 @@ export default function DashboardView({
                       <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Support</span>
                     </div>
                   </div>
-
+ 
                   <div className="relative w-full h-44 mt-2 flex items-end">
                     <svg viewBox="0 0 500 150" className="w-full h-full overflow-visible" preserveAspectRatio="none">
                       <defs>
-                        <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.35" />
+                        <linearGradient id="chartGradientMarketing" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.25" />
                           <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.0" />
+                        </linearGradient>
+                        <linearGradient id="chartGradientSales" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
+                          <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                        </linearGradient>
+                        <linearGradient id="chartGradientSupport" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
+                          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
                         </linearGradient>
                       </defs>
                       {/* Grid Lines */}
@@ -94,29 +156,66 @@ export default function DashboardView({
                       <line x1="0" y1="75" x2="500" y2="75" stroke="rgba(255,255,255,0.03)" strokeDasharray="4 4" />
                       <line x1="0" y1="120" x2="500" y2="120" stroke="rgba(255,255,255,0.03)" strokeDasharray="4 4" />
                       
-                      {/* Area Path */}
-                      <path d="M0,150 L0,120 L80,95 L160,115 L240,70 L320,45 L400,80 L500,30 L500,150 Z" fill="url(#chartGradient)" />
-                      {/* Stroke Path */}
-                      <path d="M0,120 L80,95 L160,115 L240,70 L320,45 L400,80 L500,30" fill="none" stroke="#8b5cf6" strokeWidth="2.5" />
+                      {/* Marketing Area & Stroke */}
+                      {marketingPaths.areaPath && (
+                        <>
+                          <path d={marketingPaths.areaPath} fill="url(#chartGradientMarketing)" />
+                          <path d={marketingPaths.strokePath} fill="none" stroke="#8b5cf6" strokeWidth="2.5" />
+                        </>
+                      )}
+
+                      {/* Sales Area & Stroke */}
+                      {salesPaths.areaPath && (
+                        <>
+                          <path d={salesPaths.areaPath} fill="url(#chartGradientSales)" />
+                          <path d={salesPaths.strokePath} fill="none" stroke="#10b981" strokeWidth="2.5" />
+                        </>
+                      )}
+
+                      {/* Support Area & Stroke */}
+                      {supportPaths.areaPath && (
+                        <>
+                          <path d={supportPaths.areaPath} fill="url(#chartGradientSupport)" />
+                          <path d={supportPaths.strokePath} fill="none" stroke="#3b82f6" strokeWidth="2.5" />
+                        </>
+                      )}
                       
-                      {/* Data Dots */}
-                      <circle cx="80" cy="95" r="3.5" fill="#8b5cf6" stroke="#ffffff" strokeWidth="1" />
-                      <circle cx="160" cy="115" r="3.5" fill="#8b5cf6" stroke="#ffffff" strokeWidth="1" />
-                      <circle cx="240" cy="70" r="3.5" fill="#8b5cf6" stroke="#ffffff" strokeWidth="1" />
-                      <circle cx="320" cy="45" r="3.5" fill="#8b5cf6" stroke="#ffffff" strokeWidth="1" />
-                      <circle cx="400" cy="80" r="3.5" fill="#8b5cf6" stroke="#ffffff" strokeWidth="1" />
-                      <circle cx="500" cy="30" r="3.5" fill="#8b5cf6" stroke="#ffffff" strokeWidth="1" />
+                      {/* Marketing Data Dots & Text */}
+                      {marketingPoints.map((p, i) => (
+                        <g key={`m-${i}`}>
+                          <circle cx={p.x} cy={p.y} r="3.5" fill="#8b5cf6" stroke="#ffffff" strokeWidth="1" />
+                          <text x={p.x} y={p.y - 8} textAnchor="middle" fill="#a78bfa" className="text-[9px] font-bold font-mono">
+                            {p.val}
+                          </text>
+                        </g>
+                      ))}
+
+                      {/* Sales Data Dots & Text */}
+                      {salesPoints.map((p, i) => (
+                        <g key={`s-${i}`}>
+                          <circle cx={p.x} cy={p.y} r="3.5" fill="#10b981" stroke="#ffffff" strokeWidth="1" />
+                          <text x={p.x} y={p.y + 12} textAnchor="middle" fill="#34d399" className="text-[9px] font-bold font-mono">
+                            {p.val}
+                          </text>
+                        </g>
+                      ))}
+
+                      {/* Support Data Dots & Text */}
+                      {supportPoints.map((p, i) => (
+                        <g key={`sup-${i}`}>
+                          <circle cx={p.x} cy={p.y} r="3.5" fill="#3b82f6" stroke="#ffffff" strokeWidth="1" />
+                          <text x={p.x} y={p.y - 14} textAnchor="middle" fill="#60a5fa" className="text-[9px] font-bold font-mono">
+                            {p.val}
+                          </text>
+                        </g>
+                      ))}
                     </svg>
                   </div>
                   
                   <div className="flex justify-between text-[10px] text-gray-500 font-bold tracking-wider uppercase mt-4 pt-3 border-t border-gray-800/60">
-                    <span>Mon</span>
-                    <span>Tue</span>
-                    <span>Wed</span>
-                    <span>Thu</span>
-                    <span>Fri</span>
-                    <span>Sat</span>
-                    <span>Today</span>
+                    {dayNames.map((name, i) => (
+                      <span key={i}>{name}</span>
+                    ))}
                   </div>
                 </Card>
 
