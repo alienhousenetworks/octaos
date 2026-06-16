@@ -2058,7 +2058,7 @@ export default function SalesView({
                       <div className="flex flex-col gap-1">
                         <label className="text-[10px] font-bold text-gray-450 uppercase tracking-wider">AI Model Settings</label>
                         <div className="grid grid-cols-2 gap-2">
-                          <Select value={salesTextProvider} onValueChange={setSalesTextProvider}>
+                          <Select value={salesTextProvider} onValueChange={val => setSalesTextProvider(val || 'gemini')}>
                             <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11">
                               <SelectValue placeholder="Provider" />
                             </SelectTrigger>
@@ -2068,7 +2068,7 @@ export default function SalesView({
                               <SelectItem value="anthropic">Anthropic</SelectItem>
                             </SelectContent>
                           </Select>
-                          <Select value={salesTextModel} onValueChange={setSalesTextModel}>
+                          <Select value={salesTextModel} onValueChange={val => setSalesTextModel(val || '')}>
                             <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11">
                               <SelectValue placeholder="Default Model" />
                             </SelectTrigger>
