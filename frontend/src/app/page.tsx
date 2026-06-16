@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { 
   Activity, Users, DollarSign, BarChart3, Briefcase, Zap, BookOpen, 
-  LogOut, Calendar, MessageSquare, Clock, TrendingUp, Target, FileText 
+  LogOut, Calendar, MessageSquare, Clock, TrendingUp, Target, FileText, Key 
 } from 'lucide-react';
 
 import KnowledgeView from '@/components/views/knowledge-view';
@@ -25,6 +25,7 @@ import SalesView from '@/components/views/sales-view';
 import AIOptimizationView from '@/components/views/ai-optimization-view';
 import MembersView from '@/components/views/members-view';
 import SystemAdminView from '@/components/views/system-admin-view';
+import ApiManagementView from '@/components/views/api-management-view';
 
 import LandingPage from '@/components/landing-page';
 import AuthForms from '@/components/auth-forms';
@@ -370,6 +371,18 @@ export default function Home() {
           })}
           
           <button
+            onClick={() => setActiveView('api_management')}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border border-transparent ${
+              activeView === 'api_management'
+                ? 'bg-[rgba(255,255,255,0.06)] border-[rgba(255,255,255,0.1)] text-white shadow-lg'
+                : 'text-gray-400 hover:bg-[rgba(255,255,255,0.02)] hover:border-[rgba(255,255,255,0.04)] hover:text-violet-400'
+            }`}
+          >
+            <Key size={18} />
+            <span>API Management</span>
+          </button>
+
+          <button
             onClick={() => setActiveView('instructions')}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border border-transparent mt-auto ${
               activeView === 'instructions'
@@ -578,6 +591,17 @@ export default function Home() {
               fetchWithAuth={fetchWithAuth} 
               fetchData={fetchData} 
               metrics={metrics} 
+            />
+          </div>
+
+          <div className={activeView === 'api_management' ? 'block' : 'hidden'}>
+            <ApiManagementView
+              token={token}
+              API_URL={API_URL}
+              fetchWithAuth={fetchWithAuth}
+              fetchData={fetchData}
+              configuredProviders={configuredProviders}
+              tenantId={tenantId}
             />
           </div>
 

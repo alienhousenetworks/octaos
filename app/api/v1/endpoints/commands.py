@@ -134,6 +134,22 @@ def get_configured_keys(
     creds = db.query(APICredential).filter(APICredential.tenant_id == tenant_id).all()
     return {"configured_providers": [c.provider for c in creds]}
 
+@router.delete("/keys/{provider}")
+def delete_api_key(
+    provider: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    cred = db.query(APICredential).filter(
+        APICredential.tenant_id == tenant_id,
+        APICredential.provider == provider
+    ).first()
+    if not cred:
+        raise HTTPException(status_code=404, detail=f"No credential found for provider: {provider}")
+    db.delete(cred)
+    db.commit()
+    return {"message": f"{provider} API key removed successfully"}
+
 @router.get("/queue")
 def get_content_queue(
     db: Session = Depends(deps.get_db),

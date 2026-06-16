@@ -76,6 +76,7 @@ export default function SalesView({
   const [profileUsp, setProfileUsp] = useState('');
   const [profileCaseStudies, setProfileCaseStudies] = useState('');
   const [profileOfferDetails, setProfileOfferDetails] = useState('');
+  const [profileExtraContext, setProfileExtraContext] = useState('');
   const [profileCalendars, setProfileCalendars] = useState('https://calendly.com/sales');
   const [profileCommunicationChannels, setProfileCommunicationChannels] = useState<string[]>(['email', 'whatsapp', 'linkedin']);
   
@@ -107,6 +108,7 @@ export default function SalesView({
         setProfileUsp(data.usp || '');
         setProfileCaseStudies(data.case_studies || '');
         setProfileOfferDetails(data.offer_details || '');
+        setProfileExtraContext(data.extra_context || '');
         setProfileCalendars(Array.isArray(data.calendars) ? data.calendars.join(', ') : (data.calendars || ''));
         setProfileCommunicationChannels(data.communication_channels || ['email', 'whatsapp']);
         if (data.v3_workflow_status) {
@@ -171,6 +173,7 @@ export default function SalesView({
           usp: profileUsp,
           case_studies: profileCaseStudies,
           offer_details: profileOfferDetails,
+          extra_context: profileExtraContext,
           calendars: calendars,
           communication_channels: profileCommunicationChannels
         })
@@ -2163,6 +2166,16 @@ export default function SalesView({
                           value={profileOfferDetails}
                           onChange={e => setProfileOfferDetails(e.target.value)}
                           className="bg-gray-900/60 border border-gray-800 text-white rounded-xl p-3 text-sm focus:border-emerald-500 focus:outline-none resize-none min-h-[80px] text-gray-105"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Extra Context / Notes</label>
+                        <Textarea
+                          placeholder="Provide any additional instructions, context, prompt overrides, or notes for the Sales AI..."
+                          value={profileExtraContext}
+                          onChange={e => setProfileExtraContext(e.target.value)}
+                          className="bg-gray-900/60 border border-gray-800 text-white rounded-xl p-3 text-sm focus:border-emerald-500 focus:outline-none resize-none min-h-[100px] text-gray-105"
                         />
                       </div>
                     </div>

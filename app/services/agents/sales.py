@@ -341,11 +341,23 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                         except Exception:
                             pass
                             
+                channel_used = "email"
+                if not sent_successfully and c["contact"].get("phone"):
+                    try:
+                        from app.services.agents.support import SupportAgent
+                        support = SupportAgent(self.db, self.tenant_id)
+                        await support.send_message("whatsapp", c["contact"]["phone"], body)
+                        sent_successfully = True
+                        channel_used = "whatsapp"
+                        conv[0]["channel"] = "whatsapp"
+                    except Exception:
+                        pass
+                            
                 if sent_successfully:
                     lead.status = "contacted"
                     lead.data = {
                         **(lead.data or {}),
-                        "outreach_channel": "email",
+                        "outreach_channel": channel_used,
                         "outbound_subject": subject,
                         "outbound_body": body,
                         "outreach_sent_at": datetime.now(timezone.utc).isoformat(),
