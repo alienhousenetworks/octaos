@@ -173,11 +173,20 @@ for svc in postgresql redis-server nginx octaos-api octaos-worker octaos-beat oc
   check_service "$svc"
 done
 
-# Quick HTTP smoke test
-if curl -sf "http://localhost:8001/" > /dev/null 2>&1; then
+# HTTP smoke test – retry for up to 30 seconds (uvicorn takes a few seconds with 4 workers)
+BACKEND_OK=false
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  if curl -sf "http://localhost:8001/" > /dev/null 2>&1; then
+    BACKEND_OK=true
+    break
+  fi
+  sleep 3
+done
+
+if $BACKEND_OK; then
   success "Backend API responding ✓"
 else
-  warn "Backend API not responding yet"
+  warn "Backend API not responding after 30s – check: journalctl -u octaos-api -n 50"
 fi
 
 if curl -sf "http://localhost:3001/" > /dev/null 2>&1; then
