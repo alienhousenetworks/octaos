@@ -209,3 +209,34 @@ def remove_favicon(
         db.delete(row)
         db.commit()
     return {"message": "Favicon removed"}
+
+@router.delete("/tenants/{tenant_id}")
+def delete_tenant(
+    tenant_id: str,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(check_system_admin)
+):
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+        
+    # Also delete users for this tenant
+    db.query(User).filter(User.tenant_id == tenant_id).delete()
+    
+    db.delete(tenant)
+    db.commit()
+    return {"message": "Tenant deleted successfully"}
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: str,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(check_system_admin)
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    db.delete(user)
+    db.commit()
+    return {"message": "User deleted successfully"}

@@ -62,6 +62,8 @@ export default function SalesView({
 
   // Sales AI V3 States
   const [activeSalesTab, setActiveSalesTab] = useState<'pipeline' | 'config' | 'stepper' | 'analytics'>('pipeline');
+  const [salesTextProvider, setSalesTextProvider] = useState('gemini');
+  const [salesTextModel, setSalesTextModel] = useState('');
   const [profileCompanyName, setProfileCompanyName] = useState('');
   const [profileWebsite, setProfileWebsite] = useState('');
   const [profileIndustry, setProfileIndustry] = useState('');
@@ -196,7 +198,12 @@ export default function SalesView({
     setSalesActionLoading(true);
     try {
       const res = await fetchWithAuth(`${API_URL}/leads/run-v3-workflow`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: salesTextProvider,
+          model: salesTextModel || undefined
+        })
       });
       if (res.ok) {
         setWorkflowStatus((prev: any) => ({
@@ -2047,6 +2054,58 @@ export default function SalesView({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     
                     <div className="space-y-4">
+                      {/* AI Model Configuration */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-450 uppercase tracking-wider">AI Model Settings</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Select value={salesTextProvider} onValueChange={setSalesTextProvider}>
+                            <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11">
+                              <SelectValue placeholder="Provider" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-gray-950 border-gray-800 text-white">
+                              <SelectItem value="gemini">Google Gemini</SelectItem>
+                              <SelectItem value="openai">OpenAI</SelectItem>
+                              <SelectItem value="anthropic">Anthropic</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Select value={salesTextModel} onValueChange={setSalesTextModel}>
+                            <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11">
+                              <SelectValue placeholder="Default Model" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-gray-950 border-gray-800 text-white">
+                              <SelectItem value="">Default</SelectItem>
+                              {salesTextProvider === 'gemini' && (
+                                <>
+                                  <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                                  <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+                                  <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
+                                  <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
+                                </>
+                              )}
+                              {salesTextProvider === 'openai' && (
+                                <>
+                                  <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                                  <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                                  <SelectItem value="o1">o1</SelectItem>
+                                  <SelectItem value="o3-mini">o3-mini</SelectItem>
+                                </>
+                              )}
+                              {salesTextProvider === 'anthropic' && (
+                                <>
+                                  <SelectItem value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</SelectItem>
+                                  <SelectItem value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</SelectItem>
+                                  <SelectItem value="claude-3-5-haiku-20241022">Claude 3.5 Haiku</SelectItem>
+                                  <SelectItem value="claude-3-opus-20240229">Claude 3 Opus</SelectItem>
+                                </>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <p className="text-[10px] text-emerald-500/80 mt-1 pl-1">
+                          The AI engine driving the autonomous 10-step pipeline.
+                        </p>
+                      </div>
+
                       <div className="flex flex-col gap-1">
                         <label className="text-[10px] font-bold text-gray-450 uppercase tracking-wider">Company Name</label>
                         <Input

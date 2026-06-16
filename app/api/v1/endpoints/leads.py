@@ -403,8 +403,13 @@ def update_business_profile(
     return profile
 
 
+class RunWorkflowRequest(BaseModel):
+    provider: Optional[str] = "gemini"
+    model: Optional[str] = None
+
 @router.post("/run-v3-workflow")
 def run_v3_workflow(
+    req: RunWorkflowRequest,
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id)
 ) -> Any:
@@ -437,7 +442,7 @@ def run_v3_workflow(
     
     # Import and trigger Celery task
     from app.worker.tasks import run_sales_v3_task
-    run_sales_v3_task.delay(tenant_id)
+    run_sales_v3_task.delay(tenant_id, req.provider, req.model)
     
     return {"message": "Autonomous Sales AI V3 workflow launched successfully!"}
 

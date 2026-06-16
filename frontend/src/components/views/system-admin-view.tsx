@@ -102,6 +102,39 @@ export default function SystemAdminView({
     }
   };
 
+  const handleDeleteTenant = async (tenantId: string) => {
+    if (!confirm("Are you sure you want to permanently delete this company and all its users? This action cannot be undone.")) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/system-admin/tenants/${tenantId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        fetchTenants();
+        fetchUsers();
+      } else {
+        alert("Failed to delete tenant");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm("Are you sure you want to permanently delete this user?")) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/system-admin/users/${userId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        fetchUsers();
+      } else {
+        alert("Failed to delete user");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleUploadLogo = async (file: File) => {
     setUploadingLogo(true);
     setBrandingMsg(null);
@@ -320,17 +353,26 @@ export default function SystemAdminView({
                       </span>
                     </TableCell>
                     <TableCell className="p-4 text-right">
-                      <Button
-                        size="xs"
-                        onClick={() => handleToggleTenant(tenant.id)}
-                        className={`text-[10px] font-bold rounded-lg px-2.5 py-1 ${
-                          tenant.is_active 
-                            ? 'bg-rose-950/40 text-rose-400 border border-rose-900/30 hover:bg-rose-900/40' 
-                            : 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/30 hover:bg-emerald-900/40'
-                        }`}
-                      >
-                        {tenant.is_active ? "Suspend Organization" : "Activate Organization"}
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          size="xs"
+                          onClick={() => handleToggleTenant(tenant.id)}
+                          className={`text-[10px] font-bold rounded-lg px-2.5 py-1 ${
+                            tenant.is_active 
+                              ? 'bg-rose-950/40 text-rose-400 border border-rose-900/30 hover:bg-rose-900/40' 
+                              : 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/30 hover:bg-emerald-900/40'
+                          }`}
+                        >
+                          {tenant.is_active ? "Suspend" : "Activate"}
+                        </Button>
+                        <Button
+                          size="xs"
+                          onClick={() => handleDeleteTenant(tenant.id)}
+                          className="bg-red-950/40 text-red-400 border border-red-900/30 hover:bg-red-900/40 text-[10px] font-bold rounded-lg px-2.5 py-1"
+                        >
+                          <Trash2 className="h-3 w-3 mr-1" /> Delete
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -347,6 +389,7 @@ export default function SystemAdminView({
                   <TableHead className="text-gray-400 font-bold text-xs p-4">Company / Tenant</TableHead>
                   <TableHead className="text-gray-400 font-bold text-xs p-4">Global Admin</TableHead>
                   <TableHead className="text-gray-400 font-bold text-xs p-4">Account Status</TableHead>
+                  <TableHead className="text-gray-400 font-bold text-xs p-4 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-gray-800">
@@ -377,6 +420,15 @@ export default function SystemAdminView({
                       }`}>
                         {user.is_active ? "Active" : "Disabled"}
                       </span>
+                    </TableCell>
+                    <TableCell className="p-4 text-right">
+                      <Button
+                        size="xs"
+                        onClick={() => handleDeleteUser(user.id)}
+                        className="bg-red-950/40 text-red-400 border border-red-900/30 hover:bg-red-900/40 text-[10px] font-bold rounded-lg px-2.5 py-1"
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" /> Delete
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

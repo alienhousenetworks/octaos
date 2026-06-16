@@ -30,7 +30,7 @@ class SalesAgent(BaseAgent):
             return await self.run_sales_ai_v3_workflow()
         return {"status": f"Unknown action: {action}"}
 
-    async def run_sales_ai_v3_workflow(self) -> dict:
+    async def run_sales_ai_v3_workflow(self, provider="gemini", model=None) -> dict:
         from app.models.verticals import BusinessProfile, Lead
         from app.models.teams import AgentMetric
         import json
@@ -80,7 +80,7 @@ Target budget: {profile.target_budget_range}
 USP: {profile.usp}
 
 Generate a clear, high-performing Ideal Customer Profile (ICP) for our outbound campaign. Format as a single paragraph under 100 words. No formatting or preamble."""
-            icp = await self.llm.complete(prompt, provider="gemini")
+            icp = await self.llm.complete(prompt, provider=provider, model=model)
             icp = icp.strip()
             update_status(1, "completed", icp, f"Generated Ideal Customer Profile (ICP): {icp}")
         except Exception as e:
@@ -103,7 +103,7 @@ Output a JSON array of objects with exactly these keys:
 - location: string (e.g. "Mumbai, India")
 - source: string (e.g. "Clutch" or "Apollo" or "Google Maps")
 Output ONLY the JSON list, no other text."""
-            companies_str = await self.llm.complete(prompt, provider="gemini")
+            companies_str = await self.llm.complete(prompt, provider=provider, model=model)
             cleaned_companies = companies_str.strip().strip("```json").strip("```").strip()
             companies = json.loads(cleaned_companies)
             update_status(2, "completed", f"Discovered {len(companies)} matching company profiles.", f"Sourced lead pool from databases: {', '.join([c['company_name'] for c in companies])}")
@@ -130,7 +130,7 @@ Output a JSON object with:
 - qualified: boolean
 - reason: string
 Only return JSON, no other text."""
-                qual_str = await self.llm.complete(prompt, provider="gemini")
+                qual_str = await self.llm.complete(prompt, provider=provider, model=model)
                 cleaned_qual = qual_str.strip().strip("```json").strip("```").strip()
                 qual = json.loads(cleaned_qual)
                 c["purchasing_capacity"] = qual.get("capacity", "1L–3L")
@@ -154,7 +154,7 @@ Our Offer Details: {profile.offer_details}
 Our USP: {profile.usp}
 
 Output a JSON array of strings containing exactly 2 specific pain points. No other text."""
-                pain_str = await self.llm.complete(prompt, provider="gemini")
+                pain_str = await self.llm.complete(prompt, provider=provider, model=model)
                 cleaned_pain = pain_str.strip().strip("```json").strip("```").strip()
                 c["pain_points"] = json.loads(cleaned_pain)
             update_status(4, "completed", f"Identified custom pain points for {len(qualified_companies)} qualified leads.", "Diagnostic audit complete. Discovered outdated websites, SEO gaps, or operational bottlenecks.")
@@ -174,7 +174,7 @@ Output a JSON object with:
 - phone: phone number (string)
 - linkedin_url: string
 No other text."""
-                contact_str = await self.llm.complete(prompt, provider="gemini")
+                contact_str = await self.llm.complete(prompt, provider=provider, model=model)
                 cleaned_contact = contact_str.strip().strip("```json").strip("```").strip()
                 contact = json.loads(cleaned_contact)
                 c["contact"] = contact
@@ -230,7 +230,7 @@ Tailor it to their specific pain points: {c['pain_points']}.
 Use our USP: {profile.usp}
 Offer: {profile.offer_details}
 Keep it short, clear, professional and under 150 words. No subject line, no placeholders, no comments. Output the email body only."""
-                outreach_text = await self.llm.complete(prompt, provider="gemini")
+                outreach_text = await self.llm.complete(prompt, provider=provider, model=model)
                 c["outreach_message"] = outreach_text.strip()
             update_status(7, "completed", "Generated unique personalized emails for all candidates.", "Outreach generation complete. All outreaches customized to target business pain points.")
         except Exception as e:
