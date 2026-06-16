@@ -983,9 +983,9 @@ export default function SalesView({
                     <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
                     
                     {/* Filter Bar */}
-                    <div className="flex flex-col md:flex-row gap-3 items-center mb-6">
-                      <div className="relative flex-1 w-full">
-                        <Search className="absolute left-3 top-3 h-4 w-4 text-gray-505" />
+                    <div className="flex flex-col md:flex-row flex-wrap gap-3 items-center mb-6">
+                      <div className="relative flex-1 w-full min-w-[250px]">
+                        <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400 pointer-events-none" />
                         <Input
                           placeholder="Search leads by name, company, email..."
                           value={salesSearch}
