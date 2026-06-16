@@ -102,22 +102,22 @@ def test_cost_optimizer_actual():
 @pytest.mark.asyncio
 async def test_gateway_failover_sequence(db_session=None):
     gateway = AIProviderGateway()
-    # If all configured keys fail or are missing, it progress to local/mock fallback
-    # Let's mock a tenant db session
+    # With no credentials configured and mock adapter removed,
+    # the gateway must raise a clear ValueError directing the user to configure keys.
     from unittest.mock import MagicMock
     db = MagicMock(spec=Session)
     db.query.return_value.filter.return_value.all.return_value = [] # no credentials configured
     db.query.return_value.filter.return_value.first.return_value = None
-    
-    # Executing request should succeed using the MockAdapter fallback
-    response = await gateway.executeRequest(
-        db=db,
-        tenant_id="test-tenant",
-        prompt="Test prompt",
-        provider="openai",
-        model="gpt-4o"
-    )
-    assert "mock" in response.lower()
+
+    with pytest.raises(ValueError) as exc_info:
+        await gateway.executeRequest(
+            db=db,
+            tenant_id="test-tenant",
+            prompt="Test prompt",
+            provider="openai",
+            model="gpt-4o"
+        )
+    assert "API key" in str(exc_info.value) or "provider" in str(exc_info.value).lower()
 
 @pytest.mark.asyncio
 @patch("app.services.ai_gateway.ai_gateway.executeCached")

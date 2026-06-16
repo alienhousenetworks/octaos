@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, JSON, Float
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
+from typing import Optional
 import uuid
 
 import contextvars
