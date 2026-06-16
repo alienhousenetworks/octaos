@@ -86,6 +86,8 @@ if [[ -d "$VENV_DIR" ]]; then
   success "Python dependencies updated"
   
   info "Running database init/migration..."
+  cd "$APP_DIR"
+  "$VENV_DIR/bin/alembic" upgrade head || error "Alembic migrations failed!"
   "$VENV_DIR/bin/python3" "$APP_DIR/init_db.py" || warn "init_db.py had warnings (may be safe to ignore)"
   success "Database migrations completed"
 else
