@@ -12,6 +12,28 @@ from app.services.agents.base import BaseAgent
 from app.models.verticals import Lead
 from app.models.base import APICredential
 
+def extract_json(text: str):
+    import json
+    text = text.strip()
+    if text.startswith("```"):
+        lines = text.split('\n')
+        if lines[0].startswith("```"): lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"): lines = lines[:-1]
+        text = '\n'.join(lines).strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        import re
+        array_match = re.search(r'\[.*\]', text, re.DOTALL)
+        obj_match = re.search(r'\{.*\}', text, re.DOTALL)
+        if array_match:
+            try: return json.loads(array_match.group(0))
+            except: pass
+        if obj_match:
+            try: return json.loads(obj_match.group(0))
+            except: pass
+        raise ValueError(f"JSON extraction failed. Raw output: {text}")
+
 class SalesAgent(BaseAgent):
     def __init__(self, db, tenant_id):
         super().__init__(db, tenant_id, "Sales AI")
@@ -35,6 +57,7 @@ class SalesAgent(BaseAgent):
         from app.models.teams import AgentMetric
         import json
         import random
+        import re
         from datetime import datetime, timezone, timedelta
 
         # Get business profile
@@ -104,8 +127,7 @@ Output a JSON array of objects with exactly these keys:
 - source: string (e.g. "Clutch" or "Apollo" or "Google Maps")
 Output ONLY the JSON list, no other text."""
             companies_str = await self.llm.complete(prompt, provider=provider, model=model)
-            cleaned_companies = companies_str.strip().strip("```json").strip("```").strip()
-            companies = json.loads(cleaned_companies)
+            companies = extract_json(companies_str)
             update_status(2, "completed", f"Discovered {len(companies)} matching company profiles.", f"Sourced lead pool from databases: {', '.join([c['company_name'] for c in companies])}")
         except Exception as e:
             update_status(2, "failed", str(e), f"Error in Step 2: {str(e)}", "failed")
@@ -131,8 +153,7 @@ Output a JSON object with:
 - reason: string
 Only return JSON, no other text."""
                 qual_str = await self.llm.complete(prompt, provider=provider, model=model)
-                cleaned_qual = qual_str.strip().strip("```json").strip("```").strip()
-                qual = json.loads(cleaned_qual)
+                qual = extract_json(qual_str)
                 c["purchasing_capacity"] = qual.get("capacity", "1L–3L")
                 c["qualified"] = qual.get("qualified", True)
                 c["qualification_reason"] = qual.get("reason", "Budget range matches organization size.")
@@ -155,8 +176,7 @@ Our USP: {profile.usp}
 
 Output a JSON array of strings containing exactly 2 specific pain points. No other text."""
                 pain_str = await self.llm.complete(prompt, provider=provider, model=model)
-                cleaned_pain = pain_str.strip().strip("```json").strip("```").strip()
-                c["pain_points"] = json.loads(cleaned_pain)
+                c["pain_points"] = extract_json(pain_str)
             update_status(4, "completed", f"Identified custom pain points for {len(qualified_companies)} qualified leads.", "Diagnostic audit complete. Discovered outdated websites, SEO gaps, or operational bottlenecks.")
         except Exception as e:
             update_status(4, "failed", str(e), f"Error in Step 4: {str(e)}", "failed")
@@ -175,8 +195,7 @@ Output a JSON object with:
 - linkedin_url: string
 No other text."""
                 contact_str = await self.llm.complete(prompt, provider=provider, model=model)
-                cleaned_contact = contact_str.strip().strip("```json").strip("```").strip()
-                contact = json.loads(cleaned_contact)
+                contact = extract_json(contact_str)
                 c["contact"] = contact
             update_status(5, "completed", f"Discovered highest authority contacts for all lead companies.", "Decision-maker lookup complete. Verified emails, direct phone lines, and LinkedIn profiles.")
         except Exception as e:
@@ -533,19 +552,15 @@ Base Template: {body_template}
 Subject: {subject}
 Output a JSON object with keys 'subject' and 'body'. No other text."""
             
-            response = await self.llm.complete(prompt=prompt, provider="anthropic", model="claude-3-haiku-20240307")
-            
-            outbound_subject = subject
-            outbound_body = body_template.format(name=lead.name, company=lead.company)
-            
+            response = await self.llm.complete(prompt, provider="anthropic")
             try:
-                cleaned = response.strip().strip("```json").strip("```").strip()
-                parsed = json.loads(cleaned)
-                outbound_subject = parsed.get("subject", outbound_subject)
-                outbound_body = parsed.get("body", outbound_body)
-            except:
-                pass # Fallback to template
-
+                parsed = extract_json(response)
+                outbound_subject = parsed.get("subject", subject)
+                outbound_body = parsed.get("body", body_template.format(name=lead.name, company=lead.company))
+            except Exception:
+                outbound_subject = subject
+                outbound_body = body_template.format(name=lead.name, company=lead.company)
+            
             # Send or Simulate
             sent_successfully = False
             if channel == "smtp" and smtp_credentials:
