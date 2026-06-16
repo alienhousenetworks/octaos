@@ -85,8 +85,11 @@ if [[ -d "$VENV_DIR" ]]; then
   "$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt" -q
   success "Python dependencies updated"
   
-  info "Running database init/migration..."
+  info "Running database cleanup and migration..."
   cd "$APP_DIR"
+  if [[ -f "$APP_DIR/cleanup_tenants.py" ]]; then
+    "$VENV_DIR/bin/python3" "$APP_DIR/cleanup_tenants.py" || warn "cleanup_tenants.py failed"
+  fi
   "$VENV_DIR/bin/alembic" upgrade head || error "Alembic migrations failed!"
   "$VENV_DIR/bin/python3" "$APP_DIR/init_db.py" || warn "init_db.py had warnings (may be safe to ignore)"
   success "Database migrations completed"
