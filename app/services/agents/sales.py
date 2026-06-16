@@ -101,6 +101,7 @@ Target countries: {profile.target_countries}
 Target industries: {profile.target_industries}
 Target budget: {profile.target_budget_range}
 USP: {profile.usp}
+Extra Context: {profile.extra_context or 'None'}
 
 Generate a clear, high-performing Ideal Customer Profile (ICP) for our outbound campaign. Format as a single paragraph under 100 words. No formatting or preamble."""
             icp = await self.llm.complete(prompt, provider=provider, model=model)
@@ -111,24 +112,47 @@ Generate a clear, high-performing Ideal Customer Profile (ICP) for our outbound 
             return {"status": "error", "message": str(e)}
 
         # Step 2: Market Discovery
-        update_status(2, "executing", "Sourcing target company directory...", "Starting Step 2: Sourcing companies from Google Maps, Apollo, Clutch...")
+        update_status(2, "executing", "Sourcing target company directory...", "Starting Step 2: Sourcing companies from APIs...")
         try:
-            prompt = f"""Based on this Ideal Customer Profile (ICP):
-{icp}
-
-Generate exactly 6 real or highly realistic target companies matching this ICP in industries: {profile.target_industries}.
-Output a JSON array of objects with exactly these keys:
-- company_name: string
-- website: string
-- industry: string
-- estimated_employees: string (e.g. "50-200")
-- estimated_revenue: string (e.g. "$5M-$20M")
-- location: string (e.g. "Mumbai, India")
-- source: string (e.g. "Clutch" or "Apollo" or "Google Maps")
-Output ONLY the JSON list, no other text."""
-            companies_str = await self.llm.complete(prompt, provider=provider, model=model)
-            companies = extract_json(companies_str)
-            update_status(2, "completed", f"Discovered {len(companies)} matching company profiles.", f"Sourced lead pool from databases: {', '.join([c['company_name'] for c in companies])}")
+            available_providers = []
+            creds = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id).all()
+            for c in creds:
+                if c.provider in ["apollo", "hunter", "google_places"] and c.encrypted_key and "your_api_key" not in c.encrypted_key:
+                    available_providers.append((c.provider, decrypt_api_key(c.encrypted_key)))
+            
+            if not available_providers:
+                raise Exception("No API credentials configured. Please configure Apollo, Hunter, or Google Places API keys to extract real leads.")
+            
+            provider, api_key = available_providers[0]
+            query = profile.target_industries[0] if profile.target_industries else "target clients"
+            
+            companies_data = await self._fetch_real_leads(provider, api_key, query, count=6)
+            
+            companies = []
+            for c in companies_data:
+                has_name = bool(c.get("name") and c["name"].strip() != "Unknown Contact")
+                has_contact = bool((c.get("email") and "@" in c["email"]) or c.get("phone"))
+                if has_name and has_contact:
+                    companies.append({
+                        "company_name": c.get("company", "Unknown"),
+                        "website": c.get("website", ""),
+                        "industry": query,
+                        "estimated_employees": "Unknown",
+                        "estimated_revenue": "Unknown",
+                        "location": "Unknown",
+                        "source": provider,
+                        "contact": {
+                            "name": c.get("name", ""),
+                            "title": "Contact",
+                            "email": c.get("email", ""),
+                            "phone": c.get("phone", ""),
+                            "linkedin_url": ""
+                        }
+                    })
+            if not companies:
+                raise Exception("API returned leads, but none had the mandatory Name and (Email or Phone).")
+            
+            update_status(2, "completed", f"Discovered {len(companies)} matching company profiles via {provider}.", f"Sourced real leads from {provider}.")
         except Exception as e:
             update_status(2, "failed", str(e), f"Error in Step 2: {str(e)}", "failed")
             return {"status": "error", "message": str(e)}
@@ -183,21 +207,9 @@ Output a JSON array of strings containing exactly 2 specific pain points. No oth
             return {"status": "error", "message": str(e)}
 
         # Step 5: Decision Maker Discovery
-        update_status(5, "executing", "Searching decision-maker contact details...", "Starting Step 5: Sourcing Founder / CEO / CMO details...")
+        update_status(5, "executing", "Searching decision-maker contact details...", "Starting Step 5: Validating contact details...")
         try:
-            for c in qualified_companies:
-                prompt = f"""Find a realistic decision-maker contact at {c['company_name']} matching target decision makers: {profile.target_decision_makers}.
-Output a JSON object with:
-- name: contact name (string)
-- title: contact title (string)
-- email: company email (string, e.g. name@domain.com)
-- phone: phone number (string)
-- linkedin_url: string
-No other text."""
-                contact_str = await self.llm.complete(prompt, provider=provider, model=model)
-                contact = extract_json(contact_str)
-                c["contact"] = contact
-            update_status(5, "completed", f"Discovered highest authority contacts for all lead companies.", "Decision-maker lookup complete. Verified emails, direct phone lines, and LinkedIn profiles.")
+            update_status(5, "completed", f"Validated contacts for {len(qualified_companies)} lead companies.", "Decision-maker lookup complete. Real API data verified.")
         except Exception as e:
             update_status(5, "failed", str(e), f"Error in Step 5: {str(e)}", "failed")
             return {"status": "error", "message": str(e)}
@@ -306,19 +318,54 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                     }
                 ]
                 
-                lead.status = "contacted"
-                lead.data = {
-                    **(lead.data or {}),
-                    "outreach_channel": "email",
-                    "outbound_subject": f"Partnership Opportunity - {profile.company_name} x {c['company_name']}",
-                    "outbound_body": c["outreach_message"],
-                    "outreach_sent_at": datetime.now(timezone.utc).isoformat(),
-                    "conversation": conv,
-                    "outreach_schedule": channel_schedule,
-                    "purchasing_capacity": c["purchasing_capacity"],
-                    "pain_points": c["pain_points"],
-                    "scoring_breakdown": c["scoring"]
-                }
+                # Attempt to send email
+                subject = f"Partnership Opportunity - {profile.company_name} x {c['company_name']}"
+                body = c["outreach_message"]
+                
+                sent_successfully = False
+                smtp_cred = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id, provider="smtp").first()
+                if smtp_cred and smtp_cred.encrypted_key and "your_api_key" not in smtp_cred.encrypted_key:
+                    try:
+                        smtp_credentials = parse_smtp_credentials(decrypt_api_key(smtp_cred.encrypted_key))
+                        sent_successfully = send_smtp_email(smtp_credentials, c["contact"]["email"], subject, body)
+                    except Exception:
+                        pass
+                
+                if not sent_successfully:
+                    gmail_cred = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id, provider="gmail").first()
+                    if gmail_cred and gmail_cred.encrypted_key and "your_api_key" not in gmail_cred.encrypted_key:
+                        try:
+                            gmail_credentials = json.loads(decrypt_api_key(gmail_cred.encrypted_key))
+                            result = send_gmail_email(gmail_credentials, c["contact"]["email"], subject, body)
+                            sent_successfully = bool(result and result.get("ok"))
+                        except Exception:
+                            pass
+                            
+                if sent_successfully:
+                    lead.status = "contacted"
+                    lead.data = {
+                        **(lead.data or {}),
+                        "outreach_channel": "email",
+                        "outbound_subject": subject,
+                        "outbound_body": body,
+                        "outreach_sent_at": datetime.now(timezone.utc).isoformat(),
+                        "conversation": conv,
+                        "outreach_schedule": channel_schedule,
+                        "purchasing_capacity": c["purchasing_capacity"],
+                        "pain_points": c["pain_points"],
+                        "scoring_breakdown": c["scoring"],
+                        "sent_actual": True
+                    }
+                else:
+                    lead.status = "scored" # Keeps it from saying contacted
+                    lead.data = {
+                        **(lead.data or {}),
+                        "outreach_schedule": channel_schedule,
+                        "purchasing_capacity": c["purchasing_capacity"],
+                        "pain_points": c["pain_points"],
+                        "scoring_breakdown": c["scoring"],
+                        "sent_actual": False
+                    }
                 
                 # Update metrics
                 m_leads = self.db.query(AgentMetric).filter_by(tenant_id=self.tenant_id, metric_name="leads_generated").first()

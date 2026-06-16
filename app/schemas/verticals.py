@@ -147,6 +147,7 @@ class BusinessProfileBase(BaseModel):
     offer_details: Optional[str] = None
     calendars: Optional[List[str]] = None
     communication_channels: Optional[List[str]] = None
+    extra_context: Optional[str] = None
     v3_workflow_status: Optional[dict] = None
 
 class BusinessProfileCreate(BusinessProfileBase):

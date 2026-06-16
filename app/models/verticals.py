@@ -159,6 +159,7 @@ class BusinessProfile(Base):
     offer_details = Column(Text, nullable=True)
     calendars = Column(JSON, nullable=True)
     communication_channels = Column(JSON, nullable=True)
+    extra_context = Column(Text, nullable=True)
     v3_workflow_status = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
