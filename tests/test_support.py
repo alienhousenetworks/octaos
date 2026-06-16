@@ -74,8 +74,9 @@ async def test_delay_times_by_channel(mock_send_task, client, db):
     
     # Add dummy credentials
     from app.models.base import APICredential
-    cred_whatsapp = APICredential(tenant_id=tenant_id, provider="meta", encrypted_key="token123", settings={"phone_number_id": "123"})
-    cred_smtp = APICredential(tenant_id=tenant_id, provider="smtp", encrypted_key="token123", settings={"smtp_server": "localhost", "smtp_port": 25, "smtp_username": "user"})
+    from app.core.security import encrypt_api_key
+    cred_whatsapp = APICredential(tenant_id=tenant_id, provider="meta", encrypted_key=encrypt_api_key("token123"), settings={"phone_number_id": "123"})
+    cred_smtp = APICredential(tenant_id=tenant_id, provider="smtp", encrypted_key=encrypt_api_key("token123"), settings={"smtp_server": "localhost", "smtp_port": 25, "smtp_username": "user"})
     db.add_all([cred_whatsapp, cred_smtp])
     db.commit()
     
@@ -110,7 +111,8 @@ async def test_collision_prevention_agent_replied(mock_complete, client, db):
     
     # Add dummy credentials
     from app.models.base import APICredential
-    cred_whatsapp = APICredential(tenant_id=tenant_id, provider="meta", encrypted_key="token123", settings={"phone_number_id": "123"})
+    from app.core.security import encrypt_api_key
+    cred_whatsapp = APICredential(tenant_id=tenant_id, provider="meta", encrypted_key=encrypt_api_key("token123"), settings={"phone_number_id": "123"})
     db.add(cred_whatsapp)
     db.commit()
     agent = SupportAgent(db, tenant_id)

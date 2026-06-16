@@ -104,6 +104,10 @@ def update_api_key(
     tenant_id: str = Depends(deps.get_current_tenant_id),
     request: APIKeyUpdate
 ) -> Any:
+    from app.services.security_service import SecretValidationService
+    if not SecretValidationService.validate_api_key(request.provider, request.key):
+        raise HTTPException(status_code=400, detail=f"Invalid key format for provider: {request.provider}")
+        
     cred = db.query(APICredential).filter(
         APICredential.tenant_id == tenant_id,
         APICredential.provider == request.provider

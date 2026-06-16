@@ -261,3 +261,141 @@ def test_system_admin_endpoints(db, client):
     res4 = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {comp_token}"})
     assert res4.status_code == 400
     assert "Tenant organization is suspended" in res4.json()["detail"]
+
+
+def test_audit_logging_and_usage(db, client):
+    # Setup tenant & user
+    tenant = Tenant(name="Acme Corp")
+    db.add(tenant)
+    db.commit()
+    db.refresh(tenant)
+    
+    admin = User(
+        email="admin@acme.com",
+        hashed_password=get_password_hash("secret"),
+        tenant_id=tenant.id,
+        is_verified=True,
+        is_active=True,
+        role="admin"
+    )
+    db.add(admin)
+    db.commit()
+    db.refresh(admin)
+    
+    admin_token = create_access_token(subject=admin.id)
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    
+    # 1. Test Audit Logging Service & Endpoint
+    from app.services.audit_service import AuditService
+    AuditService.log_event(
+        db=db,
+        action="update_settings",
+        tenant_id=tenant.id,
+        user_id=admin.id,
+        resource="settings",
+        resource_id="general_config",
+        details={"theme": "dark"}
+    )
+    
+    audit_res = client.get("/api/v1/audit/", headers=headers)
+    assert audit_res.status_code == 200
+    logs = audit_res.json()
+    assert len(logs) == 1
+    assert logs[0]["action"] == "update_settings"
+    assert logs[0]["user_id"] == admin.id
+    assert logs[0]["resource"] == "settings"
+    assert logs[0]["details"] == {"theme": "dark"}
+    
+    # 2. Test Usage Service & Endpoints
+    from app.models.base import ProviderUsage
+    usage1 = ProviderUsage(
+        tenant_id=tenant.id,
+        provider="openai",
+        model="gpt-4o",
+        input_tokens=1000,
+        output_tokens=500,
+        cost=0.0125,
+        cache_hit=False
+    )
+    usage2 = ProviderUsage(
+        tenant_id=tenant.id,
+        provider="openai",
+        model="gpt-4o",
+        input_tokens=1000,
+        output_tokens=500,
+        cost=0.0,
+        cache_hit=True,
+        cached_tokens=1000
+    )
+    db.add_all([usage1, usage2])
+    db.commit()
+    
+    summary_res = client.get("/api/v1/usage/summary", headers=headers)
+    assert summary_res.status_code == 200
+    summary = summary_res.json()
+    assert summary["total_cost"] == 0.0125
+    assert summary["total_input_tokens"] == 2000
+    assert summary["total_output_tokens"] == 1000
+    assert summary["total_calls"] == 2
+    
+    providers_res = client.get("/api/v1/usage/providers", headers=headers)
+    assert providers_res.status_code == 200
+    providers = providers_res.json()
+    assert len(providers) == 1
+    assert providers[0]["provider"] == "openai"
+    assert providers[0]["cost"] == 0.0125
+    
+    cache_res = client.get("/api/v1/usage/cache-efficiency", headers=headers)
+    assert cache_res.status_code == 200
+    cache = cache_res.json()
+    assert cache["total_calls"] == 2
+    assert cache["cache_hits"] == 1
+    assert cache["cache_misses"] == 1
+    assert cache["hit_rate"] == 0.5
+    assert cache["total_cached_tokens"] == 1000
+
+
+def test_observability_endpoint(client):
+    # Make a dummy request with a trace ID
+    trace_id = "test-trace-12345"
+    response = client.get("/", headers={"X-Trace-ID": trace_id})
+    assert response.status_code == 200
+    assert response.headers.get("X-Trace-ID") == trace_id
+
+    # Retrieve metrics
+    metrics_res = client.get("/metrics")
+    assert metrics_res.status_code == 200
+    assert "text/plain" in metrics_res.headers.get("content-type", "")
+    metrics_text = metrics_res.text
+    
+    assert "http_requests_total" in metrics_text
+    assert "http_request_duration_seconds_sum" in metrics_text
+    assert "http_request_duration_seconds_count" in metrics_text
+
+
+def test_v2_api_versioning(client):
+    response = client.get("/api/v2/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["api_version"] == "v2"
+    assert data["enterprise_hardened"] is True
+
+
+def test_login_rate_limiting(client):
+    # Clear in-memory rate limiter cache to prevent leakage from other tests
+    from app.core.rate_limiter import _in_memory_windows
+    _in_memory_windows.clear()
+
+    # Perform 5 login requests (will get 400/401 due to bad credentials, but passes rate limiter)
+    for _ in range(5):
+        res = client.post("/api/v1/auth/login", data={"username": "wrong@user.com", "password": "bad"})
+        assert res.status_code in (400, 401)
+        
+    # The 6th request should exceed the limit of 5 and return 429 Too Many Requests
+    res_exceeded = client.post("/api/v1/auth/login", data={"username": "wrong@user.com", "password": "bad"})
+    assert res_exceeded.status_code == 429
+    assert "Rate limit exceeded" in res_exceeded.json()["detail"]
+
+
+
+

@@ -162,37 +162,9 @@ class LLMGateway:
 
         api_key = self._get_api_key(provider)
         
-        # Keyword-based Unsplash search tags for premium mocks
-        prompt_lower = prompt.lower()
-        keyword = "workspace"
-        if "coffee" in prompt_lower or "cafe" in prompt_lower:
-            keyword = "coffee"
-        elif "fitness" in prompt_lower or "gym" in prompt_lower or "workout" in prompt_lower:
-            keyword = "fitness"
-        elif "tech" in prompt_lower or "software" in prompt_lower or "code" in prompt_lower or "saas" in prompt_lower:
-            keyword = "tech"
-        elif "marketing" in prompt_lower or "finance" in prompt_lower or "chart" in prompt_lower:
-            keyword = "business"
-        elif "restaurant" in prompt_lower or "food" in prompt_lower or "delicious" in prompt_lower:
-            keyword = "food"
-        elif "real estate" in prompt_lower or "home" in prompt_lower or "house" in prompt_lower:
-            keyword = "home"
-
-        # Safe Unsplash placeholder generator (premium quality)
-        mock_urls = {
-            "coffee": "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&auto=format&fit=crop&q=60",
-            "fitness": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=800&auto=format&fit=crop&q=60",
-            "tech": "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800&auto=format&fit=crop&q=60",
-            "business": "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&auto=format&fit=crop&q=60",
-            "food": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&auto=format&fit=crop&q=60",
-            "home": "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60",
-            "workspace": "https://images.unsplash.com/photo-1542744094-3a31f103e35f?w=800&auto=format&fit=crop&q=60"
-        }
-        mock_url = mock_urls.get(keyword, mock_urls["workspace"])
-
         if not api_key:
             error_msg = (
-                f"error:No API key configured for provider '{provider}'. "
+                f"error:No API key configured for image provider '{provider}'. "
                 f"Go to Settings \u2192 API Keys and add your {provider.title()} key to enable AI image generation."
             )
             import logging
@@ -433,45 +405,29 @@ class LLMGateway:
         return fallback
 
     async def generate_video(self, prompt: str, provider: str = "pika") -> str:
-        # Mixkit stock videos for premium mocks
-        prompt_lower = prompt.lower()
-        keyword = "office"
-        if "coffee" in prompt_lower or "cafe" in prompt_lower:
-            keyword = "coffee"
-        elif "fitness" in prompt_lower or "gym" in prompt_lower or "workout" in prompt_lower:
-            keyword = "fitness"
-        elif "tech" in prompt_lower or "software" in prompt_lower or "code" in prompt_lower or "saas" in prompt_lower:
-            keyword = "tech"
-        elif "restaurant" in prompt_lower or "food" in prompt_lower or "cook" in prompt_lower:
-            keyword = "food"
-
-        mock_videos = {
-            "coffee": "https://assets.mixkit.co/videos/preview/mixkit-pouring-hot-coffee-into-a-cup-43187-large.mp4",
-            "fitness": "https://assets.mixkit.co/videos/preview/mixkit-woman-doing-jumping-jacks-at-the-gym-43093-large.mp4",
-            "tech": "https://assets.mixkit.co/videos/preview/mixkit-man-working-on-a-laptop-at-his-desk-40897-large.mp4",
-            "food": "https://assets.mixkit.co/videos/preview/mixkit-cook-chopping-vegetables-on-a-wooden-board-43181-large.mp4",
-            "office": "https://assets.mixkit.co/videos/preview/mixkit-working-at-a-clean-office-desk-40899-large.mp4"
-        }
-        mock_url = mock_videos.get(keyword, mock_videos["office"])
-
         api_key = self._get_api_key(provider)
         if not api_key:
+            error_msg = (
+                f"error:No API key configured for video provider '{provider}'. "
+                f"Go to Settings \u2192 API Keys and add your {provider.title()} key to enable AI video generation."
+            )
+            import logging
+            logging.warning(f"[VideoGen] {error_msg}")
             try:
                 from app.models.agents import ActivityLog
                 log = ActivityLog(
                     tenant_id=self.tenant_id,
                     agent_name="Marketing AI",
                     action="Media Generation Warning",
-                    description=f"API key for video provider '{provider}' is not configured. Falling back to stock video.",
-                    status="pending"
+                    description=f"API key for video provider '{provider}' is not configured.",
+                    status="failed"
                 )
                 self.db.add(log)
                 self.db.commit()
             except Exception as log_err:
-                import logging
-                logging.error(f"Failed to log missing API key warning: {log_err}")
-            public = await ensure_public_url(mock_url, prefix="vid", default_mime="video/mp4")
-            return public or mock_url
+                import logging as _l
+                _l.error(f"Failed to log missing API key warning: {log_err}")
+            return error_msg
 
         try:
             async with httpx.AsyncClient() as client:
@@ -490,9 +446,11 @@ class LLMGateway:
                         if data.get("video_url"):
                             url = data["video_url"]
                         elif data.get("id"):
-                            url = await self._poll_pika_job(client, data["id"], api_key, mock_url)
+                            url = await self._poll_pika_job(client, data["id"], api_key, None)
+                            if not url:
+                                raise Exception("Pika job did not return a video URL.")
                         else:
-                            url = mock_url
+                            raise Exception("Pika API did not return a video URL or job ID.")
                         return await ensure_public_url(url, prefix="vid", default_mime="video/mp4") or url
                     raise Exception(f"Pika API error: {response.text}")
 
@@ -523,7 +481,9 @@ class LLMGateway:
                         timeout=40.0,
                     )
                     if response.status_code == 200:
-                        url = response.json()["data"][0].get("url", mock_url)
+                        url = response.json()["data"][0].get("url")
+                        if not url:
+                            raise Exception("Grok Video API did not return a video URL.")
                         return await ensure_public_url(url, prefix="vid", default_mime="video/mp4") or url
                     raise Exception(f"Grok Video API error: {response.text}")
 
@@ -535,25 +495,32 @@ class LLMGateway:
                         timeout=60.0,
                     )
                     if response.status_code == 200:
-                        url = response.json().get("video_url", mock_url)
+                        url = response.json().get("video_url")
+                        if not url:
+                            raise Exception("Stability AI did not return a video URL.")
                         return await ensure_public_url(url, prefix="vid", default_mime="video/mp4") or url
                     raise Exception(f"Stable Video API error: {response.text}")
+
+                else:
+                    raise ValueError(
+                        f"Video provider '{provider}' is not supported. "
+                        f"Please configure a valid video provider key (pika, veo, grok, stability)."
+                    )
         except Exception as e:
             import logging
-            logging.error(f"Video generation failed via {provider}: {e}")
+            error_msg = str(e)
+            logging.error(f"[VideoGen] Provider '{provider}' failed: {error_msg}")
             try:
                 from app.models.agents import ActivityLog
                 log = ActivityLog(
                     tenant_id=self.tenant_id,
                     agent_name="Marketing AI",
-                    action="Media Generation Warning",
-                    description=f"Video generation failed via provider '{provider}': {str(e)}. Falling back to stock video.",
+                    action="Media Generation Failed",
+                    description=f"Video generation failed via provider '{provider}': {error_msg}.",
                     status="failed",
                 )
                 self.db.add(log)
                 self.db.commit()
             except Exception as log_err:
-                logging.error(f"Failed to log video generation failure warning: {log_err}")
-
-        public = await ensure_public_url(mock_url, prefix="vid", default_mime="video/mp4")
-        return public or mock_url
+                logging.error(f"Failed to log video generation failure: {log_err}")
+            return f"error:{error_msg}"

@@ -551,7 +551,7 @@ class GroqAdapter(BaseProviderAdapter):
 
 class MistralAdapter(BaseProviderAdapter):
     def supports_native_batching(self, model: str) -> bool:
-        return True
+        return False  # Native batch API not yet implemented for Mistral
 
     async def execute_request(self, prompt: str, model: str, system_prompt: str = None, **kwargs) -> Dict[str, Any]:
         messages = []
@@ -591,20 +591,6 @@ class MistralAdapter(BaseProviderAdapter):
                 "cached_tokens": 0,
                 "raw_response": data
             }
-
-    async def submit_native_batch(self, tasks: List[Dict[str, Any]], model: str) -> str:
-        # Mock file submit and batch trigger for Mistral API
-        logger.info(f"Submitting batch to Mistral for model {model}")
-        return "mistral-batch-mock-id"
-
-    async def check_native_batch_status(self, provider_batch_id: str) -> Dict[str, Any]:
-        # Simple simulated status return for mock Mistral batch
-        return {
-            "status": "completed",
-            "completed_tasks": 1,
-            "total_tasks": 1,
-            "results": [{"custom_id": "task-0", "content": "Mistral Batch Result Content", "input_tokens": 10, "output_tokens": 20, "status": "success"}]
-        }
 
 
 class CohereAdapter(BaseProviderAdapter):
@@ -687,35 +673,3 @@ class LocalAdapter(BaseProviderAdapter):
                 "cached_tokens": 0,
                 "raw_response": data
             }
-
-
-class MockAdapter(BaseProviderAdapter):
-    async def execute_request(self, prompt: str, model: str, system_prompt: str = None, **kwargs) -> Dict[str, Any]:
-        # Generates a premium mock response that simulates reasoning
-        import time
-        
-        # Simulating slight network latency
-        await asyncio_sleep(0.15)
-        
-        prompt_snippet = prompt[:80] + "..." if len(prompt) > 80 else prompt
-        content = (
-            f"[Optimal Response via {model}] Thank you for your inquiry. This is a high-fidelity "
-            f"simulated response representing routing efficiency. Prompt snippet: '{prompt_snippet}'"
-        )
-        
-        # Approximate tokens
-        input_tokens = len(prompt.split()) + (len(system_prompt.split()) if system_prompt else 0)
-        output_tokens = len(content.split())
-
-        return {
-            "content": content,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "cached_tokens": 0,
-            "raw_response": {"mock": True}
-        }
-
-# Helper to avoid direct import issues in mock
-import asyncio
-async def asyncio_sleep(seconds: float):
-    await asyncio.sleep(seconds)

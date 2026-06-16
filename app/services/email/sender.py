@@ -104,6 +104,7 @@ def send_email(
 def send_global_smtp_email(to_email: str, subject: str, body: str) -> bool:
     """Send an email using global SMTP settings from configuration."""
     from app.core.config import settings
+    import logging
     
     # Check if SMTP settings are missing or contain placeholder values
     is_placeholder = (
@@ -114,12 +115,12 @@ def send_global_smtp_email(to_email: str, subject: str, body: str) -> bool:
     )
     
     if is_placeholder:
-        print(f"\n========================================================")
-        print(f"[MOCK EMAIL] TO: {to_email}")
-        print(f"[MOCK EMAIL] SUBJECT: {subject}")
-        print(f"[MOCK EMAIL] BODY:\n{body}")
-        print(f"========================================================\n")
-        return True
+        logging.warning(
+            f"[EMAIL NOT SENT] SMTP is not configured. "
+            f"Please go to Platform Setup \u2192 API Settings and add your SMTP credentials. "
+            f"Attempted to send to: {to_email} | Subject: {subject}"
+        )
+        return False
 
     smtp_cred = {
         "username": settings.SMTP_USER,
@@ -133,12 +134,8 @@ def send_global_smtp_email(to_email: str, subject: str, body: str) -> bool:
     try:
         return send_smtp_email(smtp_cred, to_email, subject, body)
     except Exception as e:
-        print(f"Error sending global SMTP email: {e}")
-        if settings.DEV:
-            print(f"\n========================================================")
-            print(f"[SMTP FAIL - FALLBACK MOCK EMAIL] TO: {to_email}")
-            print(f"[SMTP FAIL - FALLBACK MOCK EMAIL] SUBJECT: {subject}")
-            print(f"[SMTP FAIL - FALLBACK MOCK EMAIL] BODY:\n{body}")
-            print(f"========================================================\n")
-            return True
+        logging.error(
+            f"[EMAIL FAILED] SMTP send error: {e}. "
+            f"Please verify your SMTP credentials under Platform Setup \u2192 API Settings."
+        )
         return False

@@ -185,17 +185,6 @@ MODEL_REGISTRY = {
         "output_cost_1m": 0.00,
         "supports_batch": False,
         "supports_caching": False
-    },
-    # Fallback Mock
-    "mock/mock-model": {
-        "provider": "mock",
-        "model": "mock-model",
-        "complexity": "low",
-        "latency": 0.05,
-        "input_cost_1m": 0.00,
-        "output_cost_1m": 0.00,
-        "supports_batch": True,
-        "supports_caching": True
     }
 }
 
@@ -221,14 +210,10 @@ class AIRoutingEngine:
         }
         
         if not eligible_models:
-            # Fallback to mock and local when no actual key configured
-            eligible_models = {
-                key: spec for key, spec in MODEL_REGISTRY.items()
-                if spec["provider"] in ["mock", "local"]
-            }
-            
-        if not eligible_models:
-            return "mock", "mock-model"
+            raise ValueError(
+                "No AI API key is configured. Please go to Platform Setup → API Settings "
+                "and add at least one provider key (OpenAI, Anthropic, Gemini, Groq, etc.)."
+            )
 
         # Apply user's routing logic
         if realtime:

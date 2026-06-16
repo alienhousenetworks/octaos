@@ -101,7 +101,8 @@ async def test_run_meeting_and_execute_actions(mock_send_message, mock_complete,
     db.add(ticket)
     
     from app.models.base import APICredential
-    cred_smtp = APICredential(tenant_id=tenant_id, provider="smtp", encrypted_key="smtp://user:pass@host:25", settings={"smtp_server": "localhost", "smtp_port": 25, "smtp_username": "user"})
+    from app.core.security import encrypt_api_key
+    cred_smtp = APICredential(tenant_id=tenant_id, provider="smtp", encrypted_key=encrypt_api_key("smtp://user:pass@host:25"), settings={"smtp_server": "localhost", "smtp_port": 25, "smtp_username": "user"})
     db.add(cred_smtp)
     
     db.commit()

@@ -772,3 +772,15 @@ def run_sales_v3_task(tenant_id: str):
     finally:
         db.close()
 
+
+@celery_app.task(name="dead_letter_handler")
+def dead_letter_handler(task_name: str, task_id: str, exception: str, args: str, kwargs: str):
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.error(
+        f"[DLQ EVENT] Celery task '{task_name}' (ID: {task_id}) failed. "
+        f"Exception: {exception}. Args: {args}, Kwargs: {kwargs}"
+    )
+    return {"status": "DLQ_RECORDED", "task_id": task_id}
+
+

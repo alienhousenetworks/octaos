@@ -30,7 +30,7 @@ def get_optimization_metrics(
     
     # Pre-fill structure for all expected providers
     provider_metrics = {}
-    for p in ["openai", "anthropic", "gemini", "grok", "groq", "mistral", "cohere", "local", "mock"]:
+    for p in ["openai", "anthropic", "gemini", "grok", "groq", "mistral", "cohere", "local"]:
         provider_metrics[p] = {
             "spend": 0.0,
             "input_tokens": 0,

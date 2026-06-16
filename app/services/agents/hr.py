@@ -171,7 +171,7 @@ class HRAgent(BaseAgent):
                 tenant_id=self.tenant_id, provider="smtp"
             ).first()
             if cred and cred.encrypted_key:
-                smtp_credentials = self._parse_smtp_credentials(cred.encrypted_key)
+                smtp_credentials = self._parse_smtp_credentials(decrypt_api_key(cred.encrypted_key))
             
             if not smtp_credentials:
                 raise ValueError("No SMTP server details configured. Please configure SMTP credentials under Platform Setup -> API Settings to send outreach emails.")
@@ -218,7 +218,7 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
                 ).first()
                 if cred and cred.encrypted_key:
                     try:
-                        self._send_gmail_api_email(cred.encrypted_key, cand.email, outbound_subject, outbound_body)
+                        self._send_gmail_api_email(decrypt_api_key(cred.encrypted_key), cand.email, outbound_subject, outbound_body)
                         sent_successfully = True
                     except Exception as e:
                         raise ValueError(f"Gmail API outreach failed for {cand.name} ({cand.email}): {str(e)}. Please check your Gmail connection.")
@@ -283,7 +283,7 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
 
             try:
                 # Call Google Calendar API
-                meet_url_real, actual_time = self._create_calendar_event(calendar_cred.encrypted_key, cand.email, meeting_time)
+                meet_url_real, actual_time = self._create_calendar_event(decrypt_api_key(calendar_cred.encrypted_key), cand.email, meeting_time)
                 meet_url = meet_url_real or f"https://meet.google.com/hr-{cand.id[:8]}"
                 meeting_time = actual_time or meeting_time
             except Exception as ce:

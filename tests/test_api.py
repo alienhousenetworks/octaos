@@ -55,6 +55,7 @@ from sqlalchemy.orm import sessionmaker
 from app.main import app
 from app.db.session import SessionLocal
 from app.models.base import Base, APICredential
+from app.core.security import encrypt_api_key
 from app.models.verticals import Lead
 from app.api.deps import get_db, get_current_tenant_id
 import uuid
@@ -150,7 +151,7 @@ async def test_sales_and_orchestrator_flow(mock_complete, client, db):
     tenant_id_override_store["tenant_id"] = tenant_id
 
     # Add Anthropic Primary Key
-    cred_ai = APICredential(tenant_id=tenant_id, provider="anthropic", encrypted_key="sk-ant-test-key")
+    cred_ai = APICredential(tenant_id=tenant_id, provider="anthropic", encrypted_key=encrypt_api_key("sk-ant-test-key"))
     db.add(cred_ai)
     db.commit()
 
@@ -212,9 +213,9 @@ async def test_sales_and_orchestrator_flow(mock_complete, client, db):
         mock_book.return_value = True
         
         # Add dummy credentials so auth checks pass
-        cred_apollo = APICredential(tenant_id=tenant_id, provider="apollo", encrypted_key="sk-apollo-test-key")
-        cred_smtp = APICredential(tenant_id=tenant_id, provider="smtp", encrypted_key="smtp://user:pass@host:25")
-        cred_google = APICredential(tenant_id=tenant_id, provider="google_calendar", encrypted_key="fake_google_token")
+        cred_apollo = APICredential(tenant_id=tenant_id, provider="apollo", encrypted_key=encrypt_api_key("sk-apollo-test-key"))
+        cred_smtp = APICredential(tenant_id=tenant_id, provider="smtp", encrypted_key=encrypt_api_key("smtp://user:pass@host:25"))
+        cred_google = APICredential(tenant_id=tenant_id, provider="google_calendar", encrypted_key=encrypt_api_key("fake_google_token"))
         db.add_all([cred_apollo, cred_smtp, cred_google])
         db.commit()
 
@@ -248,10 +249,10 @@ async def test_hr_agent_flow(mock_complete, client, db):
     tenant_id_override_store["tenant_id"] = tenant_id
 
     # Configure credentials in test DB
-    cred_ai = APICredential(tenant_id=tenant_id, provider="anthropic", encrypted_key="sk-ant-test-key")
-    cred_linkedin = APICredential(tenant_id=tenant_id, provider="linkedin", encrypted_key="fake-linkedin-key")
-    cred_smtp = APICredential(tenant_id=tenant_id, provider="smtp", encrypted_key="smtp://user:pass@host:25")
-    cred_cal = APICredential(tenant_id=tenant_id, provider="google_calendar", encrypted_key="fake-cal-key")
+    cred_ai = APICredential(tenant_id=tenant_id, provider="anthropic", encrypted_key=encrypt_api_key("sk-ant-test-key"))
+    cred_linkedin = APICredential(tenant_id=tenant_id, provider="linkedin", encrypted_key=encrypt_api_key("fake-linkedin-key"))
+    cred_smtp = APICredential(tenant_id=tenant_id, provider="smtp", encrypted_key=encrypt_api_key("smtp://user:pass@host:25"))
+    cred_cal = APICredential(tenant_id=tenant_id, provider="google_calendar", encrypted_key=encrypt_api_key("fake-cal-key"))
     db.add_all([cred_ai, cred_linkedin, cred_smtp, cred_cal])
     db.commit()
 

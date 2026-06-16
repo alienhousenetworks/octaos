@@ -3,6 +3,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
+from app.core.rate_limiter import rate_limit_endpoint
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
@@ -112,11 +113,11 @@ def signup(
     db.refresh(user)
 
     # Generate token
-    access_token = create_access_token(subject=user.id)
+    access_token = create_access_token(subject=user.id, tenant_id=user.tenant_id, organization_id=user.organization_id)
     return {"access_token": access_token, "token_type": "bearer", "tenant_id": user.tenant_id}
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Token, dependencies=[Depends(rate_limit_endpoint(limit=5, window_seconds=60))])
 def login(
     db: Session = Depends(deps.get_db),
     form_data: OAuth2PasswordRequestForm = Depends()
@@ -132,7 +133,7 @@ def login(
     db.add(user)
     db.commit()
     
-    access_token = create_access_token(subject=user.id)
+    access_token = create_access_token(subject=user.id, tenant_id=user.tenant_id, organization_id=user.organization_id)
     return {"access_token": access_token, "token_type": "bearer", "tenant_id": user.tenant_id}
 
 
@@ -239,7 +240,7 @@ def signup_verify(
     db.commit()
     db.refresh(user)
 
-    access_token = create_access_token(subject=user.id)
+    access_token = create_access_token(subject=user.id, tenant_id=user.tenant_id, organization_id=user.organization_id)
     return {"access_token": access_token, "token_type": "bearer", "tenant_id": user.tenant_id}
 
 
@@ -294,7 +295,7 @@ def login_initiate(
         if not verify_password(login_in.password, user.hashed_password):
             raise HTTPException(status_code=400, detail="Incorrect email or password")
         
-        access_token = create_access_token(subject=user.id)
+        access_token = create_access_token(subject=user.id, tenant_id=user.tenant_id, organization_id=user.organization_id)
         return {
             "access_token": access_token,
             "token_type": "bearer",
@@ -349,7 +350,7 @@ def login_verify(
     db.add(user)
     db.commit()
 
-    access_token = create_access_token(subject=user.id)
+    access_token = create_access_token(subject=user.id, tenant_id=user.tenant_id, organization_id=user.organization_id)
     return {"access_token": access_token, "token_type": "bearer", "tenant_id": user.tenant_id}
 
 
@@ -496,7 +497,7 @@ def accept_invite(
     db.commit()
     db.refresh(new_user)
     
-    access_token = create_access_token(subject=new_user.id)
+    access_token = create_access_token(subject=new_user.id, tenant_id=new_user.tenant_id, organization_id=new_user.organization_id)
     return {"access_token": access_token, "token_type": "bearer", "tenant_id": new_user.tenant_id}
 
 @router.get("/members")

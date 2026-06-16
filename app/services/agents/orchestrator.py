@@ -74,23 +74,24 @@ Format:
         {{"department": "Marketing" | "Sales" | "Support" | "Finance" | "HR" | "System", "action": "create_posts" | "generate_leads" | "sales_outreach" | "schedule_meeting" | "source_candidates" | "candidate_outreach" | "schedule_interview" | "request_key", "parameters": {{}}}}
     ]
 }}"""
-        response = await self.llm.complete(prompt=prompt, system_prompt=system_prompt, provider=provider, model=model)
-        import logging
-        logger = logging.getLogger(__name__)
+        from app.services.ai_gateway.ai_parser import AIRetryManager, OrchestratorPlan
+
+        async def gateway_call(prompt, system_prompt, provider, model):
+            return await self.llm.complete(prompt=prompt, system_prompt=system_prompt, provider=provider, model=model)
+
         try:
-            import re
-            response_clean = response.strip()
-            # Robust extraction of JSON substring
-            json_match = re.search(r'\{.*\}', response_clean, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(0)
-            else:
-                json_str = response_clean
-            plan = json.loads(json_str)
+            plan_model = await AIRetryManager.call_with_retry(
+                gateway_call_fn=gateway_call,
+                model_class=OrchestratorPlan,
+                prompt=prompt,
+                system_prompt=system_prompt,
+                provider=provider,
+                model=model
+            )
+            plan = plan_model.model_dump()
         except Exception as e:
-            logger.error(f"[Orchestrator] Failed to parse plan. Raw response: {response}. Error: {e}")
-            print(f"[Orchestrator] Failed to parse plan. Raw response: {response}. Error: {e}")
-            raise Exception(f"Failed to parse orchestrator plan. Error: {str(e)}. Raw response: {response[:200]}...")
+            logger.error(f"[Orchestrator] Failed to parse plan: {e}")
+            raise Exception(f"Failed to parse orchestrator plan: {str(e)}")
 
         self.log_activity("Delegate Tasks", f"Delegated goal: '{prompt}'")
         

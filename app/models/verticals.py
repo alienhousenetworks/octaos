@@ -10,6 +10,7 @@ class Lead(Base):
     __tablename__ = "leads"
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    organization_id = Column(String, nullable=True, index=True)
     name = Column(String)
     email = Column(String, index=True)
     phone = Column(String)
@@ -35,6 +36,7 @@ class ContentPost(Base):
     __tablename__ = "content_posts"
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    organization_id = Column(String, nullable=True, index=True)
     platform = Column(String)
     content = Column(Text)
     image_url = Column(String, nullable=True)
@@ -59,6 +61,7 @@ class Contract(Base):
     __tablename__ = "contracts"
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    organization_id = Column(String, nullable=True, index=True)
     title = Column(String)
     file_url = Column(String)
     risk_score = Column(String) # Critical, Advisory, Informational
@@ -72,6 +75,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    organization_id = Column(String, nullable=True, index=True)
     amount = Column(Float)
     currency = Column(String, default="INR")
     description = Column(String)
@@ -85,6 +89,7 @@ class Candidate(Base):
     __tablename__ = "candidates"
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    organization_id = Column(String, nullable=True, index=True)
     name = Column(String)
     email = Column(String)
     role = Column(String)
@@ -98,6 +103,7 @@ class Ticket(Base):
     __tablename__ = "tickets"
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    organization_id = Column(String, nullable=True, index=True)
     subject = Column(String)
     description = Column(Text)
     status = Column(String, default="open")
@@ -123,6 +129,7 @@ class AgentMeeting(Base):
     __tablename__ = "agent_meetings"
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    organization_id = Column(String, nullable=True, index=True)
     title = Column(String, nullable=False)
     status = Column(String, default="active") # active, completed
     trigger_type = Column(String) # support_ticket, transaction_anomaly, candidate_hiring, manual
@@ -137,6 +144,7 @@ class BusinessProfile(Base):
     __tablename__ = "business_profiles"
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    organization_id = Column(String, nullable=True, index=True)
     company_name = Column(String, nullable=True)
     website = Column(String, nullable=True)
     industry = Column(String, nullable=True)
@@ -154,4 +162,66 @@ class BusinessProfile(Base):
     v3_workflow_status = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class Contact(Base):
+    __tablename__ = "contacts"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    organization_id = Column(String, nullable=True, index=True)
+    name = Column(String, nullable=True)
+    email = Column(String, index=True, nullable=True)
+    phone = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Campaign(Base):
+    __tablename__ = "campaigns"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    organization_id = Column(String, nullable=True, index=True)
+    name = Column(String, nullable=False)
+    status = Column(String, default="draft")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Message(Base):
+    __tablename__ = "messages"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    organization_id = Column(String, nullable=True, index=True)
+    sender = Column(String, nullable=True)
+    recipient = Column(String, nullable=True)
+    content = Column(Text, nullable=True)
+    channel = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Meeting(Base):
+    __tablename__ = "meetings"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    organization_id = Column(String, nullable=True, index=True)
+    title = Column(String, nullable=False)
+    scheduled_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Integration(Base):
+    __tablename__ = "integrations"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    organization_id = Column(String, nullable=True, index=True)
+    provider = Column(String, nullable=False)
+    config = Column(JSON, default={})
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    organization_id = Column(String, nullable=True, index=True)
+    user_id = Column(String, nullable=True)
+    action = Column(String, nullable=False)
+    resource = Column(String, nullable=True)
+    resource_id = Column(String, nullable=True)
+    details = Column(JSON, nullable=True)
+    ip_address = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 

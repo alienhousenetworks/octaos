@@ -6,10 +6,13 @@ from sqlalchemy.orm import Session
 from app.models.base import APICredential, ProviderUsage, AIBatchJob
 from app.core.config import settings
 from app.core.security import decrypt_api_key
+import pybreaker
+from app.core.resilience import llm_breaker
+from app.core.observability import metrics_registry
 
 from app.services.ai_gateway.adapters import (
     BaseProviderAdapter, OpenAIAdapter, AnthropicAdapter, GeminiAdapter,
-    GrokAdapter, GroqAdapter, MistralAdapter, CohereAdapter, LocalAdapter, MockAdapter
+    GrokAdapter, GroqAdapter, MistralAdapter, CohereAdapter, LocalAdapter
 )
 from app.services.ai_gateway.caching import PromptOptimizationEngine
 from app.services.ai_gateway.routing import AIRoutingEngine
@@ -153,7 +156,7 @@ class AIProviderGateway:
         current_provider = provider
         current_model = model
         
-        # Default chain of fallback providers (exclude mock/local)
+        # Default chain of fallback providers
         fallback_chain = ["openai", "anthropic", "gemini", "grok", "groq"]
         
         while current_provider:
@@ -184,10 +187,22 @@ class AIProviderGateway:
                 db.add(usage_failed)
                 db.commit()
                 
+                # Record metrics
+                metrics_registry.record_ai_call(
+                    provider=current_provider,
+                    model=current_model,
+                    status="failed",
+                    duration=0.0
+                )
+                
                 # Find other configured providers not tried yet
                 configured_remaining = [p for p in configured if p not in tried_providers]
                 if not configured_remaining:
-                    raise ValueError(f"No API key configured for provider '{current_provider}'. Please configure your API key under Platform Setup -> API Settings.")
+                    raise ValueError(
+                        f"No API key configured for any provider. "
+                        f"Please go to Platform Setup → API Settings and add a provider key "
+                        f"(OpenAI, Anthropic, Gemini, Groq, etc.)."
+                    )
                 
                 current_provider = configured_remaining[0]
                 if current_provider == "openai":
@@ -209,12 +224,13 @@ class AIProviderGateway:
                 adapter = self._get_adapter(current_provider, api_key)
                 
                 logger.info(f"Executing request via provider={current_provider}, model={current_model}")
-                response_data = await adapter.execute_request(
-                    prompt=prompt,
-                    model=current_model,
-                    system_prompt=system_prompt,
-                    **kwargs
-                )
+                with llm_breaker.calling():
+                    response_data = await adapter.execute_request(
+                        prompt=prompt,
+                        model=current_model,
+                        system_prompt=system_prompt,
+                        **kwargs
+                    )
                 latency = time.time() - start_time
                 
                 content = response_data["content"]
@@ -251,6 +267,14 @@ class AIProviderGateway:
                 db.add(usage)
                 db.commit()
                 
+                # Record metrics
+                metrics_registry.record_ai_call(
+                    provider=current_provider,
+                    model=current_model,
+                    status="success",
+                    duration=latency
+                )
+                
                 # Auto-cache locally if provider lacks native caching
                 PromptOptimizationEngine.fallbackLocalCaching(
                     prompt=prompt,
@@ -285,10 +309,21 @@ class AIProviderGateway:
                 db.add(usage_failed)
                 db.commit()
                 
+                # Record metrics
+                metrics_registry.record_ai_call(
+                    provider=current_provider,
+                    model=current_model,
+                    status="failed",
+                    duration=latency
+                )
+                
                 # Find other configured providers not tried yet
                 configured_remaining = [p for p in configured if p not in tried_providers]
                 if not configured_remaining:
-                    raise ValueError(f"No API key configured for provider '{current_provider}'. Please configure your API key under Platform Setup -> API Settings.")
+                    raise ValueError(
+                        f"All configured providers failed. Last provider '{current_provider}' failed with: {e}. "
+                        f"Please check your API keys under Platform Setup → API Settings."
+                    )
                 
                 current_provider = configured_remaining[0]
                 if current_provider == "openai":
@@ -326,10 +361,11 @@ class AIProviderGateway:
                     return "groq", "llama-3.1-8b-instant"
                 elif p == "local":
                     return "local", "llama3"
-                elif p == "mock":
-                    return "mock", "mock-model"
                     
-        return "mock", "mock-model"
+        raise ValueError(
+            "All configured providers failed. Please check your API keys under "
+            "Platform Setup → API Settings or add a new provider."
+        )
 
     async def executeCached(
         self,
@@ -371,6 +407,15 @@ class AIProviderGateway:
             )
             db.add(usage)
             db.commit()
+            
+            # Record metrics
+            metrics_registry.record_ai_call(
+                provider=cached_result["provider"],
+                model=cached_result["model"],
+                status="success",
+                duration=0.005,
+                cache_hit=True
+            )
             return cached_result["content"]
             
         # Cache miss: execute standard request
