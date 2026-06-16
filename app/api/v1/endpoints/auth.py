@@ -51,10 +51,12 @@ class SignupVerifyRequest(BaseModel):
 class LoginInitiateRequest(BaseModel):
     email: EmailStr
     password: Optional[str] = None
+    tenant_id: Optional[str] = None
 
 class LoginVerifyRequest(BaseModel):
     email: EmailStr
     otp: str
+    tenant_id: Optional[str] = None
 
 class ResendOtpRequest(BaseModel):
     email: EmailStr
@@ -145,29 +147,30 @@ def signup_initiate(
     db: Session = Depends(deps.get_db),
     signup_in: SignupInitiateRequest,
 ) -> Any:
-    # Check if user exists
-    user = db.query(User).filter(User.email == signup_in.email).first()
-    if user:
-        if getattr(user, "is_verified", True):
-            raise HTTPException(
-                status_code=400,
-                detail="The user with this email already exists in the system.",
-            )
-        # Unverified user: we can update details and send a new OTP
-        user.name = signup_in.name
-        user.phone_no = signup_in.phone_no
-        user.hashed_password = get_password_hash(signup_in.password)
-        # Update tenant name and metadata if provided
-        if signup_in.company:
-            tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
-            if tenant:
-                tenant.name = signup_in.company
-                tenant.company_website = signup_in.company_website
-                tenant.company_email = signup_in.company_email
-                tenant.company_address = signup_in.company_address
-                db.add(tenant)
+    if not signup_in.company_email:
+        raise HTTPException(status_code=400, detail="Company email is required.")
+        
+    tenant = db.query(Tenant).filter(Tenant.company_email == signup_in.company_email).first()
+    
+    if tenant:
+        # Check if the admin user is verified
+        admin_user = db.query(User).filter(User.tenant_id == tenant.id, User.email == signup_in.email).first()
+        if admin_user and getattr(admin_user, "is_verified", False):
+            raise HTTPException(status_code=400, detail="A company with this email already exists and is verified.")
+        elif not admin_user:
+            raise HTTPException(status_code=400, detail="A company with this email already exists.")
+            
+        # Unverified user retrying: update details
+        admin_user.name = signup_in.name
+        admin_user.phone_no = signup_in.phone_no
+        admin_user.hashed_password = get_password_hash(signup_in.password)
+        tenant.name = signup_in.company or f"{signup_in.name}'s Company"
+        tenant.company_website = signup_in.company_website
+        tenant.company_address = signup_in.company_address
+        db.add(tenant)
+        user = admin_user
     else:
-        # Create tenant (company)
+        # Create new tenant
         company_name = signup_in.company or f"{signup_in.name}'s Company"
         tenant = Tenant(
             name=company_name,
@@ -191,6 +194,12 @@ def signup_initiate(
             role="admin"
         )
         db.add(user)
+        
+        # Sync password for other existing user accounts with same email
+        existing_users = db.query(User).filter(User.email == signup_in.email).all()
+        for eu in existing_users:
+            eu.hashed_password = user.hashed_password
+            db.add(eu)
 
     # Generate OTP
     otp = generate_otp()
@@ -210,10 +219,11 @@ def signup_verify(
     db: Session = Depends(deps.get_db),
     verify_in: SignupVerifyRequest,
 ) -> Any:
-    user = db.query(User).filter(User.email == verify_in.email).first()
-    if not user:
+    users = db.query(User).filter(User.email == verify_in.email).all()
+    if not users:
         raise HTTPException(status_code=404, detail="User not found.")
     
+    user = users[0]
     if getattr(user, "is_verified", False):
         raise HTTPException(status_code=400, detail="User is already verified.")
 
@@ -233,10 +243,11 @@ def signup_verify(
         raise HTTPException(status_code=400, detail="OTP verification failed.")
 
     # Mark as verified
-    user.is_verified = True
-    user.otp = None
-    user.otp_expires_at = None
-    db.add(user)
+    for u in users:
+        u.is_verified = True
+        u.otp = None
+        u.otp_expires_at = None
+        db.add(u)
     db.commit()
     db.refresh(user)
 
@@ -250,18 +261,20 @@ def signup_resend_otp(
     db: Session = Depends(deps.get_db),
     resend_in: ResendOtpRequest,
 ) -> Any:
-    user = db.query(User).filter(User.email == resend_in.email).first()
-    if not user:
+    users = db.query(User).filter(User.email == resend_in.email).all()
+    if not users:
         raise HTTPException(status_code=404, detail="User not found.")
     
+    user = users[0]
     if getattr(user, "is_verified", False):
         raise HTTPException(status_code=400, detail="User is already verified.")
 
     # Generate new OTP
     otp = generate_otp()
-    user.otp = otp
-    user.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
-    db.add(user)
+    for u in users:
+        u.otp = otp
+        u.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
+        db.add(u)
     db.commit()
 
     # Send OTP
@@ -275,26 +288,51 @@ def login_initiate(
     db: Session = Depends(deps.get_db),
     login_in: LoginInitiateRequest,
 ) -> Any:
-    user = db.query(User).filter(User.email == login_in.email).first()
-    if not user:
+    users = db.query(User).filter(User.email == login_in.email).all()
+    if not users:
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     
-    if not user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
-
-    # If the user registered but never verified, tell them to verify using the signup verification flow
-    if not getattr(user, "is_verified", False):
-        raise HTTPException(
-            status_code=403, 
-            detail="Account email is unverified. Please verify your email first.",
-            headers={"X-Verification-Required": "true"}
-        )
+    user = None
+    if login_in.tenant_id:
+        user = next((u for u in users if u.tenant_id == login_in.tenant_id), None)
+        if not user:
+            raise HTTPException(status_code=400, detail="Invalid tenant selection")
+    else:
+        if len(users) == 1:
+            user = users[0]
 
     if login_in.password is not None and login_in.password != "":
         # PASSWORD LOGIN FLOW
-        if not verify_password(login_in.password, user.hashed_password):
+        if not verify_password(login_in.password, users[0].hashed_password):
             raise HTTPException(status_code=400, detail="Incorrect email or password")
         
+        if user is None:
+            tenants = []
+            for u in users:
+                t = db.query(Tenant).filter(Tenant.id == u.tenant_id).first()
+                if t and t.is_active:
+                    tenants.append({"id": t.id, "name": t.name})
+            if not tenants:
+                 raise HTTPException(status_code=400, detail="No active tenants found for user")
+            if len(tenants) == 1:
+                 user = next(u for u in users if u.tenant_id == tenants[0]["id"])
+            else:
+                 return {
+                     "needs_tenant_selection": True,
+                     "tenants": tenants,
+                     "otp_required": False
+                 }
+
+        if not user.is_active:
+            raise HTTPException(status_code=400, detail="Inactive user")
+
+        if not getattr(user, "is_verified", False):
+            raise HTTPException(
+                status_code=403, 
+                detail="Account email is unverified. Please verify your email first.",
+                headers={"X-Verification-Required": "true"}
+            )
+            
         access_token = create_access_token(subject=user.id, tenant_id=user.tenant_id, organization_id=user.organization_id)
         return {
             "access_token": access_token,
@@ -304,16 +342,15 @@ def login_initiate(
         }
     else:
         # OTP LOGIN FLOW
-        # Generate OTP
         otp = generate_otp()
-        user.otp = otp
-        user.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
-        db.add(user)
+        for u in users:
+            u.otp = otp
+            u.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
+            db.add(u)
         db.commit()
 
-        # Send OTP
-        send_otp(user.email, otp, purpose="login")
-        return {"message": "Login OTP sent successfully", "email": user.email, "otp_required": True}
+        send_otp(login_in.email, otp, purpose="login")
+        return {"message": "Login OTP sent successfully", "email": login_in.email, "otp_required": True}
 
 
 @router.post("/login/verify", response_model=Token)
@@ -322,19 +359,18 @@ def login_verify(
     db: Session = Depends(deps.get_db),
     verify_in: LoginVerifyRequest,
 ) -> Any:
-    user = db.query(User).filter(User.email == verify_in.email).first()
-    if not user:
+    users = db.query(User).filter(User.email == verify_in.email).all()
+    if not users:
         raise HTTPException(status_code=404, detail="User not found.")
 
-    if not user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
-
+    user_for_otp = users[0]
+    
     # Verification logic
     is_valid = False
     if settings.DEV and verify_in.otp == "123455":
         is_valid = True
-    elif user.otp and user.otp == verify_in.otp:
-        if user.otp_expires_at and _normalize_dt(user.otp_expires_at) > _normalize_dt(datetime.utcnow()):
+    elif user_for_otp.otp and user_for_otp.otp == verify_in.otp:
+        if user_for_otp.otp_expires_at and _normalize_dt(user_for_otp.otp_expires_at) > _normalize_dt(datetime.utcnow()):
             is_valid = True
         else:
             raise HTTPException(status_code=400, detail="OTP has expired.")
@@ -344,10 +380,39 @@ def login_verify(
     if not is_valid:
         raise HTTPException(status_code=400, detail="OTP verification failed.")
 
+    user = None
+    if verify_in.tenant_id:
+        user = next((u for u in users if u.tenant_id == verify_in.tenant_id), None)
+        if not user:
+             raise HTTPException(status_code=400, detail="Invalid tenant selection")
+    else:
+        if len(users) == 1:
+            user = users[0]
+
+    if user is None:
+        tenants = []
+        for u in users:
+            t = db.query(Tenant).filter(Tenant.id == u.tenant_id).first()
+            if t and t.is_active:
+                tenants.append({"id": t.id, "name": t.name})
+        if not tenants:
+             raise HTTPException(status_code=400, detail="No active tenants found for user")
+        if len(tenants) == 1:
+             user = next(u for u in users if u.tenant_id == tenants[0]["id"])
+        else:
+             return {
+                 "needs_tenant_selection": True,
+                 "tenants": tenants
+             }
+
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+
     # Clear OTP
-    user.otp = None
-    user.otp_expires_at = None
-    db.add(user)
+    for u in users:
+        u.otp = None
+        u.otp_expires_at = None
+        db.add(u)
     db.commit()
 
     access_token = create_access_token(subject=user.id, tenant_id=user.tenant_id, organization_id=user.organization_id)
@@ -360,22 +425,23 @@ def login_resend_otp(
     db: Session = Depends(deps.get_db),
     resend_in: ResendOtpRequest,
 ) -> Any:
-    user = db.query(User).filter(User.email == resend_in.email).first()
-    if not user:
+    users = db.query(User).filter(User.email == resend_in.email).all()
+    if not users:
         raise HTTPException(status_code=404, detail="User not found.")
     
-    if not user.is_active:
+    if not users[0].is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
 
     # Generate new OTP
     otp = generate_otp()
-    user.otp = otp
-    user.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
-    db.add(user)
+    for u in users:
+        u.otp = otp
+        u.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
+        db.add(u)
     db.commit()
 
     # Send OTP
-    send_otp(user.email, otp, purpose="login")
+    send_otp(users[0].email, otp, purpose="login")
     return {"message": "Login OTP resent successfully", "email": user.email}
 
 
@@ -472,10 +538,17 @@ def accept_invite(
     if _normalize_dt(invitation.expires_at) < _normalize_dt(datetime.utcnow()):
         raise HTTPException(status_code=400, detail="Invitation token has expired")
     
-    # Check if user already exists
-    existing_user = db.query(User).filter(User.email == accept_in.email).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="User with this email already exists")
+    # Check if user already exists in THIS tenant
+    existing_user_in_tenant = db.query(User).filter(User.email == accept_in.email, User.tenant_id == invitation.tenant_id).first()
+    if existing_user_in_tenant:
+        raise HTTPException(status_code=400, detail="User with this email already exists in this organization")
+        
+    # Sync passwords for existing accounts with this email
+    existing_users = db.query(User).filter(User.email == accept_in.email).all()
+    hashed_pw = get_password_hash(accept_in.password)
+    for eu in existing_users:
+        eu.hashed_password = hashed_pw
+        db.add(eu)
     
     # Create new user associated with the tenant
     new_user = User(

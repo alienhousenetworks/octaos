@@ -32,7 +32,7 @@ class Tenant(Base):
     
     # Company fields
     company_website = Column(String, nullable=True)
-    company_email = Column(String, nullable=True)
+    company_email = Column(String, nullable=True, unique=True, index=True)
     company_address = Column(String, nullable=True)
     
     users = relationship("User", back_populates="tenant")
