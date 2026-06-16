@@ -6,8 +6,6 @@ import uuid
 
 import contextvars
 import contextlib
-from sqlalchemy import event
-from sqlalchemy.orm import Query
 
 tenant_context: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("tenant_id", default=None)
 org_context: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("organization_id", default=None)
@@ -21,21 +19,6 @@ def bypass_tenant_isolation():
     finally:
         tenant_context.reset(t_token)
         org_context.reset(o_token)
-
-@event.listens_for(Query, "before_compile", retval=True)
-def before_compile_listener(query):
-    tid = tenant_context.get()
-    oid = org_context.get()
-    
-    if tid is not None:
-        for desc in query.column_descriptions:
-            entity = desc.get("entity")
-            if entity:
-                if hasattr(entity, "tenant_id"):
-                    query = query.filter(entity.tenant_id == tid)
-                if hasattr(entity, "organization_id") and oid is not None:
-                    query = query.filter(entity.organization_id == oid)
-    return query
 
 Base = declarative_base()
 
