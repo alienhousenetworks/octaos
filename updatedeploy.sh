@@ -90,7 +90,14 @@ if [[ -d "$VENV_DIR" ]]; then
   if [[ -f "$APP_DIR/cleanup_tenants.py" ]]; then
     "$VENV_DIR/bin/python3" "$APP_DIR/cleanup_tenants.py" || warn "cleanup_tenants.py failed"
   fi
-  "$VENV_DIR/bin/alembic" upgrade head || error "Alembic migrations failed!"
+  
+  info "Generating new migrations if models changed..."
+  chmod +x manage.sh
+  ./manage.sh makemigrations "auto_deploy_update" || warn "makemigrations had warnings or no changes"
+  
+  info "Applying database migrations..."
+  ./manage.sh migrate || error "Migrations failed!"
+  
   "$VENV_DIR/bin/python3" "$APP_DIR/init_db.py" || warn "init_db.py had warnings (may be safe to ignore)"
   success "Database migrations completed"
 else
