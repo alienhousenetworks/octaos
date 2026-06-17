@@ -2396,7 +2396,7 @@ export default function SalesView({
                       {profileSaving ? 'Saving...' : '💾 Save Profile Configuration'}
                     </Button>
                     <Button
-                      onClick={handleLaunchV3Workflow}
+                      onClick={() => handleLaunchV3Workflow()}
                       disabled={salesActionLoading || profileSaving}
                       className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl h-12 px-6 flex-1 transition-all shadow-lg shadow-emerald-500/25"
                     >
