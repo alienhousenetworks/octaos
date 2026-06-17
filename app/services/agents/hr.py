@@ -190,7 +190,14 @@ Base Template: {body_template}
 Subject: {subject}
 Output a JSON object with keys 'subject' and 'body'. No other text."""
             
-            response = await self.llm.complete(prompt=prompt, provider="anthropic", model="claude-3-haiku-20240307")
+            req_provider = params.get("provider", "auto")
+            req_model = params.get("model")
+            
+            response = await self.llm.complete(
+                prompt=prompt, 
+                provider=req_provider, 
+                model=req_model
+            )
             
             outbound_subject = subject.format(role=cand.role, name=cand.name)
             outbound_body = body_template.format(role=cand.role, name=cand.name)

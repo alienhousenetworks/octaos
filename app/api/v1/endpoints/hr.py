@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Any
+from typing import List, Any, Optional
 from pydantic import BaseModel
 
 from app.api import deps
@@ -16,14 +16,20 @@ class SourceRequest(BaseModel):
     salary: str
     count: int = 5
     platforms: List[str] = ["linkedin", "indeed", "ziprecruiter", "greenhouse", "lever"]
+    provider: str = "auto"
+    model: Optional[str] = None
 
 class OutreachRequest(BaseModel):
     channel: str = "free_outreach"
     subject: str = "Exciting job opportunity: {role}"
     body_template: str = "Hello {name},\n\nI saw your profile and thought you would be a great fit for our {role} opening..."
+    provider: str = "auto"
+    model: Optional[str] = None
 
 class InterviewRequest(BaseModel):
     tool: str = "free_scheduling"
+    provider: str = "auto"
+    model: Optional[str] = None
 
 class StatusUpdateRequest(BaseModel):
     status: str
@@ -84,7 +90,9 @@ async def source_candidates(
                 "requirements": request.requirements,
                 "salary": request.salary,
                 "count": request.count,
-                "platforms": request.platforms
+                "platforms": request.platforms,
+                "provider": request.provider,
+                "model": request.model
             }
         })
         return result
@@ -107,7 +115,9 @@ async def candidate_outreach(
                 "candidate_id": candidate_id,
                 "channel": request.channel,
                 "subject": request.subject,
-                "body_template": request.body_template
+                "body_template": request.body_template,
+                "provider": request.provider,
+                "model": request.model
             }
         })
         return result
@@ -128,7 +138,9 @@ async def schedule_interview(
             "action": "schedule_interview",
             "parameters": {
                 "candidate_id": candidate_id,
-                "tool": request.tool
+                "tool": request.tool,
+                "provider": request.provider,
+                "model": request.model
             }
         })
         return result

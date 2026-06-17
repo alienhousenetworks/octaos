@@ -68,7 +68,7 @@ class CampaignCreate(BaseModel):
     topic: str
     days: int = 30
     platforms: List[str] = ["linkedin", "instagram", "facebook"]
-    text_provider: str = "gemini"
+    text_provider: str = "auto"
     text_model: Optional[str] = None
     image_provider: str = "openai"
     video_provider: str = "pika"
