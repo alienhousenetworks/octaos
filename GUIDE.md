@@ -1,6 +1,6 @@
-# NexusOS AI Employee Workspace - Setup & Run Guide
+# OctaOS AI Employee Workspace - Setup & Run Guide
 
-Welcome to NexusOS! This platform transforms your business operations by providing autonomous AI employees for Marketing, Sales, Support, and Finance.
+Welcome to OctaOS! This platform transforms your business operations by providing autonomous AI employees for Marketing, Sales, Support, and Finance.
 
 ## Prerequisites
 Ensure you have the following installed on your machine:
@@ -23,7 +23,7 @@ Ensure you have the following installed on your machine:
    ```
 
 3. **Database Configuration**
-   Ensure your local PostgreSQL has a database named `nexusos` and the credentials match your `.env` file (`DATABASE_URL=postgresql://postgres@localhost:5432/nexusos`).
+   Ensure your local PostgreSQL has a database named `octaos` and the credentials match your `.env` file (`DATABASE_URL=postgresql://postgres@localhost:5432/octaos`).
    - *Note: The database tables have already been created.*
 
 4. **Start the FastAPI Server**
@@ -63,7 +63,7 @@ Ensure you have the following installed on your machine:
 
 ## 3. How to Use the System & Marketplace Automations
 
-NexusOS features an interactive **Workflow Marketplace** and an autonomous **Orchestrator AI** to let non-technical users install and execute complex automations without writing code.
+OctaOS features an interactive **Workflow Marketplace** and an autonomous **Orchestrator AI** to let non-technical users install and execute complex automations without writing code.
 
 ### Step-by-Step Marketplace Workflow
 
@@ -104,16 +104,16 @@ To operate autonomous agents, you need to connect your external tools. The Orche
 **Claude (Anthropic)**:
 1. Go to the [Anthropic Console](https://console.anthropic.com/) and sign in or create an account.
 2. Navigate to the **API Keys** dashboard from the main menu.
-3. Click on **Create Key**, give it a descriptive name (e.g., "NexusOS Orchestrator"), and generate the key.
+3. Click on **Create Key**, give it a descriptive name (e.g., "OctaOS Orchestrator"), and generate the key.
 4. Copy the key (it should start with `sk-ant-`).
-5. In NexusOS, click **API Settings** and paste this key under the Anthropic/Claude section.
+5. In OctaOS, click **API Settings** and paste this key under the Anthropic/Claude section.
 
 **OpenAI**:
 1. Go to the [OpenAI Platform API Dashboard](https://platform.openai.com/api-keys).
 2. Log in and navigate to the **API Keys** section on the left sidebar.
 3. Click **Create new secret key**.
 4. Copy the generated key (it usually starts with `sk-proj-` or `sk-`).
-5. Paste this key into the NexusOS **API Settings** under OpenAI.
+5. Paste this key into the OctaOS **API Settings** under OpenAI.
 
 *Note: At least one primary LLM key is mandatory for the Orchestrator AI to operate.*
 
@@ -141,14 +141,14 @@ To operate autonomous agents, you need to connect your external tools. The Orche
 5. Generate a **Page Access Token** and ensure you grant the `instagram_content_publish` permission.
 6. Extend the token to a long-lived token via the Access Token Tool.
 7. Ensure your Instagram Business Profile is correctly linked to your Facebook Page.
-8. Paste the long-lived token into the NexusOS API Settings.
+8. Paste the long-lived token into the OctaOS API Settings.
 
 **LinkedIn Share API**:
 1. Log into the [LinkedIn Developer Portal](https://developer.linkedin.com/) and click **Create App**.
 2. Fill in the required details and link a LinkedIn Company Page.
 3. Under the **Products** tab, request access to "Share on LinkedIn" and "Sign In with LinkedIn".
 4. Navigate to the **Auth** tab and use the OAuth 2.0 Token Generator to generate an **Access Token**.
-5. Copy this Access Token into the NexusOS API Settings.
+5. Copy this Access Token into the OctaOS API Settings.
 
 ### 3. Chat Messaging (WhatsApp & Telegram)
 *Connects support lines to the Support AI.*
@@ -157,7 +157,7 @@ To operate autonomous agents, you need to connect your external tools. The Orche
 1. In your [Meta Developer Console](https://developers.facebook.com/), add the **WhatsApp** product.
 2. Go to the **API Setup** section under WhatsApp.
 3. Copy the **Phone Number ID** and the **Temporary or Permanent Access Token**.
-4. In NexusOS, configure the WhatsApp settings with these credentials.
+4. In OctaOS, configure the WhatsApp settings with these credentials.
 5. Set up the webhook URL in Meta to point to your backend support endpoint to receive messages.
 
 **Telegram Bot API**:
@@ -165,7 +165,7 @@ To operate autonomous agents, you need to connect your external tools. The Orche
 2. Start a chat and type `/newbot`.
 3. Follow the prompts to choose a name and a unique username for your bot.
 4. `@BotFather` will provide you with an HTTP API token (e.g., `12345:AA..`).
-5. Copy this token and paste it into the Telegram section of the NexusOS API Settings.
+5. Copy this token and paste it into the Telegram section of the OctaOS API Settings.
 6. Set your **chat_id** in Telegram API settings (message `@userinfobot` or your bot to learn your chat id).
 7. **Sales alerts** (requires Celery worker + beat): instant message when a sales meeting is booked; reminders ~24h before the meeting, ~1h before the call, and a follow-up nudge 24h after outreach if no meeting was booked.
 
@@ -196,13 +196,13 @@ When a lead has been contacted, **replies are handled by Sales AI** (not Support
 2. Navigate to **APIs & Services > Library** and enable both the **Gmail API** and **Google Calendar API**.
 3. Go to **OAuth consent screen** and configure it (External or Internal depending on your workspace).
 4. Go to **Credentials**, click **Create Credentials > OAuth client ID**, and select "Web application" or "Desktop app".
-5. Download the JSON file containing your client secret and configure it in NexusOS.
+5. Download the JSON file containing your client secret and configure it in OctaOS.
 
 **SMTP Alternative (Easier Setup)**:
 1. If you just need outbound emails, you can use standard SMTP.
 2. For Gmail, enable 2-Step Verification on your account.
 3. Go to your Google Account > Security > App Passwords, and generate a new password for "Mail".
-4. In NexusOS, provide your SMTP details (e.g., `smtp://username:app-password@smtp.gmail.com:587`).
+4. In OctaOS, provide your SMTP details (e.g., `smtp://username:app-password@smtp.gmail.com:587`).
 
 ### 5. Sales Lead Generation (Apollo / Hunter / Google Places)
 *Powers Sales AI search routines.*
@@ -211,19 +211,19 @@ When a lead has been contacted, **replies are handled by Sales AI** (not Support
 1. Log into your Apollo.io or Hunter.io account.
 2. Navigate to **Settings > Integrations > API** (or similar menu item depending on the platform).
 3. Generate a new API Key and copy it.
-4. Paste the key into the corresponding section in NexusOS API Settings.
+4. Paste the key into the corresponding section in OctaOS API Settings.
 
 **Google Places API**:
 1. In the [Google Cloud Console](https://cloud.google.com/), select your project.
 2. Navigate to **APIs & Services > Library** and enable the **Places API**.
 3. Go to **Credentials**, click **Create Credentials > API key**.
-4. Copy the API key and paste it into the NexusOS API Settings.
+4. Copy the API key and paste it into the OctaOS API Settings.
 
 ---
 
 ## 5. Agent Behavioral Parameters & Delays
 
-To maintain a human-like operational style, NexusOS enforces natural delays on autonomous actions:
+To maintain a human-like operational style, OctaOS enforces natural delays on autonomous actions:
 
 - **WhatsApp Support Auto-Replies**: Employs a **4-5 minute response delay** so communication doesn't look instantly robotic.
 - **Email Ticket Auto-Replies**: Employs a **20-minute delay** before sending replies.

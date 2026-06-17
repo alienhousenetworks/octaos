@@ -1,6 +1,6 @@
 # Database Migration Guide
 
-NexusOS uses **Alembic** for managing database schema migrations. Schema creation and modification are no longer performed during application startup. Instead, schema changes are explicitly generated as migration files and applied using command-line commands.
+OctaOS uses **Alembic** for managing database schema migrations. Schema creation and modification are no longer performed during application startup. Instead, schema changes are explicitly generated as migration files and applied using command-line commands.
 
 ---
 

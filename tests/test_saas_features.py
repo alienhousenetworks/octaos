@@ -217,7 +217,7 @@ def test_system_admin_endpoints(db, client):
     db.refresh(tenant)
     
     sys_admin = User(
-        email="sysadmin@nexusos.com",
+        email="sysadmin@octaos.com",
         hashed_password=get_password_hash("secret"),
         tenant_id=tenant.id,
         is_verified=True,

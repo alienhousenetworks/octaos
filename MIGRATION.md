@@ -1,6 +1,6 @@
-# NexusOS - AI Cost Optimization Layer Migration Guide
+# OctaOS - AI Cost Optimization Layer Migration Guide
 
-This document outlines the steps required to transition to the **Universal AI Cost Optimization Layer** in NexusOS and illustrates how to register custom adapters.
+This document outlines the steps required to transition to the **Universal AI Cost Optimization Layer** in OctaOS and illustrates how to register custom adapters.
 
 ---
 

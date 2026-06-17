@@ -14,7 +14,7 @@ BACKUP_FILE="${BACKUP_DIR}/octaos_backup_${TIMESTAMP}.sql.gz"
 DB_HOST="${POSTGRES_SERVER:-localhost}"
 DB_PORT="${POSTGRES_PORT:-5432}"
 DB_USER="${POSTGRES_USER:-postgres}"
-DB_NAME="${POSTGRES_DB:-nexusos}"
+DB_NAME="${POSTGRES_DB:-octaos}"
 export PGPASSWORD="${POSTGRES_PASSWORD:-password}"
 
 echo "=========================================================="
