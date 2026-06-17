@@ -193,3 +193,61 @@ def get_batch_job(
         "completed_at": job.completed_at,
         "results": job.results.get("completed", []) if isinstance(job.results, dict) else []
     }
+
+class PlanTaskRequest(BaseModel):
+    complexity: str = "medium"
+    realtime: bool = False
+    bulk: bool = False
+
+@router.post("/plan-task")
+def plan_ai_task(
+    req: PlanTaskRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    from app.services.ai_gateway.routing import AIRoutingEngine, MODEL_REGISTRY
+    
+    # Get configured providers
+    creds = db.query(APICredential).filter(APICredential.tenant_id == tenant_id).all()
+    configured_providers = [c.provider for c in creds]
+    
+    if not configured_providers:
+        raise HTTPException(status_code=400, detail="No AI keys configured.")
+        
+    try:
+        provider, model = AIRoutingEngine.selectProvider(
+            configured_providers, 
+            complexity=req.complexity, 
+            realtime=req.realtime, 
+            bulk=req.bulk
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    # Get model specs
+    spec = None
+    for k, v in MODEL_REGISTRY.items():
+        if v["provider"] == provider and v["model"] == model:
+            spec = v
+            break
+            
+    if not spec:
+        spec = {"input_cost_1m": 0.0, "output_cost_1m": 0.0, "latency": "unknown"}
+        
+    reasoning = "This model was selected based on your configured API keys and the default cost-efficiency routing logic."
+    if req.bulk:
+        reasoning = f"This is a bulk task. {provider}/{model} was selected because it supports batching and is the most cost-effective option."
+    elif req.realtime:
+        reasoning = f"This is a realtime task. {provider}/{model} was selected for its ultra-low latency."
+    elif req.complexity == "high":
+        reasoning = f"This is a highly complex task. {provider}/{model} was selected as the strongest reasoning model available."
+    else:
+        reasoning = f"{provider}/{model} was selected because it offers the lowest overall cost for general tasks among your connected providers."
+
+    return {
+        "selected_provider": provider,
+        "selected_model": model,
+        "reasoning": reasoning,
+        "estimated_cost_per_1m_tokens": f"${spec['input_cost_1m'] + spec['output_cost_1m']:.2f}",
+        "estimated_latency": f"{spec['latency']}s" if isinstance(spec['latency'], (float, int)) else spec['latency']
+    }

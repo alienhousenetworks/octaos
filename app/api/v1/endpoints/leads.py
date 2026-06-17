@@ -404,8 +404,9 @@ def update_business_profile(
 
 
 class RunWorkflowRequest(BaseModel):
-    provider: Optional[str] = "gemini"
+    provider: Optional[str] = "auto"
     model: Optional[str] = None
+    review_plan: Optional[bool] = False
 
 @router.post("/run-v3-workflow")
 def run_v3_workflow(
@@ -440,11 +441,28 @@ def run_v3_workflow(
     }
     db.commit()
     
+    # Check if provider is auto
+    actual_provider = req.provider
+    actual_model = req.model
+    if not actual_provider or actual_provider == "auto":
+        from app.services.ai_gateway.routing import AIRoutingEngine
+        from app.models.base import APICredential
+        creds = db.query(APICredential).filter(APICredential.tenant_id == tenant_id).all()
+        configured_providers = [c.provider for c in creds]
+        if configured_providers:
+            try:
+                # Use complex routing logic (e.g. high complexity for V3 Sales Workflow)
+                actual_provider, actual_model = AIRoutingEngine.selectProvider(
+                    configured_providers, complexity="high"
+                )
+            except Exception as e:
+                pass # fallback
+    
     # Import and trigger Celery task
     from app.worker.tasks import run_sales_v3_task
-    run_sales_v3_task.delay(tenant_id, req.provider, req.model)
+    run_sales_v3_task.delay(tenant_id, actual_provider, actual_model)
     
-    return {"message": "Autonomous Sales AI V3 workflow launched successfully!"}
+    return {"message": f"Autonomous Sales AI V3 workflow launched successfully using {actual_provider}/{actual_model}!"}
 
 
 @router.get("/v3-workflow-status")

@@ -62,8 +62,11 @@ export default function SalesView({
 
   // Sales AI V3 States
   const [activeSalesTab, setActiveSalesTab] = useState<'pipeline' | 'config' | 'stepper' | 'analytics'>('pipeline');
-  const [salesTextProvider, setSalesTextProvider] = useState('gemini');
+  const [salesTextProvider, setSalesTextProvider] = useState('auto');
   const [salesTextModel, setSalesTextModel] = useState('');
+  const [reviewPlanFirst, setReviewPlanFirst] = useState(false);
+  const [planReviewData, setPlanReviewData] = useState<any>(null);
+  const [isPlanReviewModalOpen, setIsPlanReviewModalOpen] = useState(false);
   const [profileCompanyName, setProfileCompanyName] = useState('');
   const [profileWebsite, setProfileWebsite] = useState('');
   const [profileIndustry, setProfileIndustry] = useState('');
@@ -194,27 +197,55 @@ export default function SalesView({
     }
   };
 
-  const handleLaunchV3Workflow = async () => {
+  const handleLaunchV3Workflow = async (skipReview = false) => {
+    if (reviewPlanFirst && !skipReview && salesTextProvider === 'auto') {
+      // Fetch plan first
+      setSalesActionLoading(true);
+      try {
+        const planRes = await fetchWithAuth(`${API_URL}/llm/plan-task`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ complexity: 'high' }) // Sales V3 is complex
+        });
+        if (planRes.ok) {
+          const planData = await planRes.json();
+          setPlanReviewData(planData);
+          setIsPlanReviewModalOpen(true);
+        } else {
+          const err = await planRes.json();
+          alert(`Failed to fetch AI plan: ${err.detail}`);
+        }
+      } catch (e) {
+        alert("Network error fetching AI plan.");
+      } finally {
+        setSalesActionLoading(false);
+      }
+      return;
+    }
+
     const saved = await handleSaveProfile(true);
     if (!saved) return;
     
     setSalesActionLoading(true);
+    setIsPlanReviewModalOpen(false);
     try {
       const res = await fetchWithAuth(`${API_URL}/leads/run-v3-workflow`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           provider: salesTextProvider,
-          model: salesTextModel || undefined
+          model: salesTextModel || undefined,
+          review_plan: reviewPlanFirst
         })
       });
       if (res.ok) {
+        const data = await res.json();
         setWorkflowStatus((prev: any) => ({
           ...prev,
           status: 'executing'
         }));
         setActiveSalesTab('stepper');
-        alert("🚀 Sales AI V3 Workflow started! Check the Live Agent Stepper tab for real-time logs.");
+        alert(data.message || "🚀 Sales AI V3 Workflow started! Check the Live Agent Stepper tab for real-time logs.");
       } else {
         const data = await res.json();
         alert(`Failed to launch workflow: ${data.detail || 'Unknown error'}`);
@@ -2061,11 +2092,15 @@ export default function SalesView({
                       <div className="flex flex-col gap-1">
                         <label className="text-[10px] font-bold text-gray-450 uppercase tracking-wider">AI Model Settings</label>
                         <div className="grid grid-cols-2 gap-2">
-                          <Select value={salesTextProvider} onValueChange={val => setSalesTextProvider(val || 'gemini')}>
+                          <Select value={salesTextProvider} onValueChange={val => {
+                            setSalesTextProvider(val || 'auto');
+                            setSalesTextModel(''); // reset model when provider changes
+                          }}>
                             <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11">
                               <SelectValue placeholder="Provider" />
                             </SelectTrigger>
                             <SelectContent className="bg-gray-950 border-gray-800 text-white">
+                              <SelectItem value="auto" className="font-bold text-amber-400">✨ Auto (AI Choice)</SelectItem>
                               <SelectItem value="gemini">Google Gemini</SelectItem>
                               <SelectItem value="openai">OpenAI</SelectItem>
                               <SelectItem value="anthropic">Anthropic</SelectItem>
@@ -2104,10 +2139,78 @@ export default function SalesView({
                             </SelectContent>
                           </Select>
                         </div>
+                        
+                        {salesTextProvider === 'auto' && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <input 
+                              type="checkbox" 
+                              id="reviewPlan" 
+                              checked={reviewPlanFirst}
+                              onChange={(e) => setReviewPlanFirst(e.target.checked)}
+                              className="rounded border-gray-700 bg-gray-900 text-emerald-500 focus:ring-emerald-500/30"
+                            />
+                            <label htmlFor="reviewPlan" className="text-[11px] font-bold text-gray-300">
+                              Review AI Plan before launching (Model selection & Cost)
+                            </label>
+                          </div>
+                        )}
+
                         <p className="text-[10px] text-emerald-500/80 mt-1 pl-1">
                           The AI engine driving the autonomous 10-step pipeline.
                         </p>
                       </div>
+
+                      {/* AI Plan Review Modal */}
+                      <Dialog open={isPlanReviewModalOpen} onOpenChange={setIsPlanReviewModalOpen}>
+                        <DialogContent className="glass-panel border-emerald-500/20 text-white rounded-3xl max-w-md">
+                          <DialogHeader>
+                            <DialogTitle className="text-white font-extrabold text-xl flex items-center gap-2">
+                              <Sparkles size={20} className="text-emerald-400" />
+                              AI Routing Plan
+                            </DialogTitle>
+                          </DialogHeader>
+                          {planReviewData && (
+                            <div className="space-y-4 py-2">
+                              <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
+                                <div className="text-xs text-gray-400 font-bold uppercase mb-1">Selected Provider</div>
+                                <div className="text-lg font-bold text-white capitalize">{planReviewData.selected_provider}</div>
+                                
+                                <div className="text-xs text-gray-400 font-bold uppercase mb-1 mt-4">Selected Model</div>
+                                <div className="text-sm font-mono text-emerald-400">{planReviewData.selected_model}</div>
+
+                                <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-800">
+                                  <div>
+                                    <div className="text-xs text-gray-400 font-bold">Estimated Cost (1M tokens)</div>
+                                    <div className="text-sm font-bold text-white">{planReviewData.estimated_cost_per_1m_tokens}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-gray-400 font-bold">Latency</div>
+                                    <div className="text-sm font-bold text-white">{planReviewData.estimated_latency}</div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded-xl text-sm text-blue-300">
+                                <strong className="block mb-1 text-blue-400 text-xs uppercase">Why this model?</strong>
+                                {planReviewData.reasoning}
+                              </div>
+                              <div className="flex gap-3 pt-2">
+                                <Button
+                                  onClick={() => setIsPlanReviewModalOpen(false)}
+                                  className="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-300 rounded-xl h-11"
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  onClick={() => handleLaunchV3Workflow(true)}
+                                  className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl h-11"
+                                >
+                                  Proceed & Launch
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </DialogContent>
+                      </Dialog>
 
                       <div className="flex flex-col gap-1">
                         <label className="text-[10px] font-bold text-gray-450 uppercase tracking-wider">Company Name</label>

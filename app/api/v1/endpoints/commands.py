@@ -116,10 +116,15 @@ def update_api_key(
     if cred:
         cred.encrypted_key = encrypt_api_key(request.key)
     else:
+        # Check if this is the first key
+        existing_keys_count = db.query(APICredential).filter(APICredential.tenant_id == tenant_id).count()
+        is_main = existing_keys_count == 0
+        
         cred = APICredential(
             tenant_id=tenant_id,
             provider=request.provider,
-            encrypted_key=encrypt_api_key(request.key)
+            encrypted_key=encrypt_api_key(request.key),
+            is_main=is_main
         )
         db.add(cred)
     
@@ -132,7 +137,35 @@ def get_configured_keys(
     tenant_id: str = Depends(deps.get_current_tenant_id)
 ) -> Any:
     creds = db.query(APICredential).filter(APICredential.tenant_id == tenant_id).all()
-    return {"configured_providers": [c.provider for c in creds]}
+    # If there's exactly 1 key, ensure it is set to main
+    if len(creds) == 1 and not creds[0].is_main:
+        creds[0].is_main = True
+        db.commit()
+        
+    return {
+        "configured_providers": [{"provider": c.provider, "is_main": c.is_main} for c in creds]
+    }
+
+@router.post("/keys/{provider}/set-main")
+def set_main_key(
+    provider: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    cred = db.query(APICredential).filter(
+        APICredential.tenant_id == tenant_id,
+        APICredential.provider == provider
+    ).first()
+    if not cred:
+        raise HTTPException(status_code=404, detail=f"No credential found for provider: {provider}")
+        
+    # Reset all to False
+    db.query(APICredential).filter(APICredential.tenant_id == tenant_id).update({"is_main": False})
+    
+    # Set the selected one to True
+    cred.is_main = True
+    db.commit()
+    return {"message": f"{provider} is now the main AI API provider"}
 
 @router.delete("/keys/{provider}")
 def delete_api_key(

@@ -86,6 +86,7 @@ class APICredential(Base):
     provider = Column(String, nullable=False) # anthropic, openai, meta, etc.
     encrypted_key = Column(String, nullable=False)
     settings = Column(JSON, default={})
+    is_main = Column(Boolean, default=False)
     
     tenant = relationship("Tenant", back_populates="api_credentials")
 

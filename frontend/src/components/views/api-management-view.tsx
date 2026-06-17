@@ -95,6 +95,7 @@ export default function ApiManagementView({
   token, API_URL, fetchWithAuth, fetchData, configuredProviders, tenantId,
 }: ApiManagementViewProps) {
   const [configured, setConfigured] = useState<string[]>(configuredProviders);
+  const [mainProvider, setMainProvider] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   // Dialog state
@@ -122,7 +123,10 @@ export default function ApiManagementView({
       const res = await fetchWithAuth(`${API_URL}/commands/keys`);
       if (res.ok) {
         const data = await res.json();
-        setConfigured(data.configured_providers || []);
+        const providers = data.configured_providers || [];
+        setConfigured(providers.map((p: any) => p.provider));
+        const main = providers.find((p: any) => p.is_main);
+        if (main) setMainProvider(main.provider);
       }
     } finally {
       setRefreshing(false);
@@ -181,6 +185,18 @@ export default function ApiManagementView({
       showToast('❌ Network error removing key.', 'err');
     } finally {
       setDeleting(false);
+    }
+  const handleSetMain = async (providerId: string) => {
+    try {
+      const res = await fetchWithAuth(`${API_URL}/commands/keys/${providerId}/set-main`, { method: 'POST' });
+      if (res.ok) {
+        setMainProvider(providerId);
+        showToast(`⭐ ${providerId} set as main AI provider.`);
+      } else {
+        showToast('❌ Failed to set main provider.', 'err');
+      }
+    } catch {
+      showToast('❌ Network error.', 'err');
     }
   };
 
@@ -332,7 +348,14 @@ export default function ApiManagementView({
                         </div>
 
                         <div className="min-w-0">
-                          <div className="text-white font-bold text-sm truncate">{provider.label}</div>
+                          <div className="text-white font-bold text-sm truncate flex items-center gap-2">
+                            {provider.label}
+                            {isConfigured && mainProvider === provider.id && (
+                              <span className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                                ⭐ Main AI
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
                               isConfigured
@@ -380,6 +403,14 @@ export default function ApiManagementView({
                               <Plus size={11} />
                               {isConfigured ? 'Replace' : 'Add Key'}
                             </button>
+                            {isConfigured && ['anthropic', 'openai', 'gemini', 'grok'].includes(provider.id) && mainProvider !== provider.id && (
+                              <button
+                                onClick={() => handleSetMain(provider.id)}
+                                className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-amber-500/20 hover:text-amber-400 border border-gray-700/50 text-gray-400 transition-all"
+                              >
+                                Set as Main
+                              </button>
+                            )}
                             {isConfigured && (
                               <button
                                 onClick={() => setDeleteConfirm(provider.id)}
