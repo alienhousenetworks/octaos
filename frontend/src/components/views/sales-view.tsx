@@ -2437,7 +2437,7 @@ export default function SalesView({
                           </span>
                         )}
                         <Button
-                          onClick={handleLaunchV3Workflow}
+                          onClick={() => handleLaunchV3Workflow()}
                           disabled={salesActionLoading}
                           className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs h-9 px-4 shadow shadow-emerald-500/20"
                         >
