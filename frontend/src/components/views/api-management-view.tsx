@@ -186,6 +186,8 @@ export default function ApiManagementView({
     } finally {
       setDeleting(false);
     }
+  };
+
   const handleSetMain = async (providerId: string) => {
     try {
       const res = await fetchWithAuth(`${API_URL}/commands/keys/${providerId}/set-main`, { method: 'POST' });
