@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Briefcase, Search, Mail, Calendar, Loader2, Bot, Plus } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Briefcase, Search, Mail, Calendar, Loader2, Bot, Plus, Filter } from 'lucide-react';
 
 interface HRViewProps {
   token: string | null;
@@ -30,6 +31,10 @@ export default function HRView({
   const [hrLoading, setHrLoading] = useState(false);
   const [outreachLoading, setOutreachLoading] = useState(false);
   const [interviewLoading, setInterviewLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [hrProvider, setHrProvider] = useState('auto');
+  const [hrModel, setHrModel] = useState('');
 
   useEffect(() => {
     if (token) {
@@ -63,7 +68,9 @@ export default function HRView({
           role: hrRole,
           requirements: hrRequirements,
           salary: hrSalary,
-          count: hrCount
+          count: hrCount,
+          provider: hrProvider,
+          model: hrModel
         })
       });
       const data = await res.json();
@@ -91,7 +98,9 @@ export default function HRView({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          channel: "free_outreach"
+          channel: "free_outreach",
+          provider: hrProvider,
+          model: hrModel
         })
       });
       const data = await res.json();
@@ -117,7 +126,9 @@ export default function HRView({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tool: "free_scheduling"
+          tool: "free_scheduling",
+          provider: hrProvider,
+          model: hrModel
         })
       });
       const data = await res.json();
@@ -237,6 +248,69 @@ export default function HRView({
                         </div>
                       </div>
 
+                      {/* AI Model Selection */}
+                      <div className="flex gap-4">
+                        <div className="flex-1 flex flex-col gap-2">
+                          <label className="text-xs font-semibold text-gray-400">AI Model Provider</label>
+                          <Select value={hrProvider} onValueChange={(val) => {
+                            if (val) {
+                              setHrProvider(val);
+                              if (val === 'gemini') setHrModel('gemini-2.5-flash');
+                              else if (val === 'openai') setHrModel('gpt-4o');
+                              else if (val === 'anthropic') setHrModel('claude-sonnet-4-6');
+                              else if (val === 'grok') setHrModel('grok-2');
+                              else if (val === 'auto') setHrModel('');
+                            }
+                          }}>
+                            <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white focus:border-amber-500 rounded-xl h-10 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-gray-900 border-gray-850 text-white">
+                              <SelectItem value="auto">Auto (AI Choice)</SelectItem>
+                              <SelectItem value="gemini">Google Gemini</SelectItem>
+                              <SelectItem value="openai">OpenAI GPT</SelectItem>
+                              <SelectItem value="anthropic">Anthropic Claude</SelectItem>
+                              <SelectItem value="grok">xAI Grok</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {hrProvider !== 'auto' && (
+                          <div className="flex-1 flex flex-col gap-2">
+                            <label className="text-xs font-semibold text-gray-400">AI Sub-model</label>
+                            <Select value={hrModel} onValueChange={(val) => val && setHrModel(val)}>
+                              <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white focus:border-amber-500 rounded-xl h-10 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-gray-900 border-gray-850 text-white">
+                                {hrProvider === 'gemini' && (
+                                  <>
+                                    <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                                    <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+                                  </>
+                                )}
+                                {hrProvider === 'openai' && (
+                                  <>
+                                    <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                                    <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                                  </>
+                                )}
+                                {hrProvider === 'anthropic' && (
+                                  <>
+                                    <SelectItem value="claude-sonnet-4-6">Claude 3.5 Sonnet</SelectItem>
+                                    <SelectItem value="claude-3-haiku-20240307">Claude 3 Haiku</SelectItem>
+                                  </>
+                                )}
+                                {hrProvider === 'grok' && (
+                                  <>
+                                    <SelectItem value="grok-2">Grok 2</SelectItem>
+                                  </>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+
                       <Button
                         onClick={handleSourceCandidates}
                         disabled={hrLoading || !hrRole || !hrRequirements}
@@ -280,16 +354,70 @@ export default function HRView({
                 </div>
 
                 {/* Candidate Pipeline Display */}
-                <div className="lg:col-span-2 space-y-6">
-                  {candidates.length === 0 ? (
-                    <Card className="glass-panel border-dashed border-gray-800 p-12 text-center flex flex-col items-center justify-center rounded-3xl min-h-[400px] shadow-2xl">
-                      <div className="text-5xl mb-4 animate-bounce">👥</div>
-                      <h3 className="text-lg font-bold text-white">No candidates sourced yet</h3>
-                      <p className="text-gray-400 max-w-sm mt-2 text-xs leading-relaxed">Submit your job details on the left, and the HR AI agent will populate matches here.</p>
-                    </Card>
-                  ) : (
-                    <div className="space-y-4 max-h-[750px] overflow-y-auto pr-2 pb-6">
-                      {candidates.map(candidate => {
+                <div className="lg:col-span-2 space-y-4">
+                  {/* Search and Filter Bar */}
+                  <div className="flex flex-col sm:flex-row gap-4 mb-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input 
+                        placeholder="Search candidates by name, email, or role..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9 bg-gray-900/60 border-gray-800 text-white focus:border-amber-500 rounded-xl h-10"
+                      />
+                    </div>
+                    <div className="w-full sm:w-48">
+                      <Select value={statusFilter} onValueChange={(val) => val && setStatusFilter(val)}>
+                        <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white focus:border-amber-500 rounded-xl h-10">
+                          <Filter className="h-4 w-4 mr-2 text-gray-400" />
+                          <SelectValue placeholder="Filter by status" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-gray-850 text-white">
+                          <SelectItem value="all">All Statuses</SelectItem>
+                          <SelectItem value="sourced">Sourced</SelectItem>
+                          <SelectItem value="accepted">Accepted</SelectItem>
+                          <SelectItem value="screened">Screened</SelectItem>
+                          <SelectItem value="interviewed">Interviewed</SelectItem>
+                          <SelectItem value="offered">Offered</SelectItem>
+                          <SelectItem value="hired">Hired</SelectItem>
+                          <SelectItem value="rejected">Rejected</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const filteredCandidates = candidates.filter(c => {
+                      const matchesSearch = (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                            (c.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                            (c.role || '').toLowerCase().includes(searchQuery.toLowerCase());
+                      const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
+                      return matchesSearch && matchesStatus;
+                    });
+
+                    if (candidates.length === 0) {
+                      return (
+                        <Card className="glass-panel border-dashed border-gray-800 p-12 text-center flex flex-col items-center justify-center rounded-3xl min-h-[400px] shadow-2xl">
+                          <div className="text-5xl mb-4 animate-bounce">👥</div>
+                          <h3 className="text-lg font-bold text-white">No candidates sourced yet</h3>
+                          <p className="text-gray-400 max-w-sm mt-2 text-xs leading-relaxed">Submit your job details on the left, and the HR AI agent will populate matches here.</p>
+                        </Card>
+                      );
+                    }
+
+                    if (filteredCandidates.length === 0) {
+                      return (
+                        <Card className="glass-panel border-dashed border-gray-800 p-12 text-center flex flex-col items-center justify-center rounded-3xl min-h-[400px] shadow-2xl">
+                          <div className="text-5xl mb-4 text-gray-600">🔍</div>
+                          <h3 className="text-lg font-bold text-white">No candidates match your search</h3>
+                          <p className="text-gray-400 max-w-sm mt-2 text-xs leading-relaxed">Try adjusting your search query or status filter.</p>
+                        </Card>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-4 max-h-[750px] overflow-y-auto pr-2 pb-6">
+                        {filteredCandidates.map(candidate => {
                         const scorecard = candidate.scorecard || {};
                         const skills = scorecard.skills || [];
                         const score = scorecard.match_score || 0;
@@ -539,8 +667,9 @@ export default function HRView({
                           </Card>
                         );
                       })}
-                    </div>
-                  )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

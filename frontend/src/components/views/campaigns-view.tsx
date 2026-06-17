@@ -34,7 +34,7 @@ export default function CampaignsView({
   const [campaignTopic, setCampaignTopic] = useState('');
   const [campaignDays, setCampaignDays] = useState(30);
   const [campaignPlatforms, setCampaignPlatforms] = useState<string[]>(['linkedin', 'instagram', 'facebook']);
-  const [textProvider, setTextProvider] = useState('gemini');
+  const [textProvider, setTextProvider] = useState('auto');
   const [imageProvider, setImageProvider] = useState('openai');
   const [videoProvider, setVideoProvider] = useState('pika');
   const [generateImages, setGenerateImages] = useState(true);
@@ -1192,10 +1192,12 @@ export default function CampaignsView({
                                 else if (val === 'openai') setTextModel('gpt-4o');
                                 else if (val === 'anthropic') setTextModel('claude-sonnet-4-6');
                                 else if (val === 'grok') setTextModel('grok-2');
+                                else if (val === 'auto') setTextModel('');
                               }
                             }}>
                               <SelectTrigger className="h-9 bg-gray-900/50 border-gray-850 text-white text-xs rounded-xl"><SelectValue /></SelectTrigger>
                               <SelectContent className="bg-gray-900 border-gray-850 text-white">
+                                <SelectItem value="auto">Auto (AI Choice)</SelectItem>
                                 <SelectItem value="gemini">Google Gemini</SelectItem>
                                 <SelectItem value="openai">OpenAI GPT</SelectItem>
                                 <SelectItem value="anthropic">Anthropic Claude</SelectItem>
@@ -1204,8 +1206,9 @@ export default function CampaignsView({
                             </Select>
                           </div>
 
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-semibold text-gray-300">Copywriting Sub-model</label>
+                          {textProvider !== 'auto' && (
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-xs font-semibold text-gray-300">Copywriting Sub-model</label>
                             <Select value={textModel} onValueChange={(val) => val && setTextModel(val)}>
                               <SelectTrigger className="h-9 bg-gray-900/50 border-gray-850 text-white text-xs rounded-xl"><SelectValue /></SelectTrigger>
                               <SelectContent className="bg-gray-900 border-gray-850 text-white">
@@ -1243,6 +1246,7 @@ export default function CampaignsView({
                                 : "🚀 Pro & Sonnet models provide deep brand logic and advanced wordplay."}
                             </span>
                           </div>
+                          )}
                         </div>
 
                         <div className="space-y-4 bg-gray-900/10 border border-gray-850 p-3.5 rounded-2xl">
