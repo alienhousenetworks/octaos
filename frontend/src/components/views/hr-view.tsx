@@ -41,6 +41,11 @@ export default function HRView({
   const [manualName, setManualName] = useState('');
   const [manualEmail, setManualEmail] = useState('');
   const [manualRole, setManualRole] = useState('');
+  const [manualPhone, setManualPhone] = useState('');
+  const [manualSkills, setManualSkills] = useState('');
+  const [manualExperience, setManualExperience] = useState('');
+  const [manualBudget, setManualBudget] = useState('');
+  const [manualExtra, setManualExtra] = useState('');
   const [manualAdding, setManualAdding] = useState(false);
 
   useEffect(() => {
@@ -193,7 +198,7 @@ export default function HRView({
 
   const handleAddManualCandidate = async () => {
     if (!manualName || !manualEmail || !manualRole) {
-      alert("Please fill in all fields.");
+      alert("Please fill in the required fields (Name, Email, Role).");
       return;
     }
     setManualAdding(true);
@@ -207,11 +212,12 @@ export default function HRView({
           role: manualRole,
           status: 'sourced',
           scorecard: {
-            skills: [],
+            skills: manualSkills ? manualSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
             match_score: 100,
-            experience_summary: 'Manually added candidate.',
-            requirements_match: 'Manually verified.',
-            salary_expectation: 'N/A'
+            experience_summary: manualExperience || 'Manually added candidate.',
+            requirements_match: manualExtra || 'Manually verified.',
+            salary_expectation: manualBudget || 'N/A',
+            phone_number: manualPhone || ''
           }
         })
       });
@@ -220,6 +226,11 @@ export default function HRView({
         setManualName('');
         setManualEmail('');
         setManualRole('');
+        setManualPhone('');
+        setManualSkills('');
+        setManualExperience('');
+        setManualBudget('');
+        setManualExtra('');
         fetchCandidates();
         fetchData();
         alert("Candidate added successfully!");
@@ -443,37 +454,88 @@ export default function HRView({
                         >
                           <Plus size={16} /> Add Candidate
                         </DialogTrigger>
-                        <DialogContent className="bg-gray-950 border-gray-800 text-white sm:max-w-[425px]">
+                        <DialogContent className="bg-gray-950 border-gray-800 text-white sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
                           <DialogHeader>
                             <DialogTitle>Add Candidate Manually</DialogTitle>
                           </DialogHeader>
                           <div className="space-y-4 pt-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <label className="text-xs font-semibold text-gray-300">Full Name *</label>
+                                <Input 
+                                  placeholder="Jane Doe" 
+                                  value={manualName} 
+                                  onChange={e => setManualName(e.target.value)}
+                                  className="bg-gray-900 border-gray-800"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-xs font-semibold text-gray-300">Email Address *</label>
+                                <Input 
+                                  placeholder="jane@example.com" 
+                                  type="email"
+                                  value={manualEmail} 
+                                  onChange={e => setManualEmail(e.target.value)}
+                                  className="bg-gray-900 border-gray-800"
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <label className="text-xs font-semibold text-gray-300">Role *</label>
+                                <Input 
+                                  placeholder="Software Engineer" 
+                                  value={manualRole} 
+                                  onChange={e => setManualRole(e.target.value)}
+                                  className="bg-gray-900 border-gray-800"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-xs font-semibold text-gray-300">Phone Number</label>
+                                <Input 
+                                  placeholder="+1 (555) 123-4567" 
+                                  value={manualPhone} 
+                                  onChange={e => setManualPhone(e.target.value)}
+                                  className="bg-gray-900 border-gray-800"
+                                />
+                              </div>
+                            </div>
                             <div className="space-y-2">
-                              <label className="text-xs font-semibold text-gray-300">Full Name</label>
+                              <label className="text-xs font-semibold text-gray-300">Skills (comma separated)</label>
                               <Input 
-                                placeholder="Jane Doe" 
-                                value={manualName} 
-                                onChange={e => setManualName(e.target.value)}
+                                placeholder="React, Node.js, Python" 
+                                value={manualSkills} 
+                                onChange={e => setManualSkills(e.target.value)}
                                 className="bg-gray-900 border-gray-800"
                               />
                             </div>
-                            <div className="space-y-2">
-                              <label className="text-xs font-semibold text-gray-300">Email Address</label>
-                              <Input 
-                                placeholder="jane@example.com" 
-                                type="email"
-                                value={manualEmail} 
-                                onChange={e => setManualEmail(e.target.value)}
-                                className="bg-gray-900 border-gray-800"
-                              />
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <label className="text-xs font-semibold text-gray-300">Experience</label>
+                                <Input 
+                                  placeholder="5 years in full-stack" 
+                                  value={manualExperience} 
+                                  onChange={e => setManualExperience(e.target.value)}
+                                  className="bg-gray-900 border-gray-800"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-xs font-semibold text-gray-300">Budget / Expected Salary</label>
+                                <Input 
+                                  placeholder="$120k" 
+                                  value={manualBudget} 
+                                  onChange={e => setManualBudget(e.target.value)}
+                                  className="bg-gray-900 border-gray-800"
+                                />
+                              </div>
                             </div>
                             <div className="space-y-2">
-                              <label className="text-xs font-semibold text-gray-300">Role</label>
-                              <Input 
-                                placeholder="Software Engineer" 
-                                value={manualRole} 
-                                onChange={e => setManualRole(e.target.value)}
-                                className="bg-gray-900 border-gray-800"
+                              <label className="text-xs font-semibold text-gray-300">Extra Points / Match Notes</label>
+                              <Textarea 
+                                placeholder="Great communication skills, willing to relocate..." 
+                                value={manualExtra} 
+                                onChange={e => setManualExtra(e.target.value)}
+                                className="bg-gray-900 border-gray-800 min-h-[80px]"
                               />
                             </div>
                             <Button 
@@ -553,7 +615,11 @@ export default function HRView({
                                     {candidate.status}
                                   </span>
                                 </div>
-                                <p className="text-xs text-gray-400 mt-1">{candidate.email} • Sourced for <strong>{candidate.role}</strong></p>
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {candidate.email} 
+                                  {scorecard.phone_number ? ` • ${scorecard.phone_number}` : ''} 
+                                  • Sourced for <strong>{candidate.role}</strong>
+                                </p>
                               </div>
 
                               <div className="flex items-center gap-3">
