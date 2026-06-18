@@ -1141,10 +1141,8 @@ export default function CampaignsView({
                             <label className="text-xs font-semibold text-gray-300">Duration (Days)</label>
                             <Input
                               type="number"
-                              min={1}
-                              max={30}
                               value={campaignDays}
-                              onChange={e => setCampaignDays(Math.min(parseInt(e.target.value) || 30, 30))}
+                              onChange={e => setCampaignDays(parseInt(e.target.value) || 0)}
                               className="bg-gray-900/50 border-gray-850 text-white focus:border-violet-500 focus:ring-violet-500/20 rounded-xl h-10 text-sm"
                             />
                           </div>

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Briefcase, Search, Mail, Calendar, Loader2, Bot, Plus, Filter } from 'lucide-react';
 
 interface HRViewProps {
@@ -35,6 +36,12 @@ export default function HRView({
   const [statusFilter, setStatusFilter] = useState('all');
   const [hrProvider, setHrProvider] = useState('auto');
   const [hrModel, setHrModel] = useState('');
+  
+  const [isManualAddOpen, setIsManualAddOpen] = useState(false);
+  const [manualName, setManualName] = useState('');
+  const [manualEmail, setManualEmail] = useState('');
+  const [manualRole, setManualRole] = useState('');
+  const [manualAdding, setManualAdding] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -181,6 +188,50 @@ export default function HRView({
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleAddManualCandidate = async () => {
+    if (!manualName || !manualEmail || !manualRole) {
+      alert("Please fill in all fields.");
+      return;
+    }
+    setManualAdding(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/hr/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: manualName,
+          email: manualEmail,
+          role: manualRole,
+          status: 'sourced',
+          scorecard: {
+            skills: [],
+            match_score: 100,
+            experience_summary: 'Manually added candidate.',
+            requirements_match: 'Manually verified.',
+            salary_expectation: 'N/A'
+          }
+        })
+      });
+      if (res.ok) {
+        setIsManualAddOpen(false);
+        setManualName('');
+        setManualEmail('');
+        setManualRole('');
+        fetchCandidates();
+        fetchData();
+        alert("Candidate added successfully!");
+      } else {
+        const data = await res.json();
+        alert(`Error: ${data.detail || 'Failed to add candidate'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Network error adding candidate.");
+    } finally {
+      setManualAdding(false);
     }
   };
 
@@ -366,23 +417,75 @@ export default function HRView({
                         className="pl-9 bg-gray-900/60 border-gray-800 text-white focus:border-amber-500 rounded-xl h-10"
                       />
                     </div>
-                    <div className="w-full sm:w-48">
-                      <Select value={statusFilter} onValueChange={(val) => val && setStatusFilter(val)}>
-                        <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white focus:border-amber-500 rounded-xl h-10">
-                          <Filter className="h-4 w-4 mr-2 text-gray-400" />
-                          <SelectValue placeholder="Filter by status" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-gray-900 border-gray-850 text-white">
-                          <SelectItem value="all">All Statuses</SelectItem>
-                          <SelectItem value="sourced">Sourced</SelectItem>
-                          <SelectItem value="accepted">Accepted</SelectItem>
-                          <SelectItem value="screened">Screened</SelectItem>
-                          <SelectItem value="interviewed">Interviewed</SelectItem>
-                          <SelectItem value="offered">Offered</SelectItem>
-                          <SelectItem value="hired">Hired</SelectItem>
-                          <SelectItem value="rejected">Rejected</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                      <div className="w-full sm:w-48">
+                        <Select value={statusFilter} onValueChange={(val) => val && setStatusFilter(val)}>
+                          <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white focus:border-amber-500 rounded-xl h-10">
+                            <Filter className="h-4 w-4 mr-2 text-gray-400" />
+                            <SelectValue placeholder="Filter by status" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-900 border-gray-850 text-white">
+                            <SelectItem value="all">All Statuses</SelectItem>
+                            <SelectItem value="sourced">Sourced</SelectItem>
+                            <SelectItem value="accepted">Accepted</SelectItem>
+                            <SelectItem value="screened">Screened</SelectItem>
+                            <SelectItem value="interviewed">Interviewed</SelectItem>
+                            <SelectItem value="offered">Offered</SelectItem>
+                            <SelectItem value="hired">Hired</SelectItem>
+                            <SelectItem value="rejected">Rejected</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <Dialog open={isManualAddOpen} onOpenChange={setIsManualAddOpen}>
+                        <DialogTrigger asChild>
+                          <Button className="h-10 bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 rounded-xl px-4 flex items-center gap-2 whitespace-nowrap">
+                            <Plus size={16} /> Add Candidate
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="bg-gray-950 border-gray-800 text-white sm:max-w-[425px]">
+                          <DialogHeader>
+                            <DialogTitle>Add Candidate Manually</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4 pt-4">
+                            <div className="space-y-2">
+                              <label className="text-xs font-semibold text-gray-300">Full Name</label>
+                              <Input 
+                                placeholder="Jane Doe" 
+                                value={manualName} 
+                                onChange={e => setManualName(e.target.value)}
+                                className="bg-gray-900 border-gray-800"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-semibold text-gray-300">Email Address</label>
+                              <Input 
+                                placeholder="jane@example.com" 
+                                type="email"
+                                value={manualEmail} 
+                                onChange={e => setManualEmail(e.target.value)}
+                                className="bg-gray-900 border-gray-800"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-semibold text-gray-300">Role</label>
+                              <Input 
+                                placeholder="Software Engineer" 
+                                value={manualRole} 
+                                onChange={e => setManualRole(e.target.value)}
+                                className="bg-gray-900 border-gray-800"
+                              />
+                            </div>
+                            <Button 
+                              onClick={handleAddManualCandidate}
+                              disabled={manualAdding || !manualName || !manualEmail || !manualRole}
+                              className="w-full bg-amber-600 hover:bg-amber-500 text-white mt-2"
+                            >
+                              {manualAdding ? 'Adding...' : 'Save Candidate'}
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
                     </div>
                   </div>
 
