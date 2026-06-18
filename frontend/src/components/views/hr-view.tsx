@@ -438,10 +438,10 @@ export default function HRView({
                       </div>
 
                       <Dialog open={isManualAddOpen} onOpenChange={setIsManualAddOpen}>
-                        <DialogTrigger asChild>
-                          <Button className="h-10 bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 rounded-xl px-4 flex items-center gap-2 whitespace-nowrap">
-                            <Plus size={16} /> Add Candidate
-                          </Button>
+                        <DialogTrigger 
+                          render={<Button className="h-10 bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 rounded-xl px-4 flex items-center gap-2 whitespace-nowrap" />}
+                        >
+                          <Plus size={16} /> Add Candidate
                         </DialogTrigger>
                         <DialogContent className="bg-gray-950 border-gray-800 text-white sm:max-w-[425px]">
                           <DialogHeader>
