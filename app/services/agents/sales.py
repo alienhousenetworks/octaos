@@ -578,7 +578,75 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                             "name": "Manager",
                             "email": f"contact@{name.lower().replace(' ', '').replace(',', '')}.com",
                             "company": name,
-                            "phone": res.get("formatted_phone_number", "")
+                            "phone": ""
+                        })
+            elif provider == "zoominfo":
+                headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+                payload = {"companyName": query, "rpp": count}
+                response = await client.post("https://api.zoominfo.com/search/contact", headers=headers, json=payload, timeout=10.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    for c in data.get("data", [])[:count]:
+                        leads.append({
+                            "name": f"{c.get('firstName', '')} {c.get('lastName', '')}".strip() or "Professional",
+                            "email": c.get("email", ""),
+                            "company": c.get("companyName", "Target Corp"),
+                            "phone": c.get("phone", "")
+                        })
+            elif provider == "cognism":
+                headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+                payload = {"query": query, "limit": count}
+                response = await client.post("https://api.cognism.com/api/v2/search/contacts", headers=headers, json=payload, timeout=10.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    for c in data.get("contacts", [])[:count]:
+                        leads.append({
+                            "name": f"{c.get('firstName', '')} {c.get('lastName', '')}".strip() or "Professional",
+                            "email": c.get("emailAddress", ""),
+                            "company": c.get("companyName", "Target Corp"),
+                            "phone": c.get("directDial", "")
+                        })
+            elif provider == "people_data_labs":
+                headers = {"X-Api-Key": api_key, "Content-Type": "application/json"}
+                # PDL uses a SQL-like query
+                payload = {"sql": f"SELECT * FROM person WHERE company_name = '{query}'", "size": count}
+                response = await client.post("https://api.peopledatalabs.com/v5/person/search", headers=headers, json=payload, timeout=10.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    for p in data.get("data", [])[:count]:
+                        emails = p.get("emails", [])
+                        phones = p.get("phone_numbers", [])
+                        leads.append({
+                            "name": p.get("full_name", "Professional"),
+                            "email": emails[0].get("address") if emails else "",
+                            "company": query,
+                            "phone": phones[0] if phones else ""
+                        })
+            elif provider == "clearbit":
+                headers = {"Authorization": f"Bearer {api_key}"}
+                response = await client.get(f"https://discovery.clearbit.com/v1/companies/search?query=name:{query}&limit={count}", headers=headers, timeout=10.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    for c in data.get("results", [])[:count]:
+                        leads.append({
+                            "name": "General Inquiry",
+                            "email": f"info@{c.get('domain', 'company.com')}",
+                            "company": c.get("name", "Target Corp"),
+                            "phone": ""
+                        })
+            elif provider == "crunchbase":
+                headers = {"X-cb-user-key": api_key, "Content-Type": "application/json"}
+                payload = {"query": [{"type": "predicate", "field_id": "identifier", "operator_id": "contains", "values": [query]}], "limit": count}
+                response = await client.post("https://api.crunchbase.com/api/v4/searches/organizations", headers=headers, json=payload, timeout=10.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    for ent in data.get("entities", [])[:count]:
+                        props = ent.get("properties", {})
+                        leads.append({
+                            "name": "Founders",
+                            "email": props.get("contact_email", ""),
+                            "company": props.get("identifier", {}).get("value", "Startup"),
+                            "phone": props.get("phone_number", "")
                         })
         if not leads:
             raise Exception("No results returned or invalid API response.")

@@ -62,12 +62,13 @@ class HRAgent(BaseAgent):
                 # Check duplicate email
                 exists = self.db.query(Candidate).filter_by(tenant_id=self.tenant_id, email=data["email"]).first()
                 if not exists:
+                    parsed_scorecard = await self._parse_resume_to_scorecard(str(data.get("raw_data", {})), requirements, role)
                     scorecard = {
-                        "skills": data.get("skills", []),
-                        "experience_summary": data.get("experience_summary", ""),
-                        "match_score": data.get("match_score", 80),
-                        "requirements_match": data.get("requirements_match", ""),
-                        "salary_expectation": data.get("salary_expectation", salary),
+                        "skills": parsed_scorecard.get("skills", []),
+                        "experience_summary": parsed_scorecard.get("experience_summary", ""),
+                        "match_score": parsed_scorecard.get("match_score", 50),
+                        "requirements_match": parsed_scorecard.get("requirements_match", ""),
+                        "salary_expectation": parsed_scorecard.get("salary_expectation", salary),
                         "source_platform": platform,
                         "notes": f"Sourced via HR AI agent from {platform}."
                     }
@@ -112,12 +113,8 @@ class HRAgent(BaseAgent):
                     return [
                         {
                             "name": c.get("first_name", "") + " " + c.get("last_name", ""),
-                            "email": (c.get("email_addresses") or [{}])[0].get("value", f"candidate{c['id']}@example.com"),
-                            "skills": [s.strip() for s in requirements.split(",")[:4]] or ["General"],
-                            "experience_summary": f"Greenhouse candidate for {role}.",
-                            "match_score": 80,
-                            "requirements_match": "Sourced via Greenhouse API.",
-                            "salary_expectation": "Market rate",
+                            "email": (c.get("email_addresses") or [{}])[0].get("value", f"candidate{c.get('id', 'x')}@example.com"),
+                            "raw_data": c
                         }
                         for c in res.json()[:count]
                     ]
@@ -134,16 +131,57 @@ class HRAgent(BaseAgent):
                         {
                             "name": o.get("name", "Lever Candidate"),
                             "email": (o.get("emails") or [f"lever_{i}@example.com"])[0],
-                            "skills": [s.strip() for s in requirements.split(",")[:4]] or ["General"],
-                            "experience_summary": f"Lever opportunity for {role}.",
-                            "match_score": 82,
-                            "requirements_match": "Sourced via Lever API.",
-                            "salary_expectation": "Market rate",
+                            "raw_data": o
                         }
                         for i, o in enumerate(data[:count])
                     ]
 
         raise ValueError(f"Real API endpoints for {platform} returned no results or are not configured.")
+        
+    async def _parse_resume_to_scorecard(self, candidate_data_str: str, requirements: str, role: str) -> dict:
+        prompt = f"""
+        You are an expert technical recruiter. Read the following raw candidate profile/resume data 
+        and parse it into a structured interview scorecard.
+
+        Role: {role}
+        Requirements: {requirements}
+        
+        Candidate Data:
+        {candidate_data_str}
+        
+        Respond ONLY with a JSON object containing:
+        {{
+            "skills": ["list", "of", "skills"],
+            "experience_summary": "Short 2-3 sentence summary of their relevant experience.",
+            "match_score": <integer between 0 and 100 representing how well they match the requirements>,
+            "requirements_match": "Brief explanation of why they do or do not meet requirements",
+            "salary_expectation": "Any salary mentioned, or 'Not specified'"
+        }}
+        """
+        try:
+            import json
+            result_str = await self.llm.complete(prompt)
+            cleaned = result_str.strip()
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            if cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+            
+            parsed = json.loads(cleaned)
+            return parsed
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to parse resume to scorecard: {e}")
+            return {
+                "skills": ["General"],
+                "experience_summary": "Failed to parse resume.",
+                "match_score": 50,
+                "requirements_match": "N/A",
+                "salary_expectation": "Not specified"
+            }
 
     async def _candidate_outreach(self, params: dict):
         channel = params.get("channel", "smtp")
@@ -180,6 +218,11 @@ class HRAgent(BaseAgent):
 
         sent_count = 0
         for cand in candidates:
+            import re
+            if not cand.email or not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", cand.email):
+                self.log_activity("Candidate Outreach Error", f"Skipping {cand.name} due to invalid email: {cand.email}", "failed")
+                continue
+                
             scorecard = cand.scorecard or {}
             
             prompt = f"""Write a personalized recruiter outreach email.
@@ -391,6 +434,19 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
         start_time = datetime.utcnow() + timedelta(days=1)
         end_time = start_time + timedelta(hours=1)
         
+        # Check calendar availability using freeBusy
+        body = {
+            "timeMin": start_time.isoformat() + 'Z',
+            "timeMax": end_time.isoformat() + 'Z',
+            "items": [{"id": "primary"}]
+        }
+        events_result = service.freebusy().query(body=body).execute()
+        calendars = events_result.get("calendars", {})
+        primary = calendars.get("primary", {})
+        busy = primary.get("busy", [])
+        if len(busy) > 0:
+            raise ValueError("Calendar slot is not available. The primary calendar has conflicting events.")
+            
         event = {
             'summary': 'Interview',
             'description': 'Interview scheduled by HR AI.',

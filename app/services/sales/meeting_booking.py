@@ -35,6 +35,20 @@ def create_google_calendar_event(
     start_time = datetime.now(timezone.utc) + timedelta(days=1)
     start_time = start_time.replace(hour=10, minute=0, second=0, microsecond=0)
     end_time = start_time + timedelta(hours=1)
+    
+    # Check calendar availability using freeBusy
+    body = {
+        "timeMin": start_time.isoformat().replace("+00:00", "Z"),
+        "timeMax": end_time.isoformat().replace("+00:00", "Z"),
+        "items": [{"id": "primary"}]
+    }
+    events_result = service.freebusy().query(body=body).execute()
+    calendars = events_result.get("calendars", {})
+    primary = calendars.get("primary", {})
+    busy = primary.get("busy", [])
+    if len(busy) > 0:
+        raise ValueError("Calendar slot is not available. The primary calendar has conflicting events.")
+        
     event = {
         "summary": summary,
         "description": description,
@@ -65,6 +79,10 @@ def book_meeting_for_lead(
     log_activity: Optional[Callable[[str, str, str], None]] = None,
 ) -> bool:
     """Returns True if a meeting was booked."""
+    import re
+    if not lead.email or not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", lead.email):
+        raise ValueError(f"Invalid email address format for lead: '{lead.email}'")
+        
     if lead.status == "meeting_scheduled":
         return False
 

@@ -81,7 +81,7 @@ async def execute_command(
     except ValueError as e:
         ve_str = str(e)
         provider = None
-        for p in ["linkedin", "meta", "facebook", "instagram", "twitter", "gmail", "whatsapp", "apollo", "hunter", "google_places", "google_calendar", "smtp", "greenhouse", "lever", "openai", "anthropic", "gemini"]:
+        for p in ["linkedin", "meta", "facebook", "instagram", "twitter", "gmail", "whatsapp", "apollo", "hunter", "google_places", "google_calendar", "smtp", "greenhouse", "lever", "openai", "anthropic", "gemini", "zoominfo", "cognism", "people_data_labs", "clearbit", "crunchbase"]:
             if p in ve_str.lower():
                 provider = p
                 break
