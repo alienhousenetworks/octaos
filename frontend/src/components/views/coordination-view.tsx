@@ -393,13 +393,13 @@ export default function CoordinationView({
                                     </div>
                                   </div>
                                   <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                                  {msg.assumptions?.length > 0 && (
+                                  {msg.assumptions && msg.assumptions.length > 0 && (
                                     <p className="text-[10px] text-gray-500 mt-2">Assumptions: {msg.assumptions.join('; ')}</p>
                                   )}
-                                  {msg.sources?.length > 0 && (
+                                  {msg.sources && msg.sources.length > 0 && (
                                     <p className="text-[10px] text-gray-500 mt-2">Sources: {msg.sources.join(', ')}</p>
                                   )}
-                                  {msg.quality_flags?.length > 0 && (
+                                  {msg.quality_flags && msg.quality_flags.length > 0 && (
                                     <p className="text-[10px] text-red-300 mt-2">Quality flags: {msg.quality_flags.join('; ')}</p>
                                   )}
                                   {msg.confidence_rationale && (
