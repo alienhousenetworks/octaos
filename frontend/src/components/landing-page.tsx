@@ -129,7 +129,7 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
                   title: 'Sam - Omnichannel Support',
                   desc: 'Answers user inquiries 24/7 via WhatsApp and Email using company brand context.',
                   glow: 'glow-support',
-                  bullet: 'Features dynamic simulator for sandbox testing with realistic human delays.',
+
                   color: 'text-blue-400'
                 },
                 {

@@ -21,7 +21,7 @@ class WorkflowTask(Base):
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     workflow_id = Column(String, ForeignKey("workflows.id"), nullable=False)
     name = Column(String)
-    task_type = Column(String, nullable=True) # e.g. email_sequence, linkedin_dm, yelp_auto_reply
+    task_type = Column(String, nullable=True) # e.g. email_sequence, linkedin_dm
     status = Column(String, default="pending") # pending, in_progress, completed, failed
     result = Column(JSON, nullable=True)
     payload = Column(JSON, nullable=True) # stores arguments/parameters

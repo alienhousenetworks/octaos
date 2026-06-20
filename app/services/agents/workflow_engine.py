@@ -28,10 +28,7 @@ class WorkflowEngine:
                 result_data = await self._execute_email_sequence(task, tenant_id)
             elif task.task_type == "linkedin_dm":
                 result_data = await self._execute_linkedin_dm(task, tenant_id)
-            elif task.task_type == "yelp_auto_reply":
-                result_data = await self._execute_yelp_auto_reply(task, tenant_id)
-            elif task.task_type == "zillow_scrape":
-                result_data = await self._execute_zillow_scrape(task, tenant_id)
+
             elif task.task_type == "pinterest_schedule":
                 result_data = await self._execute_pinterest_schedule(task, tenant_id)
             elif task.task_type == "video_to_clips":
@@ -150,64 +147,7 @@ class WorkflowEngine:
             ),
         }
 
-    async def _execute_yelp_auto_reply(self, task: WorkflowTask, tenant_id: str):
-        business_id = (task.payload or {}).get("business_id")
-        api_key = settings.YELP_API_KEY or os.environ.get("YELP_API_KEY")
-        if not api_key or not business_id:
-            return {
-                "replied_to": 0,
-                "message": "Configure YELP_API_KEY and business_id in task payload.",
-            }
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(
-                f"https://api.yelp.com/v3/businesses/{business_id}/reviews",
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            resp.raise_for_status()
-            reviews = resp.json().get("reviews", [])[:3]
-
-        replies = []
-        for review in reviews:
-            reply = await ai_gateway.executeRequest(
-                db=self.db,
-                tenant_id=tenant_id,
-                prompt=f"Write a professional reply to this Yelp review (rating {review.get('rating')}): {review.get('text')}",
-                model=None,
-                provider="gemini",
-                system_prompt="You are a restaurant owner.",
-                task_type="support",
-            )
-            replies.append({"review_id": review.get("id"), "draft_reply": reply})
-
-        return {"replied_to": len(replies), "drafts": replies}
-
-    async def _execute_zillow_scrape(self, task: WorkflowTask, tenant_id: str):
-        location = (task.payload or {}).get("location", "Austin, TX")
-        token, _ = get_decrypted_credential(self.db, tenant_id, "google_places")
-        leads_found = 0
-
-        if token:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.get(
-                    "https://maps.googleapis.com/maps/api/place/textsearch/json",
-                    params={"query": f"real estate {location}", "key": token},
-                )
-                if resp.status_code == 200:
-                    for place in resp.json().get("results", [])[:15]:
-                        lead = Lead(
-                            tenant_id=tenant_id,
-                            name="Listing Agent",
-                            email=f"info@{place.get('name', 'agency').lower().replace(' ', '')}.com",
-                            company=place.get("name", "Real Estate"),
-                            source=f"Google Places: {location}",
-                            status="captured",
-                        )
-                        self.db.add(lead)
-                        leads_found += 1
-                    self.db.commit()
-
-        return {"leads_found": leads_found, "location": location, "source": "google_places"}
 
     async def _execute_pinterest_schedule(self, task: WorkflowTask, tenant_id: str):
         pins = (task.payload or {}).get("pins", 3)

@@ -346,7 +346,7 @@ export default function AIOptimizationView({
                   <div className="text-[11px] text-amber-300/80 bg-amber-500/5 border border-amber-500/10 p-3 rounded-lg flex items-start gap-2 mt-4">
                     <Clock size={14} className="mt-0.5 flex-shrink-0" />
                     <p>
-                      <strong>Batch API integration:</strong> Supports native API batch submission (e.g. OpenAI/Anthropic 50% discount) or fallbacks to Celery queue simulation.
+                      <strong>Batch API integration:</strong> Supports native API batch submission (e.g. OpenAI/Anthropic 50% discount) or falls back to Celery background processing.
                     </p>
                   </div>
                 </Card>

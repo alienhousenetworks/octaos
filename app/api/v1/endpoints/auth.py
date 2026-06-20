@@ -1,4 +1,4 @@
-import random
+
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, List
@@ -60,10 +60,8 @@ class LoginVerifyRequest(BaseModel):
 
 class ResendOtpRequest(BaseModel):
     email: EmailStr
-
-
-def generate_otp() -> str:
-    return f"{random.randint(100000, 999999)}"
+def generate_otp():
+    return f"{secrets.randbelow(900000) + 100000}"
 
 
 def send_otp(email: str, otp: str, purpose: str = "verification"):

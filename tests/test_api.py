@@ -143,7 +143,7 @@ def test_create_lead(client):
 @patch("app.services.llm_gateway.LLMGateway.complete")
 async def test_sales_and_orchestrator_flow(mock_complete, client, db):
     import os
-    os.environ["ALLOW_SALES_REPLY_SIMULATION"] = "true"
+
     # Setup tenant and credentials
     subdomain = f"test-{uuid.uuid4()}"
     tenant_resp = client.post("/api/v1/tenants/", json={"name": "Test Co", "subdomain": subdomain})
@@ -159,7 +159,7 @@ async def test_sales_and_orchestrator_flow(mock_complete, client, db):
     # 1. Orchestrator planning response
     # 2. Sales lead generation response (JSON array of leads)
     # 3. Outreach email subject/body
-    # 4. Meeting simulation interested response
+    # 4. Meeting interested response
     orchestrator_plan = {
         "tasks": [
             {
@@ -180,7 +180,7 @@ async def test_sales_and_orchestrator_flow(mock_complete, client, db):
         ]
     }
     
-    simulated_leads = [
+    mock_leads = [
         {"name": "Alice Baker", "email": "alice@bostonbakes.com", "phone": "+1-555-888-9999", "company": "Boston Bakes"},
         {"name": "Charlie Crust", "email": "charlie@crusty.com", "phone": "+1-555-777-6666", "company": "Crusty Loaves"}
     ]
@@ -199,7 +199,7 @@ async def test_sales_and_orchestrator_flow(mock_complete, client, db):
     # Setup the mock to return these values in sequence
     mock_complete.side_effect = [
         json.dumps(orchestrator_plan), # Orchestrator plan
-        json.dumps(simulated_leads),    # Lead gen
+        json.dumps(mock_leads),    # Lead gen
         json.dumps(outreach_response),  # Outreach 1
         json.dumps(outreach_response)   # Outreach 2
     ]
@@ -208,7 +208,7 @@ async def test_sales_and_orchestrator_flow(mock_complete, client, db):
     with patch("app.services.agents.sales.SalesAgent._fetch_real_leads", new_callable=AsyncMock) as mock_fetch, \
          patch("app.services.agents.sales.send_smtp_email") as mock_smtp, \
          patch("app.services.agents.sales.book_meeting_for_lead") as mock_book:
-        mock_fetch.return_value = simulated_leads
+        mock_fetch.return_value = mock_leads
         mock_smtp.return_value = True
         mock_book.return_value = True
         
@@ -258,7 +258,7 @@ async def test_hr_agent_flow(mock_complete, client, db):
 
     # Define LLM mock responses
     # 1. Sourcing response: 2 realistic candidate profiles
-    simulated_candidates = [
+    mock_candidates = [
         {
             "name": "Jane Doe",
             "email": "jane@example.com",
@@ -323,7 +323,7 @@ async def test_hr_agent_flow(mock_complete, client, db):
         }]
         
         mock_fetch.side_effect = [
-            simulated_candidates,
+            mock_candidates,
             alice_pythonist
         ]
 

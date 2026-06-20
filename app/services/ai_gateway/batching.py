@@ -31,7 +31,7 @@ class BatchExecutionEngine:
     async def submitToProvider(db: Session, batch_id: str, adapter: Any) -> AIBatchJob:
         """
         Submits the batch job. If supported natively, uses the adapter.
-        Otherwise, queues a Celery worker to simulate execution.
+        Otherwise, queues a Celery worker to explicitly run an internal batch.
         """
         job = db.query(AIBatchJob).filter(AIBatchJob.id == batch_id).first()
         if not job:
@@ -48,15 +48,31 @@ class BatchExecutionEngine:
                 logger.info(f"Submitting batch job {batch_id} natively to {job.provider}...")
                 provider_batch_id = await adapter.submit_native_batch(tasks, job.model)
                 job.provider_batch_id = provider_batch_id
+                
+                res = job.results or {}
+                res["batch_type"] = "provider"
+                job.results = res
+                
                 db.commit()
             except Exception as e:
-                logger.error(f"Failed to submit native batch: {e}. Falling back to local batching.")
+                logger.error(f"Failed to submit native batch: {e}. Falling back to internal batching.")
+                
+                res = job.results or {}
+                res["batch_type"] = "internal"
+                job.results = res
+                db.commit()
+                
                 # Fallback to local
                 from app.worker.tasks import execute_local_batch_task
                 execute_local_batch_task.delay(batch_id)
         else:
             # Execute local batch using Celery worker
-            logger.info(f"Executing local batch job {batch_id} for {job.provider} / {job.model} via Celery...")
+            logger.info(f"Executing internal batch job {batch_id} for {job.provider} / {job.model} via Celery...")
+            res = job.results or {}
+            res["batch_type"] = "internal"
+            job.results = res
+            db.commit()
+            
             from app.worker.tasks import execute_local_batch_task
             execute_local_batch_task.delay(batch_id)
 
@@ -72,11 +88,13 @@ class BatchExecutionEngine:
             return {"status": "not_found"}
 
         if job.status in ["completed", "failed"]:
+            res = job.results or {}
             return {
                 "status": job.status,
                 "completed_tasks": job.completed_tasks,
                 "total_tasks": job.total_tasks,
-                "results": job.results.get("completed", []) if isinstance(job.results, dict) else []
+                "batch_type": res.get("batch_type", "unknown"),
+                "results": res.get("completed", []) if isinstance(res, dict) else []
             }
 
         # If it's a native batch and has provider_batch_id
@@ -104,17 +122,19 @@ class BatchExecutionEngine:
             except Exception as e:
                 logger.error(f"Error monitoring native batch {job.provider_batch_id}: {e}")
         
+        res = job.results or {}
         return {
             "status": job.status,
             "completed_tasks": job.completed_tasks,
             "total_tasks": job.total_tasks,
-            "results": job.results.get("completed", []) if isinstance(job.results, dict) else []
+            "batch_type": res.get("batch_type", "unknown"),
+            "results": res.get("completed", []) if isinstance(res, dict) else []
         }
 
     @staticmethod
     def retryFailures(db: Session, batch_id: str) -> None:
         """
-        Identifies failed tasks in a simulated or native batch and schedules a retry.
+        Identifies failed tasks in an internal or native batch and schedules a retry.
         """
         job = db.query(AIBatchJob).filter(AIBatchJob.id == batch_id).first()
         if not job or job.status != "failed":

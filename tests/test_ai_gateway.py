@@ -43,7 +43,7 @@ def test_dynamic_routing_bulk():
     assert "flash" in model
 
 def test_prompt_caching_hashing():
-    prompt = "Generate a daily special yelp post for a restaurant."
+    prompt = "Generate a daily special post for a restaurant."
     sys_prompt = "You are a marketing AI."
     
     hash1 = PromptOptimizationEngine.hashPrompt(prompt, sys_prompt)

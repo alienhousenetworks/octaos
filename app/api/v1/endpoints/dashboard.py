@@ -274,16 +274,10 @@ def install_workflow(
     
     now = datetime.now(timezone.utc)
     
-    if request.app_name == "Restaurant Growth Pack":
-        t1 = WorkflowTask(workflow_id=wf.id, name="Yelp Review Auto-Responder", task_type="yelp_auto_reply", scheduled_at=now, payload={"status": "active"})
-        db.add(t1)
-    elif request.app_name == "SaaS Outreach System":
+    if request.app_name == "SaaS Outreach System":
         t1 = WorkflowTask(workflow_id=wf.id, name="Cold Email Sequence Step 1", task_type="email_sequence", scheduled_at=now, payload={"step": 1})
         t2 = WorkflowTask(workflow_id=wf.id, name="LinkedIn DM Personalizer", task_type="linkedin_dm", scheduled_at=now, payload={"limit": 5})
         db.add_all([t1, t2])
-    elif request.app_name == "Real Estate Lead Engine":
-        t1 = WorkflowTask(workflow_id=wf.id, name="Zillow Lead Scrape", task_type="zillow_scrape", scheduled_at=now, payload={"location": "San Francisco"})
-        db.add(t1)
     elif request.app_name == "Creative Agency Pack":
         t1 = WorkflowTask(workflow_id=wf.id, name="Pinterest Scheduling", task_type="pinterest_schedule", scheduled_at=now, payload={"pins": 3})
         db.add(t1)

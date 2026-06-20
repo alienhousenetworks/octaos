@@ -1,5 +1,4 @@
 import os
-import random
 import httpx
 import smtplib
 from email.mime.text import MIMEText
@@ -14,6 +13,7 @@ from app.services.credentials import get_decrypted_credential
 from app.core.celery_app import celery_app
 from app.services.notifications.telegram import send_telegram_notification
 import asyncio
+from app.core.http_utils import with_retry
 
 
 class SupportAgent(BaseAgent):
@@ -152,21 +152,14 @@ class SupportAgent(BaseAgent):
         self.db.commit()
         self.db.refresh(message)
 
-        # 4. If auto-reply is enabled, queue celery task with delay
+        # 4. If auto-reply is enabled, queue celery task
         if self.is_auto_reply_enabled(channel):
-            delay_seconds = 0
-            if channel == "whatsapp":
-                delay_seconds = random.randint(240, 300) # 4-5 mins
-            elif channel == "email":
-                delay_seconds = 1200 # 20 mins
-            
             # Send task to Celery
             celery_app.send_task(
                 "auto_reply_task",
-                args=[self.tenant_id, ticket.id, message.id, channel],
-                countdown=delay_seconds
+                args=[self.tenant_id, ticket.id, message.id, channel]
             )
-            self.log_activity("Auto-Reply Queued", f"Queued support response in {delay_seconds} seconds for ticket #{ticket.id[:8]}.")
+            self.log_activity("Auto-Reply Queued", f"Queued support response for ticket #{ticket.id[:8]}.")
 
         return {
             "status": "success",
@@ -239,6 +232,7 @@ class SupportAgent(BaseAgent):
         await self.send_message(channel, ticket.customer_contact, reply_content)
         self.log_activity("Auto-Reply Sent", f"Auto-reply sent for ticket #{ticket.id[:8]} via {channel}.")
 
+    @with_retry
     async def send_message(self, channel: str, recipient: str, content: str):
         if channel == "whatsapp":
             cred = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id, provider="meta").first()

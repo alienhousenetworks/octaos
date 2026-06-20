@@ -11,6 +11,7 @@ from app.services.email.sender import parse_smtp_credentials, send_smtp_email, s
 from app.services.agents.base import BaseAgent
 from app.models.verticals import Lead
 from app.models.base import APICredential
+from app.core.http_utils import with_retry
 
 def extract_json(text: str):
     import json
@@ -219,11 +220,37 @@ Output a JSON array of strings containing exactly 2 specific pain points. No oth
         scored_leads = []
         try:
             for c in qualified_companies:
-                budget_score = random.randint(75, 95)
-                pain_score = random.randint(70, 95)
-                intent_score = random.randint(60, 90)
-                industry_score = random.randint(80, 100)
-                growth_score = random.randint(70, 90)
+                prompt = f"""Analyze the following company profile and our offer to generate a lead score:
+Company: {c['company_name']}
+Industry: {c['industry']}
+Pain Points: {c['pain_points']}
+Our USP: {profile.usp}
+
+Output a JSON object with scores between 1 and 100 for:
+- budget_score
+- pain_score
+- intent_score
+- industry_score
+- growth_score
+
+No other text, just the JSON."""
+                try:
+                    score_str = await self.llm.complete(prompt, provider=provider, model=model)
+                    scores = extract_json(score_str)
+                except Exception:
+                    scores = {
+                        "budget_score": 50,
+                        "pain_score": 50,
+                        "intent_score": 50,
+                        "industry_score": 50,
+                        "growth_score": 50
+                    }
+                
+                budget_score = scores.get("budget_score", 50)
+                pain_score = scores.get("pain_score", 50)
+                intent_score = scores.get("intent_score", 50)
+                industry_score = scores.get("industry_score", 50)
+                growth_score = scores.get("growth_score", 50)
                 contact_score = 95
                 
                 weighted_score = int(budget_score*0.25 + pain_score*0.25 + intent_score*0.20 + industry_score*0.15 + growth_score*0.10 + contact_score*0.05)
@@ -471,7 +498,7 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                     company=data["company"],
                     source=f"{provider.upper()}: {query}",
                     status="captured",
-                    score=random.randint(60, 95),
+                    score=0,
                     personal_email=data.get("personal_email"),
                     company_email=data.get("company_email"),
                     mobile_no=data.get("mobile_no", data.get("phone")),
@@ -498,6 +525,7 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
         self.log_activity("Lead Generation Complete", f"Successfully captured {created_count} new leads in the DB.", "success")
         return {"status": "success", "generated_leads": created_count, "provider": provider}
 
+    @with_retry
     async def _fetch_real_leads(self, provider: str, api_key: str, query: str, count: int) -> list:
         # Implementation placeholders for actual external APIs
         leads = []
@@ -620,7 +648,7 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
                 outbound_subject = subject
                 outbound_body = body_template.format(name=lead.name, company=lead.company)
             
-            # Send or Simulate
+            # Send
             sent_successfully = False
             if channel == "smtp" and smtp_credentials:
                 try:

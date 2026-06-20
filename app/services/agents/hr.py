@@ -1,5 +1,5 @@
 import json
-import random
+import uuid
 import smtplib
 import urllib.parse
 from email.mime.text import MIMEText
@@ -13,6 +13,7 @@ from app.models.verticals import Candidate
 from app.models.teams import AgentMetric
 from app.models.base import APICredential
 from app.core.security import decrypt_api_key
+from app.core.http_utils import with_retry
 
 class HRAgent(BaseAgent):
     def __init__(self, db, tenant_id):
@@ -96,6 +97,7 @@ class HRAgent(BaseAgent):
         self.log_activity("Sourcing Complete", f"Successfully sourced {created_count} candidate profiles in the database.", "success")
         return {"status": "success", "sourced_count": created_count}
 
+    @with_retry
     async def _fetch_real_candidates(self, platform: str, api_key: str, role: str, requirements: str, count: int):
         async with httpx.AsyncClient() as client:
             platform = platform.lower()
@@ -210,7 +212,7 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
             except:
                 pass # Fallback to template
 
-            # Send or Simulate
+            # Send
             sent_successfully = False
             if channel == "smtp":
                 try:
@@ -377,6 +379,7 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
         
         service.users().messages().send(userId='me', body={'raw': raw_msg}).execute()
 
+    @with_retry
     def _create_calendar_event(self, cred_json: str, attendee_email: str, suggested_time: str):
         from google.oauth2.credentials import Credentials
         from googleapiclient.discovery import build
@@ -404,7 +407,7 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
             ],
             'conferenceData': {
                 'createRequest': {
-                    'requestId': f"hr-meet-{random.randint(1000,9999)}",
+                    'requestId': f"hr-meet-{uuid.uuid4().hex}",
                     'conferenceSolutionKey': {'type': 'hangoutsMeet'}
                 }
             }

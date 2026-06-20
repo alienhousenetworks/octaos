@@ -70,9 +70,7 @@ OctaOS features an interactive **Workflow Marketplace** and an autonomous **Orch
 1. **Select and Install a Pack**
    - Click **Workflow Marketplace** in the sidebar.
    - Choose a pack tailored to your industry:
-     - **Restaurant Growth Pack**: Automates Yelp reviews, daily Instagram specials, and local lead generation.
      - **SaaS Outreach System**: Handles cold email sequencing, LinkedIn DMs, and demo bookings.
-     - **Real Estate Lead Engine**: Auto-generates property listings, scrapes Zillow, and automates client follow-ups.
      - **Creative Content Lab**: Converts video transcripts to social clips, drafts blog outlines, and schedules pins.
    - Click **Install Pack**. The app instantly registers this pack and displays it under **Installed Automations** on the Operating Dashboard.
 
@@ -236,18 +234,12 @@ To maintain a human-like operational style, OctaOS enforces natural delays on au
 
 Go to the **Orchestrator AI** tab and copy-paste these commands to quickly test the installed packs:
 
-*   **Restaurant Growth Pack**:
-    ```text
-    Trigger the daily special post for Restaurant Pack. Create a draft of today's specials (Steak & Potatoes with red wine) for Instagram.
-    ```
+
 *   **SaaS Outreach System**:
     ```text
     Execute the SaaS Outreach System. Sourcing 5 CTOs at early-stage AI startups in New York, and write personalized outbound LinkedIn DMs.
     ```
-*   **Real Estate Lead Engine**:
-    ```text
-    Generate property descriptions using the Real Estate Lead Engine for 456 Oak Ave. Make it sound premium with a luxury pool description.
-    ```
+
 *   **Creative Content Lab**:
     ```text
     Create an SEO Blog Outline Writer task with the Creative Content Lab. Write an outline on 'How AI employees are transforming small businesses'.

@@ -90,8 +90,7 @@ class CEOService:
             plan_data = json.loads(json_str)
         except Exception as e:
             logger.error(f"Error parsing CEO planning response: {e}. Raw response: {response_str}")
-            # Fallback plan
-            plan_data = self._get_fallback_plan(objective)
+            raise ValueError("Failed to generate a valid plan. Please ensure your LLM API keys are correctly configured under Platform Setup -> API Settings.")
 
         # Create Workflow in Database
         workflow = Workflow(
@@ -452,54 +451,4 @@ class CEOService:
         summary_report = await self.llm.complete(prompt=prompt, provider="gemini", system_prompt="You are the CEO AI giving a final project review.")
         return {"report": summary_report}
 
-    def _get_fallback_plan(self, objective: str) -> dict:
-        return {
-            "analysis": "Formulating a growth pipeline targeting relevant clients, sourcing supportive recruits, and establishing financial tracking.",
-            "tasks": [
-                {
-                    "id": "task_1",
-                    "name": "Target Audience Research",
-                    "department": "Marketing",
-                    "description": "Establish persona profiles for ideal B2B target buyers.",
-                    "task_type": "marketing_research",
-                    "payload": {"topic": objective, "platforms": ["linkedin"]},
-                    "depends_on": []
-                },
-                {
-                    "id": "task_2",
-                    "name": "Prospect Sourcing",
-                    "department": "Sales",
-                    "description": "Find prospects matching targeted tech startups.",
-                    "task_type": "sales_leads",
-                    "payload": {"provider": "free_search", "query": "SaaS AI startups", "count": 5},
-                    "depends_on": ["task_1"]
-                },
-                {
-                    "id": "task_3",
-                    "name": "Sales Outreach Sequence",
-                    "department": "Sales",
-                    "description": "Draft personal connection templates for target leads.",
-                    "task_type": "sales_outreach",
-                    "payload": {"channel": "free_outreach", "subject": "Collaboration request", "body_template": "Hello {name}, I saw {company}..."},
-                    "depends_on": ["task_2"]
-                },
-                {
-                    "id": "task_4",
-                    "name": "Recruit SDR Talent",
-                    "department": "HR",
-                    "description": "Source Sales Representatives to execute the outreach pipeline.",
-                    "task_type": "hr_source",
-                    "payload": {"role": "SDR Specialist", "requirements": "Cold calling, Lead nurture", "salary": "$50,000/year", "count": 3},
-                    "depends_on": []
-                },
-                {
-                    "id": "task_5",
-                    "name": "ROI Modeling & Allocation",
-                    "department": "Finance",
-                    "description": "Allocate budget lines for SDR hiring and email lists.",
-                    "task_type": "finance_budget",
-                    "payload": {"amount": 2500.0},
-                    "depends_on": ["task_4"]
-                }
-            ]
-        }
+

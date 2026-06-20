@@ -13,8 +13,11 @@ router = APIRouter()
 
 class ManualMeetingRequest(BaseModel):
     title: str
-    participants: List[str]
     topic: str
+    participants: Optional[List[str]] = None
+    auto_select_experts: bool = True
+    industry: Optional[str] = None
+    decision_category: Optional[str] = None
     trigger_type: str = "manual"
     trigger_id: Optional[str] = None
 
@@ -49,13 +52,19 @@ async def create_manual_meeting(
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id)
 ) -> Any:
-    # Validate participants
-    if not payload.participants:
-        raise HTTPException(status_code=400, detail="At least one participant is required.")
-    
-    parts = list(payload.participants)
-    if "CEO AI" not in parts:
-        parts.insert(0, "CEO AI")
+    service = BoardroomService(db, tenant_id)
+    decision_profile = service.build_decision_profile(
+        title=payload.title,
+        context=payload.topic,
+        industry=payload.industry,
+        decision_category=payload.decision_category,
+    )
+    if payload.auto_select_experts:
+        parts = service.assemble_boardroom(decision_profile, payload.participants)
+    else:
+        if not payload.participants:
+            raise HTTPException(status_code=400, detail="At least one participant is required.")
+        parts = service.assemble_boardroom(decision_profile, payload.participants, include_dynamic=False)
     
     # Save the meeting
     meeting = AgentMeeting(
@@ -64,7 +73,7 @@ async def create_manual_meeting(
         status="active",
         trigger_type=payload.trigger_type,
         trigger_id=payload.trigger_id,
-        context_summary=f"Custom Topic: {payload.topic}",
+        context_summary=service.format_decision_context(payload.topic, decision_profile),
         participants=parts,
         transcript=[],
         action_items=[]
@@ -90,7 +99,6 @@ async def create_manual_meeting(
         celery_app.send_task("run_boardroom_meeting_task", args=[tenant_id, meeting.id])
     except Exception as e:
         print(f"Failed to queue celery task. Running in FastAPI background task: {e}")
-        service = BoardroomService(db, tenant_id)
         background_tasks.add_task(service.run_meeting, meeting.id)
 
     return meeting

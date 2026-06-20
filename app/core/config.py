@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     LINKEDIN_CLIENT_SECRET: Optional[str] = None
 
     # OPTIONAL INTEGRATIONS
-    YELP_API_KEY: Optional[str] = None
+
     PINTEREST_ACCESS_TOKEN: Optional[str] = None
 
     # SMTP & DEV SETTINGS

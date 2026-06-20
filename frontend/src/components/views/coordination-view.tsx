@@ -1,86 +1,119 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Users, Bot, Loader2, Send, Clock, Plus, Zap, MessageSquare } from 'lucide-react';
+import { Users, Zap, MessageSquare, ShieldCheck, Scale, Server, DollarSign, TrendingUp } from 'lucide-react';
 
 interface CoordinationViewProps {
   token: string | null;
   API_URL: string;
-  fetchWithAuth: (url: string, options?: any) => Promise<Response>;
+  fetchWithAuth: (url: string, options?: RequestInit) => Promise<Response>;
   fetchData: () => Promise<void>;
+}
+
+interface MeetingMessage {
+  sender: string;
+  content: string;
+  timestamp?: string;
+  phase?: string;
+  confidence_score?: number;
+  confidence_rationale?: string;
+  assumptions?: string[];
+  sources?: string[];
+  quality_flags?: string[];
+}
+
+interface MeetingAction {
+  id: string;
+  assigned_to: string;
+  description: string;
+  status: 'pending' | 'executing' | 'completed' | 'failed';
+}
+
+interface AgentMeeting {
+  id: string;
+  title: string;
+  status: string;
+  trigger_type: string;
+  context_summary?: string;
+  participants: string[];
+  transcript: MeetingMessage[];
+  action_items: MeetingAction[];
+  created_at: string;
 }
 
 export default function CoordinationView({
   token,
   API_URL,
   fetchWithAuth,
-  fetchData,
 }: CoordinationViewProps) {
   // Coordination states relocated here
-  const [meetings, setMeetings] = useState<any[]>([]);
+  const [meetings, setMeetings] = useState<AgentMeeting[]>([]);
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
-  const [selectedMeeting, setSelectedMeeting] = useState<any | null>(null);
+  const [selectedMeeting, setSelectedMeeting] = useState<AgentMeeting | null>(null);
   const [isCreateMeetingOpen, setIsCreateMeetingOpen] = useState(false);
   const [manualMeetingTitle, setManualMeetingTitle] = useState('');
   const [manualMeetingTopic, setManualMeetingTopic] = useState('');
-  const [manualMeetingParticipants, setManualMeetingParticipants] = useState<string[]>(['Support AI', 'Sales AI']);
+  const [manualMeetingParticipants, setManualMeetingParticipants] = useState<string[]>([]);
   const [manualMeetingLoading, setManualMeetingLoading] = useState(false);
 
-  useEffect(() => {
-    if (token) {
-      fetchMeetings();
-    }
-  }, [token]);
-
-  // Handle auto-refresh of selected meeting details
-  useEffect(() => {
-    if (selectedMeetingId && token) {
-      fetchMeetingDetails(selectedMeetingId);
-      
-      let interval: NodeJS.Timeout | null = null;
-      if (selectedMeeting?.status === 'running' || selectedMeeting?.status === 'scheduled') {
-        interval = setInterval(() => {
-          fetchMeetingDetails(selectedMeetingId);
-        }, 5000);
-      }
-      return () => {
-        if (interval) clearInterval(interval);
-      };
-    }
-  }, [selectedMeetingId, selectedMeeting?.status, token]);
-
-  // Coordination functions
-    const fetchMeetings = async () => {
+  const fetchMeetings = useCallback(async () => {
     if (!token) return;
     try {
       const res = await fetchWithAuth(`${API_URL}/coordination/meetings`);
       if (res.ok) {
-        const data = await res.json();
+        const data: AgentMeeting[] = await res.json();
         setMeetings(data);
       }
     } catch (e) {
       console.error(e);
     }
-  };
+  }, [API_URL, fetchWithAuth, token]);
 
-
-    const fetchMeetingDetails = async (meetingId: string) => {
+  const fetchMeetingDetails = useCallback(async (meetingId: string) => {
     if (!token) return;
     try {
       const res = await fetchWithAuth(`${API_URL}/coordination/meetings/${meetingId}`);
       if (res.ok) {
-        const data = await res.json();
+        const data: AgentMeeting = await res.json();
         setSelectedMeeting(data);
       }
     } catch (e) {
       console.error(e);
     }
-  };
+  }, [API_URL, fetchWithAuth, token]);
+
+  useEffect(() => {
+    if (token) {
+      const timeout = window.setTimeout(() => {
+        void fetchMeetings();
+      }, 0);
+      return () => window.clearTimeout(timeout);
+    }
+  }, [fetchMeetings, token]);
+
+  // Handle auto-refresh of selected meeting details
+  useEffect(() => {
+    if (selectedMeetingId && token) {
+      const refresh = () => {
+        void fetchMeetingDetails(selectedMeetingId);
+      };
+      const initialTimeout = window.setTimeout(refresh, 0);
+
+      let interval: NodeJS.Timeout | null = null;
+      if (selectedMeeting?.status === 'active' || selectedMeeting?.status === 'running' || selectedMeeting?.status === 'scheduled') {
+        interval = setInterval(refresh, 5000);
+      }
+      return () => {
+        window.clearTimeout(initialTimeout);
+        if (interval) clearInterval(interval);
+      };
+    }
+  }, [fetchMeetingDetails, selectedMeetingId, selectedMeeting?.status, token]);
 
 
     const handleCreateManualMeeting = async () => {
@@ -93,7 +126,8 @@ export default function CoordinationView({
         body: JSON.stringify({
           title: manualMeetingTitle,
           topic: manualMeetingTopic,
-          participants: manualMeetingParticipants
+          participants: manualMeetingParticipants,
+          auto_select_experts: true
         })
       });
       const data = await res.json();
@@ -124,7 +158,7 @@ export default function CoordinationView({
                   <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-2">
                     <Users className="text-amber-400 h-8 w-8 animate-pulse" /> AI Agent Boardroom
                   </h1>
-                  <p className="text-gray-400 mt-1">Cross-agent coordination meetings, autonomous escalations, and executive boardroom alignments.</p>
+                  <p className="text-gray-400 mt-1">Evidence-backed multi-agent decisions with parallel analysis, critique, and governed execution.</p>
                 </div>
                 <div className="flex gap-2">
                   <Dialog open={isCreateMeetingOpen} onOpenChange={setIsCreateMeetingOpen}>
@@ -157,9 +191,9 @@ export default function CoordinationView({
                           />
                         </div>
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-xs font-semibold text-gray-400">Invite Department Specialists (CEO AI always coordinates)</label>
+                          <label className="text-xs font-semibold text-gray-400">Optional Specialist Overrides</label>
                           <div className="grid grid-cols-2 gap-2 mt-1">
-                            {['Support AI', 'Sales AI', 'Finance AI', 'HR AI', 'Marketing AI'].map(agentName => {
+                            {['Sales Intelligence Expert', 'Marketing Intelligence Expert', 'Legal & Compliance Expert', 'Human Resources Expert', 'Cybersecurity Expert', 'Customer Experience Expert', 'Supply Chain Expert', 'Location Intelligence Expert'].map(agentName => {
                               const isChecked = manualMeetingParticipants.includes(agentName);
                               return (
                                 <button
@@ -190,7 +224,7 @@ export default function CoordinationView({
                           disabled={manualMeetingLoading || !manualMeetingTitle || !manualMeetingTopic}
                           className="w-full bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white font-bold h-11 rounded-xl shadow-lg mt-4 shadow-amber-500/20"
                         >
-                          {manualMeetingLoading ? 'Summoning Agents...' : 'Summon Boardroom'}
+                          {manualMeetingLoading ? 'Assembling Experts...' : 'Assemble Dynamic Boardroom'}
                         </Button>
                       </div>
                     </DialogContent>
@@ -205,7 +239,7 @@ export default function CoordinationView({
                     <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-amber-500 to-transparent" />
                     <CardHeader>
                       <CardTitle className="text-xl text-white font-extrabold tracking-tight">Boardroom Sessions</CardTitle>
-                      <CardDescription className="text-gray-400 text-xs mt-1">Select an active or archived courtroom/boardroom simulation.</CardDescription>
+                      <CardDescription className="text-gray-400 text-xs mt-1">Select an active or archived boardroom decision record.</CardDescription>
                     </CardHeader>
                     <CardContent className="px-2 pb-6">
                       {meetings.length === 0 ? (
@@ -265,7 +299,7 @@ export default function CoordinationView({
                         <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-amber-500 to-transparent" />
                         <CardTitle className="text-lg text-white font-extrabold mb-4">Boardroom Table Status</CardTitle>
                         
-                        {/* Oval Boardroom Table representation */}
+                        {/* Boardroom table representation */}
                         <div className="relative bg-gray-950/60 rounded-3xl border border-gray-800 p-8 min-h-60 flex items-center justify-center">
                           <div className="absolute inset-8 border-2 border-dashed border-amber-500/20 rounded-full flex items-center justify-center bg-gray-900/45">
                             <span className="text-xs text-amber-500/40 uppercase tracking-widest font-black">AI Executive Board</span>
@@ -273,7 +307,7 @@ export default function CoordinationView({
                           
                           {/* Render participants positioned dynamically around the table */}
                           <div className="w-full grid grid-cols-3 gap-6 relative z-10">
-                            {['CEO AI', 'Support AI', 'Sales AI', 'Finance AI', 'HR AI', 'Marketing AI'].map((agentName) => {
+                            {selectedMeeting.participants.map((agentName) => {
                               const isParticipant = selectedMeeting.participants.includes(agentName);
                               if (!isParticipant) return null;
                               
@@ -295,12 +329,17 @@ export default function CoordinationView({
                                   <div className={`p-2 rounded-full mb-2 ${
                                     isSpeaking ? 'bg-amber-500 text-gray-950' : 'bg-gray-800 text-gray-400'
                                   }`}>
-                                    <Users size={20} />
+                                    {agentName.includes('Legal') || agentName.includes('Compliance') ? <Scale size={20} /> :
+                                      agentName.includes('CTO') || agentName.includes('Architecture') || agentName.includes('Cloud') || agentName.includes('DevOps') || agentName.includes('Cybersecurity') ? <Server size={20} /> :
+                                      agentName.includes('Risk') ? <ShieldCheck size={20} /> :
+                                      agentName.includes('Finance') || agentName.includes('CFO') || agentName.includes('Cost') ? <DollarSign size={20} /> :
+                                      agentName.includes('Marketing') || agentName.includes('Sales') || agentName.includes('Growth') || agentName.includes('Strategy') ? <TrendingUp size={20} /> :
+                                      <Users size={20} />}
                                   </div>
                                   <span className="text-xs font-bold text-white">{agentName}</span>
                                   <span className="text-[10px] text-gray-400 text-center mt-1">
                                     {isSpeaking ? (
-                                      <span className="text-amber-400 font-bold animate-pulse">● Speaking...</span>
+                                      <span className="text-amber-400 font-bold">Active phase</span>
                                     ) : (
                                       <span>Participant</span>
                                     )}
@@ -326,10 +365,10 @@ export default function CoordinationView({
                           {selectedMeeting.transcript?.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-10 space-y-2">
                               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-amber-500" />
-                              <p className="text-xs text-gray-500">Boardroom assembling. Agents are analyzing context and entering boardroom...</p>
+                              <p className="text-xs text-gray-500">Waiting for real agent evidence collection and analysis to start...</p>
                             </div>
                           ) : (
-                            selectedMeeting.transcript.map((msg: any, idx: number) => {
+                            selectedMeeting.transcript.map((msg: MeetingMessage, idx: number) => {
                               const isCEO = msg.sender === 'CEO AI';
                               return (
                                 <div key={idx} className={`p-4 rounded-2xl border transition-all ${
@@ -337,13 +376,35 @@ export default function CoordinationView({
                                     ? 'bg-amber-950/20 border-amber-900/30'
                                     : 'bg-gray-900/50 border-gray-800/80'
                                 }`}>
-                                  <div className="flex justify-between items-center mb-1">
-                                    <span className={`text-xs font-bold ${isCEO ? 'text-amber-400' : 'text-white'}`}>
-                                      {msg.sender}
-                                    </span>
-                                    <span className="text-[9px] text-gray-500">{msg.timestamp}</span>
+                                  <div className="flex justify-between items-start gap-3 mb-1">
+                                    <div className="flex flex-col gap-1">
+                                      <span className={`text-xs font-bold ${isCEO ? 'text-amber-400' : 'text-white'}`}>
+                                        {msg.sender}
+                                      </span>
+                                      {msg.phase && (
+                                        <span className="text-[10px] uppercase tracking-wider text-gray-500">{msg.phase}</span>
+                                      )}
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="block text-[9px] text-gray-500">{msg.timestamp}</span>
+                                      {typeof msg.confidence_score === 'number' && (
+                                        <span className="block text-[10px] text-gray-400 mt-1">Confidence {msg.confidence_score}</span>
+                                      )}
+                                    </div>
                                   </div>
                                   <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                                  {msg.assumptions?.length > 0 && (
+                                    <p className="text-[10px] text-gray-500 mt-2">Assumptions: {msg.assumptions.join('; ')}</p>
+                                  )}
+                                  {msg.sources?.length > 0 && (
+                                    <p className="text-[10px] text-gray-500 mt-2">Sources: {msg.sources.join(', ')}</p>
+                                  )}
+                                  {msg.quality_flags?.length > 0 && (
+                                    <p className="text-[10px] text-red-300 mt-2">Quality flags: {msg.quality_flags.join('; ')}</p>
+                                  )}
+                                  {msg.confidence_rationale && (
+                                    <p className="text-[10px] text-gray-500 mt-2">Confidence rationale: {msg.confidence_rationale}</p>
+                                  )}
                                 </div>
                               );
                             })
@@ -362,7 +423,7 @@ export default function CoordinationView({
                           {selectedMeeting.action_items?.length === 0 ? (
                             <p className="text-xs text-gray-500 py-4 text-center">Waiting for meeting to conclude to establish boardroom directives...</p>
                           ) : (
-                            selectedMeeting.action_items.map((action: any) => {
+                            selectedMeeting.action_items.map((action: MeetingAction) => {
                               const isComp = action.status === 'completed';
                               const isExec = action.status === 'executing';
                               const isFail = action.status === 'failed';
@@ -424,7 +485,7 @@ export default function CoordinationView({
                       </div>
                       <h2 className="text-2xl font-bold text-white">Welcome to the AI Boardroom</h2>
                       <p className="text-gray-400 text-sm max-w-md mt-2">
-                        Escalated ticket events automatically trigger emergency board meetings here. CEO AI and specialized department AI employees gather in real-time, align on context, and formulate auto-executing directives.
+                        Escalated events and manual strategy questions trigger evidence-backed boardroom runs. CEO AI coordinates specialists that analyze data, critique each other, and produce governed directives with cited sources.
                       </p>
                       <Button
                         onClick={() => setIsCreateMeetingOpen(true)}

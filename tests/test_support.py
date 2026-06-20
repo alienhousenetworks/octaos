@@ -68,7 +68,7 @@ async def test_incoming_webhook_missing_credentials(client, db):
 
 @pytest.mark.asyncio
 @patch("app.core.celery_app.celery_app.send_task")
-async def test_delay_times_by_channel(mock_send_task, client, db):
+async def test_auto_reply_queued(mock_send_task, client, db):
     tenant_id = "test-tenant"
     tenant_id_override_store["tenant_id"] = tenant_id
     
@@ -82,26 +82,25 @@ async def test_delay_times_by_channel(mock_send_task, client, db):
     
     agent = SupportAgent(db, tenant_id)
     
-    # Test WhatsApp delay (should be 240-300 seconds)
-    with patch("random.randint", return_value=275):
-        await agent.handle_incoming_message("whatsapp", "+1234567890", "hi")
-        auto_reply_calls = [c for c in mock_send_task.mock_calls if c[1] and c[1][0] == "auto_reply_task"]
-        assert len(auto_reply_calls) == 1
-        args = auto_reply_calls[0][1]
-        kwargs = auto_reply_calls[0][2]
-        assert args[0] == "auto_reply_task"
-        assert kwargs["countdown"] == 275
+    # Test WhatsApp auto reply queuing
+    await agent.handle_incoming_message("whatsapp", "+1234567890", "hi")
+    auto_reply_calls = [c for c in mock_send_task.mock_calls if c[1] and c[1][0] == "auto_reply_task"]
+    assert len(auto_reply_calls) == 1
+    args = auto_reply_calls[0][1]
+    kwargs = auto_reply_calls[0][2]
+    assert args[0] == "auto_reply_task"
+    assert "countdown" not in kwargs
         
     mock_send_task.reset_mock()
     
-    # Test Email delay (should be 1200 seconds)
+    # Test Email auto reply queuing
     await agent.handle_incoming_message("email", "customer@example.com", "hi", "subject")
     auto_reply_calls = [c for c in mock_send_task.mock_calls if c[1] and c[1][0] == "auto_reply_task"]
     assert len(auto_reply_calls) == 1
     args = auto_reply_calls[0][1]
     kwargs = auto_reply_calls[0][2]
     assert args[0] == "auto_reply_task"
-    assert kwargs["countdown"] == 1200
+    assert "countdown" not in kwargs
 
 @pytest.mark.asyncio
 @patch("app.services.llm_gateway.LLMGateway.complete")

@@ -3,16 +3,83 @@ import asyncio
 import uuid
 import datetime
 from sqlalchemy.orm import Session
-from app.services.agents.base import BaseAgent
-from app.models.verticals import Ticket, TicketMessage, Lead, Candidate, AgentMeeting
+from app.models.base import APICredential
+from app.models.agents import ActivityLog, KnowledgeDocument
+from app.models.verticals import Ticket, TicketMessage, Lead, Candidate, AgentMeeting, Contract, Transaction
 from app.services.llm_gateway import LLMGateway
 from app.services.notifications.telegram import send_telegram_notification
 
 class BoardroomService:
+    UNIVERSAL_EXPERTS = [
+        "Executive Strategy Expert",
+        "Finance Expert",
+        "Operations Expert",
+        "Research Expert",
+        "Risk Expert",
+    ]
+
+    INDUSTRY_EXPERTS = {
+        "technology": ["Software Architecture Expert", "Cybersecurity Expert", "AI Systems Expert", "Cloud Infrastructure Expert", "DevOps Expert"],
+        "restaurant": ["Restaurant Operations Expert", "Franchise Expansion Expert", "Food Cost Analysis Expert", "Location Intelligence Expert", "Customer Experience Expert"],
+        "retail": ["Inventory Planning Expert", "Merchandising Expert", "Store Expansion Expert", "Supply Chain Expert"],
+        "fashion": ["Trend Forecasting Expert", "Merchandising Expert", "Supplier Analysis Expert", "Market Expansion Expert"],
+        "healthcare": ["Healthcare Operations Expert", "Compliance Expert", "Clinical Workflow Expert", "Healthcare Finance Expert"],
+        "manufacturing": ["Production Planning Expert", "Procurement Expert", "Supply Chain Expert", "Quality Assurance Expert"],
+        "real_estate": ["Investment Analysis Expert", "Development Strategy Expert", "Property Operations Expert", "Location Intelligence Expert"],
+        "ecommerce": ["Conversion Optimization Expert", "Marketplace Strategy Expert", "Retention Analysis Expert", "Customer Acquisition Expert"],
+        "hospitality": ["Occupancy Optimization Expert", "Revenue Management Expert", "Guest Experience Expert"],
+        "logistics": ["Fleet Optimization Expert", "Route Intelligence Expert", "Capacity Planning Expert"],
+    }
+
+    SIGNAL_EXPERTS = [
+        (("salesforce", "hubspot", "zoho", "pipedrive", "crm", "pipeline", "win rate", "sales", "lead", "revenue"), "Sales Intelligence Expert"),
+        (("ga4", "mixpanel", "amplitude", "posthog", "campaign", "marketing", "demand", "acquisition", "competitor"), "Marketing Intelligence Expert"),
+        (("regulation", "contract", "privacy", "gdpr", "soc2", "governance", "compliance", "legal"), "Legal & Compliance Expert"),
+        (("hiring", "headcount", "workforce", "talent", "org design", "compensation", "hr"), "Human Resources Expert"),
+    ]
+
     def __init__(self, db: Session, tenant_id: str):
         self.db = db
         self.tenant_id = tenant_id
         self.llm = LLMGateway(db, tenant_id)
+
+    def build_decision_profile(self, title: str, context: str, industry=None, decision_category=None) -> dict:
+        text = f"{title} {context}".lower()
+        detected_industry = industry or self._detect_industry(text)
+        detected_category = decision_category or self._detect_decision_category(text)
+        return {
+            "objective": title,
+            "industry": detected_industry,
+            "decision_category": detected_category,
+            "constraints": self._extract_constraints(context),
+            "success_metrics": self._extract_success_metrics(context),
+            "stakeholders": self._extract_stakeholders(context),
+            "available_data_sources": self._detect_available_data_sources(text),
+        }
+
+    def assemble_boardroom(
+        self,
+        decision_profile: dict,
+        requested_participants=None,
+        include_dynamic: bool = True,
+    ) -> list[str]:
+        participants = ["CEO AI"]
+        if include_dynamic:
+            participants.extend(self.UNIVERSAL_EXPERTS)
+            industry = decision_profile.get("industry")
+            participants.extend(self.INDUSTRY_EXPERTS.get(industry, []))
+            text = json.dumps(decision_profile).lower()
+            for keywords, expert in self.SIGNAL_EXPERTS:
+                if any(keyword in text for keyword in keywords):
+                    participants.append(expert)
+        participants.extend(requested_participants or [])
+        return list(dict.fromkeys(participants))
+
+    def format_decision_context(self, topic: str, decision_profile: dict) -> str:
+        return (
+            f"Custom Topic: {topic}\n"
+            f"Decision Profile JSON: {json.dumps(decision_profile, default=str)}"
+        )
 
     async def classify_ticket_inquiry(self, ticket_id: str) -> dict:
         """
@@ -25,7 +92,8 @@ class BoardroomService:
 
         system_prompt = (
             "You are the OctaOS Triaging System. Classify the customer support ticket to decide if it "
-            "requires a boardroom meeting with the CEO AI and other departments (Sales, Finance, HR, Marketing) to resolve.\n"
+            "requires an evidence-backed boardroom meeting with the CEO AI and other departments "
+            "(Sales, Finance, CTO, Legal, Risk, HR, Marketing) to resolve.\n"
             "Requirements for meeting:\n"
             "- Sales Lead: Customer wants to purchase, asking for enterprise plans, bulk discounts, custom pricing, or partnerships.\n"
             "- Financial/Billing Emergency: Severe payment issue, fraud allegation, or invoice dispute.\n"
@@ -35,7 +103,7 @@ class BoardroomService:
             "{\n"
             "  \"needs_meeting\": true | false,\n"
             "  \"title\": \"Descriptive Meeting Title (e.g., Enterprise Lead: Custom Pricing for TechCorp)\",\n"
-            "  \"participants\": [\"CEO AI\", \"Support AI\", \"Sales AI\", \"Finance AI\"],\n"
+            "  \"participants\": [\"CEO AI\", \"Support AI\", \"Sales AI\", \"Finance AI\", \"Legal AI\", \"Risk AI\"],\n"
             "  \"reason\": \"Brief explanation of why the meeting was called\"\n"
             "}"
         )
@@ -60,8 +128,12 @@ class BoardroomService:
             # Ensure participants always contains CEO AI and Support AI at least
             if result.get("needs_meeting"):
                 parts = result.get("participants", [])
-                if "CEO AI" not in parts: parts.insert(0, "CEO AI")
-                if "Support AI" not in parts: parts.append("Support AI")
+                if "CEO AI" not in parts:
+                    parts.insert(0, "CEO AI")
+                if "Support AI" not in parts:
+                    parts.append("Support AI")
+                if "Sales AI" not in parts and any(w in (ticket.description or "").lower() for w in ["buy", "purchase", "enterprise", "pricing", "licenses"]):
+                    parts.append("Sales AI")
                 result["participants"] = list(dict.fromkeys(parts)) # unique list
             return result
         except Exception as e:
@@ -113,192 +185,113 @@ class BoardroomService:
         return meeting
 
     async def run_meeting(self, meeting_id: str):
-        """
-        Runs the turn-based multi-agent discussion in the boardroom.
-        Updates the transcript in real-time in the DB so the user can watch the discussion unfold.
-        """
+        """Run an evidence-backed, parallel multi-agent boardroom workflow."""
         meeting = self.db.query(AgentMeeting).filter(AgentMeeting.id == meeting_id).first()
         if not meeting:
             return
 
-        participants = meeting.participants
+        participants = list(dict.fromkeys(meeting.participants or []))
+        if "CEO AI" not in participants:
+            participants.insert(0, "CEO AI")
+        decision_profile = self._decision_profile_from_meeting(meeting)
+        if meeting.trigger_type == "manual":
+            participants = self.assemble_boardroom(decision_profile, participants)
+            meeting.participants = participants
+        specialists = [p for p in participants if p != "CEO AI"]
         context = meeting.context_summary or ""
+        evidence_pack = self._collect_evidence_pack(meeting)
+        source_ids = {source["id"] for source in evidence_pack["sources"]}
 
-        # Step 1: Let the initiator (Support AI or Finance AI depending on trigger) present the case.
-        initiator = "Support AI"
-        if meeting.trigger_type == "transaction_anomaly":
-            initiator = "Finance AI"
-        elif meeting.trigger_type == "candidate_hiring":
-            initiator = "HR AI"
-        
-        # Bring initiator to front if in list
-        if initiator in participants:
-            participants.remove(initiator)
-            participants.insert(0, initiator)
-
-        transcript = []
-
-        # Turn 1: Initiator introduces the topic
-        system_prompt = (
-            f"You are the {initiator}. You are starting a boardroom meeting with other department agents: {participants}.\n"
-            f"The meeting topic is: {meeting.title}.\n"
-            "Rely strictly on the following context:\n"
-            f"{context}\n\n"
-            "State the customer issue, lead, or problem clearly. Ask the CEO AI and other specialist agents for their recommendation. "
-            "Keep your turn brief, professional, and natural (1-3 sentences)."
-        )
-        intro = await self.llm.complete(
-            prompt="Introduce the situation and open the discussion.",
-            system_prompt=system_prompt,
-            provider="gemini"
-        )
-        
-        transcript.append({
-            "sender": initiator,
-            "content": intro,
-            "timestamp": datetime.datetime.now().strftime("%I:%M:%S %p")
-        })
+        transcript = [{
+            "sender": "CEO AI",
+            "phase": "Decision Understanding / Board Assembly",
+            "content": self._format_decision_profile_message(decision_profile, participants, evidence_pack),
+            "decision_profile": decision_profile,
+            "sources": [source["id"] for source in evidence_pack["sources"]],
+            "timestamp": self._timestamp()
+        }]
         meeting.transcript = transcript
         self.db.commit()
-        await asyncio.sleep(2.5) # typing delay
 
-        # Turns 2 onwards: Loop through other participants (excluding CEO AI, we keep CEO AI for last)
-        non_ceo_participants = [p for p in participants if p != "CEO AI" and p != initiator]
-        
-        for agent in non_ceo_participants:
-            agent_role = self._get_agent_role_description(agent)
-            history_str = "\n".join([f"{t['sender']}: {t['content']}" for t in transcript])
-            
-            system_prompt = (
-                f"You are the {agent}.\n"
-                f"Your professional focus is: {agent_role}.\n"
-                f"You are participating in a boardroom meeting on topic '{meeting.title}' with {participants}.\n"
-                f"Context:\n{context}\n\n"
-                f"Here is the discussion transcript so far:\n{history_str}\n\n"
-                "Respond to the discussion. Maintain your persona, objectives, and expertise. Recommend a course of action. "
-                "Keep your turn brief (1-3 sentences). Do not repeat what others have said."
-            )
-            
-            response = await self.llm.complete(
-                prompt=f"Provide your professional input based on your role as {agent}.",
-                system_prompt=system_prompt,
-                provider="gemini"
-            )
-            
+        analyses = await asyncio.gather(*[
+            self._run_specialist_analysis(agent, meeting, context, evidence_pack)
+            for agent in specialists
+        ])
+        analyses_by_agent = {item["agent"]: item for item in analyses}
+
+        for item in analyses:
             transcript.append({
-                "sender": agent,
-                "content": response,
-                "timestamp": datetime.datetime.now().strftime("%I:%M:%S %p")
+                "sender": item["agent"],
+                "phase": "Researching / Analyzing",
+                "content": self._format_analysis_message(item),
+                "findings": item.get("findings", []),
+                "sources": item.get("sources", []),
+                "assumptions": item.get("assumptions", []),
+                "confidence_score": item.get("confidence_score"),
+                "confidence_rationale": item.get("confidence_rationale"),
+                "quality_flags": self._quality_flags(item, source_ids),
+                "timestamp": self._timestamp()
             })
-            meeting.transcript = transcript
-            self.db.commit()
-            await asyncio.sleep(2.5)
+        meeting.transcript = transcript
+        self.db.commit()
 
-        # Final Turn: CEO AI summarizes and outlines the action items
-        if "CEO AI" in participants:
-            history_str = "\n".join([f"{t['sender']}: {t['content']}" for t in transcript])
-            system_prompt = (
-                "You are the CEO AI, the ultimate leader of this company.\n"
-                "You are reviewing the input from your department agents and summarizing the final decision and action items.\n"
-                f"Context:\n{context}\n\n"
-                f"Meeting Transcript:\n{history_str}\n\n"
-                "Provide your final decision/summary message (1-3 professional, authoritative sentences).\n"
-                "Then, outline the exact Action Items that each agent should execute.\n"
-                "You MUST output your response EXACTLY in this format (no other text or formatting, keep JSON standard):\n"
-                "[MESSAGE]\n"
-                "Your final speech/summary text here.\n"
-                "[ACTIONS]\n"
-                "[\n"
-                "  {\"assigned_to\": \"Sales AI\", \"description\": \"Create a lead record in the database\"},\n"
-                "  {\"assigned_to\": \"Support AI\", \"description\": \"Send escalation response to ticket customer\"}\n"
-                "]"
-            )
-            
-            ceo_response = await self.llm.complete(
-                prompt="Conclude the meeting, summarize next steps and output action items in the specified format.",
-                system_prompt=system_prompt,
-                provider="gemini"
-            )
-            
-            # Parse the CEO response
-            ceo_msg = "Meeting concluded. Action items assigned."
-            action_items = []
-            
-            try:
-                if "[MESSAGE]" in ceo_response and "[ACTIONS]" in ceo_response:
-                    parts = ceo_response.split("[ACTIONS]")
-                    msg_part = parts[0].replace("[MESSAGE]", "").strip()
-                    actions_part = parts[1].strip()
-                    
-                    ceo_msg = msg_part
-                    action_items = json.loads(actions_part)
-                else:
-                    # Fallback parser if tags are missing
-                    clean_res = ceo_response.strip()
-                    if clean_res.startswith("[") or "{" in clean_res:
-                        # might just be actions
-                        action_items = json.loads(clean_res)
-                    else:
-                        ceo_msg = clean_res
-            except Exception as e:
-                print(f"Error parsing CEO action items: {e}. Response: {ceo_response}")
-                # Predefined fallbacks depending on trigger type
-                ceo_msg = "Let's move forward. I have assigned the action items to the teams."
-                if meeting.trigger_type == "support_ticket":
-                    action_items = [
-                        {"assigned_to": "Sales AI", "description": "Create lead record in the database"},
-                        {"assigned_to": "Support AI", "description": "Send escalation response to ticket customer"}
-                    ]
-                elif meeting.trigger_type == "transaction_anomaly":
-                    action_items = [
-                        {"assigned_to": "Support AI", "description": "Contact customer regarding transaction verification"},
-                        {"assigned_to": "Finance AI", "description": "Hold payout and flag transaction details"}
-                    ]
-                elif meeting.trigger_type == "candidate_hiring":
-                    action_items = [
-                        {"assigned_to": "HR AI", "description": "Update candidate status to approved and offer letter drafted"},
-                        {"assigned_to": "Finance AI", "description": "Allocate salary budget line item"}
-                    ]
-                else:
-                    action_items = [
-                        {"assigned_to": "Marketing AI", "description": "Conduct market research and draft campaign strategy"}
-                    ]
+        critiques = await asyncio.gather(*[
+            self._run_cross_agent_critique(agent, meeting, context, evidence_pack, analyses_by_agent)
+            for agent in specialists
+        ])
 
-            transcript.append({
-                "sender": "CEO AI",
-                "content": ceo_msg,
-                "timestamp": datetime.datetime.now().strftime("%I:%M:%S %p")
+        for critique in critiques:
+            for entry in transcript:
+                if entry["sender"] == critique["agent"]:
+                    entry["phase"] = "Researching / Analyzing / Critiquing"
+                    entry["content"] = entry["content"] + "\n\nCritique:\n" + self._format_critique_message(critique)
+                    entry["sources"] = list(dict.fromkeys((entry.get("sources") or []) + (critique.get("sources") or [])))
+                    entry["quality_flags"] = list(dict.fromkeys((entry.get("quality_flags") or []) + self._quality_flags(critique, source_ids)))
+                    break
+        meeting.transcript = transcript
+        self.db.commit()
+
+        synthesis = await self._run_decision_synthesis(meeting, context, evidence_pack, analyses, critiques)
+        confidence = self._derive_confidence(synthesis, analyses, critiques, evidence_pack)
+        synthesis["confidence_score"] = confidence["score"]
+        synthesis["confidence_rationale"] = confidence["rationale"]
+        final_actions = []
+        for item in synthesis.get("action_items", []):
+            final_actions.append({
+                "id": str(uuid.uuid4())[:8],
+                "assigned_to": item.get("assigned_to"),
+                "description": item.get("description"),
+                "status": "pending",
+                "sources": item.get("sources", [])
             })
-            meeting.transcript = transcript
-            
-            # Add unique IDs to action items
-            final_actions = []
-            for item in action_items:
-                final_actions.append({
-                    "id": str(uuid.uuid4())[:8],
-                    "assigned_to": item.get("assigned_to"),
-                    "description": item.get("description"),
-                    "status": "pending"
-                })
-            
-            meeting.action_items = final_actions
-            meeting.status = "completed"
-            self.db.commit()
 
-            # Log completion activity
-            from app.models.agents import ActivityLog
-            log = ActivityLog(
-                tenant_id=self.tenant_id,
-                agent_name="CEO AI",
-                action="Boardroom Concluded",
-                description=f"Concluded boardroom session. Assigned {len(final_actions)} action items.",
-                status="success"
-            )
-            self.db.add(log)
-            self.db.commit()
+        transcript.append({
+            "sender": "CEO AI",
+            "phase": "Synthesizing",
+            "content": self._format_synthesis_message(synthesis),
+            "sources": synthesis.get("sources", []),
+            "confidence_score": synthesis.get("confidence_score"),
+            "confidence_rationale": synthesis.get("confidence_rationale"),
+            "quality_flags": self._quality_flags(synthesis, source_ids),
+            "timestamp": self._timestamp()
+        })
 
-            # Step 3: Run the execution of action items!
-            await self.execute_action_items(meeting_id)
+        meeting.transcript = transcript
+        meeting.action_items = final_actions
+        meeting.status = "completed"
+        self.db.commit()
+
+        log = ActivityLog(
+            tenant_id=self.tenant_id,
+            agent_name="CEO AI",
+            action="Boardroom Concluded",
+            description=f"Concluded evidence-backed boardroom session. Assigned {len(final_actions)} action items.",
+            status="success"
+        )
+        self.db.add(log)
+        self.db.commit()
+
+        await self.execute_action_items(meeting_id)
 
     async def execute_action_items(self, meeting_id: str):
         meeting = self.db.query(AgentMeeting).filter(AgentMeeting.id == meeting_id).first()
@@ -317,7 +310,6 @@ class BoardroomService:
             action["status"] = "executing"
             meeting.action_items = actions
             self.db.commit()
-            await asyncio.sleep(2.0) # execution delay
 
             success = False
             try:
@@ -353,7 +345,6 @@ class BoardroomService:
                         phone=customer_phone,
                         company=company,
                         source=meeting.trigger_type,
-                        score=85,
                         status="captured"
                     )
                     self.db.add(new_lead)
@@ -428,27 +419,428 @@ class BoardroomService:
 
                 # 4. Fallback/Default for other tasks (Finance, Marketing, etc.)
                 else:
-                    # Generic action logging
-                    from app.models.agents import ActivityLog
                     log = ActivityLog(
                         tenant_id=self.tenant_id,
                         agent_name=assigned,
-                        action="Task Completed",
-                        description=f"Executed directive: '{action.get('description')}'",
-                        status="success"
+                        action="Task Requires Tooling",
+                        description=f"Boardroom directive recorded but no executable integration is connected for: '{action.get('description')}'",
+                        status="pending"
                     )
                     self.db.add(log)
                     self.db.commit()
-                    success = True
+                    success = None
 
             except Exception as ex:
                 print(f"Error executing action item: {ex}")
                 success = False
 
-            action["status"] = "completed" if success else "failed"
+            if success is True:
+                action["status"] = "completed"
+            elif success is None:
+                action["status"] = "pending"
+            else:
+                action["status"] = "failed"
             actions[idx] = action
             meeting.action_items = actions
             self.db.commit()
+
+    def _collect_evidence_pack(self, meeting: AgentMeeting) -> dict:
+        sources = [{
+            "id": "meeting_context",
+            "type": "meeting",
+            "summary": meeting.context_summary or "No meeting context was provided.",
+            "reliability": self._score_source("meeting", meeting.context_summary)
+        }]
+
+        if meeting.trigger_type == "support_ticket" and meeting.trigger_id:
+            ticket = self.db.query(Ticket).filter(Ticket.id == meeting.trigger_id).first()
+            if ticket:
+                sources.append({
+                    "id": f"ticket:{ticket.id}",
+                    "type": "support_ticket",
+                    "summary": f"Subject={ticket.subject}; channel={ticket.channel}; customer={ticket.customer_contact}; priority={ticket.priority}; status={ticket.status}; description={ticket.description}",
+                    "reliability": self._score_source("support_ticket", ticket.description)
+                })
+
+        knowledge_docs = self.db.query(KnowledgeDocument).filter(
+            KnowledgeDocument.tenant_id == self.tenant_id
+        ).limit(20).all()
+        for doc in knowledge_docs:
+            sources.append({
+                "id": f"knowledge:{doc.id}",
+                "type": "knowledge_base",
+                "summary": f"department={doc.department}; type={doc.doc_type}; content={doc.content}",
+                "reliability": self._score_source("knowledge_base", doc.content)
+            })
+
+        lead_count = self.db.query(Lead).filter(Lead.tenant_id == self.tenant_id).count()
+        open_ticket_count = self.db.query(Ticket).filter(Ticket.tenant_id == self.tenant_id, Ticket.status == "open").count()
+        contract_count = self.db.query(Contract).filter(Contract.tenant_id == self.tenant_id).count()
+        anomaly_count = self.db.query(Transaction).filter(Transaction.tenant_id == self.tenant_id, Transaction.is_anomaly == True).count()
+        configured_tools = [
+            cred.provider for cred in self.db.query(APICredential).filter(APICredential.tenant_id == self.tenant_id).all()
+        ]
+
+        sources.append({
+            "id": "tenant_operating_metrics",
+            "type": "database_query",
+            "summary": f"leads={lead_count}; open_support_tickets={open_ticket_count}; contracts={contract_count}; anomalous_transactions={anomaly_count}",
+            "reliability": self._score_source("database_query", "tenant metrics")
+        })
+        sources.append({
+            "id": "configured_integrations",
+            "type": "credential_inventory",
+            "summary": "configured_providers=" + ", ".join(configured_tools) if configured_tools else "configured_providers=none",
+            "reliability": self._score_source("credential_inventory", configured_tools)
+        })
+
+        return {"sources": sources}
+
+    def _score_source(self, source_type: str, content) -> dict:
+        has_content = bool(content)
+        source_defaults = {
+            "database_query": (95, 90, 90, 95, 85),
+            "credential_inventory": (95, 85, 80, 90, 85),
+            "support_ticket": (90, 75, 70, 70, 65),
+            "knowledge_base": (70, 70, 65, 60, 60),
+            "meeting": (85, 65, 60, 55, 55),
+        }
+        freshness, reliability, completeness, verification, bias = source_defaults.get(source_type, (60, 60, 50, 50, 50))
+        if not has_content:
+            completeness = min(completeness, 20)
+            verification = min(verification, 30)
+        overall = round((freshness + reliability + completeness + verification + bias) / 5)
+        return {
+            "freshness_score": freshness,
+            "reliability_score": reliability,
+            "completeness_score": completeness,
+            "verification_score": verification,
+            "bias_score": bias,
+            "overall_trust_score": overall,
+        }
+
+    async def _run_specialist_analysis(self, agent: str, meeting: AgentMeeting, context: str, evidence_pack: dict) -> dict:
+        system_prompt = self._structured_agent_prompt(agent, "analysis")
+        prompt = (
+            f"Boardroom topic: {meeting.title}\n"
+            f"Context: {context}\n"
+            f"Evidence pack JSON: {json.dumps(evidence_pack, default=str)}\n"
+            "Return JSON with keys: agent, findings, calculations, sources, assumptions, confidence_rationale, recommended_actions, data_quality_assessment. "
+            "Every source must be one of the evidence pack source ids. Use calculations when the supplied data supports them. "
+            "If evidence is insufficient, say so explicitly instead of filling gaps with assumptions."
+        )
+        raw = await self._safe_complete(prompt, system_prompt)
+        parsed = self._parse_json_object(raw)
+        if not parsed:
+            parsed = {
+                "agent": agent,
+                "findings": [raw.strip()] if raw else ["No analyzable model output was returned."],
+                "sources": ["meeting_context"],
+                "assumptions": ["Output was not valid JSON and was retained as an unstructured finding."],
+                "confidence_score": 0,
+                "confidence_rationale": "No structured confidence could be derived from invalid JSON output.",
+                "recommended_actions": []
+            }
+        parsed["agent"] = agent
+        return parsed
+
+    async def _run_cross_agent_critique(self, agent: str, meeting: AgentMeeting, context: str, evidence_pack: dict, analyses: dict) -> dict:
+        system_prompt = self._structured_agent_prompt(agent, "critique")
+        prompt = (
+            f"Boardroom topic: {meeting.title}\n"
+            f"Context: {context}\n"
+            f"Evidence pack JSON: {json.dumps(evidence_pack, default=str)}\n"
+            f"Agent analyses JSON: {json.dumps(analyses, default=str)}\n"
+            "Return JSON with keys: agent, agreement_points, objections, missing_information, risk_factors, sources. "
+            "Critique only claims made by other agents and cite only evidence pack source ids."
+        )
+        raw = await self._safe_complete(prompt, system_prompt)
+        parsed = self._parse_json_object(raw)
+        if not parsed:
+            parsed = {
+                "agent": agent,
+                "agreement_points": [],
+                "objections": [raw.strip()] if raw else ["No analyzable critique was returned."],
+                "missing_information": ["Critique output was not valid JSON."],
+                "risk_factors": [],
+                "sources": ["meeting_context"]
+            }
+        parsed["agent"] = agent
+        return parsed
+
+    async def _run_decision_synthesis(self, meeting: AgentMeeting, context: str, evidence_pack: dict, analyses: list, critiques: list) -> dict:
+        system_prompt = (
+            "You are CEO AI and Orchestrator AI for an enterprise decision-intelligence boardroom. "
+            "Produce a final recommendation using only the provided evidence, specialist analyses, and critiques. "
+            "Do not invent statistics, sources, fake tool results, random scores, or placeholder work. "
+            "If evidence is insufficient, recommend a gated next step instead of pretending certainty."
+        )
+        prompt = (
+            f"Boardroom topic: {meeting.title}\n"
+            f"Context: {context}\n"
+            f"Evidence pack JSON: {json.dumps(evidence_pack, default=str)}\n"
+            f"Analyses JSON: {json.dumps(analyses, default=str)}\n"
+            f"Critiques JSON: {json.dumps(critiques, default=str)}\n"
+            "Return JSON with keys: executive_summary, key_findings, evidence, sources, financial_impact, operational_impact, "
+            "risk_matrix, alternative_options, expert_disagreements, data_gaps, recommended_action, audit_trail, action_items. "
+            "action_items must be objects with assigned_to, description, sources. Do not include invented confidence scores; "
+            "the platform will derive confidence from evidence quality and expert agreement."
+        )
+        raw = await self._safe_complete(prompt, system_prompt)
+        parsed = self._parse_json_object(raw)
+        if not parsed:
+            parsed = self._deterministic_synthesis(meeting, analyses, critiques)
+        elif "action_items" not in parsed:
+            fallback = self._deterministic_synthesis(meeting, analyses, critiques)
+            parsed = {
+                **fallback,
+                **parsed,
+                "action_items": fallback["action_items"]
+            }
+        return parsed
+
+    async def _safe_complete(self, prompt: str, system_prompt: str) -> str:
+        try:
+            return await self.llm.complete(prompt=prompt, system_prompt=system_prompt, provider="gemini")
+        except Exception as exc:
+            return json.dumps({
+                "findings": [f"LLM call failed: {exc}"],
+                "sources": ["meeting_context"],
+                "assumptions": ["The model provider did not return a usable response."],
+                "confidence_score": 0,
+                "recommended_actions": []
+            })
+
+    def _parse_json_object(self, raw: str):
+        if not raw:
+            return None
+        clean = raw.strip()
+        if clean.startswith("```"):
+            clean = clean.strip("`").replace("json\n", "", 1).strip()
+        if "[MESSAGE]" in clean and "[ACTIONS]" in clean:
+            message, actions = clean.split("[ACTIONS]", 1)
+            return {
+                "executive_summary": message.replace("[MESSAGE]", "").strip(),
+                "key_findings": [],
+                "risks": [],
+                "opportunities": [],
+                "recommended_action": message.replace("[MESSAGE]", "").strip(),
+                "confidence_score": 50,
+                "sources": ["meeting_context"],
+                "action_items": json.loads(actions.strip())
+            }
+        try:
+            return json.loads(clean)
+        except Exception:
+            return None
+
+    def _quality_flags(self, payload: dict, allowed_sources: set) -> list:
+        flags = []
+        sources = payload.get("sources", []) or []
+        unknown_sources = [source for source in sources if source not in allowed_sources]
+        if unknown_sources:
+            flags.append(f"Rejected unknown sources: {', '.join(unknown_sources)}")
+        if not sources:
+            flags.append("No sources cited.")
+        if payload.get("confidence_score") is None and "confidence_score" in payload:
+            flags.append("Missing confidence score.")
+        return flags
+
+    def _derive_confidence(self, synthesis: dict, analyses: list, critiques: list, evidence_pack: dict) -> dict:
+        cited = set(synthesis.get("sources", []) or [])
+        for item in analyses + critiques:
+            cited.update(item.get("sources", []) or [])
+        source_lookup = {source["id"]: source for source in evidence_pack.get("sources", [])}
+        trusted_scores = [
+            source_lookup[source_id].get("reliability", {}).get("overall_trust_score", 0)
+            for source_id in cited
+            if source_id in source_lookup
+        ]
+        evidence_quality = round(sum(trusted_scores) / len(trusted_scores)) if trusted_scores else 0
+        evidence_quantity = min(len(trusted_scores) * 10, 30)
+        objections = sum(len(item.get("objections", []) or []) for item in critiques)
+        agreement = sum(len(item.get("agreement_points", []) or []) for item in critiques)
+        agreement_score = 20 if agreement >= objections else 10 if agreement else 0
+        missing_info = sum(len(item.get("missing_information", []) or []) for item in critiques)
+        gap_penalty = min(missing_info * 4, 25)
+        score = max(0, min(100, round((evidence_quality * 0.5) + evidence_quantity + agreement_score - gap_penalty)))
+        rationale = (
+            f"Derived from {len(trusted_scores)} cited evidence sources, average source trust {evidence_quality}, "
+            f"{agreement} agreement signals, {objections} objections, and {missing_info} missing-information flags."
+        )
+        return {"score": score, "rationale": rationale}
+
+    def _deterministic_synthesis(self, meeting: AgentMeeting, analyses: list, critiques: list) -> dict:
+        action_items = []
+        if meeting.trigger_type == "support_ticket":
+            if "Sales AI" in (meeting.participants or []):
+                action_items.append({
+                    "assigned_to": "Sales AI",
+                    "description": "Create a CRM lead from the support ticket contact and meeting context.",
+                    "sources": ["meeting_context"]
+                })
+            if "Support AI" in (meeting.participants or []):
+                action_items.append({
+                    "assigned_to": "Support AI",
+                    "description": "Send a customer response that states the request is under review and avoids unverified pricing or commitments.",
+                    "sources": ["meeting_context"]
+                })
+        return {
+            "executive_summary": "The boardroom completed with limited structured model output. Proceed only with actions directly supported by tenant records.",
+            "key_findings": [item.get("findings", []) for item in analyses],
+            "risks": [item.get("risk_factors", []) for item in critiques],
+            "opportunities": [],
+            "recommended_action": "Use the cited tenant context to execute only verifiable next steps and gather missing data before strategic commitments.",
+            "confidence_score": 0,
+            "confidence_rationale": "Fallback confidence is zero because the synthesis model did not return structured evidence-backed output.",
+            "sources": ["meeting_context"],
+            "action_items": action_items
+        }
+
+    def _decision_profile_from_meeting(self, meeting: AgentMeeting) -> dict:
+        marker = "Decision Profile JSON:"
+        context = meeting.context_summary or ""
+        if marker in context:
+            raw = context.split(marker, 1)[1].strip()
+            try:
+                return json.loads(raw)
+            except Exception:
+                pass
+        return self.build_decision_profile(meeting.title, context)
+
+    def _detect_industry(self, text: str) -> str:
+        industry_keywords = {
+            "healthcare": ("healthcare", "clinic", "hospital", "patient", "clinical"),
+            "restaurant": ("restaurant", "menu", "food", "franchise", "kitchen", "dining"),
+            "real_estate": ("real estate", "property", "development", "lease", "occupancy"),
+            "manufacturing": ("manufacturing", "factory", "production", "procurement", "quality"),
+            "logistics": ("logistics", "fleet", "route", "warehouse", "shipping"),
+            "technology": ("software", "saas", "cloud", "ai", "cyber", "devops", "app", "platform"),
+            "retail": ("retail", "store", "inventory", "merchandising", "pos"),
+            "fashion": ("fashion", "apparel", "garment", "trend", "supplier"),
+            "ecommerce": ("ecommerce", "e-commerce", "marketplace", "cart", "conversion", "retention"),
+            "hospitality": ("hotel", "hospitality", "guest", "occupancy", "room rate"),
+        }
+        scores = {
+            industry: sum(1 for keyword in keywords if keyword in text)
+            for industry, keywords in industry_keywords.items()
+        }
+        best_industry, best_score = max(scores.items(), key=lambda item: item[1])
+        if best_score:
+            return best_industry
+        return "general_business"
+
+    def _detect_decision_category(self, text: str) -> str:
+        categories = {
+            "growth": ("growth", "expand", "market", "launch", "acquisition", "revenue"),
+            "investment": ("invest", "roi", "payback", "dcf", "capex", "budget"),
+            "operations": ("capacity", "process", "operations", "staffing", "supply", "execution"),
+            "risk_compliance": ("risk", "compliance", "privacy", "security", "contract", "regulation"),
+            "customer": ("customer", "support", "retention", "churn", "experience"),
+            "workforce": ("hiring", "workforce", "headcount", "talent", "org"),
+        }
+        for category, keywords in categories.items():
+            if any(keyword in text for keyword in keywords):
+                return category
+        return "strategic_decision"
+
+    def _detect_available_data_sources(self, text: str) -> list:
+        known_sources = [
+            "salesforce", "hubspot", "zoho", "pipedrive", "dynamics", "quickbooks", "xero",
+            "netsuite", "sap", "oracle", "mixpanel", "amplitude", "posthog", "ga4",
+            "postgresql", "mysql", "mongodb", "snowflake", "bigquery", "redshift",
+            "notion", "confluence", "sharepoint", "google drive", "slack", "teams",
+            "zendesk", "intercom", "freshdesk", "jira", "linear", "asana", "clickup",
+            "github", "gitlab", "aws", "azure", "gcp", "kubernetes",
+        ]
+        return [source for source in known_sources if source in text]
+
+    def _extract_constraints(self, context: str) -> list:
+        constraints = []
+        for line in (context or "").splitlines():
+            lower = line.lower()
+            if any(token in lower for token in ["constraint", "must", "cannot", "deadline", "budget", "limit"]):
+                constraints.append(line.strip())
+        return constraints[:6]
+
+    def _extract_success_metrics(self, context: str) -> list:
+        metrics = []
+        for line in (context or "").splitlines():
+            lower = line.lower()
+            if any(token in lower for token in ["metric", "kpi", "success", "roi", "revenue", "margin", "conversion", "retention"]):
+                metrics.append(line.strip())
+        return metrics[:6]
+
+    def _extract_stakeholders(self, context: str) -> list:
+        stakeholders = []
+        for label in ["CEO", "CFO", "COO", "CTO", "Legal", "Sales", "Marketing", "HR", "Customer", "Operations"]:
+            if label.lower() in (context or "").lower():
+                stakeholders.append(label)
+        return stakeholders
+
+    def _structured_agent_prompt(self, agent: str, phase: str) -> str:
+        return (
+            f"You are {agent}. Focus: {self._get_agent_role_description(agent)} "
+            f"Phase: {phase}. Use only supplied evidence and real tool/database results. "
+            "Do not invent statistics, percentages, sources, action completion, or placeholder findings. "
+            "Return valid JSON only."
+        )
+
+    def _format_analysis_message(self, item: dict) -> str:
+        return (
+            f"Findings: {self._join_list(item.get('findings'))}\n"
+            f"Calculations: {self._join_list(item.get('calculations'))}\n"
+            f"Assumptions: {self._join_list(item.get('assumptions'))}\n"
+            f"Data quality: {self._join_list(item.get('data_quality_assessment'))}\n"
+            f"Confidence rationale: {item.get('confidence_rationale', 'Not provided.')}\n"
+            f"Recommended actions: {self._join_list(item.get('recommended_actions'))}"
+        )
+
+    def _format_critique_message(self, item: dict) -> str:
+        return (
+            f"Agreement: {self._join_list(item.get('agreement_points'))}\n"
+            f"Objections: {self._join_list(item.get('objections'))}\n"
+            f"Missing information: {self._join_list(item.get('missing_information'))}\n"
+            f"Risk factors: {self._join_list(item.get('risk_factors'))}"
+        )
+
+    def _format_synthesis_message(self, item: dict) -> str:
+        return (
+            f"Executive summary: {item.get('executive_summary', '')}\n"
+            f"Key findings: {self._join_list(item.get('key_findings'))}\n"
+            f"Risks: {self._join_list(item.get('risks'))}\n"
+            f"Opportunities: {self._join_list(item.get('opportunities'))}\n"
+            f"Financial impact: {self._join_list(item.get('financial_impact'))}\n"
+            f"Operational impact: {self._join_list(item.get('operational_impact'))}\n"
+            f"Alternative options: {self._join_list(item.get('alternative_options'))}\n"
+            f"Data gaps: {self._join_list(item.get('data_gaps'))}\n"
+            f"Recommended action: {item.get('recommended_action', '')}\n"
+            f"Confidence rationale: {item.get('confidence_rationale', 'Not calculated.')}"
+        )
+
+    def _format_decision_profile_message(self, decision_profile: dict, participants: list, evidence_pack: dict) -> str:
+        source_lines = []
+        for source in evidence_pack.get("sources", []):
+            trust = source.get("reliability", {}).get("overall_trust_score")
+            source_lines.append(f"{source.get('id')} ({source.get('type')}, trust {trust})")
+        return (
+            f"Objective: {decision_profile.get('objective')}\n"
+            f"Industry: {decision_profile.get('industry')}\n"
+            f"Decision category: {decision_profile.get('decision_category')}\n"
+            f"Assembled experts: {', '.join(participants)}\n"
+            f"Available data sources: {self._join_list(decision_profile.get('available_data_sources'))}\n"
+            f"Evidence sources: {self._join_list(source_lines)}"
+        )
+
+    def _join_list(self, value) -> str:
+        if not value:
+            return "None cited."
+        if isinstance(value, list):
+            return "; ".join(json.dumps(v) if isinstance(v, (dict, list)) else str(v) for v in value)
+        return str(value)
+
+    def _timestamp(self) -> str:
+        return datetime.datetime.now().strftime("%I:%M:%S %p")
 
     def _get_agent_role_description(self, agent_name: str) -> str:
         roles = {
@@ -456,7 +848,22 @@ class BoardroomService:
             "Support AI": "Customer experience, ticket triaging, immediate response, onboarding issues, customer escalations.",
             "Sales AI": "B2B client sourcing, client calls, enterprise quotes, conversion rate optimization, outbound campaigns.",
             "Finance AI": "Budgets, pricing models, payment anomalies, fraud flags, operational expenses.",
+            "CFO AI": "Cost analysis, ROI modeling, financial risk, budget forecasting, and revenue forecast validation.",
+            "CTO AI": "Architecture, scalability, security, technical feasibility, code and infrastructure risk.",
+            "Legal AI": "Compliance, regulatory risk, contract review, policy obligations, and legal constraints.",
             "Marketing AI": "Brand identity, copy writing, social media outreach, campaigns, platform specific templates.",
-            "HR AI": "Candidate recruitment, resume scanning, applicant outreach, onboarding sequences, payroll budget requests."
+            "HR AI": "Candidate recruitment, resume scanning, applicant outreach, onboarding sequences, payroll budget requests.",
+            "Risk AI": "Operational risk, security risk, market risk, execution risk, controls, and mitigations."
         }
+        roles.update({
+            "Executive Strategy Expert": "Business growth, competitive advantage, expansion opportunities, and strategic alignment.",
+            "Finance Expert": "ROI, cash flow impact, revenue forecasting, cost analysis, profitability, and financial calculations.",
+            "Operations Expert": "Execution feasibility, capacity, resources, process impact, and operational constraints.",
+            "Research Expert": "Data collection, market intelligence, trend analysis, and source verification.",
+            "Risk Expert": "Operational, financial, strategic, market, and execution risk assessment.",
+            "Sales Intelligence Expert": "Pipeline analysis, win-rate forecasting, revenue prediction, and sales bottleneck analysis.",
+            "Marketing Intelligence Expert": "Demand forecasting, customer acquisition, competitor positioning, and campaign effectiveness.",
+            "Legal & Compliance Expert": "Compliance review, regulatory impact, contract risk, privacy, and data governance.",
+            "Human Resources Expert": "Hiring plans, organizational design, workforce cost, and talent availability.",
+        })
         return roles.get(agent_name, "Business specialist AI.")

@@ -123,8 +123,9 @@ async def test_run_meeting_and_execute_actions(mock_send_message, mock_complete,
     # Refresh meeting from DB
     db.refresh(meeting)
     assert meeting.status == "completed"
-    assert len(meeting.transcript) == 3
-    assert meeting.transcript[2]["sender"] == "CEO AI"
+    assert len(meeting.transcript) == 4
+    assert meeting.transcript[0]["phase"] == "Decision Understanding / Board Assembly"
+    assert meeting.transcript[3]["sender"] == "CEO AI"
     
     # Verify execution of action items
     assert len(meeting.action_items) == 2
@@ -136,3 +137,25 @@ async def test_run_meeting_and_execute_actions(mock_send_message, mock_complete,
     assert lead is not None
     assert lead.email == "prospect@company.com"
     assert lead.source == "support_ticket"
+
+def test_dynamic_boardroom_assembly_selects_relevant_experts(db):
+    service = BoardroomService(db, "test-tenant-id")
+
+    profile = service.build_decision_profile(
+        title="Evaluate healthcare AI expansion",
+        context=(
+            "We need to decide whether to launch a clinical workflow SaaS product. "
+            "Use HubSpot pipeline data, GA4 acquisition metrics, privacy constraints, "
+            "ROI, and hiring capacity as success inputs."
+        ),
+    )
+    participants = service.assemble_boardroom(profile)
+
+    assert profile["industry"] == "healthcare"
+    assert "Finance Expert" in participants
+    assert "Risk Expert" in participants
+    assert "Healthcare Operations Expert" in participants
+    assert "Sales Intelligence Expert" in participants
+    assert "Marketing Intelligence Expert" in participants
+    assert "Legal & Compliance Expert" in participants
+    assert "Human Resources Expert" in participants

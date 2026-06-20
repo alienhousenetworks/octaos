@@ -801,7 +801,7 @@ export default function SalesView({
         method: 'POST'
       });
       if (res.ok) {
-        alert("Sales AI Prospector launched! It will search local places/Yelp and sync to CRM.");
+        alert("Sales AI Prospector launched! It will search local places and sync to CRM.");
         fetchLeads();
         fetchData();
       } else {

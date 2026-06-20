@@ -9,15 +9,7 @@ export interface MarketplacePack {
 }
 
 export const marketplacePacks: MarketplacePack[] = [
-  { 
-    name: "Restaurant Growth Pack", 
-    desc: "Automates Yelp reviews, daily Instagram specials, and local lead gen.", 
-    icon: "🍔",
-    category: "Local Marketing",
-    complexity: "Beginner",
-    timeSaved: "12h/week",
-    features: ["Yelp Review Auto-Responder", "Instagram Daily Specials Scheduler", "Local Community Lead Scraper"]
-  },
+
   { 
     name: "SaaS Outreach System", 
     desc: "End-to-end cold email sequencing, LinkedIn DMs, and demo booking.", 
@@ -27,15 +19,7 @@ export const marketplacePacks: MarketplacePack[] = [
     timeSaved: "35h/week",
     features: ["Cold Email Sequencing", "LinkedIn DM Personalizer", "Demo Booking Scheduler"]
   },
-  { 
-    name: "Real Estate Lead Engine", 
-    desc: "Property listing auto-generation, Zillow scraping, and client follow-ups.", 
-    icon: "🏡",
-    category: "Real Estate",
-    complexity: "Intermediate",
-    timeSaved: "20h/week",
-    features: ["Property Description Generator", "Zillow Agent Scraper", "Client Lead Follow-up Agent"]
-  },
+
   { 
     name: "E-Commerce Growth Autopilot", 
     desc: "SEO product desc generator, competitor price monitor, and abandoned cart SMS sequences.", 
@@ -88,6 +72,6 @@ export const marketplacePacks: MarketplacePack[] = [
     category: "Human Resources",
     complexity: "Intermediate",
     timeSaved: "28h/week",
-    features: ["CV Parser & Score Matcher", "Interactive Interview Simulator", "Onboarding Schedule Coordinator"]
+    features: ["CV Parser & Score Matcher", "Automated Interview Coordinator", "Onboarding Schedule Coordinator"]
   }
 ];

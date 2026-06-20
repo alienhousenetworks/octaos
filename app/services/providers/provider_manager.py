@@ -84,9 +84,7 @@ class MetaWhatsAppAdapter(WhatsAppProvider):
         return True
 
     async def send_whatsapp_message(self, recipient: str, content: str, creds: Optional[dict] = None) -> bool:
-        # Placeholder Meta API call
-        logger.info(f"WhatsApp Meta: Sent message to {recipient}")
-        return True
+        raise ValueError("No Meta WhatsApp API credentials found. Please configure your API credentials for WhatsApp under Platform Setup -> API Settings.")
 
 class TelegramBotAdapter(TelegramProvider):
     async def is_healthy(self) -> bool:
@@ -112,13 +110,7 @@ class GoogleCalendarAdapter(CalendarProvider):
         return True
 
     async def create_meeting(self, title: str, start_time: Any, duration_minutes: int, attendees: list, creds: Optional[dict] = None) -> dict:
-        # Google Calendar event creation
-        logger.info(f"Google Calendar: Scheduled meeting '{title}'")
-        return {
-            "meeting_link": "https://meet.google.com/abc-defg-hij",
-            "meeting_time": str(start_time),
-            "provider": "google_calendar"
-        }
+        raise ValueError("No Google Calendar API credentials found. Please connect Google Workspace under Platform Setup -> API Settings to schedule calendar events.")
 
 # --- Provider Manager ---
 

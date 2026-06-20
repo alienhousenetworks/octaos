@@ -1,6 +1,6 @@
 """Book sales meetings on Google Calendar (or placeholder) and notify Telegram."""
 import json
-import random
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Optional, Tuple
 
@@ -40,14 +40,15 @@ def create_google_calendar_event(
         "description": description,
         "start": {"dateTime": start_time.isoformat().replace("+00:00", "Z")},
         "end": {"dateTime": end_time.isoformat().replace("+00:00", "Z")},
-        "attendees": [{"email": attendee_email}],
         "conferenceData": {
             "createRequest": {
-                "requestId": f"{random.randint(100000, 999999)}",
+                "requestId": uuid.uuid4().hex,
                 "conferenceSolutionKey": {"type": "hangoutsMeet"},
             }
         },
     }
+    if attendee_email:
+        event["attendees"] = [{"email": attendee_email}]
     event_result = service.events().insert(
         calendarId="primary", body=event, conferenceDataVersion=1
     ).execute()
@@ -84,11 +85,11 @@ def book_meeting_for_lead(
         creds_dict = json.loads(decrypt_api_key(calendar_cred.encrypted_key))
         actual_meet_url, event_start = create_google_calendar_event(
             creds_dict,
-            lead.email or f"{lead.phone}@placeholder.local",
+            lead.email,
             f"Meeting: {lead.company} / {lead.name}",
             f"Sales discussion with {lead.name}",
         )
-        meet_url = actual_meet_url or f"https://meet.google.com/abc-{lead.id[:8]}"
+        meet_url = actual_meet_url
         if event_start:
             meeting_starts_at = event_start
             meeting_time = event_start.strftime("%A %d %b %Y, %H:%M UTC")
