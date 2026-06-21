@@ -250,7 +250,9 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                 rejected_data_str = json.dumps(companies_data, indent=2)
                 raise Exception(f"API returned leads, but after strict waterfall enrichment, none had the mandatory real Name and Email. No simulated data is allowed.\nRaw Rejected Data: {rejected_data_str}")
             
-            update_status(2, "completed", f"Discovered and verified {len(companies)} company profiles.", f"Sourced via {routing_choice}. Enriched {enriched_count} records to find real emails.")
+            import json
+            leads_summary = [{"name": c["contact"]["name"], "email": c["contact"]["email"], "company": c["company_name"]} for c in companies]
+            update_status(2, "completed", f"Discovered and verified {len(companies)} company profiles.", f"Sourced via {routing_choice}. Enriched {enriched_count} records to find real emails.\n\nValidated Leads:\n{json.dumps(leads_summary, indent=2)}")
         except Exception as e:
             update_status(2, "failed", str(e), f"Error in Step 2: {str(e)}", "failed")
             return {"status": "error", "message": str(e)}
