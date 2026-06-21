@@ -68,7 +68,7 @@ export default function Home() {
       }
     }
 
-    if (userProfile.role === 'admin') {
+    if (userProfile.role === 'admin' || userProfile.is_system_admin) {
       items.push({
         id: 'members',
         name: 'Members & Access',
@@ -605,7 +605,7 @@ export default function Home() {
             />
           </div>
 
-          {userProfile?.role === 'admin' && (
+          {(userProfile?.role === 'admin' || userProfile?.is_system_admin) && (
             <div className={activeView === 'members' ? 'block' : 'hidden'}>
               <MembersView 
                 token={token} 

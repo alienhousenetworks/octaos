@@ -576,7 +576,7 @@ def list_members(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
-    if current_user.role != "admin":
+    if current_user.role != "admin" and not current_user.is_system_admin:
         raise HTTPException(status_code=403, detail="Only admins can manage members")
     
     users = db.query(User).filter(User.tenant_id == current_user.tenant_id).all()
@@ -597,7 +597,7 @@ def update_member_permissions(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
-    if current_user.role != "admin":
+    if current_user.role != "admin" and not current_user.is_system_admin:
         raise HTTPException(status_code=403, detail="Only admins can manage members")
     
     user = db.query(User).filter(
@@ -630,7 +630,7 @@ def delete_member(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
-    if current_user.role != "admin":
+    if current_user.role != "admin" and not current_user.is_system_admin:
         raise HTTPException(status_code=403, detail="Only admins can manage members")
         
     if user_id == current_user.id:
