@@ -129,9 +129,11 @@ Generate a clear, high-performing Ideal Customer Profile (ICP) for our outbound 
             # 1. Ask LLM for Routing Strategy
             routing_prompt = f"""We are building an Enterprise Lead Sourcing Engine.
 Available API Providers: {list(available_providers.keys())}
-Target Industry: {query}
+Target Industry/Query: {query}
+Extra Context: {profile.extra_context or 'None'}
 
-Decide the best primary discovery provider to find companies.
+First, check if the user explicitly requested a specific provider in their query or context (e.g., "use apollo", "from hunter", "via zoominfo"). If they did, you MUST select that provider.
+Otherwise, decide the best primary discovery provider to find companies.
 - If it's a local/brick-and-mortar business (e.g. plumbers, restaurants, clinics), strongly prefer 'google_places'.
 - If it's B2B/Corporate (e.g. SaaS, Finance, Agencies), prefer 'apollo' or 'zoominfo' (do NOT use 'hunter' for discovery, it is enrichment-only).
 
@@ -656,14 +658,16 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
             if provider == "apollo":
                 # Call Apollo search
                 headers = {"Content-Type": "application/json", "Cache-Control": "no-cache", "X-Api-Key": api_key}
-                # Human-like AI parsing of the raw query into Apollo params
-                prompt = f"""Convert this search query into an Apollo.io search JSON payload.
+                # Human-like AI parsing of the raw query into HIGH-QUALITY Apollo params
+                prompt = f"""Convert this search query into an Apollo.io search JSON payload targeting HIGH-QUALITY decision-makers.
 Query: "{query}"
 
-Output a JSON object with any of these keys that apply:
+Output a JSON object with any of these keys that apply to maximize lead quality:
 - "q_keywords": string (general keywords)
-- "person_titles": array of strings (e.g. ["CEO", "Founder"])
-- "person_locations": array of strings (e.g. ["United States"])
+- "person_titles": array of strings (e.g. ["CEO", "Founder", "VP", "Director"]. Avoid low-level titles.)
+- "person_locations": array of strings (e.g. ["United States", "United Kingdom"])
+- "organization_num_employees_ranges": array of strings (ONLY include if user specifies size. e.g. ["1,10"], ["11,50"], ["51,200"])
+- "contact_email_status": array of strings (ALWAYS output ["verified"] to ensure we only get valid emails)
 - "q_organization_domains": string (e.g. "apple.com" if a specific company is mentioned)
 
 Only output valid JSON. No other text."""
@@ -716,7 +720,7 @@ Query: "{query}"
 Output a JSON object with any of these keys that apply:
 - "query": string (general natural language search)
 - "industry": string (e.g. "machinery manufacturing", "hospital & health care")
-- "company_size": string (e.g. "11-50", "51-200")
+- "company_size": string (ONLY include if specified, e.g. "11-50", "51-200")
 Only output valid JSON. No other text."""
                     try:
                         parsed_query = extract_json(await self.llm.complete(prompt, provider="anthropic"))
@@ -744,12 +748,12 @@ Only output valid JSON. No other text."""
                     raise Exception(f"Hunter could not find any valid domains for query: {query}")
                 
                 import asyncio
-                # Fetch people from those domains
+                # Fetch people from those domains (filtering for executives)
                 for domain in domains:
                     if len(leads) >= count:
                         break
                     domain_response = await client.get(
-                        f"https://api.hunter.io/v2/domain-search?domain={domain}&api_key={api_key}&limit=5",
+                        f"https://api.hunter.io/v2/domain-search?domain={domain}&api_key={api_key}&department=executive,management&limit=5",
                         timeout=12.0
                     )
                     if domain_response.status_code == 200:
