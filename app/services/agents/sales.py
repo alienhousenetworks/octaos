@@ -918,7 +918,7 @@ Only output valid JSON. No other text."""
                             "phone": props.get("phone_number", "")
                         })
         if not leads:
-            raise Exception("No results returned or invalid API response.")
+            raise Exception(f"The {provider} API returned data, but no valid leads were extracted. This often happens if the API rate-limits you, requires credits, or returns obfuscated/paywalled names (e.g., Apollo's '***' names).")
         return leads
 
     @with_retry
