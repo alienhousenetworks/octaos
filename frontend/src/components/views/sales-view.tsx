@@ -80,6 +80,7 @@ export default function SalesView({
   const [profileCaseStudies, setProfileCaseStudies] = useState('');
   const [profileOfferDetails, setProfileOfferDetails] = useState('');
   const [profileExtraContext, setProfileExtraContext] = useState('');
+  const [profilePrimarySource, setProfilePrimarySource] = useState('auto');
   const [profileCalendars, setProfileCalendars] = useState('https://calendly.com/sales');
   const [profileCommunicationChannels, setProfileCommunicationChannels] = useState<string[]>(['email', 'whatsapp', 'linkedin']);
   const [profileSalesEmails, setProfileSalesEmails] = useState('');
@@ -113,7 +114,15 @@ export default function SalesView({
         setProfileUsp(data.usp || '');
         setProfileCaseStudies(data.case_studies || '');
         setProfileOfferDetails(data.offer_details || '');
-        setProfileExtraContext(data.extra_context || '');
+        const ec = data.extra_context || '';
+        const match = ec.match(/\[MANUAL_SOURCE_OVERRIDE:\s*(.*?)\]/);
+        if (match) {
+          setProfilePrimarySource(match[1]);
+          setProfileExtraContext(ec.replace(/\n*\[MANUAL_SOURCE_OVERRIDE: .*?\]/g, ''));
+        } else {
+          setProfilePrimarySource('auto');
+          setProfileExtraContext(ec);
+        }
         setProfileCalendars(Array.isArray(data.calendars) ? data.calendars.join(', ') : (data.calendars || ''));
         setProfileCommunicationChannels(data.communication_channels || ['email', 'whatsapp']);
         setProfileSalesEmails(Array.isArray(data.sales_emails) ? data.sales_emails.join(', ') : (data.sales_emails || ''));
@@ -193,7 +202,7 @@ export default function SalesView({
           usp: profileUsp,
           case_studies: profileCaseStudies,
           offer_details: profileOfferDetails,
-          extra_context: profileExtraContext,
+          extra_context: profilePrimarySource !== 'auto' ? `${profileExtraContext}\n\n[MANUAL_SOURCE_OVERRIDE: ${profilePrimarySource}]`.trim() : profileExtraContext,
           calendars: calendars,
           communication_channels: profileCommunicationChannels,
           sales_emails: salesEmails,
@@ -2347,6 +2356,26 @@ export default function SalesView({
                             </SelectContent>
                           </Select>
                         </div>
+                      </div>
+
+                      {/* Lead Discovery Source Configuration */}
+                      <div className="flex flex-col gap-1 mt-4 border-t border-gray-800/40 pt-4">
+                        <label className="text-[10px] font-bold text-gray-450 uppercase tracking-wider">Lead Discovery Source</label>
+                        <Select value={profilePrimarySource} onValueChange={val => setProfilePrimarySource(val || 'auto')}>
+                          <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11 w-1/2">
+                            <SelectValue placeholder="Auto (System Decide)" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-950 border-gray-800 text-white">
+                            <SelectItem value="auto">Auto (System Decide)</SelectItem>
+                            <SelectItem value="apollo">Apollo</SelectItem>
+                            <SelectItem value="hunter">Hunter</SelectItem>
+                            <SelectItem value="zoominfo">ZoomInfo</SelectItem>
+                            <SelectItem value="google_places">Google Places</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-gray-500 mt-1">
+                          If set to Auto, the AI will intelligently route to the best provider for your target industry.
+                        </p>
                       </div>
 
                       <div className="flex flex-col gap-1">
