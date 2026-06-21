@@ -657,7 +657,8 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                 # Call Apollo search
                 headers = {"Content-Type": "application/json", "Cache-Control": "no-cache", "X-Api-Key": api_key}
                 payload = {
-                    "q_organization_keyword_tags": [query],
+                    "api_key": api_key,
+                    "q_keywords": query,
                     "page": 1,
                     "per_page": count
                 }
