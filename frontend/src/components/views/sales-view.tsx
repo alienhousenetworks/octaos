@@ -216,36 +216,34 @@ export default function SalesView({
     }
   };
 
-  const handleLaunchV3Workflow = async (skipReview = false) => {
-    if (reviewPlanFirst && !skipReview) {
-      // Fetch plan first
-      setSalesActionLoading(true);
-      try {
-        const planRes = await fetchWithAuth(`${API_URL}/llm/plan-task`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            complexity: 'high',
-            provider: salesTextProvider !== 'auto' ? salesTextProvider : null,
-            model: salesTextModel || null
-          }) // Sales V3 is complex
-        });
-        if (planRes.ok) {
-          const planData = await planRes.json();
-          setPlanReviewData(planData);
-          setIsPlanReviewModalOpen(true);
-        } else {
-          const err = await planRes.json();
-          alert(`Failed to fetch AI plan: ${err.detail}`);
-        }
-      } catch (e) {
-        alert("Network error fetching AI plan.");
-      } finally {
-        setSalesActionLoading(false);
+  const handlePreviewPlan = async () => {
+    setSalesActionLoading(true);
+    try {
+      const planRes = await fetchWithAuth(`${API_URL}/llm/plan-task`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          complexity: 'high',
+          provider: salesTextProvider !== 'auto' ? salesTextProvider : null,
+          model: salesTextModel || null
+        })
+      });
+      if (planRes.ok) {
+        const planData = await planRes.json();
+        setPlanReviewData(planData);
+        setIsPlanReviewModalOpen(true);
+      } else {
+        const err = await planRes.json();
+        alert(`Failed to fetch AI plan: ${err.detail}`);
       }
-      return;
+    } catch (e) {
+      alert("Network error fetching AI plan.");
+    } finally {
+      setSalesActionLoading(false);
     }
+  };
 
+  const handleLaunchV3Workflow = async () => {
     const saved = await handleSaveProfile(true);
     if (!saved) return;
     
@@ -257,8 +255,7 @@ export default function SalesView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           provider: salesTextProvider,
-          model: salesTextModel || undefined,
-          review_plan: reviewPlanFirst
+          model: salesTextModel || undefined
         })
       });
       if (res.ok) {
@@ -2163,17 +2160,16 @@ export default function SalesView({
                           </Select>
                         </div>
                         
-                        <div className="mt-2 flex items-center gap-2">
-                          <input 
-                            type="checkbox" 
-                            id="reviewPlan" 
-                            checked={reviewPlanFirst}
-                            onChange={(e) => setReviewPlanFirst(e.target.checked)}
-                            className="rounded border-gray-700 bg-gray-900 text-emerald-500 focus:ring-emerald-500/30"
-                          />
-                          <label htmlFor="reviewPlan" className="text-[11px] font-bold text-gray-300">
-                            Review AI Plan before launching (Model selection & Cost)
-                          </label>
+                        <div className="mt-2">
+                          <Button
+                            onClick={handlePreviewPlan}
+                            disabled={salesActionLoading}
+                            variant="outline"
+                            className="w-full bg-gray-900 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 rounded-xl h-10 flex items-center justify-center gap-2"
+                          >
+                            {salesActionLoading ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                            Preview AI Routing Plan
+                          </Button>
                         </div>
 
                         <p className="text-[10px] text-emerald-500/80 mt-1 pl-1">
@@ -2222,10 +2218,10 @@ export default function SalesView({
                                   Cancel
                                 </Button>
                                 <Button
-                                  onClick={() => handleLaunchV3Workflow(true)}
+                                  onClick={handleLaunchV3Workflow}
                                   className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl h-11"
                                 >
-                                  Proceed & Launch
+                                  Launch Sales AI V3
                                 </Button>
                               </div>
                             </div>

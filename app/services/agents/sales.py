@@ -147,8 +147,23 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                 
             update_status(2, "executing", f"Selected {routing_choice} as primary source.", f"Routing strategy defined for {query}.")
 
-            # 2. Fetch Companies
-            companies_data = await self._fetch_real_leads(routing_choice, available_providers[routing_choice], query, count=6)
+            # 2. Fetch Companies with Fallback
+            companies_data = []
+            providers_to_try = [routing_choice] + [p for p in available_providers.keys() if p != routing_choice]
+            
+            for fallback_provider in providers_to_try:
+                try:
+                    update_status(2, "executing", f"Attempting discovery via {fallback_provider}...", f"Trying {fallback_provider}.")
+                    companies_data = await self._fetch_real_leads(fallback_provider, available_providers[fallback_provider], query, count=6)
+                    if companies_data:
+                        routing_choice = fallback_provider
+                        break
+                except Exception as e:
+                    update_status(2, "executing", f"Discovery via {fallback_provider} failed. Attempting fallback...", f"Fallback triggered: {str(e)}.")
+                    continue
+            
+            if not companies_data:
+                raise Exception("All available discovery providers failed to return leads.")
             
             # 3. Waterfall Enrichment
             companies = []
@@ -591,9 +606,8 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
         async with httpx.AsyncClient() as client:
             if provider == "apollo":
                 # Call Apollo search
-                headers = {"Content-Type": "application/json", "Cache-Control": "no-cache"}
+                headers = {"Content-Type": "application/json", "Cache-Control": "no-cache", "X-Api-Key": api_key}
                 payload = {
-                    "api_key": api_key,
                     "q_organization_keyword_tags": [query],
                     "page": 1,
                     "per_page": count
