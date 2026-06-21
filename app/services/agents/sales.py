@@ -616,7 +616,7 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                     "page": 1,
                     "per_page": count
                 }
-                response = await client.post("https://api.apollo.io/v1/mixed_people/search", headers=headers, json=payload, timeout=10.0)
+                response = await client.post("https://api.apollo.io/api/v1/mixed_people/api_search", headers=headers, json=payload, timeout=10.0)
                 if response.status_code == 200:
                     data = response.json()
                     for p in data.get("people", [])[:count]:
@@ -636,7 +636,7 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                 )
                 if response.status_code == 200:
                     data = response.json()
-                    domain_name = data.get("data", {}).get("domain", "company.com")
+                    domain_name = data.get("data", {}).get("domain") or "company.com"
                     org_name = domain_name.split('.')[0].capitalize()
                     for email in data.get("data", {}).get("emails", [])[:count]:
                         leads.append({
