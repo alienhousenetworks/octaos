@@ -113,26 +113,84 @@ Generate a clear, high-performing Ideal Customer Profile (ICP) for our outbound 
             return {"status": "error", "message": str(e)}
 
         # Step 2: Market Discovery
-        update_status(2, "executing", "Sourcing target company directory...", "Starting Step 2: Sourcing companies from APIs...")
+        update_status(2, "executing", "Sourcing target company directory...", "Starting Step 2: Intelligent Routing & Sourcing...")
         try:
-            available_providers = []
+            available_providers = {}
             creds = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id).all()
             for c in creds:
-                if c.provider in ["apollo", "hunter", "google_places"] and c.encrypted_key and "your_api_key" not in c.encrypted_key:
-                    available_providers.append((c.provider, decrypt_api_key(c.encrypted_key)))
+                if c.encrypted_key and "your_api_key" not in c.encrypted_key:
+                    available_providers[c.provider] = decrypt_api_key(c.encrypted_key)
             
             if not available_providers:
                 raise Exception("No API credentials configured. Please configure Apollo, Hunter, or Google Places API keys to extract real leads.")
             
-            provider, api_key = available_providers[0]
             query = profile.target_industries[0] if profile.target_industries else "target clients"
             
-            companies_data = await self._fetch_real_leads(provider, api_key, query, count=6)
+            # 1. Ask LLM for Routing Strategy
+            routing_prompt = f"""We are building an Enterprise Lead Sourcing Engine.
+Available API Providers: {list(available_providers.keys())}
+Target Industry: {query}
+
+Decide the best primary discovery provider to find companies.
+- If it's a local/brick-and-mortar business (e.g. plumbers, restaurants, clinics), strongly prefer 'google_places'.
+- If it's B2B/Corporate (e.g. SaaS, Finance, Agencies), prefer 'apollo', 'zoominfo', or 'hunter'.
+
+Return a JSON with exactly one key: 'primary_source' (string) containing your choice from the available list."""
             
+            try:
+                routing_response = await self.llm.complete(routing_prompt, provider=provider, model=model)
+                routing_choice = extract_json(routing_response).get("primary_source")
+                if routing_choice not in available_providers:
+                    routing_choice = list(available_providers.keys())[0]
+            except Exception:
+                routing_choice = list(available_providers.keys())[0]
+                
+            update_status(2, "executing", f"Selected {routing_choice} as primary source.", f"Routing strategy defined for {query}.")
+
+            # 2. Fetch Companies
+            companies_data = await self._fetch_real_leads(routing_choice, available_providers[routing_choice], query, count=6)
+            
+            # 3. Waterfall Enrichment
             companies = []
+            enriched_count = 0
+            
             for c in companies_data:
-                has_name = bool(c.get("name") and c["name"].strip() != "Unknown Contact")
-                has_contact = bool((c.get("email") and "@" in c["email"]) or c.get("phone"))
+                # Discard fake or missing emails
+                needs_enrichment = False
+                email = c.get("email", "")
+                name = c.get("name", "")
+                
+                if not email or "@" not in email or email.startswith("contact@") or email.startswith("info@") or name == "Manager" or name == "General Inquiry":
+                    needs_enrichment = True
+                
+                if needs_enrichment:
+                    # Attempt Enrichment via Waterfall
+                    enrichment_tool = None
+                    if "hunter" in available_providers:
+                        enrichment_tool = "hunter"
+                    elif "apollo" in available_providers and routing_choice != "apollo":
+                        enrichment_tool = "apollo"
+                        
+                    if enrichment_tool:
+                        update_status(2, "executing", f"Enriching {c.get('company')} via {enrichment_tool}...", f"Waterfall Enrichment active for {c.get('company')}.")
+                        try:
+                            # Derived domain for search
+                            domain = email.split("@")[-1] if "@" in email else c.get("company", "").lower().replace(" ", "") + ".com"
+                            enrichment_data = await self._fetch_real_leads(enrichment_tool, available_providers[enrichment_tool], domain, count=1)
+                            if enrichment_data:
+                                real_email = enrichment_data[0].get("email", "")
+                                real_name = enrichment_data[0].get("name", "")
+                                if real_email and "@" in real_email:
+                                    c["email"] = real_email
+                                    c["name"] = real_name if real_name else "Contact"
+                                    enriched_count += 1
+                        except Exception:
+                            pass
+                
+                # Final Strict Validation
+                has_name = bool(c.get("name") and c["name"].strip() not in ["Unknown Contact", "Manager", "General Inquiry"])
+                has_contact = bool(c.get("email") and "@" in c["email"] and not c["email"].startswith("contact@") and not c["email"].startswith("info@"))
+                
                 if has_name and has_contact:
                     companies.append({
                         "company_name": c.get("company", "Unknown"),
@@ -141,7 +199,7 @@ Generate a clear, high-performing Ideal Customer Profile (ICP) for our outbound 
                         "estimated_employees": "Unknown",
                         "estimated_revenue": "Unknown",
                         "location": "Unknown",
-                        "source": provider,
+                        "source": f"{routing_choice} (Enriched)" if enriched_count else routing_choice,
                         "contact": {
                             "name": c.get("name", ""),
                             "title": "Contact",
@@ -150,10 +208,11 @@ Generate a clear, high-performing Ideal Customer Profile (ICP) for our outbound 
                             "linkedin_url": ""
                         }
                     })
+                    
             if not companies:
-                raise Exception("API returned leads, but none had the mandatory Name and (Email or Phone).")
+                raise Exception("API returned leads, but after strict waterfall enrichment, none had the mandatory real Name and Email. No simulated data is allowed.")
             
-            update_status(2, "completed", f"Discovered {len(companies)} matching company profiles via {provider}.", f"Sourced real leads from {provider}.")
+            update_status(2, "completed", f"Discovered and verified {len(companies)} company profiles.", f"Sourced via {routing_choice}. Enriched {enriched_count} records to find real emails.")
         except Exception as e:
             update_status(2, "failed", str(e), f"Error in Step 2: {str(e)}", "failed")
             return {"status": "error", "message": str(e)}
@@ -539,16 +598,18 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                     "page": 1,
                     "per_page": count
                 }
-                response = await client.post("https://api.apollo.io/v1/mixed_people/search", json=payload, timeout=10.0)
+                response = await client.post("https://api.apollo.io/v1/mixed_people/search", headers=headers, json=payload, timeout=10.0)
                 if response.status_code == 200:
                     data = response.json()
                     for p in data.get("people", [])[:count]:
                         leads.append({
                             "name": p.get("name", "Unknown Contact"),
-                            "email": p.get("email", f"info@{p.get('organization', {}).get('primary_domain', 'company.com')}"),
+                            "email": p.get("email", ""),
                             "company": p.get("organization", {}).get("name", "Target Corp"),
                             "phone": p.get("organization", {}).get("primary_phone", "")
                         })
+                else:
+                    raise Exception(f"Apollo API Error: {response.status_code} - {response.text}")
             elif provider == "hunter":
                 # Call Hunter Domain Search
                 response = await client.get(
@@ -576,7 +637,7 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                         name = res.get("name", "Local Business")
                         leads.append({
                             "name": "Manager",
-                            "email": f"contact@{name.lower().replace(' ', '').replace(',', '')}.com",
+                            "email": "",
                             "company": name,
                             "phone": ""
                         })
@@ -630,7 +691,7 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                     for c in data.get("results", [])[:count]:
                         leads.append({
                             "name": "General Inquiry",
-                            "email": f"info@{c.get('domain', 'company.com')}",
+                            "email": "",
                             "company": c.get("name", "Target Corp"),
                             "phone": ""
                         })

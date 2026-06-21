@@ -5,8 +5,9 @@ logger = logging.getLogger(__name__)
 
 def before_retry_log(retry_state):
     if retry_state.attempt_number > 1:
+        exc = retry_state.outcome.exception() if retry_state.outcome else "Unknown"
         logger.warning(
-            f"Retrying {retry_state.fn.__name__} due to exception: {retry_state.outcome.exception()}. "
+            f"Retrying {retry_state.fn.__name__} due to exception: {exc}. "
             f"Attempt {retry_state.attempt_number} of 3."
         )
 
