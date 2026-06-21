@@ -693,7 +693,12 @@ Only output valid JSON. No other text."""
                     for p in people[:count]:
                         org = p.get("organization", {})
                         first = p.get("first_name", "")
-                        last = p.get("last_name", "") or p.get("last_name_obfuscated", "")
+                        last = p.get("last_name", "")
+                        
+                        # Apollo API obfuscates names (e.g. ***) if not unlocked via credits. Skip these fake-looking leads.
+                        if not first or not last or "***" in last:
+                            continue
+                            
                         full_name = f"{first} {last}".strip()
                         website = org.get("primary_domain", "") or org.get("website_url", "")
                         
@@ -710,6 +715,7 @@ Only output valid JSON. No other text."""
                 # Act like a human lead generator:
                 # 1. If query is a domain, just do domain search.
                 # 2. If it's an industry/keyword, use Hunter Discover to find domains, then Domain Search for people.
+                # If Apollo fails and falls back here, we want robust parsing.
                 domains = []
                 if "." in query and not " " in query:
                     domains.append(query)
@@ -753,7 +759,7 @@ Only output valid JSON. No other text."""
                     if len(leads) >= count:
                         break
                     domain_response = await client.get(
-                        f"https://api.hunter.io/v2/domain-search?domain={domain}&api_key={api_key}&department=executive,management&limit=5",
+                        f"https://api.hunter.io/v2/domain-search?domain={domain}&api_key={api_key}&type=personal&limit=5",
                         timeout=12.0
                     )
                     if domain_response.status_code == 200:
