@@ -665,7 +665,10 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                 response = await client.post("https://api.apollo.io/api/v1/mixed_people/api_search", headers=headers, json=payload, timeout=10.0)
                 if response.status_code == 200:
                     data = response.json()
-                    for p in data.get("people", [])[:count]:
+                    people = data.get("people", [])
+                    if not people:
+                        raise Exception(f"Apollo returned 0 people. Full response: {response.text}")
+                    for p in people[:count]:
                         org = p.get("organization", {})
                         leads.append({
                             "name": p.get("name", "Unknown Contact"),
