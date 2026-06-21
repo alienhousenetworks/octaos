@@ -150,6 +150,7 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
             # 2. Fetch Companies with Fallback
             companies_data = []
             providers_to_try = [routing_choice] + [p for p in available_providers.keys() if p != routing_choice]
+            error_log = []
             
             for fallback_provider in providers_to_try:
                 try:
@@ -159,11 +160,14 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                         routing_choice = fallback_provider
                         break
                 except Exception as e:
-                    update_status(2, "executing", f"Discovery via {fallback_provider} failed. Attempting fallback...", f"Fallback triggered: {str(e)}.")
+                    error_msg = str(e)
+                    error_log.append(f"{fallback_provider}: {error_msg}")
+                    update_status(2, "executing", f"Discovery via {fallback_provider} failed. Attempting fallback...", f"Fallback triggered: {error_msg}.")
                     continue
             
             if not companies_data:
-                raise Exception("All available discovery providers failed to return leads.")
+                error_details = " | ".join(error_log) if error_log else "No exact error provided."
+                raise Exception(f"All available discovery providers failed to return leads. Errors: {error_details}")
             
             # 3. Waterfall Enrichment
             companies = []
@@ -641,6 +645,8 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                             "company": org_name,
                             "phone": email.get("phone_number", "")
                         })
+                else:
+                    raise Exception(f"Hunter API Error: {response.status_code} - {response.text}")
             elif provider == "google_places":
                 # Call Google Places Text Search
                 url = f"https://maps.googleapis.com/maps/api/place/textsearch/json?query={query}&key={api_key}"
@@ -655,6 +661,8 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                             "company": name,
                             "phone": ""
                         })
+                else:
+                    raise Exception(f"Google Places API Error: {response.status_code} - {response.text}")
             elif provider == "zoominfo":
                 headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
                 payload = {"companyName": query, "rpp": count}
