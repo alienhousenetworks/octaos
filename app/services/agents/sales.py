@@ -150,13 +150,11 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
             # 2. Fetch Companies with Fallback
             companies_data = []
             
-            # Remove hunter from primary discovery since it only searches by domain
-            discovery_providers = [p for p in available_providers.keys() if p != "hunter"]
-            if routing_choice == "hunter":
-                routing_choice = discovery_providers[0] if discovery_providers else None
-                
+            # Allow all providers to act as primary discovery
+            discovery_providers = list(available_providers.keys())
+            
             if not routing_choice:
-                raise Exception("No valid primary discovery providers configured. (Hunter is for enrichment only).")
+                raise Exception("No valid primary discovery providers configured.")
                 
             providers_to_try = [routing_choice] + [p for p in discovery_providers if p != routing_choice]
             error_log = []
@@ -698,30 +696,74 @@ Only output valid JSON. No other text."""
                 else:
                     raise Exception(f"Apollo API Error: {response.status_code} - {response.text}")
             elif provider == "hunter":
-                # Call Hunter Domain Search
-                # Only use if query is likely a domain
-                if "." not in query:
-                    raise Exception(f"Hunter API requires a domain name, got industry/keyword: '{query}'")
-                response = await client.get(
-                    f"https://api.hunter.io/v2/domain-search?domain={query}&api_key={api_key}",
-                    timeout=10.0
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    emails = data.get("data", {}).get("emails", [])
-                    if not emails:
-                        raise Exception(f"Hunter returned 0 emails. Full response: {response.text}")
-                    domain_name = data.get("data", {}).get("domain") or query
-                    org_name = domain_name.split('.')[0].capitalize()
-                    for email in emails[:count]:
-                        leads.append({
-                            "name": f"{email.get('first_name', '')} {email.get('last_name', '')}".strip() or "Business Contact",
-                            "email": email.get("value"),
-                            "company": org_name,
-                            "phone": email.get("phone_number", "")
-                        })
+                # Act like a human lead generator:
+                # 1. If query is a domain, just do domain search.
+                # 2. If it's an industry/keyword, use Hunter Discover to find domains, then Domain Search for people.
+                domains = []
+                if "." in query and not " " in query:
+                    domains.append(query)
                 else:
-                    raise Exception(f"Hunter API Error: {response.status_code} - {response.text}")
+                    # Parse the query into a Hunter Discover payload
+                    prompt = f"""Convert this search query into a Hunter.io Discover API payload.
+Query: "{query}"
+Output a JSON object with any of these keys that apply:
+- "query": string (general natural language search)
+- "industry": string (e.g. "machinery manufacturing", "hospital & health care")
+- "company_size": string (e.g. "11-50", "51-200")
+Only output valid JSON. No other text."""
+                    try:
+                        parsed_query = extract_json(await self.llm.complete(prompt, provider="anthropic"))
+                    except Exception:
+                        parsed_query = {"query": query}
+                        
+                    discover_params = {
+                        "api_key": api_key,
+                        "limit": count,
+                        **parsed_query
+                    }
+                    discover_response = await client.get("https://api.hunter.io/v2/discover", params=discover_params, timeout=12.0)
+                    if discover_response.status_code == 200:
+                        discover_data = discover_response.json()
+                        companies = discover_data.get("data", [])
+                        if not companies:
+                            # Hide API key in error
+                            safe_params = {k: v for k, v in discover_params.items() if k != "api_key"}
+                            raise Exception(f"Hunter Discover returned 0 companies for params {safe_params}. Full response: {discover_response.text}")
+                        domains = [c.get("domain") for c in companies if c.get("domain")]
+                    else:
+                        raise Exception(f"Hunter Discover API Error: {discover_response.status_code} - {discover_response.text}")
+                
+                if not domains:
+                    raise Exception(f"Hunter could not find any valid domains for query: {query}")
+                
+                import asyncio
+                # Fetch people from those domains
+                for domain in domains:
+                    if len(leads) >= count:
+                        break
+                    domain_response = await client.get(
+                        f"https://api.hunter.io/v2/domain-search?domain={domain}&api_key={api_key}&limit=5",
+                        timeout=12.0
+                    )
+                    if domain_response.status_code == 200:
+                        domain_data = domain_response.json()
+                        emails = domain_data.get("data", {}).get("emails", [])
+                        org_name = domain_data.get("data", {}).get("organization") or domain.split('.')[0].capitalize()
+                        for email in emails:
+                            leads.append({
+                                "name": f"{email.get('first_name', '')} {email.get('last_name', '')}".strip() or "Business Contact",
+                                "email": email.get("value"),
+                                "company": org_name,
+                                "phone": email.get("phone_number", "")
+                            })
+                            if len(leads) >= count:
+                                break
+                    elif domain_response.status_code == 429:
+                        await asyncio.sleep(2)
+                        continue
+                
+                if not leads:
+                    raise Exception(f"Hunter Domain Search returned 0 people across {len(domains)} domains. Last response: {domain_response.text if 'domain_response' in locals() else 'None'}")
             elif provider == "google_places":
                 # Call Google Places Text Search
                 url = f"https://maps.googleapis.com/maps/api/place/textsearch/json?query={query}&key={api_key}"
