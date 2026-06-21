@@ -71,6 +71,7 @@ const PROVIDER_GROUPS = [
       { id: 'apollo',        label: 'Apollo.io',       hint: 'API Key', url: 'https://app.apollo.io/#/settings/integrations/api', placeholder: 'API_KEY...' },
       { id: 'hunter',        label: 'Hunter.io',       hint: 'API Key', url: 'https://hunter.io/api-keys', placeholder: 'abc123...' },
       { id: 'google_places', label: 'Google Places API', hint: 'GCP API Key', url: 'https://console.cloud.google.com/', placeholder: 'AIzaSy...' },
+      { id: 'apify',         label: 'Apify',           hint: 'API Token', url: 'https://console.apify.com/account/integrations', placeholder: 'apify_api_...' },
       { id: 'zoominfo',      label: 'ZoomInfo',        hint: 'API Key', url: 'https://www.zoominfo.com/', placeholder: 'API_KEY...' },
       { id: 'cognism',       label: 'Cognism',         hint: 'API Key', url: 'https://www.cognism.com/', placeholder: 'API_KEY...' },
       { id: 'people_data_labs', label: 'People Data Labs', hint: 'API Key', url: 'https://www.peopledatalabs.com/', placeholder: 'API_KEY...' },

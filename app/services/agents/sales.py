@@ -130,11 +130,11 @@ Generate a clear, high-performing Ideal Customer Profile (ICP) for our outbound 
             query = profile.target_industries[0] if profile.target_industries else "target clients"
             
             # Filter to only actual discovery providers
-            valid_discovery = ["apollo", "hunter", "google_places", "zoominfo"]
+            valid_discovery = ["apollo", "hunter", "google_places", "zoominfo", "apify"]
             discovery_providers = {k: v for k, v in available_providers.items() if k in valid_discovery}
             
             if not discovery_providers:
-                raise Exception("No valid primary discovery providers configured. Please add an API key for Apollo, Hunter, or Google Places.")
+                raise Exception("No valid primary discovery providers configured. Please add an API key for Apollo, Hunter, Google Places, or Apify.")
             
             # 1. Ask LLM for Routing Strategy
             routing_prompt = f"""We are building an Enterprise Lead Sourcing Engine.
@@ -144,7 +144,7 @@ Extra Context: {profile.extra_context or 'None'}
 
 First, check if the user explicitly requested a specific provider in their query or context (e.g., "use apollo", "from hunter", "via zoominfo"). If they did, you MUST select that provider.
 Otherwise, decide the best primary discovery provider to find companies.
-- If it's a local/brick-and-mortar business (e.g. plumbers, restaurants, clinics), strongly prefer 'google_places'.
+- If it's a local/brick-and-mortar business (e.g. plumbers, restaurants, clinics), strongly prefer 'google_places' or 'apify'.
 - If it's B2B/Corporate (e.g. SaaS, Healthcare, Agencies, Enterprise), prefer 'apollo' or 'hunter'.
 
 Return a JSON with exactly one key: 'primary_source' (string) containing your choice from the available list."""
@@ -174,7 +174,7 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
             for fallback_provider in providers_to_try:
                 try:
                     update_status(2, "executing", f"Attempting discovery via {fallback_provider}...", f"Trying {fallback_provider}.")
-                    companies_data = await self._fetch_real_leads(fallback_provider, available_providers[fallback_provider], query, count=6)
+                    companies_data = await self._fetch_real_leads(fallback_provider, available_providers[fallback_provider], query, count=50)
                     if companies_data:
                         routing_choice = fallback_provider
                         break
@@ -208,6 +208,8 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                         enrichment_tool = "hunter"
                     elif "apollo" in available_providers and routing_choice != "apollo":
                         enrichment_tool = "apollo"
+                    elif "apify" in available_providers and routing_choice != "apify":
+                        enrichment_tool = "apify"
                         
                     if enrichment_tool:
                         update_status(2, "executing", f"Enriching {c.get('company')} via {enrichment_tool}...", f"Waterfall Enrichment active for {c.get('company')}.")
@@ -698,9 +700,10 @@ Only output valid JSON. No other text."""
                 except Exception:
                     parsed_query = {"q_keywords": query}
                     
+                import random
                 payload = {
                     "api_key": api_key,
-                    "page": 1,
+                    "page": random.randint(1, 5), # Randomize page to get fresh leads
                     "per_page": count,
                     **parsed_query
                 }
@@ -818,6 +821,101 @@ Only output valid JSON. No other text."""
                 
                 if not leads:
                     raise Exception(f"Hunter Domain Search returned 0 people across {len(domains)} domains. Last response: {domain_response.text if 'domain_response' in locals() else 'None'}")
+            elif provider == "apify":
+                from apify_client import ApifyClientAsync
+                import asyncio
+                import re
+
+                apify_client = ApifyClientAsync(api_key)
+                
+                # Use Website crawler for domains (enrichment), Google Maps for generic search (discovery)
+                if "." in query and " " not in query:
+                    run_payload = {
+                        "startUrls": [{"url": f"https://{query}" if not query.startswith("http") else query}],
+                        "maxCrawlPages": 3
+                    }
+                    actor_id = "apify/website-content-crawler"
+                else:
+                    prompt = f"""You are routing a lead generation query to the correct Apify web scraper.
+Query: "{query}"
+
+Choose the best Apify Actor for this query:
+1. "compass/crawler-google-places" (Best for local businesses, brick-and-mortar, restaurants, plumbers)
+2. "apify/instagram-scraper" (Best for ecommerce, influencers, D2C brands, social media)
+3. "anchor/linkedin-profile-scraper" (Best for B2B, corporate professionals, SaaS, executives)
+
+Based on your choice, create the required payload:
+- Google Places payload: {{"searchStringsArray": ["keyword"], "maxCrawledPlacesPerSearch": {count}, "language": "en"}}
+- Instagram payload: {{"search": "keyword", "searchType": "hashtag", "searchLimit": {count}}} 
+- LinkedIn payload: {{"search": "keyword", "limit": {count}}}
+
+Output a JSON object exactly like this:
+{{
+    "actor_id": "the_chosen_actor",
+    "run_payload": {{...}}
+}}
+Only output valid JSON. No other text."""
+                    try:
+                        parsed_config = extract_json(await self.llm.complete(prompt, provider="anthropic"))
+                        actor_id = parsed_config.get("actor_id", "compass/crawler-google-places")
+                        run_payload = parsed_config.get("run_payload", {
+                            "searchStringsArray": [query],
+                            "maxCrawledPlacesPerSearch": count,
+                            "language": "en"
+                        })
+                    except Exception:
+                        actor_id = "compass/crawler-google-places"
+                        run_payload = {
+                            "searchStringsArray": [query],
+                            "maxCrawledPlacesPerSearch": count,
+                            "language": "en"
+                        }
+
+                try:
+                    actor_run = await apify_client.actor(actor_id).call(run_input=run_payload)
+                    dataset_items = (await apify_client.dataset(actor_run['defaultDatasetId']).list_items()).items
+                    
+                    if not dataset_items:
+                        raise Exception("Apify run succeeded but returned 0 results.")
+                        
+                    for p in dataset_items[:count]:
+                        if actor_id == "compass/crawler-google-places":
+                            emails = p.get("emails", [])
+                            email = emails[0] if emails else p.get("email", "")
+                            leads.append({
+                                "name": "Manager",
+                                "email": email,
+                                "company": p.get("title", p.get("name", "Local Business")),
+                                "phone": p.get("phone", "") or p.get("phoneUnformatted", "")
+                            })
+                        elif "instagram" in actor_id:
+                            leads.append({
+                                "name": p.get("fullName", p.get("username", "Influencer")),
+                                "email": p.get("publicEmail", ""),
+                                "company": p.get("username", query),
+                                "phone": p.get("publicPhoneNumber", "")
+                            })
+                        elif "linkedin" in actor_id:
+                            leads.append({
+                                "name": f"{p.get('firstName', '')} {p.get('lastName', '')}".strip() or "Professional",
+                                "email": p.get("email", ""),
+                                "company": p.get("companyName", p.get("headline", query)),
+                                "phone": p.get("phone", "")
+                            })
+                        else:
+                            text = p.get("text", "")
+                            emails_found = re.findall(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", text)
+                            email = emails_found[0] if emails_found else ""
+                            leads.append({
+                                "name": "Contact",
+                                "email": email,
+                                "company": query,
+                                "phone": ""
+                            })
+                            if email:
+                                break
+                except Exception as e:
+                    raise Exception(f"Apify API Error: {str(e)}")
             elif provider == "google_places":
                 # Call Google Places Text Search
                 url = f"https://maps.googleapis.com/maps/api/place/textsearch/json?query={query}&key={api_key}"
