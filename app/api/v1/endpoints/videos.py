@@ -55,6 +55,23 @@ def get_video_project(
         raise HTTPException(status_code=404, detail="Project not found")
     return project
 
+@router.post("/{project_id}/render")
+def trigger_video_render(
+    project_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    project = db.query(VideoProject).filter(VideoProject.id == project_id, VideoProject.tenant_id == tenant_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.status == "rendering":
+        raise HTTPException(status_code=400, detail="Video is already rendering")
+    
+    from app.worker.tasks import render_video_task
+    render_video_task.delay(tenant_id, project.id)
+    
+    return {"status": "processing", "message": "Render task queued"}
+
 @router.get("/")
 def list_video_projects(
     db: Session = Depends(deps.get_db),

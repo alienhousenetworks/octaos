@@ -827,3 +827,76 @@ def plan_video_task(tenant_id: str, project_id: str):
         raise e
     finally:
         db.close()
+
+@celery_app.task(name="render_video_task")
+def render_video_task(tenant_id: str, project_id: str):
+    import httpx
+    import logging
+    from app.db.session import SessionLocal
+    from app.models.video import VideoProject, VideoRender
+    from app.services.media.storage import upload_file_to_storage
+    import os
+    from datetime import datetime, timezone
+    from asgiref.sync import async_to_sync
+
+    db = SessionLocal()
+    try:
+        project = db.query(VideoProject).filter(
+            VideoProject.id == project_id, 
+            VideoProject.tenant_id == tenant_id
+        ).first()
+
+        if not project or not project.blueprint:
+            logging.error(f"Cannot render video: Project {project_id} not found or has no blueprint.")
+            return
+
+        project.status = "rendering"
+        render_job = VideoRender(project_id=project.id, status="processing")
+        db.add(render_job)
+        db.commit()
+
+        # Call local Node.js renderer service
+        with httpx.Client(timeout=300.0) as client:
+            resp = client.post(
+                "http://localhost:8002/render",
+                json=project.blueprint
+            )
+            
+            if resp.status_code == 200:
+                data = resp.json()
+                local_file = data.get("file")
+                
+                if local_file and os.path.exists(local_file):
+                    # Upload local mp4 file to public storage
+                    with open(local_file, "rb") as f:
+                        file_bytes = f.read()
+                    
+                    filename = f"render_{project_id}_{int(datetime.now(timezone.utc).timestamp())}.mp4"
+                    public_url = async_to_sync(upload_file_to_storage)(file_bytes, filename, "video/mp4")
+                    
+                    project.final_video_url = public_url
+                    project.status = "completed"
+                    render_job.status = "success"
+                    render_job.render_url = public_url
+                    render_job.progress = 100.0
+                    render_job.completed_at = datetime.now(timezone.utc)
+                    db.commit()
+                    
+                    # Cleanup local file
+                    try:
+                        os.remove(local_file)
+                    except:
+                        pass
+                else:
+                    raise Exception("Renderer returned success but file not found on disk.")
+            else:
+                raise Exception(f"Renderer API failed with status {resp.status_code}: {resp.text}")
+
+    except Exception as e:
+        logging.error(f"Video rendering failed for project {project_id}: {e}")
+        render_job.status = "error"
+        render_job.error_logs = str(e)
+        project.status = "failed"
+        db.commit()
+    finally:
+        db.close()

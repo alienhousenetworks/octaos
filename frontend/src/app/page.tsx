@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { 
   Activity, Users, DollarSign, BarChart3, Briefcase, Zap, BookOpen, 
-  LogOut, Calendar, MessageSquare, Clock, TrendingUp, Target, FileText, Key 
+  LogOut, Calendar, MessageSquare, Clock, TrendingUp, Target, FileText, Key, Video 
 } from 'lucide-react';
 
 import KnowledgeView from '@/components/views/knowledge-view';
@@ -26,6 +26,7 @@ import AIOptimizationView from '@/components/views/ai-optimization-view';
 import MembersView from '@/components/views/members-view';
 import SystemAdminView from '@/components/views/system-admin-view';
 import ApiManagementView from '@/components/views/api-management-view';
+import VideoStudioView from '@/components/views/video-studio-view';
 
 import LandingPage from '@/components/landing-page';
 import AuthForms from '@/components/auth-forms';
@@ -46,6 +47,7 @@ export default function Home() {
       { id: 'dashboard', name: 'Operating Dashboard', icon: <BarChart3 size={18} />, color: 'hover:text-violet-400 active-glow-violet', section: 'dashboard' },
       { id: 'knowledge', name: 'Knowledge Base', icon: <FileText size={18} />, color: 'hover:text-violet-400 active-glow-violet', section: 'knowledge' },
       { id: 'campaigns', name: 'Campaign Planner', icon: <Calendar size={18} />, color: 'hover:text-indigo-400 active-glow-indigo', section: 'marketing' },
+      { id: 'video_studio', name: 'Video Studio AI', icon: <Video size={18} />, color: 'hover:text-rose-400 active-glow-rose', section: 'marketing' },
       { id: 'sales', name: 'Sales CRM', icon: <TrendingUp size={18} />, color: 'hover:text-emerald-400 active-glow-emerald', section: 'sales' },
       { id: 'support', name: 'Customer Support', icon: <MessageSquare size={18} />, color: 'hover:text-blue-400 active-glow-blue', section: 'support' },
       { id: 'coordination', name: 'Agent Boardroom', icon: <Users size={18} />, color: 'hover:text-amber-400 active-glow-amber', section: 'coordination' },
@@ -581,6 +583,14 @@ export default function Home() {
               fetchWithAuth={fetchWithAuth} 
               fetchData={fetchData} 
               timeline={timeline} 
+            />
+          </div>
+
+          <div className={activeView === 'video_studio' ? 'block' : 'hidden'}>
+            <VideoStudioView 
+              token={token} 
+              API_URL={API_URL} 
+              fetchWithAuth={fetchWithAuth} 
             />
           </div>
 
