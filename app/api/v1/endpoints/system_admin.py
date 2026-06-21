@@ -220,8 +220,19 @@ def delete_tenant(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
         
-    # Also delete users for this tenant
-    db.query(User).filter(User.tenant_id == tenant_id).delete()
+    # Import all models to ensure they are registered with Base.metadata
+    from app.models.base import Base
+    import app.models.verticals
+    import app.models.memory
+    import app.models.teams
+    import app.models.agents
+    import app.models.workflows
+    import app.models.learning
+    
+    # Cascade delete all child records dynamically
+    for table in reversed(Base.metadata.sorted_tables):
+        if 'tenant_id' in table.columns:
+            db.execute(table.delete().where(table.c.tenant_id == tenant_id))
     
     db.delete(tenant)
     db.commit()
