@@ -13,7 +13,24 @@ class VideoCreateRequest(BaseModel):
     prompt: str
     title: Optional[str] = "Untitled Video"
 
-@router.post("/create")
+class VideoProjectResponse(BaseModel):
+    id: str
+    tenant_id: str
+    organization_id: Optional[str] = None
+    title: str
+    prompt: Optional[str] = None
+    status: str
+    duration_seconds: int
+    blueprint: dict
+    final_video_url: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+        orm_mode = True
+
+@router.post("/create", response_model=VideoProjectResponse)
 def create_video_project(
     req: VideoCreateRequest,
     db: Session = Depends(deps.get_db),
@@ -44,7 +61,7 @@ def create_video_project(
     
     return project
 
-@router.get("/{project_id}")
+@router.get("/{project_id}", response_model=VideoProjectResponse)
 def get_video_project(
     project_id: str,
     db: Session = Depends(deps.get_db),
@@ -72,7 +89,7 @@ def trigger_video_render(
     
     return {"status": "processing", "message": "Render task queued"}
 
-@router.get("/")
+@router.get("/", response_model=List[VideoProjectResponse])
 def list_video_projects(
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id)
