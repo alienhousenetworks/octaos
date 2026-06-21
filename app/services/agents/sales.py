@@ -712,41 +712,56 @@ Only output valid JSON. No other text."""
                 else:
                     raise Exception(f"Apollo API Error: {response.status_code} - {response.text}")
             elif provider == "hunter":
-                # Act like a human lead generator:
-                # 1. If query is a domain, just do domain search.
-                # 2. If it's an industry/keyword, use Hunter Discover to find domains, then Domain Search for people.
-                # If Apollo fails and falls back here, we want robust parsing.
+                # Hunter Discover API requires a POST request with the API key in the URL.
                 domains = []
                 if "." in query and not " " in query:
                     domains.append(query)
                 else:
-                    # Parse the query into a Hunter Discover payload
+                    # Parse the query into a Hunter Discover payload using their AI assistant natural language field or exact industry filter
+                    import json
+                    import os
+                    industries_path = os.path.join(os.path.dirname(__file__), "hunter_industries.json")
+                    hunter_industries = []
+                    if os.path.exists(industries_path):
+                        with open(industries_path, "r") as f:
+                            hunter_industries = json.load(f)
+                            
                     prompt = f"""Convert this search query into a Hunter.io Discover API payload.
 Query: "{query}"
-Output a JSON object with any of these keys that apply:
-- "query": string (general natural language search)
-- "industry": string (e.g. "machinery manufacturing", "hospital & health care")
-- "company_size": string (ONLY include if specified, e.g. "11-50", "51-200")
+
+Valid Industries for Hunter API: {json.dumps(hunter_industries)}
+
+If the user's query clearly matches one or more of the Valid Industries, use the 'industry' filter format. Otherwise, use the 'query' natural language format.
+
+Output a JSON object matching ONE of these formats:
+Format 1 (Preferred if matching industry):
+{{
+  "industry": {{
+    "include": ["<Exact Industry Name from list>"]
+  }}
+}}
+
+Format 2 (Fallback to natural language):
+{{
+  "query": "<general natural language search>"
+}}
+
 Only output valid JSON. No other text."""
                     try:
                         parsed_query = extract_json(await self.llm.complete(prompt, provider="anthropic"))
                     except Exception:
                         parsed_query = {"query": query}
                         
-                    discover_params = {
-                        "api_key": api_key,
-                        "limit": count,
-                        **parsed_query
-                    }
-                    discover_response = await client.get("https://api.hunter.io/v2/discover", params=discover_params, timeout=12.0)
+                    discover_url = f"https://api.hunter.io/v2/discover?api_key={api_key}"
+                    discover_response = await client.post(discover_url, json=parsed_query, timeout=12.0)
+                    
                     if discover_response.status_code == 200:
                         discover_data = discover_response.json()
                         companies = discover_data.get("data", [])
                         if not companies:
-                            # Hide API key in error
-                            safe_params = {k: v for k, v in discover_params.items() if k != "api_key"}
-                            raise Exception(f"Hunter Discover returned 0 companies for params {safe_params}. Full response: {discover_response.text}")
-                        domains = [c.get("domain") for c in companies if c.get("domain")]
+                            raise Exception(f"Hunter Discover returned 0 companies for payload {parsed_query}. Full response: {discover_response.text}")
+                        # Hunter discover returns up to 100 companies
+                        domains = [c.get("domain") for c in companies if c.get("domain")][:count]
                     else:
                         raise Exception(f"Hunter Discover API Error: {discover_response.status_code} - {discover_response.text}")
                 
