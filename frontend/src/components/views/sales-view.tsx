@@ -224,7 +224,11 @@ export default function SalesView({
         const planRes = await fetchWithAuth(`${API_URL}/llm/plan-task`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ complexity: 'high' }) // Sales V3 is complex
+          body: JSON.stringify({ 
+            complexity: 'high',
+            provider: salesTextProvider !== 'auto' ? salesTextProvider : null,
+            model: salesTextModel || null
+          }) // Sales V3 is complex
         });
         if (planRes.ok) {
           const planData = await planRes.json();

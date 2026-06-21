@@ -194,10 +194,14 @@ def get_batch_job(
         "results": job.results.get("completed", []) if isinstance(job.results, dict) else []
     }
 
+from typing import Optional
+
 class PlanTaskRequest(BaseModel):
     complexity: str = "medium"
     realtime: bool = False
     bulk: bool = False
+    provider: Optional[str] = None
+    model: Optional[str] = None
 
 @router.post("/plan-task")
 def plan_ai_task(
@@ -215,12 +219,29 @@ def plan_ai_task(
         raise HTTPException(status_code=400, detail="No AI keys configured.")
         
     try:
-        provider, model = AIRoutingEngine.selectProvider(
-            configured_providers, 
-            complexity=req.complexity, 
-            realtime=req.realtime, 
-            bulk=req.bulk
-        )
+        if req.provider and req.provider != "auto":
+            provider = req.provider
+            if req.model:
+                model = req.model
+            else:
+                model = next((v["model"] for k, v in MODEL_REGISTRY.items() if v["provider"] == provider), "unknown")
+            reasoning = f"This model was selected because you explicitly chose {provider}/{model} from the UI. User choice takes first priority."
+        else:
+            provider, model = AIRoutingEngine.selectProvider(
+                configured_providers, 
+                complexity=req.complexity, 
+                realtime=req.realtime, 
+                bulk=req.bulk
+            )
+            reasoning = "This model was selected based on your configured API keys and the default cost-efficiency routing logic."
+            if req.bulk:
+                reasoning = f"This is a bulk task. {provider}/{model} was selected because it supports batching and is the most cost-effective option."
+            elif req.realtime:
+                reasoning = f"This is a realtime task. {provider}/{model} was selected for its ultra-low latency."
+            elif req.complexity == "high":
+                reasoning = f"This is a highly complex task. {provider}/{model} was selected as the strongest reasoning model available."
+            else:
+                reasoning = f"{provider}/{model} was selected because it offers the lowest overall cost for general tasks among your connected providers."
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
         
@@ -233,16 +254,6 @@ def plan_ai_task(
             
     if not spec:
         spec = {"input_cost_1m": 0.0, "output_cost_1m": 0.0, "latency": "unknown"}
-        
-    reasoning = "This model was selected based on your configured API keys and the default cost-efficiency routing logic."
-    if req.bulk:
-        reasoning = f"This is a bulk task. {provider}/{model} was selected because it supports batching and is the most cost-effective option."
-    elif req.realtime:
-        reasoning = f"This is a realtime task. {provider}/{model} was selected for its ultra-low latency."
-    elif req.complexity == "high":
-        reasoning = f"This is a highly complex task. {provider}/{model} was selected as the strongest reasoning model available."
-    else:
-        reasoning = f"{provider}/{model} was selected because it offers the lowest overall cost for general tasks among your connected providers."
 
     return {
         "selected_provider": provider,
