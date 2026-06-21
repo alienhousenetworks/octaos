@@ -375,7 +375,9 @@ def get_business_profile(
             offer_details="",
             calendars=[],
             communication_channels=[],
-            v3_workflow_status={}
+            v3_workflow_status={},
+            sales_emails=[],
+            support_emails=[]
         )
         db.add(profile)
         db.commit()

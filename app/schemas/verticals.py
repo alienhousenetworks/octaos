@@ -149,6 +149,8 @@ class BusinessProfileBase(BaseModel):
     communication_channels: Optional[List[str]] = None
     extra_context: Optional[str] = None
     v3_workflow_status: Optional[dict] = None
+    sales_emails: Optional[List[str]] = None
+    support_emails: Optional[List[str]] = None
 
 class BusinessProfileCreate(BusinessProfileBase):
     pass

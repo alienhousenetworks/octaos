@@ -161,6 +161,8 @@ class BusinessProfile(Base):
     communication_channels = Column(JSON, nullable=True)
     extra_context = Column(Text, nullable=True)
     v3_workflow_status = Column(JSON, nullable=True)
+    sales_emails = Column(JSON, nullable=True)
+    support_emails = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

@@ -82,6 +82,8 @@ export default function SalesView({
   const [profileExtraContext, setProfileExtraContext] = useState('');
   const [profileCalendars, setProfileCalendars] = useState('https://calendly.com/sales');
   const [profileCommunicationChannels, setProfileCommunicationChannels] = useState<string[]>(['email', 'whatsapp', 'linkedin']);
+  const [profileSalesEmails, setProfileSalesEmails] = useState('');
+  const [profileSupportEmails, setProfileSupportEmails] = useState('');
   
   const [workflowStatus, setWorkflowStatus] = useState<any>({
     status: 'idle',
@@ -114,6 +116,8 @@ export default function SalesView({
         setProfileExtraContext(data.extra_context || '');
         setProfileCalendars(Array.isArray(data.calendars) ? data.calendars.join(', ') : (data.calendars || ''));
         setProfileCommunicationChannels(data.communication_channels || ['email', 'whatsapp']);
+        setProfileSalesEmails(Array.isArray(data.sales_emails) ? data.sales_emails.join(', ') : (data.sales_emails || ''));
+        setProfileSupportEmails(Array.isArray(data.support_emails) ? data.support_emails.join(', ') : (data.support_emails || ''));
         if (data.v3_workflow_status) {
           setWorkflowStatus(data.v3_workflow_status);
         }
@@ -159,6 +163,19 @@ export default function SalesView({
       const industries = profileTargetIndustries.split(',').map(s => s.trim()).filter(Boolean);
       const decisionMakers = profileTargetDecisionMakers.split(',').map(s => s.trim()).filter(Boolean);
       const calendars = profileCalendars.split(',').map(s => s.trim()).filter(Boolean);
+      const salesEmails = profileSalesEmails.split(',').map(s => s.trim()).filter(Boolean);
+      const supportEmails = profileSupportEmails.split(',').map(s => s.trim()).filter(Boolean);
+
+      if (salesEmails.length > 5) {
+        alert("Maximum 5 Sales Emails allowed.");
+        setProfileSaving(false);
+        return false;
+      }
+      if (supportEmails.length > 5) {
+        alert("Maximum 5 Support Emails allowed.");
+        setProfileSaving(false);
+        return false;
+      }
 
       const res = await fetchWithAuth(`${API_URL}/leads/business-profile`, {
         method: 'POST',
@@ -178,7 +195,9 @@ export default function SalesView({
           offer_details: profileOfferDetails,
           extra_context: profileExtraContext,
           calendars: calendars,
-          communication_channels: profileCommunicationChannels
+          communication_channels: profileCommunicationChannels,
+          sales_emails: salesEmails,
+          support_emails: supportEmails
         })
       });
       if (res.ok) {
@@ -198,7 +217,7 @@ export default function SalesView({
   };
 
   const handleLaunchV3Workflow = async (skipReview = false) => {
-    if (reviewPlanFirst && !skipReview && salesTextProvider === 'auto') {
+    if (reviewPlanFirst && !skipReview) {
       // Fetch plan first
       setSalesActionLoading(true);
       try {
@@ -2140,20 +2159,18 @@ export default function SalesView({
                           </Select>
                         </div>
                         
-                        {salesTextProvider === 'auto' && (
-                          <div className="mt-2 flex items-center gap-2">
-                            <input 
-                              type="checkbox" 
-                              id="reviewPlan" 
-                              checked={reviewPlanFirst}
-                              onChange={(e) => setReviewPlanFirst(e.target.checked)}
-                              className="rounded border-gray-700 bg-gray-900 text-emerald-500 focus:ring-emerald-500/30"
-                            />
-                            <label htmlFor="reviewPlan" className="text-[11px] font-bold text-gray-300">
-                              Review AI Plan before launching (Model selection & Cost)
-                            </label>
-                          </div>
-                        )}
+                        <div className="mt-2 flex items-center gap-2">
+                          <input 
+                            type="checkbox" 
+                            id="reviewPlan" 
+                            checked={reviewPlanFirst}
+                            onChange={(e) => setReviewPlanFirst(e.target.checked)}
+                            className="rounded border-gray-700 bg-gray-900 text-emerald-500 focus:ring-emerald-500/30"
+                          />
+                          <label htmlFor="reviewPlan" className="text-[11px] font-bold text-gray-300">
+                            Review AI Plan before launching (Model selection & Cost)
+                          </label>
+                        </div>
 
                         <p className="text-[10px] text-emerald-500/80 mt-1 pl-1">
                           The AI engine driving the autonomous 10-step pipeline.
@@ -2358,6 +2375,26 @@ export default function SalesView({
                           placeholder="e.g. https://calendly.com/demo"
                           value={profileCalendars}
                           onChange={e => setProfileCalendars(e.target.value)}
+                          className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11 focus:border-emerald-500 focus:ring-emerald-500/20"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Sales Emails (Max 5, comma separated)</label>
+                        <Input
+                          placeholder="e.g. sales@company.com, info@company.com"
+                          value={profileSalesEmails}
+                          onChange={e => setProfileSalesEmails(e.target.value)}
+                          className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11 focus:border-emerald-500 focus:ring-emerald-500/20"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-gray-455 uppercase tracking-wider">Support Emails (Max 5, comma separated)</label>
+                        <Input
+                          placeholder="e.g. support@company.com, help@company.com"
+                          value={profileSupportEmails}
+                          onChange={e => setProfileSupportEmails(e.target.value)}
                           className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11 focus:border-emerald-500 focus:ring-emerald-500/20"
                         />
                       </div>
