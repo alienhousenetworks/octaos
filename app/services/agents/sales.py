@@ -688,12 +688,17 @@ Only output valid JSON. No other text."""
                         raise Exception(f"Apollo returned 0 people for payload: {safe_payload}. Full response: {response.text}")
                     for p in people[:count]:
                         org = p.get("organization", {})
+                        first = p.get("first_name", "")
+                        last = p.get("last_name", "") or p.get("last_name_obfuscated", "")
+                        full_name = f"{first} {last}".strip()
+                        website = org.get("primary_domain", "") or org.get("website_url", "")
+                        
                         leads.append({
-                            "name": p.get("name", "Unknown Contact"),
+                            "name": full_name or "Unknown Contact",
                             "email": p.get("email", ""),
                             "company": org.get("name", "Target Corp"),
-                            "website": org.get("website_url", ""),
-                            "phone": org.get("primary_phone", "")
+                            "website": website,
+                            "phone": p.get("primary_phone", "")
                         })
                 else:
                     raise Exception(f"Apollo API Error: {response.status_code} - {response.text}")
