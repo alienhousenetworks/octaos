@@ -152,18 +152,18 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
             try:
                 routing_response = await self.llm.complete(routing_prompt, provider=provider, model=model)
                 routing_choice = extract_json(routing_response).get("primary_source")
-                if routing_choice not in available_providers:
-                    routing_choice = list(available_providers.keys())[0]
+                if routing_choice not in discovery_providers:
+                    routing_choice = list(discovery_providers.keys())[0]
             except Exception:
-                routing_choice = list(available_providers.keys())[0]
+                routing_choice = list(discovery_providers.keys())[0]
                 
             update_status(2, "executing", f"Selected {routing_choice} as primary source.", f"Routing strategy defined for {query}.")
 
             # 2. Fetch Companies with Fallback
             companies_data = []
             
-            # Allow all providers to act as primary discovery
-            discovery_providers = list(available_providers.keys())
+            # Use only valid discovery providers for fallback
+            discovery_providers_list = list(discovery_providers.keys())
             
             if not routing_choice:
                 raise Exception("No valid primary discovery providers configured.")
