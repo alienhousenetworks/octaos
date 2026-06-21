@@ -244,7 +244,9 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                     })
                     
             if not companies:
-                raise Exception("API returned leads, but after strict waterfall enrichment, none had the mandatory real Name and Email. No simulated data is allowed.")
+                import json
+                rejected_data_str = json.dumps(companies_data, indent=2)
+                raise Exception(f"API returned leads, but after strict waterfall enrichment, none had the mandatory real Name and Email. No simulated data is allowed.\nRaw Rejected Data: {rejected_data_str}")
             
             update_status(2, "completed", f"Discovered and verified {len(companies)} company profiles.", f"Sourced via {routing_choice}. Enriched {enriched_count} records to find real emails.")
         except Exception as e:
