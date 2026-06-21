@@ -656,18 +656,36 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
             if provider == "apollo":
                 # Call Apollo search
                 headers = {"Content-Type": "application/json", "Cache-Control": "no-cache", "X-Api-Key": api_key}
+                # Human-like AI parsing of the raw query into Apollo params
+                prompt = f"""Convert this search query into an Apollo.io search JSON payload.
+Query: "{query}"
+
+Output a JSON object with any of these keys that apply:
+- "q_keywords": string (general keywords)
+- "person_titles": array of strings (e.g. ["CEO", "Founder"])
+- "person_locations": array of strings (e.g. ["United States"])
+- "q_organization_domains": string (e.g. "apple.com" if a specific company is mentioned)
+
+Only output valid JSON. No other text."""
+                try:
+                    parsed_query = extract_json(await self.llm.complete(prompt, provider="anthropic"))
+                except Exception:
+                    parsed_query = {"q_keywords": query}
+                    
                 payload = {
                     "api_key": api_key,
-                    "q_keywords": query,
                     "page": 1,
-                    "per_page": count
+                    "per_page": count,
+                    **parsed_query
                 }
                 response = await client.post("https://api.apollo.io/api/v1/mixed_people/api_search", headers=headers, json=payload, timeout=10.0)
                 if response.status_code == 200:
                     data = response.json()
                     people = data.get("people", [])
                     if not people:
-                        raise Exception(f"Apollo returned 0 people. Full response: {response.text}")
+                        # Obfuscate API key in error log
+                        safe_payload = {k: v for k, v in payload.items() if k != "api_key"}
+                        raise Exception(f"Apollo returned 0 people for payload: {safe_payload}. Full response: {response.text}")
                     for p in people[:count]:
                         org = p.get("organization", {})
                         leads.append({
@@ -690,9 +708,12 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                 )
                 if response.status_code == 200:
                     data = response.json()
+                    emails = data.get("data", {}).get("emails", [])
+                    if not emails:
+                        raise Exception(f"Hunter returned 0 emails. Full response: {response.text}")
                     domain_name = data.get("data", {}).get("domain") or query
                     org_name = domain_name.split('.')[0].capitalize()
-                    for email in data.get("data", {}).get("emails", [])[:count]:
+                    for email in emails[:count]:
                         leads.append({
                             "name": f"{email.get('first_name', '')} {email.get('last_name', '')}".strip() or "Business Contact",
                             "email": email.get("value"),
@@ -707,7 +728,10 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                 response = await client.get(url, timeout=10.0)
                 if response.status_code == 200:
                     data = response.json()
-                    for res in data.get("results", [])[:count]:
+                    results = data.get("results", [])
+                    if not results:
+                        raise Exception(f"Google Places returned 0 results. Full response: {response.text}")
+                    for res in results[:count]:
                         name = res.get("name", "Local Business")
                         leads.append({
                             "name": "Manager",
@@ -723,7 +747,10 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                 response = await client.post("https://api.zoominfo.com/search/contact", headers=headers, json=payload, timeout=10.0)
                 if response.status_code == 200:
                     data = response.json()
-                    for c in data.get("data", [])[:count]:
+                    zoom_data = data.get("data", [])
+                    if not zoom_data:
+                        raise Exception(f"ZoomInfo returned 0 results. Full response: {response.text}")
+                    for c in zoom_data[:count]:
                         leads.append({
                             "name": f"{c.get('firstName', '')} {c.get('lastName', '')}".strip() or "Professional",
                             "email": c.get("email", ""),
@@ -736,7 +763,10 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                 response = await client.post("https://api.cognism.com/api/v2/search/contacts", headers=headers, json=payload, timeout=10.0)
                 if response.status_code == 200:
                     data = response.json()
-                    for c in data.get("contacts", [])[:count]:
+                    contacts = data.get("contacts", [])
+                    if not contacts:
+                        raise Exception(f"Cognism returned 0 contacts. Full response: {response.text}")
+                    for c in contacts[:count]:
                         leads.append({
                             "name": f"{c.get('firstName', '')} {c.get('lastName', '')}".strip() or "Professional",
                             "email": c.get("emailAddress", ""),
@@ -750,7 +780,10 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                 response = await client.post("https://api.peopledatalabs.com/v5/person/search", headers=headers, json=payload, timeout=10.0)
                 if response.status_code == 200:
                     data = response.json()
-                    for p in data.get("data", [])[:count]:
+                    pdl_data = data.get("data", [])
+                    if not pdl_data:
+                        raise Exception(f"PDL returned 0 results. Full response: {response.text}")
+                    for p in pdl_data[:count]:
                         emails = p.get("emails", [])
                         phones = p.get("phone_numbers", [])
                         leads.append({
@@ -764,7 +797,10 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                 response = await client.get(f"https://discovery.clearbit.com/v1/companies/search?query=name:{query}&limit={count}", headers=headers, timeout=10.0)
                 if response.status_code == 200:
                     data = response.json()
-                    for c in data.get("results", [])[:count]:
+                    cb_results = data.get("results", [])
+                    if not cb_results:
+                        raise Exception(f"Clearbit returned 0 results. Full response: {response.text}")
+                    for c in cb_results[:count]:
                         leads.append({
                             "name": "General Inquiry",
                             "email": "",
