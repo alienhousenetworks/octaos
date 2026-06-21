@@ -22,6 +22,7 @@ APP_DIR="$SCRIPT_DIR"
 ENV_FILE="$APP_DIR/.env"
 VENV_DIR="$APP_DIR/venv"
 FRONTEND_DIR="$APP_DIR/frontend"
+RENDERER_DIR="$APP_DIR/video-renderer"
 LOG_DIR="/var/log/octaos"
 
 # ── Must-run-as-root check ────────────────────────────────────────────────────
@@ -142,6 +143,20 @@ else
   warn "Frontend directory not found at $FRONTEND_DIR – skipping frontend build"
 fi
 
+# =============================================================================
+# 4.5 Update Node.js Video Renderer
+# =============================================================================
+header "Updating Video Renderer"
+
+if [[ -d "$RENDERER_DIR" ]]; then
+  cd "$RENDERER_DIR"
+  info "Installing video-renderer dependencies..."
+  npm install --silent
+  success "Video renderer dependencies installed"
+else
+  info "Video renderer not found – skipping"
+fi
+
 # Always return to APP_DIR after frontend work
 cd "$APP_DIR"
 
@@ -151,7 +166,7 @@ cd "$APP_DIR"
 header "Restarting Services"
 
 info "Restarting OctaOS systemd services..."
-for svc in octaos-api octaos-worker octaos-beat octaos-frontend; do
+for svc in octaos-api octaos-worker octaos-beat octaos-frontend octaos-video-renderer; do
   if systemctl restart "$svc" 2>/dev/null; then
     success "$svc restarted"
   else

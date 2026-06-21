@@ -810,3 +810,20 @@ def dead_letter_handler(task_name: str, task_id: str, exception: str, args: str,
     return {"status": "DLQ_RECORDED", "task_id": task_id}
 
 
+
+@celery_app.task(name="plan_video_task")
+def plan_video_task(tenant_id: str, project_id: str):
+    from app.services.agents.video import VideoAgent
+    from app.db.session import SessionLocal
+    from asgiref.sync import async_to_sync
+    
+    db = SessionLocal()
+    try:
+        agent = VideoAgent(db, tenant_id)
+        async_to_sync(agent.plan_video)(project_id)
+    except Exception as e:
+        import logging
+        logging.error(f"Error in plan_video_task: {e}")
+        raise e
+    finally:
+        db.close()

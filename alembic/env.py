@@ -24,6 +24,7 @@ from app.models.teams import AITeam, InstalledApp, AgentMetric
 from app.models.agents import ActivityLog, KnowledgeDocument
 from app.models.verticals import ContentPost, Lead, Candidate, Contract, Transaction, Ticket, TicketMessage, AgentMeeting, BusinessProfile
 from app.models.workflows import Workflow, WorkflowTask
+from app.models.video import VideoProject, VideoAsset, VideoRender
 
 target_metadata = Base.metadata
 

@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
     tenants, leads, marketing, llm, commands, dashboard, auth, support, hr,
-    coordination, google, meta_oauth, linkedin_oauth, ceo, system_admin, audit, usage
+    coordination, google, meta_oauth, linkedin_oauth, ceo, system_admin, audit, usage, videos
 )
 
 api_router = APIRouter()
@@ -22,6 +22,7 @@ api_router.include_router(linkedin_oauth.router, prefix="/linkedin", tags=["link
 api_router.include_router(system_admin.router, prefix="/system-admin", tags=["system-admin"])
 api_router.include_router(audit.router, prefix="/audit", tags=["audit"])
 api_router.include_router(usage.router, prefix="/usage", tags=["usage"])
+api_router.include_router(videos.router, prefix="/videos", tags=["videos"])
 
 
 
