@@ -2583,7 +2583,7 @@ export default function SalesView({
                     <div className="flex-1 bg-gray-955 border border-gray-850/80 rounded-2xl p-4 font-mono text-[10px] leading-relaxed text-emerald-400 overflow-y-auto custom-scrollbar flex flex-col-reverse gap-2 shadow-inner">
                       {workflowStatus.logs && workflowStatus.logs.length > 0 ? (
                         [...workflowStatus.logs].reverse().map((log: string, idx: number) => (
-                          <div key={idx} className="border-b border-gray-900/60 pb-1.5 last:border-b-0">
+                          <div key={idx} className="border-b border-gray-900/60 pb-1.5 last:border-b-0 whitespace-pre-wrap break-words">
                             <span className="text-gray-500 select-none">&gt; </span>
                             {log}
                           </div>
