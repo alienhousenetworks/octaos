@@ -28,7 +28,7 @@ fi
 
 info "Installing global dependencies..."
 apt-get update -y
-apt-get install -y nodejs npm ffmpeg xvfb libasound2 libgbm-dev libnss3 libatk-bridge2.0-0 libgtk-3-0
+apt-get install -y nodejs npm ffmpeg xvfb libasound2t64 libgbm-dev libnss3 libatk-bridge2.0-0 libgtk-3-0
 
 cd "$RENDERER_DIR"
 
