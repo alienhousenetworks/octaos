@@ -4,7 +4,7 @@ from typing import Any, List, Optional
 from app.api import deps
 from pydantic import BaseModel
 from app.models.video import VideoProject, VideoAsset, VideoRender
-from app.models.base import ActivityLog
+from app.models.agents import ActivityLog
 from datetime import datetime
 
 router = APIRouter()
