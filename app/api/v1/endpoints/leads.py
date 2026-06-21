@@ -409,6 +409,7 @@ class RunWorkflowRequest(BaseModel):
     provider: Optional[str] = "auto"
     model: Optional[str] = None
     review_plan: Optional[bool] = False
+    count: Optional[int] = 50
 
 @router.post("/run-v3-workflow")
 def run_v3_workflow(
@@ -462,7 +463,7 @@ def run_v3_workflow(
     
     # Import and trigger Celery task
     from app.worker.tasks import run_sales_v3_task
-    run_sales_v3_task.delay(tenant_id, actual_provider, actual_model)
+    run_sales_v3_task.delay(tenant_id, actual_provider, actual_model, req.count)
     
     return {"message": f"Autonomous Sales AI V3 workflow launched successfully using {actual_provider}/{actual_model}!"}
 

@@ -53,7 +53,7 @@ class SalesAgent(BaseAgent):
             return await self.run_sales_ai_v3_workflow()
         return {"status": f"Unknown action: {action}"}
 
-    async def run_sales_ai_v3_workflow(self, provider="gemini", model=None) -> dict:
+    async def run_sales_ai_v3_workflow(self, provider="gemini", model=None, count=50) -> dict:
         from app.models.verticals import BusinessProfile, Lead
         from app.models.teams import AgentMetric
         import json
@@ -174,7 +174,7 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
             for fallback_provider in providers_to_try:
                 try:
                     update_status(2, "executing", f"Attempting discovery via {fallback_provider}...", f"Trying {fallback_provider}.")
-                    companies_data = await self._fetch_real_leads(fallback_provider, available_providers[fallback_provider], query, count=50)
+                    companies_data = await self._fetch_real_leads(fallback_provider, available_providers[fallback_provider], query, count=count)
                     if companies_data:
                         routing_choice = fallback_provider
                         break
@@ -794,6 +794,9 @@ Only output valid JSON. No other text."""
                     raise Exception(f"Hunter could not find any valid domains for query: {query}")
                 
                 import asyncio
+                import random
+                # Shuffle domains so we get fresh leads on identical inputs
+                random.shuffle(domains)
                 # Fetch people from those domains (filtering for executives)
                 for domain in domains:
                     if len(leads) >= count:

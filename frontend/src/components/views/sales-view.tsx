@@ -64,6 +64,7 @@ export default function SalesView({
   const [activeSalesTab, setActiveSalesTab] = useState<'pipeline' | 'config' | 'stepper' | 'analytics'>('pipeline');
   const [salesTextProvider, setSalesTextProvider] = useState('auto');
   const [salesTextModel, setSalesTextModel] = useState('');
+  const [salesTargetLeadCount, setSalesTargetLeadCount] = useState<number>(50);
   const [reviewPlanFirst, setReviewPlanFirst] = useState(false);
   const [planReviewData, setPlanReviewData] = useState<any>(null);
   const [isPlanReviewModalOpen, setIsPlanReviewModalOpen] = useState(false);
@@ -264,7 +265,8 @@ export default function SalesView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           provider: salesTextProvider,
-          model: salesTextModel || undefined
+          model: salesTextModel || undefined,
+          count: salesTargetLeadCount || 50
         })
       });
       if (res.ok) {
@@ -2162,11 +2164,25 @@ export default function SalesView({
                                   <SelectItem value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</SelectItem>
                                   <SelectItem value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</SelectItem>
                                   <SelectItem value="claude-3-5-haiku-20241022">Claude 3.5 Haiku</SelectItem>
-                                  <SelectItem value="claude-3-opus-20240229">Claude 3 Opus</SelectItem>
+                                  <SelectItem value="claude-3-haiku-20240307">Claude 3 Haiku</SelectItem>
                                 </>
                               )}
                             </SelectContent>
                           </Select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-gray-450 uppercase tracking-wider">Target Lead Count</label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={500}
+                              value={salesTargetLeadCount}
+                              onChange={(e) => setSalesTargetLeadCount(parseInt(e.target.value) || 50)}
+                              className="bg-gray-900/60 border-gray-800 text-white rounded-xl h-11"
+                              placeholder="e.g. 50"
+                            />
+                          </div>
                         </div>
                         
                         <div className="mt-2">
@@ -2371,6 +2387,7 @@ export default function SalesView({
                             <SelectItem value="hunter">Hunter</SelectItem>
                             <SelectItem value="zoominfo">ZoomInfo</SelectItem>
                             <SelectItem value="google_places">Google Places</SelectItem>
+                            <SelectItem value="apify">Apify</SelectItem>
                           </SelectContent>
                         </Select>
                         <p className="text-[10px] text-gray-500 mt-1">

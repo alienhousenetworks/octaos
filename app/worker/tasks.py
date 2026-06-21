@@ -786,12 +786,12 @@ def run_ceo_workflow_task(tenant_id: str, workflow_id: str):
         db.close()
 
 @celery_app.task(name="run_sales_v3_task")
-def run_sales_v3_task(tenant_id: str, provider: str = "gemini", model: str = None):
+def run_sales_v3_task(tenant_id: str, provider: str = "gemini", model: str = None, count: int = 50):
     from app.services.agents.sales import SalesAgent
     db = SessionLocal()
     try:
         agent = SalesAgent(db, tenant_id)
-        async_to_sync(agent.run_sales_ai_v3_workflow)(provider=provider, model=model)
+        async_to_sync(agent.run_sales_ai_v3_workflow)(provider=provider, model=model, count=count)
     except Exception as e:
         print(f"Error in run_sales_v3_task: {e}")
         raise e
