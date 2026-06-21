@@ -84,9 +84,12 @@ class SalesAgent(BaseAgent):
             }
             if step_status == "completed" and str(step_num + 1) in status["steps"]:
                 status["steps"][str(step_num + 1)]["status"] = "executing"
-            if "logs" not in status:
-                status["logs"] = []
-            status["logs"].append(f"[{datetime.now().strftime('%H:%M:%S')}] {status_msg}")
+            
+            # Recreate the logs list to ensure SQLAlchemy detects the JSON mutation
+            logs = list(status.get("logs", []))
+            logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] {status_msg}")
+            status["logs"] = logs
+            
             p.v3_workflow_status = status
             self.db.commit()
 
