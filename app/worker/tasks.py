@@ -49,14 +49,40 @@ def enrich_lead_task(tenant_id: str, lead_id: str):
                         }
                         if person.get("organization", {}).get("name"):
                             lead.company = person["organization"]["name"]
+                            
+                    # Deep Context Enrichment (News & Jobs)
+                    domain = ""
+                    if lead.email and "@" in lead.email:
+                        domain = lead.email.split("@")[-1]
+                        
+                    if domain:
+                        from app.services.agents.sales import SalesAgent
+                        agent = SalesAgent(db, tenant_id)
+                        org_id = async_to_sync(agent._fetch_apollo_org_data)(api_key, domain)
+                        if org_id:
+                            news = async_to_sync(agent._fetch_apollo_news)(api_key, org_id)
+                            jobs = async_to_sync(agent._fetch_apollo_jobs)(api_key, org_id)
+                            if news:
+                                enrichment["apollo"]["news"] = news
+                            if jobs:
+                                enrichment["apollo"]["jobs"] = jobs
             except Exception:
                 pass
 
         # LLM enrichment fallback / supplement
         llm = LLMGateway(db, tenant_id)
+        
+        news_context = ""
+        jobs_context = ""
+        if enrichment.get("apollo", {}).get("news"):
+            news_context = "Recent News: " + ", ".join([n["title"] for n in enrichment["apollo"]["news"]]) + "\n"
+        if enrichment.get("apollo", {}).get("jobs"):
+            jobs_context = "Recent Job Openings: " + ", ".join([j["title"] for j in enrichment["apollo"]["jobs"]]) + "\n"
+            
         prompt = (
             f"Enrich this B2B lead with professional details as JSON only.\n"
             f"Name: {lead.name}\nEmail: {lead.email}\nCompany: {lead.company}\n"
+            f"{news_context}{jobs_context}"
             f"Output keys: title, industry, company_size, pain_points (array), outreach_angle, "
             f"personal_email, company_email, mobile_no, company_contact_no, need_of_what, how_much, why, target_context, priority (one of: low, medium, high)."
         )

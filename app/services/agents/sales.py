@@ -133,7 +133,7 @@ Target Industry: {query}
 
 Decide the best primary discovery provider to find companies.
 - If it's a local/brick-and-mortar business (e.g. plumbers, restaurants, clinics), strongly prefer 'google_places'.
-- If it's B2B/Corporate (e.g. SaaS, Finance, Agencies), prefer 'apollo', 'zoominfo', or 'hunter'.
+- If it's B2B/Corporate (e.g. SaaS, Finance, Agencies), prefer 'apollo' or 'zoominfo' (do NOT use 'hunter' for discovery, it is enrichment-only).
 
 Return a JSON with exactly one key: 'primary_source' (string) containing your choice from the available list."""
             
@@ -149,7 +149,16 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
 
             # 2. Fetch Companies with Fallback
             companies_data = []
-            providers_to_try = [routing_choice] + [p for p in available_providers.keys() if p != routing_choice]
+            
+            # Remove hunter from primary discovery since it only searches by domain
+            discovery_providers = [p for p in available_providers.keys() if p != "hunter"]
+            if routing_choice == "hunter":
+                routing_choice = discovery_providers[0] if discovery_providers else None
+                
+            if not routing_choice:
+                raise Exception("No valid primary discovery providers configured. (Hunter is for enrichment only).")
+                
+            providers_to_try = [routing_choice] + [p for p in discovery_providers if p != routing_choice]
             error_log = []
             
             for fallback_provider in providers_to_try:
@@ -193,16 +202,24 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                     if enrichment_tool:
                         update_status(2, "executing", f"Enriching {c.get('company')} via {enrichment_tool}...", f"Waterfall Enrichment active for {c.get('company')}.")
                         try:
-                            # Derived domain for search
-                            domain = email.split("@")[-1] if "@" in email else c.get("company", "").lower().replace(" ", "") + ".com"
-                            enrichment_data = await self._fetch_real_leads(enrichment_tool, available_providers[enrichment_tool], domain, count=1)
-                            if enrichment_data:
-                                real_email = enrichment_data[0].get("email", "")
-                                real_name = enrichment_data[0].get("name", "")
-                                if real_email and "@" in real_email:
-                                    c["email"] = real_email
-                                    c["name"] = real_name if real_name else "Contact"
-                                    enriched_count += 1
+                            # Use website domain if available, otherwise try to extract from email
+                            domain = ""
+                            if c.get("website"):
+                                domain = c.get("website").replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0]
+                            elif email and "@" in email:
+                                domain = email.split("@")[-1]
+                            
+                            if domain:
+                                enrichment_data = await self._fetch_real_leads(enrichment_tool, available_providers[enrichment_tool], domain, count=1)
+                                if enrichment_data:
+                                    real_email = enrichment_data[0].get("email", "")
+                                    real_name = enrichment_data[0].get("name", "")
+                                    if real_email and "@" in real_email:
+                                        c["email"] = real_email
+                                        c["name"] = real_name if real_name else "Contact"
+                                        enriched_count += 1
+                            else:
+                                update_status(2, "executing", f"Enrichment skipped for {c.get('company')} - no valid domain.", f"No domain available to enrich {c.get('company')}.")
                         except Exception:
                             pass
                 
@@ -267,20 +284,43 @@ Only return JSON, no other text."""
             update_status(3, "failed", str(e), f"Error in Step 3: {str(e)}", "failed")
             return {"status": "error", "message": str(e)}
 
-        # Step 4: Pain Point Discovery
-        update_status(4, "executing", "Analyzing digital pain points...", "Starting Step 4: Scanning companies for SEO, speed, social presence issues...")
+        # Step 4: Pain Point Discovery & Deep Context Enrichment
+        update_status(4, "executing", "Analyzing digital pain points and recent events...", "Starting Step 4: Pulling deep context (news, jobs) and scanning for pain points...")
         try:
+            apollo_key = available_providers.get("apollo")
             for c in qualified_companies:
-                prompt = f"""Identify 2 specific pain points for this company based on their profile and our offer:
+                c["news"] = []
+                c["jobs"] = []
+                
+                # Fetch Deep Context if Apollo is available
+                if apollo_key:
+                    domain = ""
+                    if c.get("website"):
+                        domain = c.get("website").replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0]
+                    elif c.get("contact", {}).get("email") and "@" in c["contact"]["email"]:
+                        domain = c["contact"]["email"].split("@")[-1]
+                        
+                    if domain:
+                        org_id = await self._fetch_apollo_org_data(apollo_key, domain)
+                        if org_id:
+                            c["news"] = await self._fetch_apollo_news(apollo_key, org_id)
+                            c["jobs"] = await self._fetch_apollo_jobs(apollo_key, org_id)
+                            
+                news_context = ", ".join([n["title"] for n in c["news"]]) if c["news"] else "None recent"
+                jobs_context = ", ".join([j["title"] for j in c["jobs"]]) if c["jobs"] else "None recent"
+
+                prompt = f"""Identify 2 specific pain points for this company based on their profile, recent news, job openings, and our offer:
 Company Name: {c['company_name']}
 Industry: {c['industry']}
+Recent News: {news_context}
+Current Job Openings: {jobs_context}
 Our Offer Details: {profile.offer_details}
 Our USP: {profile.usp}
 
 Output a JSON array of strings containing exactly 2 specific pain points. No other text."""
                 pain_str = await self.llm.complete(prompt, provider=provider, model=model)
                 c["pain_points"] = extract_json(pain_str)
-            update_status(4, "completed", f"Identified custom pain points for {len(qualified_companies)} qualified leads.", "Diagnostic audit complete. Discovered outdated websites, SEO gaps, or operational bottlenecks.")
+            update_status(4, "completed", f"Identified custom pain points for {len(qualified_companies)} qualified leads.", "Deep context enrichment complete. Discovered pain points using recent news and job openings.")
         except Exception as e:
             update_status(4, "failed", str(e), f"Error in Step 4: {str(e)}", "failed")
             return {"status": "error", "message": str(e)}
@@ -361,8 +401,13 @@ No other text, just the JSON."""
         update_status(7, "executing", "Generating personalized outreach messages...", "Starting Step 7: Writing hyper-targeted outreaches without templates...")
         try:
             for c in scored_leads:
+                news_context = ", ".join([n["title"] for n in c.get("news", [])]) if c.get("news") else "None recent"
+                jobs_context = ", ".join([j["title"] for j in c.get("jobs", [])]) if c.get("jobs") else "None recent"
+
                 prompt = f"""Write a highly personalized outbound sales email from {profile.company_name} to {c['contact']['name']} ({c['contact']['title']}) at {c['company_name']}.
 Tailor it to their specific pain points: {c['pain_points']}.
+Recent Company News to reference (if relevant): {news_context}
+Recent Job Openings to reference (if relevant): {jobs_context}
 Use our USP: {profile.usp}
 Offer: {profile.offer_details}
 Keep it short, clear, professional and under 150 words. No subject line, no placeholders, no comments. Output the email body only."""
@@ -620,23 +665,28 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                 if response.status_code == 200:
                     data = response.json()
                     for p in data.get("people", [])[:count]:
+                        org = p.get("organization", {})
                         leads.append({
                             "name": p.get("name", "Unknown Contact"),
                             "email": p.get("email", ""),
-                            "company": p.get("organization", {}).get("name", "Target Corp"),
-                            "phone": p.get("organization", {}).get("primary_phone", "")
+                            "company": org.get("name", "Target Corp"),
+                            "website": org.get("website_url", ""),
+                            "phone": org.get("primary_phone", "")
                         })
                 else:
                     raise Exception(f"Apollo API Error: {response.status_code} - {response.text}")
             elif provider == "hunter":
                 # Call Hunter Domain Search
+                # Only use if query is likely a domain
+                if "." not in query:
+                    raise Exception(f"Hunter API requires a domain name, got industry/keyword: '{query}'")
                 response = await client.get(
                     f"https://api.hunter.io/v2/domain-search?domain={query}&api_key={api_key}",
                     timeout=10.0
                 )
                 if response.status_code == 200:
                     data = response.json()
-                    domain_name = data.get("data", {}).get("domain") or "company.com"
+                    domain_name = data.get("data", {}).get("domain") or query
                     org_name = domain_name.split('.')[0].capitalize()
                     for email in data.get("data", {}).get("emails", [])[:count]:
                         leads.append({
@@ -735,7 +785,60 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
             raise Exception("No results returned or invalid API response.")
         return leads
 
+    @with_retry
+    async def _fetch_apollo_org_data(self, api_key: str, domain: str) -> str:
+        async with httpx.AsyncClient() as client:
+            headers = {"Content-Type": "application/json", "Cache-Control": "no-cache", "X-Api-Key": api_key}
+            try:
+                response = await client.post(
+                    "https://api.apollo.io/v1/mixed_companies/search",
+                    headers=headers,
+                    json={"q_organization_domains": domain},
+                    timeout=10.0
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    orgs = data.get("organizations", [])
+                    if orgs:
+                        return orgs[0].get("id")
+            except Exception:
+                pass
+        return None
 
+    @with_retry
+    async def _fetch_apollo_news(self, api_key: str, org_id: str) -> list:
+        async with httpx.AsyncClient() as client:
+            headers = {"Content-Type": "application/json", "Cache-Control": "no-cache", "X-Api-Key": api_key}
+            try:
+                response = await client.post(
+                    "https://api.apollo.io/api/v1/news_articles/search",
+                    headers=headers,
+                    json={"organization_ids": [org_id]},
+                    timeout=10.0
+                )
+                if response.status_code == 200:
+                    articles = response.json().get("news_articles", [])[:2]
+                    return [{"title": a.get("title"), "snippet": a.get("snippet")} for a in articles]
+            except Exception:
+                pass
+        return []
+
+    @with_retry
+    async def _fetch_apollo_jobs(self, api_key: str, org_id: str) -> list:
+        async with httpx.AsyncClient() as client:
+            headers = {"Content-Type": "application/json", "Cache-Control": "no-cache", "X-Api-Key": api_key}
+            try:
+                response = await client.get(
+                    f"https://api.apollo.io/api/v1/organizations/{org_id}/job_postings",
+                    headers=headers,
+                    timeout=10.0
+                )
+                if response.status_code == 200:
+                    jobs = response.json().get("organization_job_postings", [])[:2]
+                    return [{"title": j.get("title")} for j in jobs]
+            except Exception:
+                pass
+        return []
 
     async def _sales_outreach(self, params: dict):
         channel = params.get("channel", "smtp")
