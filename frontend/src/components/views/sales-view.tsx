@@ -1003,7 +1003,7 @@ export default function SalesView({
     <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-300">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-2 glitch-text" data-text="Sales CRM Dashboard">
+                  <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-2">
                     <TrendingUp className="text-emerald-400 h-8 w-8 animate-pulse" /> Sales CRM Dashboard
                   </h1>
                   <p className="text-gray-400 mt-1">Autonomous B2B prospect sourcing, outreach sequencing, contact enrichment, and conversion tracking.</p>
