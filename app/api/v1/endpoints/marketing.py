@@ -104,6 +104,10 @@ def update_post(
         post.video_prompt = post_in.video_prompt
     if post_in.video_prompt_enabled is not None:
         post.video_prompt_enabled = post_in.video_prompt_enabled
+    if post_in.remotion_prompt is not None:
+        post.remotion_prompt = post_in.remotion_prompt
+    if post_in.remotion_prompt_enabled is not None:
+        post.remotion_prompt_enabled = post_in.remotion_prompt_enabled
     if post_in.is_manual_media is not None:
         post.is_manual_media = post_in.is_manual_media
 
@@ -131,6 +135,8 @@ def create_manual_post(
         image_prompt_enabled=post_in.image_prompt_enabled,
         video_prompt=post_in.video_prompt,
         video_prompt_enabled=post_in.video_prompt_enabled,
+        remotion_prompt=post_in.remotion_prompt,
+        remotion_prompt_enabled=post_in.remotion_prompt_enabled,
         is_manual_media=post_in.is_manual_media,
         day=post_in.day or 1,
         status="draft",

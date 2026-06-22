@@ -47,6 +47,9 @@ class ContentPost(Base):
     image_prompt_enabled = Column(Boolean, default=False)
     video_prompt = Column(Text, nullable=True)
     video_prompt_enabled = Column(Boolean, default=False)
+    remotion_prompt = Column(Text, nullable=True)
+    remotion_prompt_enabled = Column(Boolean, default=False)
+
     is_manual_media = Column(Boolean, default=False)
     day = Column(Integer, nullable=True)
     status = Column(String, default="draft")

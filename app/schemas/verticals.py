@@ -48,6 +48,8 @@ class ContentPostBase(BaseModel):
     image_prompt_enabled: Optional[bool] = False
     video_prompt: Optional[str] = None
     video_prompt_enabled: Optional[bool] = False
+    remotion_prompt: Optional[str] = None
+    remotion_prompt_enabled: Optional[bool] = False
     is_manual_media: Optional[bool] = False
     day: Optional[int] = None
 

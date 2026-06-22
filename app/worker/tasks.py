@@ -890,7 +890,7 @@ def render_video_task(tenant_id: str, project_id: str):
         db.commit()
 
         # Call local Node.js renderer service
-        with httpx.Client(timeout=300.0) as client:
+        with httpx.Client(timeout=1200.0) as client:
             resp = client.post(
                 "http://localhost:8002/render",
                 json=project.blueprint
@@ -928,9 +928,15 @@ def render_video_task(tenant_id: str, project_id: str):
 
     except Exception as e:
         logging.error(f"Video rendering failed for project {project_id}: {e}")
-        render_job.status = "error"
-        render_job.error_logs = str(e)
-        project.status = "failed"
-        db.commit()
+        try:
+            if 'render_job' in locals():
+                render_job.status = "error"
+                render_job.error_logs = str(e)
+            if 'project' in locals():
+                project.status = "failed"
+            db.commit()
+        except Exception as inner_e:
+            logging.error(f"Failed to update error status in DB: {inner_e}")
+            db.rollback()
     finally:
         db.close()

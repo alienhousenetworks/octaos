@@ -56,6 +56,8 @@ export default function CampaignsView({
   const [editingImagePromptEnabled, setEditingImagePromptEnabled] = useState(false);
   const [editingVideoPrompt, setEditingVideoPrompt] = useState('');
   const [editingVideoPromptEnabled, setEditingVideoPromptEnabled] = useState(false);
+  const [editingRemotionPrompt, setEditingRemotionPrompt] = useState('');
+  const [editingRemotionPromptEnabled, setEditingRemotionPromptEnabled] = useState(false);
   const [editingIsManualMedia, setEditingIsManualMedia] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [generatingMedia, setGeneratingMedia] = useState(false);
@@ -71,6 +73,8 @@ export default function CampaignsView({
   const [createPostImagePromptEnabled, setCreatePostImagePromptEnabled] = useState(false);
   const [createPostVideoPrompt, setCreatePostVideoPrompt] = useState('');
   const [createPostVideoPromptEnabled, setCreatePostVideoPromptEnabled] = useState(false);
+  const [createPostRemotionPrompt, setCreatePostRemotionPrompt] = useState('');
+  const [createPostRemotionPromptEnabled, setCreatePostRemotionPromptEnabled] = useState(false);
   const [createPostIsManualMedia, setCreatePostIsManualMedia] = useState(false);
   const [creatingPost, setCreatingPost] = useState(false);
   const [editingScheduledAt, setEditingScheduledAt] = useState('');
@@ -323,6 +327,8 @@ export default function CampaignsView({
           image_prompt_enabled: editingImagePromptEnabled,
           video_prompt: editingVideoPrompt || null,
           video_prompt_enabled: editingVideoPromptEnabled,
+          remotion_prompt: editingRemotionPrompt || null,
+          remotion_prompt_enabled: editingRemotionPromptEnabled,
           is_manual_media: editingIsManualMedia,
         })
       });
@@ -366,6 +372,8 @@ export default function CampaignsView({
     setEditingImagePromptEnabled(post.image_prompt_enabled || false);
     setEditingVideoPrompt(post.video_prompt || '');
     setEditingVideoPromptEnabled(post.video_prompt_enabled || false);
+    setEditingRemotionPrompt(post.remotion_prompt || '');
+    setEditingRemotionPromptEnabled(post.remotion_prompt_enabled || false);
     setEditingIsManualMedia(post.is_manual_media || false);
     setEditingScheduledAt(formatForDatetimeLocal(post.scheduled_at));
   };
@@ -434,6 +442,11 @@ export default function CampaignsView({
           setEditingImageUrl('');
           setEditingVideoPrompt(data.video_prompt || '');
           setEditingVideoPromptEnabled(true);
+        } else if (mediaType === 'remotion') {
+          setEditingVideoUrl(data.video_url || '');
+          setEditingImageUrl('');
+          setEditingRemotionPrompt(data.remotion_prompt || customPrompt);
+          setEditingRemotionPromptEnabled(true);
         } else {
           setEditingImageUrl(data.image_url || '');
           setEditingVideoUrl('');
@@ -473,17 +486,23 @@ export default function CampaignsView({
           if (mediaType === 'image') {
             setEditingImagePrompt(data.prompt);
             setEditingImagePromptEnabled(true);
-          } else {
+          } else if (mediaType === 'video') {
             setEditingVideoPrompt(data.prompt);
             setEditingVideoPromptEnabled(true);
+          } else {
+            setEditingRemotionPrompt(data.prompt);
+            setEditingRemotionPromptEnabled(true);
           }
         } else {
           if (mediaType === 'image') {
             setCreatePostImagePrompt(data.prompt);
             setCreatePostImagePromptEnabled(true);
-          } else {
+          } else if (mediaType === 'video') {
             setCreatePostVideoPrompt(data.prompt);
             setCreatePostVideoPromptEnabled(true);
+          } else {
+            setCreatePostRemotionPrompt(data.prompt);
+            setCreatePostRemotionPromptEnabled(true);
           }
         }
       } else {
@@ -668,17 +687,24 @@ export default function CampaignsView({
                       <span className="text-[9px] text-gray-500">Save instructions locally</span>
                     </div>
                     <Select
-                      value={editingImagePromptEnabled ? "image" : editingVideoPromptEnabled ? "video" : "none"}
+                      value={editingImagePromptEnabled ? "image" : editingVideoPromptEnabled ? "video" : editingRemotionPromptEnabled ? "remotion" : "none"}
                       onValueChange={(val) => {
                         if (val === "image") {
                           setEditingImagePromptEnabled(true);
                           setEditingVideoPromptEnabled(false);
+                          setEditingRemotionPromptEnabled(false);
                         } else if (val === "video") {
                           setEditingImagePromptEnabled(false);
                           setEditingVideoPromptEnabled(true);
+                          setEditingRemotionPromptEnabled(false);
+                        } else if (val === "remotion") {
+                          setEditingImagePromptEnabled(false);
+                          setEditingVideoPromptEnabled(false);
+                          setEditingRemotionPromptEnabled(true);
                         } else {
                           setEditingImagePromptEnabled(false);
                           setEditingVideoPromptEnabled(false);
+                          setEditingRemotionPromptEnabled(false);
                         }
                       }}
                     >
@@ -758,11 +784,36 @@ export default function CampaignsView({
                         >
                           {generatingMedia ? "Generating..." : "Generate AI Video"}
                         </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Remotion Prompt Section */}
+                  {editingRemotionPromptEnabled && (
+                    <div className="space-y-2 pt-2 border-t border-gray-900 animate-in fade-in duration-200">
+                      <label className="text-[10px] font-bold text-blue-405 uppercase tracking-wider block">Remotion Generation Prompt</label>
+                      <Textarea
+                        placeholder="Describe code-based video loop to generate or click suggest"
+                        className="bg-gray-900/60 border-gray-805 text-white focus:border-blue-500 focus:ring-blue-500/20 rounded-xl text-xs min-h-[60px]"
+                        value={editingRemotionPrompt}
+                        onChange={e => setEditingRemotionPrompt(e.target.value)}
+                      />
+                      <div className="flex gap-2">
                         <Button
                           type="button"
                           size="sm"
-                          disabled={generatingMedia || !editingVideoPrompt}
-                          onClick={() => handleGenerateMedia(post.id, 'remotion', editingVideoPrompt)}
+                          variant="outline"
+                          disabled={suggestingPrompt}
+                          onClick={() => handleSuggestPrompt(editingContent || post.content, 'video', true)}
+                          className="flex-1 h-8 rounded-lg text-xs font-semibold border-gray-855 hover:bg-gray-800 hover:text-white bg-transparent text-gray-305 disabled:opacity-50"
+                        >
+                          {suggestingPrompt ? "Suggesting..." : "🪄 Suggest Prompt"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={generatingMedia || !editingRemotionPrompt}
+                          onClick={() => handleGenerateMedia(post.id, 'remotion', editingRemotionPrompt)}
                           className="flex-1 h-8 rounded-lg text-xs font-semibold bg-blue-650 hover:bg-blue-600 text-white disabled:opacity-50"
                         >
                           {generatingMedia ? "Generating..." : "Generate Remotion"}
@@ -969,6 +1020,8 @@ export default function CampaignsView({
           image_prompt_enabled: createPostImagePromptEnabled,
           video_prompt: createPostVideoPrompt || null,
           video_prompt_enabled: createPostVideoPromptEnabled,
+          remotion_prompt: createPostRemotionPrompt || null,
+          remotion_prompt_enabled: createPostRemotionPromptEnabled,
           is_manual_media: createPostIsManualMedia,
           scheduled_at: createPostScheduledAt ? new Date(createPostScheduledAt).toISOString() : null,
         })
@@ -982,6 +1035,8 @@ export default function CampaignsView({
         setCreatePostImagePromptEnabled(false);
         setCreatePostVideoPrompt('');
         setCreatePostVideoPromptEnabled(false);
+        setCreatePostRemotionPrompt('');
+        setCreatePostRemotionPromptEnabled(false);
         setCreatePostIsManualMedia(false);
         setCreatePostScheduledAt('');
         fetchCampaignPosts();
