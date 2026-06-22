@@ -148,17 +148,19 @@ export default function ProfileView({
     <div className="space-y-8 max-w-5xl mx-auto animate-fade-in-up">
 
       {/* ─── Page header ──────────────────────────────────────────── */}
-      <div>
-        <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-          <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', boxShadow: '0 4px 12px rgba(139,92,246,0.4)' }}
-          >
-            <User size={16} className="text-white" />
-          </div>
-          My Profile
-        </h1>
-        <p className="text-sm text-gray-400 mt-1">Manage your personal details and switch between organizations.</p>
+      <div className="relative z-10 bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 p-6 rounded-3xl border border-white/5 shadow-2xl mb-8 flex flex-col md:flex-row items-center gap-6">
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 shadow-lg"
+          style={{ background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', boxShadow: '0 0 30px rgba(139,92,246,0.5)' }}
+        >
+          <User size={32} className="text-white drop-shadow-md" />
+        </div>
+        <div>
+          <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-violet-300 tracking-tight">
+            My Profile
+          </h1>
+          <p className="text-base text-violet-200/70 mt-1 font-medium">Manage your personal details and switch between organizations.</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -168,12 +170,12 @@ export default function ProfileView({
 
           {/* Avatar + identity */}
           <div
-            className="rounded-3xl p-6 relative overflow-hidden"
+            className="rounded-3xl p-6 relative overflow-hidden group transition-all duration-500 hover:-translate-y-1"
             style={{
-              background: 'rgba(8,6,22,0.72)',
-              backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(167,139,250,0.13)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+              background: 'linear-gradient(145deg, rgba(20,15,40,0.7) 0%, rgba(8,6,22,0.85) 100%)',
+              backdropFilter: 'blur(24px)',
+              border: '1px solid rgba(167,139,250,0.25)',
+              boxShadow: '0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
             }}
           >
             {/* Ambient glow */}
@@ -290,12 +292,12 @@ export default function ProfileView({
 
           {/* Current Organization card */}
           <div
-            className="rounded-3xl p-6 relative overflow-hidden"
+            className="rounded-3xl p-6 relative overflow-hidden group transition-all duration-500 hover:-translate-y-1"
             style={{
-              background: 'rgba(8,6,22,0.72)',
-              backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(167,139,250,0.13)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+              background: 'linear-gradient(145deg, rgba(20,15,40,0.7) 0%, rgba(8,6,22,0.85) 100%)',
+              backdropFilter: 'blur(24px)',
+              border: '1px solid rgba(167,139,250,0.25)',
+              boxShadow: '0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
             }}
           >
             <div className="absolute top-0 left-0 w-48 h-48 pointer-events-none"
@@ -357,12 +359,12 @@ export default function ProfileView({
 
           {/* ─── Organization Switcher ─────────────────────────────── */}
           <div
-            className="rounded-3xl p-6 relative overflow-hidden"
+            className="rounded-3xl p-6 relative overflow-hidden group transition-all duration-500 hover:-translate-y-1"
             style={{
-              background: 'rgba(8,6,22,0.72)',
-              backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(167,139,250,0.13)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+              background: 'linear-gradient(145deg, rgba(20,15,40,0.7) 0%, rgba(8,6,22,0.85) 100%)',
+              backdropFilter: 'blur(24px)',
+              border: '1px solid rgba(167,139,250,0.25)',
+              boxShadow: '0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
             }}
           >
             <div className="flex items-center justify-between mb-4">
@@ -406,10 +408,11 @@ export default function ProfileView({
                   return (
                     <div
                       key={org.tenant_id}
-                      className="flex items-center gap-3 p-3 rounded-2xl transition-all duration-200 group"
+                      className="flex items-center gap-3 p-3 rounded-2xl transition-all duration-300 hover:scale-[1.02]"
                       style={{
-                        background: isCurrent ? 'rgba(139,92,246,0.1)' : 'rgba(255,255,255,0.02)',
-                        border: isCurrent ? '1px solid rgba(139,92,246,0.25)' : '1px solid rgba(255,255,255,0.05)',
+                        background: isCurrent ? 'linear-gradient(90deg, rgba(139,92,246,0.15) 0%, rgba(79,70,229,0.05) 100%)' : 'rgba(255,255,255,0.03)',
+                        border: isCurrent ? '1px solid rgba(139,92,246,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                        boxShadow: isCurrent ? '0 4px 20px rgba(139,92,246,0.15)' : 'none',
                       }}
                       id={`org-row-${org.tenant_id}`}
                     >
