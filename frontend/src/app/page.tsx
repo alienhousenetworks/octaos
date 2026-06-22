@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import {
   Activity, Users, DollarSign, BarChart3, Briefcase, Zap, BookOpen,
-  LogOut, Calendar, MessageSquare, Clock, TrendingUp, Target, FileText, Key, Video
+  LogOut, Calendar, MessageSquare, Clock, TrendingUp, Target, FileText, Key, Video,
+  Menu, X, ChevronRight, Settings2
 } from 'lucide-react';
 
 import KnowledgeView from '@/components/views/knowledge-view';
@@ -33,6 +34,49 @@ import AuthForms from '@/components/auth-forms';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
 
+// ─── Nav Groups ──────────────────────────────────────────────────────────────
+const NAV_GROUPS = [
+  {
+    label: 'Overview',
+    items: [
+      { id: 'dashboard', name: 'Operating Dashboard', icon: BarChart3, color: '#8b5cf6', section: 'dashboard' },
+      { id: 'knowledge', name: 'Knowledge Base', icon: FileText, color: '#a78bfa', section: 'knowledge' },
+    ],
+  },
+  {
+    label: 'Growth',
+    items: [
+      { id: 'campaigns', name: 'Campaign Planner', icon: Calendar, color: '#6366f1', section: 'marketing' },
+      { id: 'video_studio', name: 'Video Studio AI', icon: Video, color: '#f43f5e', section: 'marketing' },
+      { id: 'sales', name: 'Sales CRM', icon: TrendingUp, color: '#10b981', section: 'sales' },
+      { id: 'support', name: 'Customer Support', icon: MessageSquare, color: '#3b82f6', section: 'support' },
+    ],
+  },
+  {
+    label: 'AI Operations',
+    items: [
+      { id: 'coordination', name: 'Agent Boardroom', icon: Users, color: '#f59e0b', section: 'coordination' },
+      { id: 'ceo', name: 'CEO Workspace', icon: Target, color: '#0ea5e9', section: 'ceo' },
+      { id: 'orchestrator', name: 'Orchestrator AI', icon: Activity, color: '#a855f7', section: 'orchestrator' },
+      { id: 'teams', name: 'AI Teams', icon: Users, color: '#22d3ee', section: 'teams' },
+      { id: 'marketplace', name: 'App Marketplace', icon: Briefcase, color: '#ec4899', section: 'marketplace' },
+    ],
+  },
+  {
+    label: 'People & Finance',
+    items: [
+      { id: 'hr', name: 'Hiring & HR', icon: Briefcase, color: '#f59e0b', section: 'hr' },
+      { id: 'ai_optimization', name: 'AI Cost Control', icon: DollarSign, color: '#34d399', section: 'ai_optimization' },
+    ],
+  },
+  {
+    label: 'System',
+    items: [
+      { id: 'api_management', name: 'API Management', icon: Key, color: '#8b5cf6', section: 'system' },
+    ],
+  },
+];
+
 export default function Home() {
   const [appState, setAppState] = useState<'landing' | 'login' | 'signup' | 'app'>('landing');
   const [token, setToken] = useState<string | null>(null);
@@ -41,59 +85,41 @@ export default function Home() {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [faviconUrl, setFaviconUrl] = useState<string | null>(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  const getFilteredNavItems = () => {
-    const defaultItems = [
-      { id: 'dashboard', name: 'Operating Dashboard', icon: <BarChart3 size={18} />, color: 'hover:text-violet-400 active-glow-violet', section: 'dashboard' },
-      { id: 'knowledge', name: 'Knowledge Base', icon: <FileText size={18} />, color: 'hover:text-violet-400 active-glow-violet', section: 'knowledge' },
-      { id: 'campaigns', name: 'Campaign Planner', icon: <Calendar size={18} />, color: 'hover:text-indigo-400 active-glow-indigo', section: 'marketing' },
-      { id: 'video_studio', name: 'Video Studio AI', icon: <Video size={18} />, color: 'hover:text-rose-400 active-glow-rose', section: 'marketing' },
-      { id: 'sales', name: 'Sales CRM', icon: <TrendingUp size={18} />, color: 'hover:text-emerald-400 active-glow-emerald', section: 'sales' },
-      { id: 'support', name: 'Customer Support', icon: <MessageSquare size={18} />, color: 'hover:text-blue-400 active-glow-blue', section: 'support' },
-      { id: 'coordination', name: 'Agent Boardroom', icon: <Users size={18} />, color: 'hover:text-amber-400 active-glow-amber', section: 'coordination' },
-      { id: 'ceo', name: 'CEO Workspace', icon: <Target size={18} />, color: 'hover:text-sky-400 active-glow-sky', section: 'ceo' },
-      { id: 'orchestrator', name: 'Orchestrator AI', icon: <Activity size={18} />, color: 'hover:text-purple-400 active-glow-purple', section: 'orchestrator' },
-      { id: 'teams', name: 'AI Teams', icon: <Users size={18} />, color: 'hover:text-emerald-400 active-glow-emerald', section: 'teams' },
-      { id: 'marketplace', name: 'App Marketplace', icon: <Briefcase size={18} />, color: 'hover:text-pink-400 active-glow-pink', section: 'marketplace' },
-      { id: 'hr', name: 'Hiring & HR', icon: <Briefcase size={18} />, color: 'hover:text-amber-400 active-glow-amber', section: 'hr' },
-      { id: 'ai_optimization', name: 'AI Cost Control', icon: <DollarSign size={18} />, color: 'hover:text-emerald-400 active-glow-emerald', section: 'ai_optimization' },
-    ];
+  const getFilteredNavGroups = () => {
+    let groups = NAV_GROUPS.map(g => ({ ...g, items: [...g.items] }));
 
-    if (!userProfile) return defaultItems;
-
-    let items = [...defaultItems];
-
-    if (userProfile.role !== 'admin' && !userProfile.is_system_admin) {
+    if (userProfile && userProfile.role !== 'admin' && !userProfile.is_system_admin) {
       const allowed = userProfile.allowed_sections;
       if (allowed && !allowed.includes('all')) {
-        items = items.filter(item => item.id === 'dashboard' || allowed.includes(item.section));
+        groups = groups.map(g => ({
+          ...g,
+          items: g.items.filter(item => item.id === 'dashboard' || allowed.includes(item.section)),
+        })).filter(g => g.items.length > 0);
       }
     }
 
-    if (userProfile.role === 'admin' || userProfile.is_system_admin) {
-      items.push({
-        id: 'members',
-        name: 'Members & Access',
-        icon: <Users size={18} />,
-        color: 'hover:text-rose-450 active-glow-rose',
-        section: 'members'
-      });
+    if (userProfile?.role === 'admin' || userProfile?.is_system_admin) {
+      const systemGroup = groups.find(g => g.label === 'System');
+      if (systemGroup) {
+        systemGroup.items.push({
+          id: 'members', name: 'Members & Access', icon: Users, color: '#fb7185', section: 'members'
+        });
+      }
     }
 
-    if (userProfile.is_system_admin) {
-      items.push({
-        id: 'system_admin',
-        name: 'System Admin',
-        icon: <Zap size={18} />,
-        color: 'hover:text-yellow-400 active-glow-yellow',
-        section: 'system_admin'
-      });
+    if (userProfile?.is_system_admin) {
+      const systemGroup = groups.find(g => g.label === 'System');
+      if (systemGroup) {
+        systemGroup.items.push({
+          id: 'system_admin', name: 'System Admin', icon: Zap, color: '#fbbf24', section: 'system_admin'
+        });
+      }
     }
 
-    return items;
+    return groups;
   };
-
-  // Note: Debug alert hooks removed — use browser DevTools console for error diagnostics
 
   // Key configurations
   const [keyProvider, setKeyProvider] = useState('anthropic');
@@ -127,15 +153,14 @@ export default function Home() {
     fetchBranding();
   }, []);
 
-  // Apply dynamic favicon whenever faviconUrl changes (only for valid absolute URLs)
+  // Apply dynamic favicon whenever faviconUrl changes
   useEffect(() => {
     if (typeof document !== 'undefined' && faviconUrl) {
-      // Only apply if it's a valid absolute URL — prevents corrupted/relative DB values from causing 404s
       try {
         const parsed = new URL(faviconUrl);
         if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return;
       } catch {
-        return; // Not a valid URL — skip override, static /favicon.ico remains active
+        return;
       }
       let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
       if (!link) {
@@ -160,9 +185,7 @@ export default function Home() {
         const savedTenantId = localStorage.getItem('tenant_id');
         if (savedToken) {
           setToken(savedToken);
-          if (savedTenantId) {
-            setTenantId(savedTenantId);
-          }
+          if (savedTenantId) setTenantId(savedTenantId);
           setAppState('app');
         }
       }
@@ -175,9 +198,7 @@ export default function Home() {
       'Authorization': `Bearer ${token}`
     };
     const res = await fetch(url, { ...options, headers });
-    if (res.status === 401) {
-      handleLogout();
-    }
+    if (res.status === 401) handleLogout();
     return res;
   };
 
@@ -232,12 +253,16 @@ export default function Home() {
   useEffect(() => {
     if (appState === 'app') {
       fetchData();
-      const interval = setInterval(() => {
-        fetchData();
-      }, 5000);
+      const interval = setInterval(() => { fetchData(); }, 5000);
       return () => clearInterval(interval);
     }
   }, [appState, token]);
+
+  // Close mobile sidebar on route change
+  const handleNavClick = (viewId: string) => {
+    setActiveView(viewId);
+    setIsMobileSidebarOpen(false);
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -286,9 +311,7 @@ export default function Home() {
 
   const handleApprovePost = async (postId: string) => {
     try {
-      const res = await fetchWithAuth(`${API_URL}/marketing/posts/${postId}/approve`, {
-        method: 'POST'
-      });
+      const res = await fetchWithAuth(`${API_URL}/marketing/posts/${postId}/approve`, { method: 'POST' });
       if (res.ok) {
         fetchData();
         alert('✅ Post approved and scheduled!\n\nTo publish immediately to Instagram/Facebook, click the "Publish Now" button on the post card. Make sure your Meta API key is configured in Settings → Integrations.');
@@ -300,23 +323,137 @@ export default function Home() {
 
   const handleRejectPost = async (postId: string) => {
     try {
-      const res = await fetchWithAuth(`${API_URL}/marketing/posts/${postId}/reject`, {
-        method: 'POST'
-      });
-      if (res.ok) {
-        fetchData();
-      }
+      const res = await fetchWithAuth(`${API_URL}/marketing/posts/${postId}/reject`, { method: 'POST' });
+      if (res.ok) fetchData();
     } catch (e) {
       console.error(e);
     }
   };
 
-  // Render Landing Page
+  // Get active view display name
+  const getActiveViewName = () => {
+    for (const group of NAV_GROUPS) {
+      const item = group.items.find(i => i.id === activeView);
+      if (item) return item.name;
+    }
+    if (activeView === 'instructions') return 'Setup & API Guide';
+    return 'Dashboard';
+  };
+
+  const getActiveViewColor = () => {
+    for (const group of NAV_GROUPS) {
+      const item = group.items.find(i => i.id === activeView);
+      if (item) return item.color;
+    }
+    return '#8b5cf6';
+  };
+
+  const getActiveViewIcon = () => {
+    for (const group of NAV_GROUPS) {
+      const item = group.items.find(i => i.id === activeView);
+      if (item) {
+        const Icon = item.icon;
+        return <Icon size={14} />;
+      }
+    }
+    return <BarChart3 size={14} />;
+  };
+
+  // ─── Sidebar Component ────────────────────────────────────────────────────
+  const SidebarContent = () => {
+    const filteredGroups = getFilteredNavGroups();
+    return (
+      <div className="sidebar-root" style={{ height: '100%' }}>
+        {/* Logo */}
+        <div className="sidebar-logo">
+          <div className="flex items-center gap-2.5">
+            {logoUrl ? (
+              <img src={logoUrl} alt="OctaOS Logo" className="h-8 w-auto max-w-[130px] object-contain" />
+            ) : (
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="flex items-center justify-center w-8 h-8 rounded-xl"
+                  style={{
+                    background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                    boxShadow: '0 4px 12px rgba(139,92,246,0.35)'
+                  }}
+                >
+                  <Zap className="text-white fill-white" size={15} />
+                </div>
+                <span className="text-[17px] font-black text-white tracking-tight">
+                  Octa<span style={{ color: '#a78bfa' }}>Os</span>
+                </span>
+              </div>
+            )}
+          </div>
+          {/* System status */}
+          <div className="mt-3">
+            <span className="status-badge status-badge-online">All systems operational</span>
+          </div>
+        </div>
+
+        {/* Scrollable nav */}
+        <nav className="sidebar-nav-scroll">
+          {filteredGroups.map((group) => (
+            <div key={group.label} className="mb-1">
+              <div className="nav-section-label">{group.label}</div>
+              {group.items.map((item) => {
+                const isActive = activeView === item.id;
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleNavClick(item.id)}
+                    className={`nav-item ${isActive ? 'active' : ''}`}
+                    id={`nav-${item.id}`}
+                  >
+                    <span
+                      className="flex-shrink-0"
+                      style={{ color: isActive ? item.color : undefined }}
+                    >
+                      <Icon size={16} />
+                    </span>
+                    <span className="truncate">{item.name}</span>
+                    {isActive && (
+                      <ChevronRight size={12} className="ml-auto flex-shrink-0 opacity-60" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+          {/* Extra padding at bottom of scroll area */}
+          <div className="h-3" />
+        </nav>
+
+        {/* Footer (non-scrolling) */}
+        <div className="sidebar-footer">
+          <button
+            onClick={() => handleNavClick('instructions')}
+            className={`nav-item ${activeView === 'instructions' ? 'active' : ''}`}
+            id="nav-instructions"
+          >
+            <BookOpen size={16} style={{ color: activeView === 'instructions' ? '#a78bfa' : undefined }} />
+            <span className="truncate">Setup & API Guide</span>
+          </button>
+          <button
+            onClick={handleLogout}
+            className="nav-item nav-item-danger mt-1"
+            id="nav-logout"
+          >
+            <LogOut size={16} />
+            <span>Log out</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Render guards ────────────────────────────────────────────────────────
   if (appState === 'landing') {
     return <LandingPage setAppState={setAppState} logoUrl={logoUrl} />;
   }
 
-  // Render Login or Signup UI Forms
   if (appState === 'login' || appState === 'signup') {
     return (
       <AuthForms
@@ -332,132 +469,166 @@ export default function Home() {
     );
   }
 
-  // MAIN APP DASHBOARD VIEW
+  // ─── MAIN APP DASHBOARD ───────────────────────────────────────────────────
   return (
     <div className="flex h-screen bg-[#030014] text-[#f4f4f7] font-sans relative overflow-hidden">
-      {/* Ambient background glows for App Workspace */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[rgba(139,92,246,0.08)] rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[rgba(59,130,246,0.08)] rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute top-[30%] left-[20%] w-[400px] h-[400px] bg-[rgba(16,185,129,0.03)] rounded-full blur-[150px] pointer-events-none" />
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
+      {/* Ambient background glows */}
+      <div className="absolute top-[-10%] left-[-5%] w-[45%] h-[55%] rounded-full pointer-events-none"
+        style={{ background: 'rgba(139,92,246,0.07)', filter: 'blur(120px)' }} />
+      <div className="absolute bottom-[-10%] right-[-5%] w-[45%] h-[55%] rounded-full pointer-events-none"
+        style={{ background: 'rgba(59,130,246,0.07)', filter: 'blur(120px)' }} />
+      <div className="absolute top-[35%] left-[25%] w-[400px] h-[400px] rounded-full pointer-events-none"
+        style={{ background: 'rgba(16,185,129,0.03)', filter: 'blur(150px)' }} />
+      <div className="absolute inset-0 pointer-events-none"
+        style={{ backgroundImage: 'linear-gradient(to right,rgba(255,255,255,0.012) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,0.012) 1px,transparent 1px)', backgroundSize: '4rem 4rem' }} />
 
-      {/* Sidebar */}
-      <div className="w-66 glass-panel border-r border-[rgba(255,255,255,0.06)] flex flex-col p-5 relative z-20">
-        <div className="flex items-center gap-2.5 mb-8 px-2 text-xl font-black text-white">
-          {logoUrl ? (
-            <img src={logoUrl} alt="OctaOS Logo" className="h-8 w-auto max-w-[140px] object-contain" />
-          ) : (
-            <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-1.5 rounded-lg shadow-lg shadow-violet-500/20">
-              <Zap className="text-white fill-white h-4.5 w-4.5 animate-pulse" />
-            </div>
-          )}
-          <span>Octa<span className="text-violet-400">Os</span></span>
-        </div>
-        <nav className="flex flex-col gap-1.5 flex-1">
-          {getFilteredNavItems().map((item) => {
-            const isActive = activeView === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveView(item.id)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border border-transparent ${isActive
-                    ? 'bg-[rgba(255,255,255,0.06)] border-[rgba(255,255,255,0.1)] text-white shadow-lg'
-                    : 'text-gray-400 hover:bg-[rgba(255,255,255,0.02)] hover:border-[rgba(255,255,255,0.04)]'
-                  } ${item.color}`}
-              >
-                {item.icon}
-                <span>{item.name}</span>
-              </button>
-            );
-          })}
-
-          <button
-            onClick={() => setActiveView('api_management')}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border border-transparent ${activeView === 'api_management'
-                ? 'bg-[rgba(255,255,255,0.06)] border-[rgba(255,255,255,0.1)] text-white shadow-lg'
-                : 'text-gray-400 hover:bg-[rgba(255,255,255,0.02)] hover:border-[rgba(255,255,255,0.04)] hover:text-violet-400'
-              }`}
-          >
-            <Key size={18} />
-            <span>API Management</span>
-          </button>
-
-          <button
-            onClick={() => setActiveView('instructions')}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border border-transparent mt-auto ${activeView === 'instructions'
-                ? 'bg-[rgba(255,255,255,0.06)] border-[rgba(255,255,255,0.1)] text-white shadow-lg'
-                : 'text-gray-400 hover:bg-[rgba(255,255,255,0.02)] hover:border-[rgba(255,255,255,0.04)]'
-              }`}
-          >
-            <BookOpen size={18} />
-            <span>Setup & API Guide</span>
-          </button>
-
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border border-transparent text-rose-400 hover:bg-rose-950/20 hover:border-rose-900/30 mt-2"
-          >
-            <LogOut size={18} />
-            <span>Log out</span>
-          </button>
-        </nav>
+      {/* ── Desktop Sidebar ─────────────────────────────────────────────── */}
+      <div className="sidebar-desktop h-full flex-shrink-0" style={{ width: 'var(--sidebar-width)' }}>
+        <SidebarContent />
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
-        {/* Header (Settings & KB) */}
-        <header className="h-16 bg-transparent border-b border-[rgba(255,255,255,0.06)] flex items-center justify-end px-8 gap-4 relative z-20">
-          <Dialog open={isKeyDialogOpen} onOpenChange={setIsKeyDialogOpen}>
-            <DialogTrigger render={<Button variant="outline" className="bg-transparent border-gray-700/60 hover:bg-gray-800 text-gray-300" />}>API Settings</DialogTrigger>
-            <DialogContent className="glass-panel border-violet-500/20 text-white rounded-3xl">
-              <DialogHeader><DialogTitle className="text-white font-extrabold text-xl">Configure API Keys</DialogTitle></DialogHeader>
-              <div className="flex flex-col gap-4 py-4">
-                <p className="text-xs text-gray-400">Select a provider and enter your API key. You can also just paste keys directly into the Orchestrator chat!</p>
-                <Select value={keyProvider} onValueChange={(val) => val && setKeyProvider(val)}>
-                  <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white"><SelectValue placeholder="Select Provider" /></SelectTrigger>
-                  <SelectContent className="bg-gray-900 border-gray-800 text-white">
-                    <SelectItem value="anthropic">Claude (Anthropic)</SelectItem>
-                    <SelectItem value="openai">OpenAI</SelectItem>
-                    <SelectItem value="gemini">Google Gemini</SelectItem>
-                    <SelectItem value="grok">Grok</SelectItem>
-                    <SelectItem value="meta">Meta Graph (Instagram/FB)</SelectItem>
-                    <SelectItem value="linkedin">LinkedIn</SelectItem>
-                    <SelectItem value="apollo">Apollo.io</SelectItem>
-                    <SelectItem value="hunter">Hunter.io</SelectItem>
-                    <SelectItem value="google_places">Google Places API</SelectItem>
-                    <SelectItem value="gmail">Gmail API</SelectItem>
-                    <SelectItem value="whatsapp">WhatsApp Business</SelectItem>
-                    <SelectItem value="google_calendar">Google Calendar API</SelectItem>
-                    <SelectItem value="smtp_marketing">SMTP (Marketing)</SelectItem>
-                    <SelectItem value="smtp_hr">SMTP (HR)</SelectItem>
-                    <SelectItem value="smtp_sales">SMTP (Sales)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="password"
-                  placeholder={keyProvider.startsWith('smtp') ? 'smtp://username:password@smtp.mailtrap.io:2525' : 'Enter API Key / Token'}
-                  value={keyValue}
-                  onChange={e => setKeyValue(e.target.value)}
-                  className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 focus:ring-violet-500/20"
-                />
-                <Button onClick={saveApiKey} className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold">Save Configuration</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+      {/* ── Mobile Sidebar Overlay ──────────────────────────────────────── */}
+      {isMobileSidebarOpen && (
+        <div
+          className="mobile-overlay open"
+          onClick={() => setIsMobileSidebarOpen(false)}
+          aria-label="Close sidebar overlay"
+        />
+      )}
 
-          <Button
-            variant="secondary"
-            onClick={() => setActiveView('knowledge')}
-            className="bg-[rgba(255,255,255,0.04)] border border-gray-700/60 hover:bg-gray-800 text-gray-300"
-          >
-            Knowledge Base
-          </Button>
+      {/* ── Mobile Sidebar Drawer ───────────────────────────────────────── */}
+      <div className={`sidebar-mobile-drawer ${isMobileSidebarOpen ? 'open' : ''}`}>
+        <SidebarContent />
+        <button
+          className="mobile-close-btn"
+          onClick={() => setIsMobileSidebarOpen(false)}
+          aria-label="Close sidebar"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* ── Main Content ────────────────────────────────────────────────── */}
+      <div className="main-content-area flex-1 flex flex-col h-full overflow-hidden relative z-10" style={{ minWidth: 0 }}>
+
+        {/* Header */}
+        <header className="top-header">
+          {/* Left: Hamburger (mobile) + Page title */}
+          <div className="flex items-center gap-3">
+            <button
+              id="hamburger-btn"
+              className="hamburger-btn"
+              onClick={() => setIsMobileSidebarOpen(true)}
+              aria-label="Open navigation menu"
+            >
+              <Menu size={18} />
+            </button>
+
+            {/* Current page indicator */}
+            <div className="page-title-chip">
+              <span style={{ color: getActiveViewColor() }}>{getActiveViewIcon()}</span>
+              <span>{getActiveViewName()}</span>
+            </div>
+          </div>
+
+          {/* Right: Actions */}
+          <div className="flex items-center gap-2.5">
+            {/* Knowledge Base shortcut — hidden on smallest screens */}
+            <Button
+              variant="secondary"
+              onClick={() => handleNavClick('knowledge')}
+              className="header-desktop-only bg-[rgba(255,255,255,0.04)] border border-gray-700/50 hover:bg-[rgba(139,92,246,0.1)] hover:border-violet-700/40 text-gray-300 hover:text-violet-300 text-xs h-9 px-3 rounded-xl transition-all duration-200"
+              id="header-kb-btn"
+            >
+              <FileText size={13} className="mr-1.5" />
+              Knowledge Base
+            </Button>
+
+            {/* API Settings */}
+            <Dialog open={isKeyDialogOpen} onOpenChange={setIsKeyDialogOpen}>
+              <DialogTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    id="header-api-settings-btn"
+                    className="bg-transparent border-gray-700/50 hover:bg-[rgba(139,92,246,0.1)] hover:border-violet-700/40 text-gray-300 hover:text-violet-300 text-xs h-9 px-3 rounded-xl transition-all duration-200"
+                  />
+                }
+              >
+                <Settings2 size={13} className="mr-1.5" />
+                <span className="header-desktop-only">API Settings</span>
+              </DialogTrigger>
+              <DialogContent className="glass-panel border-violet-500/20 text-white rounded-3xl">
+                <DialogHeader>
+                  <DialogTitle className="text-white font-extrabold text-xl">Configure API Keys</DialogTitle>
+                </DialogHeader>
+                <div className="flex flex-col gap-4 py-4">
+                  <p className="text-xs text-gray-400">
+                    Select a provider and enter your API key. You can also paste keys directly into the Orchestrator chat!
+                  </p>
+                  <Select value={keyProvider} onValueChange={(val) => val && setKeyProvider(val)}>
+                    <SelectTrigger className="bg-gray-900/60 border-gray-800 text-white">
+                      <SelectValue placeholder="Select Provider" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                      <SelectItem value="anthropic">Claude (Anthropic)</SelectItem>
+                      <SelectItem value="openai">OpenAI</SelectItem>
+                      <SelectItem value="gemini">Google Gemini</SelectItem>
+                      <SelectItem value="grok">Grok</SelectItem>
+                      <SelectItem value="meta">Meta Graph (Instagram/FB)</SelectItem>
+                      <SelectItem value="linkedin">LinkedIn</SelectItem>
+                      <SelectItem value="apollo">Apollo.io</SelectItem>
+                      <SelectItem value="hunter">Hunter.io</SelectItem>
+                      <SelectItem value="google_places">Google Places API</SelectItem>
+                      <SelectItem value="gmail">Gmail API</SelectItem>
+                      <SelectItem value="whatsapp">WhatsApp Business</SelectItem>
+                      <SelectItem value="google_calendar">Google Calendar API</SelectItem>
+                      <SelectItem value="smtp_marketing">SMTP (Marketing)</SelectItem>
+                      <SelectItem value="smtp_hr">SMTP (HR)</SelectItem>
+                      <SelectItem value="smtp_sales">SMTP (Sales)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="password"
+                    placeholder={keyProvider.startsWith('smtp') ? 'smtp://username:password@smtp.mailtrap.io:2525' : 'Enter API Key / Token'}
+                    value={keyValue}
+                    onChange={e => setKeyValue(e.target.value)}
+                    className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 focus:ring-violet-500/20"
+                    id="api-key-input"
+                  />
+                  <Button
+                    onClick={saveApiKey}
+                    className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold hover:from-violet-500 hover:to-indigo-500 transition-all"
+                    id="save-api-key-btn"
+                  >
+                    Save Configuration
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* User avatar chip */}
+            {userProfile && (
+              <div
+                className="header-desktop-only flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-default"
+                style={{ background: 'rgba(139,92,246,0.08)', borderColor: 'rgba(139,92,246,0.2)', color: '#c4b5fd' }}
+              >
+                <div
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg,#7c3aed,#4f46e5)' }}
+                >
+                  {userProfile.email?.[0]?.toUpperCase() ?? 'U'}
+                </div>
+                <span className="max-w-[100px] truncate">{userProfile.email}</span>
+              </div>
+            )}
+          </div>
         </header>
 
-        {/* Scrollable View Area */}
-        <main className="flex-1 overflow-auto p-8 relative z-10">
+        {/* Main scrollable view */}
+        <main className="main-scroll-area flex-1 overflow-auto p-8 relative z-10">
 
-          <div className={activeView === 'dashboard' ? 'block' : 'hidden'}>
+          <div className={activeView === 'dashboard' ? 'block animate-fade-in-up' : 'hidden'}>
             <DashboardView
               metrics={metrics}
               timeline={timeline}
@@ -470,7 +641,7 @@ export default function Home() {
             />
           </div>
 
-          <div className={activeView === 'knowledge' ? 'block' : 'hidden'}>
+          <div className={activeView === 'knowledge' ? 'block animate-fade-in-up' : 'hidden'}>
             <KnowledgeView
               token={token}
               API_URL={API_URL}
@@ -480,7 +651,7 @@ export default function Home() {
             />
           </div>
 
-          <div className={activeView === 'campaigns' ? 'block' : 'hidden'}>
+          <div className={activeView === 'campaigns' ? 'block animate-fade-in-up' : 'hidden'}>
             <CampaignsView
               token={token}
               activeView={activeView}
@@ -491,7 +662,7 @@ export default function Home() {
             />
           </div>
 
-          <div className={activeView === 'support' ? 'block' : 'hidden'}>
+          <div className={activeView === 'support' ? 'block animate-fade-in-up' : 'hidden'}>
             <SupportView
               token={token}
               API_URL={API_URL}
@@ -500,7 +671,7 @@ export default function Home() {
             />
           </div>
 
-          <div className={activeView === 'orchestrator' ? 'block' : 'hidden'}>
+          <div className={activeView === 'orchestrator' ? 'block animate-fade-in-up' : 'hidden'}>
             <OrchestratorView
               token={token}
               API_URL={API_URL}
@@ -515,7 +686,7 @@ export default function Home() {
             />
           </div>
 
-          <div className={activeView === 'teams' ? 'block' : 'hidden'}>
+          <div className={activeView === 'teams' ? 'block animate-fade-in-up' : 'hidden'}>
             <TeamsView
               token={token}
               API_URL={API_URL}
@@ -526,7 +697,7 @@ export default function Home() {
             />
           </div>
 
-          <div className={activeView === 'marketplace' ? 'block' : 'hidden'}>
+          <div className={activeView === 'marketplace' ? 'block animate-fade-in-up' : 'hidden'}>
             <MarketplaceView
               token={token}
               API_URL={API_URL}
@@ -536,7 +707,7 @@ export default function Home() {
             />
           </div>
 
-          <div className={activeView === 'instructions' ? 'block' : 'hidden'}>
+          <div className={activeView === 'instructions' ? 'block animate-fade-in-up' : 'hidden'}>
             <InstructionsView
               configuredProviders={configuredProviders}
               setIsKeyDialogOpen={setIsKeyDialogOpen}
@@ -546,7 +717,7 @@ export default function Home() {
             />
           </div>
 
-          <div className={activeView === 'hr' ? 'block' : 'hidden'}>
+          <div className={activeView === 'hr' ? 'block animate-fade-in-up' : 'hidden'}>
             <HRView
               token={token}
               API_URL={API_URL}
@@ -555,7 +726,7 @@ export default function Home() {
             />
           </div>
 
-          <div className={activeView === 'ceo' ? 'block' : 'hidden'}>
+          <div className={activeView === 'ceo' ? 'block animate-fade-in-up' : 'hidden'}>
             <CEOView
               token={token}
               API_URL={API_URL}
@@ -566,7 +737,7 @@ export default function Home() {
             />
           </div>
 
-          <div className={activeView === 'coordination' ? 'block' : 'hidden'}>
+          <div className={activeView === 'coordination' ? 'block animate-fade-in-up' : 'hidden'}>
             <CoordinationView
               token={token}
               API_URL={API_URL}
@@ -575,7 +746,7 @@ export default function Home() {
             />
           </div>
 
-          <div className={activeView === 'sales' ? 'block' : 'hidden'}>
+          <div className={activeView === 'sales' ? 'block animate-fade-in-up' : 'hidden'}>
             <SalesView
               token={token}
               API_URL={API_URL}
@@ -585,7 +756,7 @@ export default function Home() {
             />
           </div>
 
-          <div className={activeView === 'video_studio' ? 'block' : 'hidden'}>
+          <div className={activeView === 'video_studio' ? 'block animate-fade-in-up' : 'hidden'}>
             <VideoStudioView
               token={token}
               API_URL={API_URL}
@@ -593,7 +764,7 @@ export default function Home() {
             />
           </div>
 
-          <div className={activeView === 'ai_optimization' ? 'block' : 'hidden'}>
+          <div className={activeView === 'ai_optimization' ? 'block animate-fade-in-up' : 'hidden'}>
             <AIOptimizationView
               token={token}
               API_URL={API_URL}
@@ -603,7 +774,7 @@ export default function Home() {
             />
           </div>
 
-          <div className={activeView === 'api_management' ? 'block' : 'hidden'}>
+          <div className={activeView === 'api_management' ? 'block animate-fade-in-up' : 'hidden'}>
             <ApiManagementView
               token={token}
               API_URL={API_URL}
@@ -615,7 +786,7 @@ export default function Home() {
           </div>
 
           {(userProfile?.role === 'admin' || userProfile?.is_system_admin) && (
-            <div className={activeView === 'members' ? 'block' : 'hidden'}>
+            <div className={activeView === 'members' ? 'block animate-fade-in-up' : 'hidden'}>
               <MembersView
                 token={token}
                 API_URL={API_URL}
@@ -626,7 +797,7 @@ export default function Home() {
           )}
 
           {userProfile?.is_system_admin && (
-            <div className={activeView === 'system_admin' ? 'block' : 'hidden'}>
+            <div className={activeView === 'system_admin' ? 'block animate-fade-in-up' : 'hidden'}>
               <SystemAdminView
                 token={token}
                 API_URL={API_URL}
