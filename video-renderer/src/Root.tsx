@@ -1,5 +1,5 @@
 import React from "react";
-import { Composition, Series, useVideoConfig } from "remotion";
+import { Composition, Series, Audio, AbsoluteFill, useVideoConfig } from "remotion";
 import { Blueprint } from "./types";
 import { GenericScene } from "./scenes/GenericScene";
 
@@ -56,17 +56,46 @@ const VideoBlueprintComponent: React.FC<{ blueprint: Blueprint }> = ({ blueprint
     );
   }
 
+  // A free cinematic ambient track for background music
+  // In production, this can be dynamically provided by an AI Music Generator like Suno via the blueprint
+  const BGM_URL = "https://actions.google.com/sounds/v1/science_fiction/alien_spaceship_ambience.ogg";
+
   return (
-    <Series>
-      {blueprint.scenes.map((scene, idx) => {
-        const sceneDurationInFrames = (scene.duration || 5) * fps;
-        
-        return (
-          <Series.Sequence key={scene.id || `scene-${idx}`} durationInFrames={sceneDurationInFrames}>
-            <GenericScene scene={scene} />
-          </Series.Sequence>
-        );
-      })}
-    </Series>
+    <AbsoluteFill>
+      {/* Background Music */}
+      <Audio 
+        src={blueprint.voiceover || BGM_URL} 
+        volume={0.3} 
+        loop 
+      />
+
+      {/* Optional Voiceover Track - if it's explicitly provided */}
+      {blueprint.voiceover && blueprint.voiceover.startsWith("http") && (
+        <Audio 
+          src={blueprint.voiceover} 
+          volume={0.8} 
+        />
+      )}
+
+      <Series>
+        {blueprint.scenes.map((scene, idx) => {
+          const sceneDurationInFrames = (scene.duration || 5) * fps;
+          
+          return (
+            <Series.Sequence key={scene.id || `scene-${idx}`} durationInFrames={sceneDurationInFrames}>
+              <GenericScene scene={scene} />
+              
+              {/* Scene-specific Voiceover / Audio */}
+              {scene.voiceover_segment && scene.voiceover_segment.startsWith("http") && (
+                <Audio 
+                  src={scene.voiceover_segment} 
+                  volume={0.8} 
+                />
+              )}
+            </Series.Sequence>
+          );
+        })}
+      </Series>
+    </AbsoluteFill>
   );
 };

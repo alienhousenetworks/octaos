@@ -9,13 +9,13 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
     "jsx": "react-jsx",
-    "ignoreDeprecations": "6.0"
+    "ignoreDeprecations": "5.0"
   },
   "ts-node": {
     "compilerOptions": {
       "module": "CommonJS",
       "moduleResolution": "node10",
-      "ignoreDeprecations": "6.0"
+      "ignoreDeprecations": "5.0"
     }
   },
   "include": ["src/**/*", "server.ts"],
