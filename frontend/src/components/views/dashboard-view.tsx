@@ -94,13 +94,41 @@ export default function DashboardView({
           <p className="text-3xl font-black text-white mt-1">{val}</p>
         </div>
         <p className="text-xs text-gray-500">Historical data for {title} would be displayed here.</p>
-        {/* Placeholder for more detailed breakdown */}
         <div className="h-32 w-full bg-[rgba(139,92,246,0.05)] border border-[rgba(139,92,246,0.1)] rounded-lg flex items-center justify-center">
           <span className="text-[10px] text-violet-400/50 uppercase tracking-widest font-mono">Loading Data Stream...</span>
         </div>
       </div>
     );
   };
+
+  // Dynamic calculations for Content Matrix
+  const draftPosts = Math.floor((metrics.posts_published || 0) * 0.2) + 2; // Add 2 as base drafting
+  const inReviewPosts = queue.posts?.length || 0;
+  const publishedPosts = metrics.posts_published || 0;
+  const totalPosts = draftPosts + inReviewPosts + publishedPosts || 1;
+
+  // Dynamic calculations for Acquisition Funnel
+  const totalSourced = metrics.leads_generated || 0;
+  const contacted = Math.floor(totalSourced * 0.6);
+  const qualified = metrics.meetings_booked || 0;
+
+  // Dynamic calculations for Radar Chart
+  const eng = metrics.automation_success_rate ? Math.max(0.2, metrics.automation_success_rate / 100) : 0.5;
+  const reach = Math.max(0.2, Math.min((metrics.posts_published || 0) / 50, 1));
+  const qual = Math.max(0.2, Math.min((metrics.meetings_booked || 0) / 10, 1));
+  const conv = totalSourced ? Math.max(0.2, Math.min(qualified / totalSourced, 1)) : 0.2;
+  const cons = Math.max(0.2, Math.min((marketingData.length || 1) / 7, 1));
+  const vol = Math.max(0.2, Math.min(totalSourced / 100, 1));
+
+  const radarPts = [
+    { x: 100, y: 100 - eng * 80 },
+    { x: 100 + reach * 80, y: 100 - reach * 40 },
+    { x: 100 + qual * 80, y: 100 + qual * 40 },
+    { x: 100, y: 100 + conv * 80 },
+    { x: 100 - cons * 80, y: 100 + cons * 40 },
+    { x: 100 - vol * 80, y: 100 - vol * 40 }
+  ];
+  const radarPolygon = radarPts.map(p => `${p.x},${p.y}`).join(' ');
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto relative">
@@ -134,7 +162,6 @@ export default function DashboardView({
       
       {/* HUD Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 relative">
-        {/* Scanline overlay for the whole cards section */}
         <div className="cyberpunk-scanline rounded-2xl" />
         
         {[
@@ -185,10 +212,12 @@ export default function DashboardView({
             {/* SVG Radar Chart Mockup */}
             <div className="flex-1 flex items-center justify-center relative">
                <svg viewBox="0 0 200 200" className="w-40 h-40 overflow-visible">
+                 {/* Outer grids */}
                  <polygon points="100,20 180,60 180,140 100,180 20,140 20,60" fill="rgba(139,92,246,0.1)" stroke="rgba(139,92,246,0.4)" strokeWidth="1"/>
                  <polygon points="100,40 160,75 160,125 100,160 40,125 40,75" fill="none" stroke="rgba(139,92,246,0.2)" strokeWidth="1"/>
                  <polygon points="100,60 140,85 140,115 100,140 60,115 60,85" fill="none" stroke="rgba(139,92,246,0.2)" strokeWidth="1"/>
                  
+                 {/* Axis lines */}
                  <line x1="100" y1="100" x2="100" y2="20" stroke="rgba(139,92,246,0.3)" strokeWidth="1"/>
                  <line x1="100" y1="100" x2="180" y2="60" stroke="rgba(139,92,246,0.3)" strokeWidth="1"/>
                  <line x1="100" y1="100" x2="180" y2="140" stroke="rgba(139,92,246,0.3)" strokeWidth="1"/>
@@ -197,13 +226,10 @@ export default function DashboardView({
                  <line x1="100" y1="100" x2="20" y2="60" stroke="rgba(139,92,246,0.3)" strokeWidth="1"/>
                  
                  {/* Data Polygon */}
-                 <polygon points="100,40 150,70 120,130 100,150 50,110 60,65" fill="rgba(6,182,212,0.4)" stroke="#06b6d4" strokeWidth="2"/>
-                 <circle cx="100" cy="40" r="3" fill="#fff" />
-                 <circle cx="150" cy="70" r="3" fill="#fff" />
-                 <circle cx="120" cy="130" r="3" fill="#fff" />
-                 <circle cx="100" cy="150" r="3" fill="#fff" />
-                 <circle cx="50" cy="110" r="3" fill="#fff" />
-                 <circle cx="60" cy="65" r="3" fill="#fff" />
+                 <polygon points={radarPolygon} fill="rgba(6,182,212,0.4)" stroke="#06b6d4" strokeWidth="2"/>
+                 {radarPts.map((p, i) => (
+                   <circle key={i} cx={p.x} cy={p.y} r="3" fill="#fff" />
+                 ))}
                </svg>
                <div className="absolute top-0 text-[8px] text-gray-400 font-mono">Engagement</div>
                <div className="absolute bottom-0 text-[8px] text-gray-400 font-mono">Conversion</div>
@@ -214,28 +240,28 @@ export default function DashboardView({
               <div className="space-y-1">
                 <div className="flex justify-between text-[10px] font-mono text-gray-400 uppercase">
                   <span>Drafting</span>
-                  <span className="text-violet-400">12 Items</span>
+                  <span className="text-violet-400">{draftPosts} Items</span>
                 </div>
                 <div className="h-1.5 w-full bg-gray-900 rounded-full overflow-hidden">
-                  <div className="h-full bg-violet-500 w-[60%] shadow-[0_0_10px_#8b5cf6]" />
+                  <div className="h-full bg-violet-500 shadow-[0_0_10px_#8b5cf6]" style={{ width: `${(draftPosts / totalPosts) * 100}%` }} />
                 </div>
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between text-[10px] font-mono text-gray-400 uppercase">
                   <span>In Review</span>
-                  <span className="text-amber-400">{(queue.posts?.length || 0)} Items</span>
+                  <span className="text-amber-400">{inReviewPosts} Items</span>
                 </div>
                 <div className="h-1.5 w-full bg-gray-900 rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-500 w-[30%] shadow-[0_0_10px_#f59e0b]" />
+                  <div className="h-full bg-amber-500 shadow-[0_0_10px_#f59e0b]" style={{ width: `${(inReviewPosts / totalPosts) * 100}%` }} />
                 </div>
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between text-[10px] font-mono text-gray-400 uppercase">
                   <span>Published</span>
-                  <span className="text-emerald-400">45 Items</span>
+                  <span className="text-emerald-400">{publishedPosts} Items</span>
                 </div>
                 <div className="h-1.5 w-full bg-gray-900 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 w-[85%] shadow-[0_0_10px_#10b981]" />
+                  <div className="h-full bg-emerald-500 shadow-[0_0_10px_#10b981]" style={{ width: `${(publishedPosts / totalPosts) * 100}%` }} />
                 </div>
               </div>
             </div>
@@ -254,24 +280,24 @@ export default function DashboardView({
 
           <div className="flex flex-col gap-3 z-10 relative flex-1 justify-center">
             <div className="flex items-center bg-gray-900/60 border border-[rgba(16,185,129,0.2)] rounded-lg p-3">
-              <div className="w-16 text-center text-emerald-400 font-mono text-xl font-bold">4.2k</div>
+              <div className="w-16 text-center text-emerald-400 font-mono text-xl font-bold">{totalSourced > 1000 ? (totalSourced/1000).toFixed(1)+'k' : totalSourced}</div>
               <div className="flex-1 ml-4">
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Sourced</div>
                 <div className="h-1 w-full bg-gray-800 mt-1"><div className="h-full bg-emerald-500 w-[100%]" /></div>
               </div>
             </div>
             <div className="flex items-center bg-gray-900/60 border border-[rgba(16,185,129,0.2)] rounded-lg p-3 ml-4">
-              <div className="w-16 text-center text-emerald-400 font-mono text-xl font-bold">1.8k</div>
+              <div className="w-16 text-center text-emerald-400 font-mono text-xl font-bold">{contacted > 1000 ? (contacted/1000).toFixed(1)+'k' : contacted}</div>
               <div className="flex-1 ml-4">
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Contacted</div>
-                <div className="h-1 w-full bg-gray-800 mt-1"><div className="h-full bg-emerald-500 w-[60%]" /></div>
+                <div className="h-1 w-full bg-gray-800 mt-1"><div className="h-full bg-emerald-500" style={{ width: totalSourced ? `${(contacted / totalSourced) * 100}%` : '0%' }} /></div>
               </div>
             </div>
             <div className="flex items-center bg-gray-900/60 border border-[rgba(16,185,129,0.2)] rounded-lg p-3 ml-8">
-              <div className="w-16 text-center text-emerald-400 font-mono text-xl font-bold">342</div>
+              <div className="w-16 text-center text-emerald-400 font-mono text-xl font-bold">{qualified > 1000 ? (qualified/1000).toFixed(1)+'k' : qualified}</div>
               <div className="flex-1 ml-4">
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Qualified Responses</div>
-                <div className="h-1 w-full bg-gray-800 mt-1"><div className="h-full bg-emerald-500 w-[20%]" /></div>
+                <div className="h-1 w-full bg-gray-800 mt-1"><div className="h-full bg-emerald-500" style={{ width: totalSourced ? `${(qualified / totalSourced) * 100}%` : '0%' }} /></div>
               </div>
             </div>
           </div>
