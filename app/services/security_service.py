@@ -74,7 +74,7 @@ class SecretValidationService:
         elif provider_lower == "gemini":
             # API keys are typically ~40 chars long
             return len(api_key) >= 20
-        elif provider_lower == "smtp":
+        elif provider_lower.startswith("smtp"):
             # smtp://username:password@host:port
             return api_key.startswith("smtp://") or "@" in api_key
         # Default minimum validation length

@@ -49,6 +49,8 @@ class ContentPost(Base):
     video_prompt_enabled = Column(Boolean, default=False)
     remotion_prompt = Column(Text, nullable=True)
     remotion_prompt_enabled = Column(Boolean, default=False)
+    remotion_provider = Column(String, default="gemini")
+    remotion_model = Column(String, default="gemini-2.5-flash")
 
     is_manual_media = Column(Boolean, default=False)
     day = Column(Integer, nullable=True)

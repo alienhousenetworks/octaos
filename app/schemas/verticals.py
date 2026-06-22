@@ -50,6 +50,8 @@ class ContentPostBase(BaseModel):
     video_prompt_enabled: Optional[bool] = False
     remotion_prompt: Optional[str] = None
     remotion_prompt_enabled: Optional[bool] = False
+    remotion_provider: Optional[str] = "gemini"
+    remotion_model: Optional[str] = "gemini-2.5-flash"
     is_manual_media: Optional[bool] = False
     day: Optional[int] = None
 
@@ -77,6 +79,8 @@ class CampaignCreate(BaseModel):
     generate_images: bool = True
     generate_videos: bool = True
     generate_remotion: bool = False
+    remotion_provider: Optional[str] = "gemini"
+    remotion_model: Optional[str] = "gemini-2.5-flash"
 
     @validator("days")
     def validate_days(cls, v):

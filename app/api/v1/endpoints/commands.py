@@ -81,13 +81,13 @@ async def execute_command(
     except ValueError as e:
         ve_str = str(e)
         provider = None
-        for p in ["linkedin", "meta", "facebook", "instagram", "twitter", "gmail", "whatsapp", "apollo", "hunter", "google_places", "google_calendar", "smtp", "greenhouse", "lever", "openai", "anthropic", "gemini", "zoominfo", "cognism", "people_data_labs", "clearbit", "crunchbase"]:
+        for p in ["linkedin", "meta", "facebook", "instagram", "twitter", "gmail", "whatsapp", "apollo", "hunter", "google_places", "google_calendar", "smtp_marketing", "smtp_hr", "smtp_sales", "smtp", "greenhouse", "lever", "openai", "anthropic", "gemini", "zoominfo", "cognism", "people_data_labs", "clearbit", "crunchbase"]:
             if p in ve_str.lower():
                 provider = p
                 break
         if provider:
-            if provider == "smtp":
-                msg = "I need your SMTP outgoing mail credentials. Please reply with: 'My smtp credential is: smtp://username:password@smtp.mailtrap.io:2525'."
+            if provider.startswith("smtp"):
+                msg = f"I need your {provider.replace('_', ' ').upper()} credentials. Please reply with: 'My {provider} credential is: smtp://username:password@smtp.mailtrap.io:2525'."
             else:
                 msg = f"I need your {provider} API key to complete this task. Please reply with 'My {provider} key is: [YOUR_KEY]'."
             return {"plan": {}, "results": [{"status": "action_required", "message": msg}]}

@@ -5,9 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { 
-  Activity, Users, DollarSign, BarChart3, Briefcase, Zap, BookOpen, 
-  LogOut, Calendar, MessageSquare, Clock, TrendingUp, Target, FileText, Key, Video 
+import {
+  Activity, Users, DollarSign, BarChart3, Briefcase, Zap, BookOpen,
+  LogOut, Calendar, MessageSquare, Clock, TrendingUp, Target, FileText, Key, Video
 } from 'lucide-react';
 
 import KnowledgeView from '@/components/views/knowledge-view';
@@ -102,7 +102,7 @@ export default function Home() {
 
   // App Dashboard States
   const [activeView, setActiveView] = useState('dashboard');
-  const [queue, setQueue] = useState<{posts: any[], leads: any[]}>({posts: [], leads: []});
+  const [queue, setQueue] = useState<{ posts: any[], leads: any[] }>({ posts: [], leads: [] });
   const [timeline, setTimeline] = useState<any[]>([]);
   const [knowledge, setKnowledge] = useState<any[]>([]);
   const [metrics, setMetrics] = useState<any>({});
@@ -220,7 +220,7 @@ export default function Home() {
       setMetrics(await mRes.json());
       setTeams(await tmRes.json());
       setApps(await aRes.json());
-      
+
       const keyStatusData = await keyStatusRes.json();
       setConfiguredProviders(keyStatusData.configured_providers || []);
     } catch (e) {
@@ -360,25 +360,23 @@ export default function Home() {
               <button
                 key={item.id}
                 onClick={() => setActiveView(item.id)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border border-transparent ${
-                  isActive
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border border-transparent ${isActive
                     ? 'bg-[rgba(255,255,255,0.06)] border-[rgba(255,255,255,0.1)] text-white shadow-lg'
                     : 'text-gray-400 hover:bg-[rgba(255,255,255,0.02)] hover:border-[rgba(255,255,255,0.04)]'
-                } ${item.color}`}
+                  } ${item.color}`}
               >
                 {item.icon}
                 <span>{item.name}</span>
               </button>
             );
           })}
-          
+
           <button
             onClick={() => setActiveView('api_management')}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border border-transparent ${
-              activeView === 'api_management'
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border border-transparent ${activeView === 'api_management'
                 ? 'bg-[rgba(255,255,255,0.06)] border-[rgba(255,255,255,0.1)] text-white shadow-lg'
                 : 'text-gray-400 hover:bg-[rgba(255,255,255,0.02)] hover:border-[rgba(255,255,255,0.04)] hover:text-violet-400'
-            }`}
+              }`}
           >
             <Key size={18} />
             <span>API Management</span>
@@ -386,16 +384,15 @@ export default function Home() {
 
           <button
             onClick={() => setActiveView('instructions')}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border border-transparent mt-auto ${
-              activeView === 'instructions'
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border border-transparent mt-auto ${activeView === 'instructions'
                 ? 'bg-[rgba(255,255,255,0.06)] border-[rgba(255,255,255,0.1)] text-white shadow-lg'
                 : 'text-gray-400 hover:bg-[rgba(255,255,255,0.02)] hover:border-[rgba(255,255,255,0.04)]'
-            }`}
+              }`}
           >
             <BookOpen size={18} />
             <span>Setup & API Guide</span>
           </button>
-          
+
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border border-transparent text-rose-400 hover:bg-rose-950/20 hover:border-rose-900/30 mt-2"
@@ -431,14 +428,16 @@ export default function Home() {
                     <SelectItem value="gmail">Gmail API</SelectItem>
                     <SelectItem value="whatsapp">WhatsApp Business</SelectItem>
                     <SelectItem value="google_calendar">Google Calendar API</SelectItem>
-                    <SelectItem value="smtp">SMTP Credentials (outgoing mail)</SelectItem>
+                    <SelectItem value="smtp_marketing">SMTP (Marketing)</SelectItem>
+                    <SelectItem value="smtp_hr">SMTP (HR)</SelectItem>
+                    <SelectItem value="smtp_sales">SMTP (Sales)</SelectItem>
                   </SelectContent>
                 </Select>
-                <Input 
-                  type="password" 
-                  placeholder={keyProvider === 'smtp' ? 'smtp://username:password@smtp.mailtrap.io:2525' : 'Enter API Key / Token'} 
-                  value={keyValue} 
-                  onChange={e => setKeyValue(e.target.value)} 
+                <Input
+                  type="password"
+                  placeholder={keyProvider.startsWith('smtp') ? 'smtp://username:password@smtp.mailtrap.io:2525' : 'Enter API Key / Token'}
+                  value={keyValue}
+                  onChange={e => setKeyValue(e.target.value)}
                   className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 focus:ring-violet-500/20"
                 />
                 <Button onClick={saveApiKey} className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold">Save Configuration</Button>
@@ -446,70 +445,70 @@ export default function Home() {
             </DialogContent>
           </Dialog>
 
-          <Button 
-            variant="secondary" 
+          <Button
+            variant="secondary"
             onClick={() => setActiveView('knowledge')}
             className="bg-[rgba(255,255,255,0.04)] border border-gray-700/60 hover:bg-gray-800 text-gray-300"
           >
-            🧠 Knowledge Base
+            Knowledge Base
           </Button>
         </header>
 
         {/* Scrollable View Area */}
         <main className="flex-1 overflow-auto p-8 relative z-10">
-          
+
           <div className={activeView === 'dashboard' ? 'block' : 'hidden'}>
-            <DashboardView 
-              metrics={metrics} 
-              timeline={timeline} 
-              queue={queue} 
-              apps={apps} 
-              setActiveView={setActiveView} 
-              uninstallApp={uninstallApp} 
+            <DashboardView
+              metrics={metrics}
+              timeline={timeline}
+              queue={queue}
+              apps={apps}
+              setActiveView={setActiveView}
+              uninstallApp={uninstallApp}
               handleApprovePost={handleApprovePost}
               handleRejectPost={handleRejectPost}
             />
           </div>
 
           <div className={activeView === 'knowledge' ? 'block' : 'hidden'}>
-            <KnowledgeView 
-              token={token} 
-              API_URL={API_URL} 
-              fetchWithAuth={fetchWithAuth} 
-              fetchData={fetchData} 
-              knowledge={knowledge} 
+            <KnowledgeView
+              token={token}
+              API_URL={API_URL}
+              fetchWithAuth={fetchWithAuth}
+              fetchData={fetchData}
+              knowledge={knowledge}
             />
           </div>
 
           <div className={activeView === 'campaigns' ? 'block' : 'hidden'}>
-            <CampaignsView 
-              token={token} 
+            <CampaignsView
+              token={token}
               activeView={activeView}
-              API_URL={API_URL} 
-              fetchWithAuth={fetchWithAuth} 
-              fetchData={fetchData} 
-              configuredProviders={configuredProviders} 
+              API_URL={API_URL}
+              fetchWithAuth={fetchWithAuth}
+              fetchData={fetchData}
+              configuredProviders={configuredProviders}
             />
           </div>
 
           <div className={activeView === 'support' ? 'block' : 'hidden'}>
-            <SupportView 
-              token={token} 
-              API_URL={API_URL} 
-              fetchWithAuth={fetchWithAuth} 
-              fetchData={fetchData} 
+            <SupportView
+              token={token}
+              API_URL={API_URL}
+              fetchWithAuth={fetchWithAuth}
+              fetchData={fetchData}
             />
           </div>
 
           <div className={activeView === 'orchestrator' ? 'block' : 'hidden'}>
-            <OrchestratorView 
-              token={token} 
-              API_URL={API_URL} 
-              fetchWithAuth={fetchWithAuth} 
-              fetchData={fetchData} 
-              apps={apps} 
-              configuredProviders={configuredProviders} 
-              timeline={timeline} 
+            <OrchestratorView
+              token={token}
+              API_URL={API_URL}
+              fetchWithAuth={fetchWithAuth}
+              fetchData={fetchData}
+              apps={apps}
+              configuredProviders={configuredProviders}
+              timeline={timeline}
               queue={queue}
               handleApprovePost={handleApprovePost}
               handleRejectPost={handleRejectPost}
@@ -517,90 +516,90 @@ export default function Home() {
           </div>
 
           <div className={activeView === 'teams' ? 'block' : 'hidden'}>
-            <TeamsView 
-              token={token} 
-              API_URL={API_URL} 
-              fetchWithAuth={fetchWithAuth} 
-              fetchData={fetchData} 
-              teams={teams} 
-              setTeams={setTeams} 
+            <TeamsView
+              token={token}
+              API_URL={API_URL}
+              fetchWithAuth={fetchWithAuth}
+              fetchData={fetchData}
+              teams={teams}
+              setTeams={setTeams}
             />
           </div>
 
           <div className={activeView === 'marketplace' ? 'block' : 'hidden'}>
-            <MarketplaceView 
-              token={token} 
-              API_URL={API_URL} 
-              fetchWithAuth={fetchWithAuth} 
-              fetchData={fetchData} 
-              apps={apps} 
+            <MarketplaceView
+              token={token}
+              API_URL={API_URL}
+              fetchWithAuth={fetchWithAuth}
+              fetchData={fetchData}
+              apps={apps}
             />
           </div>
 
           <div className={activeView === 'instructions' ? 'block' : 'hidden'}>
-            <InstructionsView 
-              configuredProviders={configuredProviders} 
-              setIsKeyDialogOpen={setIsKeyDialogOpen} 
-              setKeyProvider={setKeyProvider} 
+            <InstructionsView
+              configuredProviders={configuredProviders}
+              setIsKeyDialogOpen={setIsKeyDialogOpen}
+              setKeyProvider={setKeyProvider}
               API_URL={API_URL}
               tenantId={tenantId}
             />
           </div>
 
           <div className={activeView === 'hr' ? 'block' : 'hidden'}>
-            <HRView 
-              token={token} 
-              API_URL={API_URL} 
-              fetchWithAuth={fetchWithAuth} 
-              fetchData={fetchData} 
+            <HRView
+              token={token}
+              API_URL={API_URL}
+              fetchWithAuth={fetchWithAuth}
+              fetchData={fetchData}
             />
           </div>
 
           <div className={activeView === 'ceo' ? 'block' : 'hidden'}>
-            <CEOView 
-              token={token} 
-              API_URL={API_URL} 
-              fetchWithAuth={fetchWithAuth} 
-              fetchData={fetchData} 
-              timeline={timeline} 
-              setActiveView={setActiveView} 
+            <CEOView
+              token={token}
+              API_URL={API_URL}
+              fetchWithAuth={fetchWithAuth}
+              fetchData={fetchData}
+              timeline={timeline}
+              setActiveView={setActiveView}
             />
           </div>
 
           <div className={activeView === 'coordination' ? 'block' : 'hidden'}>
-            <CoordinationView 
-              token={token} 
-              API_URL={API_URL} 
-              fetchWithAuth={fetchWithAuth} 
-              fetchData={fetchData} 
+            <CoordinationView
+              token={token}
+              API_URL={API_URL}
+              fetchWithAuth={fetchWithAuth}
+              fetchData={fetchData}
             />
           </div>
 
           <div className={activeView === 'sales' ? 'block' : 'hidden'}>
-            <SalesView 
-              token={token} 
-              API_URL={API_URL} 
-              fetchWithAuth={fetchWithAuth} 
-              fetchData={fetchData} 
-              timeline={timeline} 
+            <SalesView
+              token={token}
+              API_URL={API_URL}
+              fetchWithAuth={fetchWithAuth}
+              fetchData={fetchData}
+              timeline={timeline}
             />
           </div>
 
           <div className={activeView === 'video_studio' ? 'block' : 'hidden'}>
-            <VideoStudioView 
-              token={token} 
-              API_URL={API_URL} 
-              fetchWithAuth={fetchWithAuth} 
+            <VideoStudioView
+              token={token}
+              API_URL={API_URL}
+              fetchWithAuth={fetchWithAuth}
             />
           </div>
 
           <div className={activeView === 'ai_optimization' ? 'block' : 'hidden'}>
-            <AIOptimizationView 
-              token={token} 
-              API_URL={API_URL} 
-              fetchWithAuth={fetchWithAuth} 
-              fetchData={fetchData} 
-              metrics={metrics} 
+            <AIOptimizationView
+              token={token}
+              API_URL={API_URL}
+              fetchWithAuth={fetchWithAuth}
+              fetchData={fetchData}
+              metrics={metrics}
             />
           </div>
 
@@ -617,20 +616,20 @@ export default function Home() {
 
           {(userProfile?.role === 'admin' || userProfile?.is_system_admin) && (
             <div className={activeView === 'members' ? 'block' : 'hidden'}>
-              <MembersView 
-                token={token} 
-                API_URL={API_URL} 
-                fetchWithAuth={fetchWithAuth} 
-                fetchData={fetchData} 
+              <MembersView
+                token={token}
+                API_URL={API_URL}
+                fetchWithAuth={fetchWithAuth}
+                fetchData={fetchData}
               />
             </div>
           )}
 
           {userProfile?.is_system_admin && (
             <div className={activeView === 'system_admin' ? 'block' : 'hidden'}>
-              <SystemAdminView 
-                token={token} 
-                API_URL={API_URL} 
+              <SystemAdminView
+                token={token}
+                API_URL={API_URL}
                 fetchWithAuth={fetchWithAuth}
                 onBrandingUpdate={(newLogoUrl, newFaviconUrl) => {
                   if (newLogoUrl !== undefined) setLogoUrl(newLogoUrl);

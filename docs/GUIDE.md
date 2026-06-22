@@ -202,8 +202,14 @@ When a lead has been contacted, **replies are handled by Sales AI** (not Support
 3. Go to your Google Account > Security > App Passwords, and generate a new password for "Mail".
 4. In OctaOS, provide your SMTP details (e.g., `smtp://username:app-password@smtp.gmail.com:587`).
 
-### 5. Sales Lead Generation (Apollo / Hunter / Google Places)
+### 5. Sales Lead Generation (Apollo / Hunter / Google Places / Apify)
 *Powers Sales AI search routines.*
+
+**Apify**:
+1. Log into your [Apify Console](https://console.apify.com/).
+2. Navigate to **Settings > API** to find your personal API token.
+3. Copy your API token.
+4. Paste the token into the corresponding section in the OctaOS API Settings under Apify.
 
 **Apollo.io / Hunter.io**:
 1. Log into your Apollo.io or Hunter.io account.

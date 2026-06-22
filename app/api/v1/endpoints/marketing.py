@@ -16,6 +16,7 @@ class GenerateMediaRequest(BaseModel):
     media_type: str  # "image" or "video"
     prompt: str
     provider: Optional[str] = None
+    sub_model: Optional[str] = None
 
 
 class ApproveOptions(BaseModel):
@@ -108,6 +109,10 @@ def update_post(
         post.remotion_prompt = post_in.remotion_prompt
     if post_in.remotion_prompt_enabled is not None:
         post.remotion_prompt_enabled = post_in.remotion_prompt_enabled
+    if hasattr(post_in, 'remotion_provider') and post_in.remotion_provider is not None:
+        post.remotion_provider = post_in.remotion_provider
+    if hasattr(post_in, 'remotion_model') and post_in.remotion_model is not None:
+        post.remotion_model = post_in.remotion_model
     if post_in.is_manual_media is not None:
         post.is_manual_media = post_in.is_manual_media
 
@@ -137,6 +142,8 @@ def create_manual_post(
         video_prompt_enabled=post_in.video_prompt_enabled,
         remotion_prompt=post_in.remotion_prompt,
         remotion_prompt_enabled=post_in.remotion_prompt_enabled,
+        remotion_provider=getattr(post_in, 'remotion_provider', 'gemini'),
+        remotion_model=getattr(post_in, 'remotion_model', 'gemini-2.5-flash'),
         is_manual_media=post_in.is_manual_media,
         day=post_in.day or 1,
         status="draft",
@@ -203,7 +210,9 @@ async def generate_media_for_post(
             tenant_id=tenant_id,
             title=f"Post Video {post.id}",
             prompt=req.prompt,
-            duration_seconds=15
+            duration_seconds=15,
+            llm_provider=req.provider or post.remotion_provider or "gemini",
+            llm_model=req.sub_model or post.remotion_model or "gemini-2.5-flash"
         )
         db.add(project)
         db.commit()

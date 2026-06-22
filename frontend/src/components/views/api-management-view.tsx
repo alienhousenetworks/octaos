@@ -24,15 +24,15 @@ interface ApiManagementViewProps {
 // ─── Provider catalogue ────────────────────────────────────────────────────────
 const PROVIDER_GROUPS = [
   {
-    group: '🧠 AI Brains',
+    group: ' AI Brains',
     color: 'violet',
     description: 'Core LLM providers powering every AI agent',
     required: true,
     providers: [
       { id: 'anthropic', label: 'Claude (Anthropic)', hint: 'sk-ant-...', url: 'https://console.anthropic.com/', placeholder: 'sk-ant-api03-...' },
-      { id: 'openai',    label: 'OpenAI (GPT-4o)',   hint: 'sk-proj-...', url: 'https://platform.openai.com/api-keys', placeholder: 'sk-proj-...' },
-      { id: 'gemini',    label: 'Google Gemini',      hint: 'AIza...', url: 'https://aistudio.google.com/app/apikey', placeholder: 'AIzaSy...' },
-      { id: 'grok',      label: 'Grok (xAI)',         hint: 'xai-...', url: 'https://console.x.ai/', placeholder: 'xai-...' },
+      { id: 'openai', label: 'OpenAI (GPT-4o)', hint: 'sk-proj-...', url: 'https://platform.openai.com/api-keys', placeholder: 'sk-proj-...' },
+      { id: 'gemini', label: 'Google Gemini', hint: 'AIza...', url: 'https://aistudio.google.com/app/apikey', placeholder: 'AIzaSy...' },
+      { id: 'grok', label: 'Grok (xAI)', hint: 'xai-...', url: 'https://console.x.ai/', placeholder: 'xai-...' },
     ],
   },
   {
@@ -40,8 +40,8 @@ const PROVIDER_GROUPS = [
     color: 'blue',
     description: 'Publishing posts on Instagram, Facebook, LinkedIn',
     providers: [
-      { id: 'meta',     label: 'Meta Graph API (Instagram / FB)', hint: 'Page Access Token', url: 'https://developers.facebook.com/', placeholder: 'EAABsbCS...' },
-      { id: 'linkedin', label: 'LinkedIn Share API',              hint: 'OAuth Access Token', url: 'https://developer.linkedin.com/', placeholder: 'AQXTs...' },
+      { id: 'meta', label: 'Meta Graph API (Instagram / FB)', hint: 'Page Access Token', url: 'https://developers.facebook.com/', placeholder: 'EAABsbCS...' },
+      { id: 'linkedin', label: 'LinkedIn Share API', hint: 'OAuth Access Token', url: 'https://developer.linkedin.com/', placeholder: 'AQXTs...' },
     ],
   },
   {
@@ -50,7 +50,7 @@ const PROVIDER_GROUPS = [
     description: 'Customer support and outreach via chat',
     providers: [
       { id: 'whatsapp', label: 'WhatsApp Business API', hint: 'Bearer Token | Phone ID', url: 'https://developers.facebook.com/', placeholder: 'EAABx... | 1234567890' },
-      { id: 'telegram', label: 'Telegram Bot API',      hint: '123456:ABCDEF...', url: 'https://t.me/BotFather', placeholder: '7123456789:AAFtq...' },
+      { id: 'telegram', label: 'Telegram Bot API', hint: '123456:ABCDEF...', url: 'https://t.me/BotFather', placeholder: '7123456789:AAFtq...' },
     ],
   },
   {
@@ -58,9 +58,11 @@ const PROVIDER_GROUPS = [
     color: 'orange',
     description: 'Sending emails, booking meetings',
     providers: [
-      { id: 'gmail',           label: 'Gmail API (OAuth)',    hint: 'OAuth Token (use Connect button)', url: '', placeholder: 'ya29...' },
+      { id: 'gmail', label: 'Gmail API (OAuth)', hint: 'OAuth Token (use Connect button)', url: '', placeholder: 'ya29...' },
       { id: 'google_calendar', label: 'Google Calendar API', hint: 'OAuth Token', url: '', placeholder: 'ya29...' },
-      { id: 'smtp',            label: 'SMTP Credentials',    hint: 'smtp://user:pass@host:port', url: '', placeholder: 'smtp://you@gmail.com:app_pass@smtp.gmail.com:587' },
+      { id: 'smtp_marketing', label: 'SMTP (Marketing)', hint: 'smtp://user:pass@host:port', url: '', placeholder: 'smtp://you@gmail.com:app_pass@smtp.gmail.com:587' },
+      { id: 'smtp_hr', label: 'SMTP (HR)', hint: 'smtp://user:pass@host:port', url: '', placeholder: 'smtp://you@gmail.com:app_pass@smtp.gmail.com:587' },
+      { id: 'smtp_sales', label: 'SMTP (Sales)', hint: 'smtp://user:pass@host:port', url: '', placeholder: 'smtp://you@gmail.com:app_pass@smtp.gmail.com:587' },
     ],
   },
   {
@@ -68,33 +70,33 @@ const PROVIDER_GROUPS = [
     color: 'indigo',
     description: 'B2B data enrichment & local business discovery',
     providers: [
-      { id: 'apollo',        label: 'Apollo.io',       hint: 'API Key', url: 'https://app.apollo.io/#/settings/integrations/api', placeholder: 'API_KEY...' },
-      { id: 'hunter',        label: 'Hunter.io',       hint: 'API Key', url: 'https://hunter.io/api-keys', placeholder: 'abc123...' },
+      { id: 'apollo', label: 'Apollo.io', hint: 'API Key', url: 'https://app.apollo.io/#/settings/integrations/api', placeholder: 'API_KEY...' },
+      { id: 'hunter', label: 'Hunter.io', hint: 'API Key', url: 'https://hunter.io/api-keys', placeholder: 'abc123...' },
       { id: 'google_places', label: 'Google Places API', hint: 'GCP API Key', url: 'https://console.cloud.google.com/', placeholder: 'AIzaSy...' },
-      { id: 'apify',         label: 'Apify',           hint: 'API Token', url: 'https://console.apify.com/account/integrations', placeholder: 'apify_api_...' },
-      { id: 'zoominfo',      label: 'ZoomInfo',        hint: 'API Key', url: 'https://www.zoominfo.com/', placeholder: 'API_KEY...' },
-      { id: 'cognism',       label: 'Cognism',         hint: 'API Key', url: 'https://www.cognism.com/', placeholder: 'API_KEY...' },
+      { id: 'apify', label: 'Apify', hint: 'API Token', url: 'https://console.apify.com/account/integrations', placeholder: 'apify_api_...' },
+      { id: 'zoominfo', label: 'ZoomInfo', hint: 'API Key', url: 'https://www.zoominfo.com/', placeholder: 'API_KEY...' },
+      { id: 'cognism', label: 'Cognism', hint: 'API Key', url: 'https://www.cognism.com/', placeholder: 'API_KEY...' },
       { id: 'people_data_labs', label: 'People Data Labs', hint: 'API Key', url: 'https://www.peopledatalabs.com/', placeholder: 'API_KEY...' },
-      { id: 'clearbit',      label: 'Clearbit',        hint: 'API Key', url: 'https://clearbit.com/', placeholder: 'sk_...' },
-      { id: 'crunchbase',    label: 'Crunchbase',      hint: 'API Key', url: 'https://data.crunchbase.com/', placeholder: 'API_KEY...' },
+      { id: 'clearbit', label: 'Clearbit', hint: 'API Key', url: 'https://clearbit.com/', placeholder: 'sk_...' },
+      { id: 'crunchbase', label: 'Crunchbase', hint: 'API Key', url: 'https://data.crunchbase.com/', placeholder: 'API_KEY...' },
     ],
   },
 ];
 
 const COLOR_MAP: Record<string, string> = {
-  violet:  'from-violet-600/15 to-violet-600/5 border-violet-500/20',
-  blue:    'from-blue-600/15 to-blue-600/5 border-blue-500/20',
+  violet: 'from-violet-600/15 to-violet-600/5 border-violet-500/20',
+  blue: 'from-blue-600/15 to-blue-600/5 border-blue-500/20',
   emerald: 'from-emerald-600/15 to-emerald-600/5 border-emerald-500/20',
-  orange:  'from-orange-600/15 to-orange-600/5 border-orange-500/20',
-  indigo:  'from-indigo-600/15 to-indigo-600/5 border-indigo-500/20',
+  orange: 'from-orange-600/15 to-orange-600/5 border-orange-500/20',
+  indigo: 'from-indigo-600/15 to-indigo-600/5 border-indigo-500/20',
 };
 
 const DOT_COLOR: Record<string, string> = {
-  violet:  'bg-violet-400',
-  blue:    'bg-blue-400',
+  violet: 'bg-violet-400',
+  blue: 'bg-blue-400',
   emerald: 'bg-emerald-400',
-  orange:  'bg-orange-400',
-  indigo:  'bg-indigo-400',
+  orange: 'bg-orange-400',
+  indigo: 'bg-indigo-400',
 };
 
 export default function ApiManagementView({
@@ -216,11 +218,10 @@ export default function ApiManagementView({
     <div className="max-w-6xl mx-auto space-y-8 pb-16 animate-in fade-in duration-300">
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-2xl shadow-2xl text-sm font-semibold border transition-all animate-in slide-in-from-top-4 duration-300 ${
-          toast.type === 'ok'
+        <div className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-2xl shadow-2xl text-sm font-semibold border transition-all animate-in slide-in-from-top-4 duration-300 ${toast.type === 'ok'
             ? 'bg-emerald-950/90 border-emerald-500/30 text-emerald-300'
             : 'bg-rose-950/90 border-rose-500/30 text-rose-300'
-        }`}>
+          }`}>
           {toast.msg}
         </div>
       )}
@@ -262,9 +263,8 @@ export default function ApiManagementView({
           </div>
         </div>
 
-        <div className={`glass-panel border rounded-2xl p-5 relative overflow-hidden ${
-          hasPrimaryAI ? 'border-emerald-500/20' : 'border-rose-500/30'
-        }`}>
+        <div className={`glass-panel border rounded-2xl p-5 relative overflow-hidden ${hasPrimaryAI ? 'border-emerald-500/20' : 'border-rose-500/30'
+          }`}>
           <div className={`flex items-center gap-2 text-sm font-bold ${hasPrimaryAI ? 'text-emerald-400' : 'text-rose-400 animate-pulse'}`}>
             {hasPrimaryAI ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
             {hasPrimaryAI ? 'AI Brain: Active' : 'AI Brain: Missing!'}
@@ -336,23 +336,20 @@ export default function ApiManagementView({
                   return (
                     <div
                       key={provider.id}
-                      className={`rounded-2xl border p-4 flex items-center justify-between gap-4 transition-all duration-200 ${
-                        isConfigured
+                      className={`rounded-2xl border p-4 flex items-center justify-between gap-4 transition-all duration-200 ${isConfigured
                           ? 'bg-gray-900/70 border-gray-700/40 hover:border-gray-600/60'
                           : 'bg-gray-950/40 border-gray-800/50 hover:border-gray-700/50'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         {/* Status dot */}
                         <div className="flex-shrink-0 relative">
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                            isConfigured ? 'bg-emerald-500/15 border border-emerald-500/30' : 'bg-gray-800/60 border border-gray-700/40'
-                          }`}>
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isConfigured ? 'bg-emerald-500/15 border border-emerald-500/30' : 'bg-gray-800/60 border border-gray-700/40'
+                            }`}>
                             <Key size={13} className={isConfigured ? 'text-emerald-400' : 'text-gray-500'} />
                           </div>
-                          <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-gray-900 ${
-                            isConfigured ? 'bg-emerald-400' : 'bg-gray-600'
-                          }`} />
+                          <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-gray-900 ${isConfigured ? 'bg-emerald-400' : 'bg-gray-600'
+                            }`} />
                         </div>
 
                         <div className="min-w-0">
@@ -365,11 +362,10 @@ export default function ApiManagementView({
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
-                              isConfigured
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${isConfigured
                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                                 : 'bg-gray-800 text-gray-500 border-gray-700/50'
-                            }`}>
+                              }`}>
                               {isConfigured ? '● Connected' : '○ Not set'}
                             </span>
                             {provider.hint && (
@@ -402,11 +398,10 @@ export default function ApiManagementView({
                           <>
                             <button
                               onClick={() => openAddDialog(provider)}
-                              className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${
-                                isConfigured
+                              className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${isConfigured
                                   ? 'bg-gray-800 hover:bg-gray-700 text-gray-300 border-gray-700/50'
                                   : 'bg-violet-600 hover:bg-violet-500 text-white border-transparent shadow-lg shadow-violet-500/20'
-                              }`}
+                                }`}
                             >
                               <Plus size={11} />
                               {isConfigured ? 'Replace' : 'Add Key'}
@@ -478,7 +473,7 @@ export default function ApiManagementView({
                   {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
-              {dialogProvider?.id === 'smtp' && (
+              {dialogProvider?.id.startsWith('smtp') && (
                 <p className="text-[11px] text-gray-500 font-mono leading-relaxed">
                   Format: <span className="text-gray-400">smtp://email@host.com:password@smtp.host.com:587</span>
                 </p>
