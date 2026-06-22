@@ -39,6 +39,7 @@ export default function CampaignsView({
   const [videoProvider, setVideoProvider] = useState('pika');
   const [generateImages, setGenerateImages] = useState(true);
   const [generateVideos, setGenerateVideos] = useState(true);
+  const [generateRemotion, setGenerateRemotion] = useState(false);
   const [campaignPosts, setCampaignPosts] = useState<any[]>([]);
   const [campaignFilterPlatform, setCampaignFilterPlatform] = useState<string>('all');
   const [campaignFilterStatus, setCampaignFilterStatus] = useState<string>('all');
@@ -136,7 +137,8 @@ export default function CampaignsView({
           image_provider: imageProvider,
           video_provider: videoProvider,
           generate_images: generateImages,
-          generate_videos: generateVideos
+          generate_videos: generateVideos,
+          generate_remotion: generateRemotion
         })
       });
       const data = await res.json();
@@ -687,6 +689,7 @@ export default function CampaignsView({
                         <SelectItem value="none">None (No prompt attachment)</SelectItem>
                         <SelectItem value="image">Image Prompt (For AI Graphics)</SelectItem>
                         <SelectItem value="video">Video Prompt (For AI Video loops)</SelectItem>
+                        <SelectItem value="remotion">Remotion Video Prompt (For Code-based Video)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -754,6 +757,15 @@ export default function CampaignsView({
                           className="flex-1 h-8 rounded-lg text-xs font-semibold bg-indigo-650 hover:bg-indigo-600 text-white disabled:opacity-50"
                         >
                           {generatingMedia ? "Generating..." : "Generate AI Video"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={generatingMedia || !editingVideoPrompt}
+                          onClick={() => handleGenerateMedia(post.id, 'remotion', editingVideoPrompt)}
+                          className="flex-1 h-8 rounded-lg text-xs font-semibold bg-blue-650 hover:bg-blue-600 text-white disabled:opacity-50"
+                        >
+                          {generatingMedia ? "Generating..." : "Generate Remotion"}
                         </Button>
                       </div>
                     </div>
@@ -1309,6 +1321,22 @@ export default function CampaignsView({
                                 </Select>
                               </div>
                             )}
+                          </div>
+
+                          {/* Remotion Settings */}
+                          <div className="space-y-2 border-t border-gray-850 pt-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex flex-col">
+                                <span className="text-xs font-semibold text-gray-300">Generate Remotion Videos</span>
+                                <span className="text-[10px] text-gray-500">Create programmatic data-driven videos</span>
+                              </div>
+                              <input 
+                                type="checkbox" 
+                                checked={generateRemotion} 
+                                onChange={e => setGenerateRemotion(e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-805 bg-gray-950 text-violet-605 focus:ring-violet-500/20"
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>

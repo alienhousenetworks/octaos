@@ -12,6 +12,8 @@ router = APIRouter()
 class VideoCreateRequest(BaseModel):
     prompt: str
     title: Optional[str] = "Untitled Video"
+    provider: Optional[str] = None
+    model: Optional[str] = None
 
 class VideoProjectResponse(BaseModel):
     id: str
@@ -40,6 +42,8 @@ def create_video_project(
         tenant_id=tenant_id,
         title=req.title,
         prompt=req.prompt,
+        llm_provider=req.provider,
+        llm_model=req.model,
         status="planning"
     )
     db.add(project)

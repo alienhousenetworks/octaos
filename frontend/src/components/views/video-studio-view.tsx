@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Video, Plus, Loader2, Play, RefreshCw, FileJson, CheckCircle, AlertTriangle } from 'lucide-react';
 
 interface VideoStudioViewProps {
@@ -19,6 +20,8 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
   const [loading, setLoading] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [title, setTitle] = useState('');
+  const [provider, setProvider] = useState('auto');
+  const [model, setModel] = useState('gemini-2.5-flash');
   const [selectedProject, setSelectedProject] = useState<any | null>(null);
 
   const fetchProjects = async () => {
@@ -47,7 +50,12 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
       const res = await fetchWithAuth(`${API_URL}/videos/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, prompt })
+        body: JSON.stringify({ 
+          title, 
+          prompt, 
+          provider: provider === 'auto' ? undefined : provider, 
+          model: model 
+        })
       });
       if (res.ok) {
         setPrompt('');
@@ -125,6 +133,38 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
                 placeholder="Describe the video. e.g. 'A 30-second promo for our new AI agent feature. Include a hero scene, 3 feature highlights, and a final call to action.'" 
                 className="bg-gray-900/50 border-gray-800 text-white min-h-[120px] text-sm"
               />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-gray-400">AI Provider</label>
+                <Select value={provider} onValueChange={setProvider}>
+                  <SelectTrigger className="bg-gray-900/50 border-gray-800 text-white h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                    <SelectItem value="auto">Auto (AI Brain Choice)</SelectItem>
+                    <SelectItem value="gemini">Google Gemini</SelectItem>
+                    <SelectItem value="openai">OpenAI GPT</SelectItem>
+                    <SelectItem value="anthropic">Anthropic Claude</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-gray-400">Model</label>
+                <Select value={model} onValueChange={setModel}>
+                  <SelectTrigger className="bg-gray-900/50 border-gray-800 text-white h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                    <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                    <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+                    <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                    <SelectItem value="gpt-4o-mini">GPT-4o mini</SelectItem>
+                    <SelectItem value="claude-sonnet-4-6">Claude 3.5 Sonnet</SelectItem>
+                    <SelectItem value="claude-haiku-4-5-20251001">Claude 3.5 Haiku</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <Button 
               onClick={handleCreateProject} 

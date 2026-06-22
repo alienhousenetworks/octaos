@@ -183,6 +183,7 @@ def generate_campaign_task(tenant_id: str, params: dict):
         video_provider = params.get("video_provider", "pika")
         generate_images = params.get("generate_images", True)
         generate_videos = params.get("generate_videos", True)
+        generate_remotion = params.get("generate_remotion", False)
         
         # Log start activity
         log = ActivityLog(
@@ -333,6 +334,39 @@ def generate_campaign_task(tenant_id: str, params: dict):
                             image_url = raw  # store error sentinel for UI display
                         else:
                             image_url = async_to_sync(ensure_public_url)(raw, prefix="img") if raw else None
+
+                    if generate_remotion and (day % 3 == 0):
+                        from app.services.agents.video import VideoAgent
+                        from app.models.video import VideoProject
+                        import httpx
+                        import os
+                        v_agent = VideoAgent(db, tenant_id)
+                        v_project = VideoProject(
+                            tenant_id=tenant_id,
+                            title=f"Campaign Remotion Day {day} {platform}",
+                            prompt=f"Create a short motion graphics video for: {topic}. Script context: {content[:200]}",
+                            duration_seconds=15
+                        )
+                        db.add(v_project)
+                        db.commit()
+                        db.refresh(v_project)
+                        res = async_to_sync(v_agent.plan_video)(v_project.id)
+                        if res.get("status") == "success":
+                            blueprint = res.get("blueprint")
+                            with httpx.Client(timeout=300.0) as client:
+                                try:
+                                    resp = client.post("http://localhost:8002/render", json=blueprint)
+                                    if resp.status_code == 200:
+                                        data = resp.json()
+                                        local_file = data.get("file")
+                                        if local_file and os.path.exists(local_file):
+                                            with open(local_file, "rb") as f:
+                                                f_content = f.read()
+                                            from app.services.media.storage import _write_bytes
+                                            public_url = _write_bytes(f_content, "video/mp4", prefix="remotion")
+                                            video_url = public_url
+                                except Exception as e:
+                                    print(f"Renderer error: {str(e)}")
                 elif platform == "linkedin":
                     if generate_images:
                         i_prompt = (

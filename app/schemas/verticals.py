@@ -74,6 +74,7 @@ class CampaignCreate(BaseModel):
     video_provider: str = "pika"
     generate_images: bool = True
     generate_videos: bool = True
+    generate_remotion: bool = False
 
     @validator("days")
     def validate_days(cls, v):

@@ -11,6 +11,8 @@ class VideoProject(Base):
     organization_id = Column(String, nullable=True, index=True)
     title = Column(String, nullable=False)
     prompt = Column(Text, nullable=True)
+    llm_provider = Column(String, nullable=True)
+    llm_model = Column(String, nullable=True)
     status = Column(String, default="draft") # draft, planning, rendering, completed, failed
     duration_seconds = Column(Integer, default=30)
     blueprint = Column(JSON, default={})

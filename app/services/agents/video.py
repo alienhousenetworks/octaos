@@ -80,18 +80,23 @@ Generate ONLY the JSON object. Do not wrap it in markdown code blocks.
 
         try:
             # Let the LLMGateway figure out the best model or use the default
-            result_str = await self.llm.complete(prompt)
+            result_str = await self.llm.complete(
+                prompt=prompt,
+                model=project.llm_model,
+                provider=project.llm_provider,
+                system_prompt="You are a JSON generating system. Output ONLY raw JSON."
+            )
             
-            # Clean up JSON
+            # Clean up JSON using regex to find the first '{' and last '}'
+            import re
             cleaned = result_str.strip()
-            if cleaned.startswith("```json"):
-                cleaned = cleaned[7:]
-            if cleaned.startswith("```"):
-                cleaned = cleaned[3:]
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3]
-            cleaned = cleaned.strip()
-
+            # Find JSON block
+            json_match = re.search(r'(\{.*\})', cleaned, re.DOTALL)
+            if json_match:
+                cleaned = json_match.group(1)
+            else:
+                raise Exception("No JSON object found in LLM response.")
+            
             blueprint = json.loads(cleaned)
             
             project.blueprint = blueprint

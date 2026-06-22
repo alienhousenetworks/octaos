@@ -185,6 +185,51 @@ async def generate_media_for_post(
         post.is_manual_media = False
         post.video_prompt = req.prompt
         post.video_prompt_enabled = True
+    elif req.media_type == "remotion":
+        from app.services.agents.video import VideoAgent
+        import httpx
+        from app.services.media.storage import ensure_public_url
+        import os
+        from app.models.video import VideoProject
+        
+        agent = VideoAgent(db, tenant_id)
+        project = VideoProject(
+            tenant_id=tenant_id,
+            title=f"Post Video {post.id}",
+            prompt=req.prompt,
+            duration_seconds=15
+        )
+        db.add(project)
+        db.commit()
+        db.refresh(project)
+        
+        res = await agent.plan_video(project.id)
+        if res.get("status") == "success":
+            blueprint = res.get("blueprint")
+            with httpx.Client(timeout=300.0) as client:
+                try:
+                    resp = client.post("http://localhost:8002/render", json=blueprint)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        local_file = data.get("file")
+                        if local_file and os.path.exists(local_file):
+                            with open(local_file, "rb") as f:
+                                content = f.read()
+                            from app.services.media.storage import _write_bytes
+                            public_url = _write_bytes(content, "video/mp4", prefix="remotion")
+                            post.video_url = public_url
+                            post.image_url = None
+                            post.is_manual_media = False
+                            post.video_prompt = req.prompt
+                            post.video_prompt_enabled = True
+                        else:
+                            raise HTTPException(status_code=500, detail="Failed to render remotion video")
+                    else:
+                        raise HTTPException(status_code=500, detail="Failed to communicate with renderer")
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=f"Renderer error: {str(e)}")
+        else:
+            raise HTTPException(status_code=500, detail="Failed to plan video blueprint")
     else:
         provider = req.provider or "openai"
         image_url = await gateway.generate_image(req.prompt, provider=provider)
