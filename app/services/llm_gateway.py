@@ -42,10 +42,7 @@ class LLMGateway:
         if key:
             return key
         
-        # If tenant_id is present, do NOT fall back to environment variables
-        if self.tenant_id:
-            return ""
-        
+        # Fall back to environment variables
         if provider == "anthropic":
             return settings.SHARED_CLAUDE_KEY or settings.ANTHROPIC_API_KEY
         elif provider == "openai":

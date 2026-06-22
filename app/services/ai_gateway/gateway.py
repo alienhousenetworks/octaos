@@ -71,9 +71,8 @@ class AIProviderGateway:
                 APICredential.tenant_id == tenant_id,
                 APICredential.provider == provider
             ).first()
-            if cred:
+            if cred and cred.encrypted_key:
                 return decrypt_api_key(cred.encrypted_key)
-            return ""
         
         # System settings keys fallback
         if provider == "anthropic":
@@ -98,12 +97,11 @@ class AIProviderGateway:
         return ""
 
     def _get_configured_providers(self, db: Session, tenant_id: str) -> List[str]:
+        configured = []
         if tenant_id:
             creds = db.query(APICredential).filter(APICredential.tenant_id == tenant_id).all()
-            return list(set([c.provider.lower() for c in creds if c.encrypted_key]))
+            configured.extend([c.provider.lower() for c in creds if c.encrypted_key])
             
-        configured = []
-        
         # Check system/env config too
         if settings.ANTHROPIC_API_KEY or settings.SHARED_CLAUDE_KEY:
             configured.append("anthropic")
