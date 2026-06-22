@@ -1003,7 +1003,7 @@ export default function SalesView({
     <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-300">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-2">
+                  <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-2 glitch-text" data-text="Sales CRM Dashboard">
                     <TrendingUp className="text-emerald-400 h-8 w-8 animate-pulse" /> Sales CRM Dashboard
                   </h1>
                   <p className="text-gray-400 mt-1">Autonomous B2B prospect sourcing, outreach sequencing, contact enrichment, and conversion tracking.</p>
@@ -1038,14 +1038,14 @@ export default function SalesView({
                   { title: "Closed Revenue", val: fmtCurrency(closedRevenue), desc: "Total won deal value", icon: <Target className="h-4 w-4 text-violet-400" /> },
                   { title: "Win Rate", val: `${winRate}%`, desc: `${wonCount} won / ${lostCount} lost deals`, icon: <Calendar className="h-4 w-4 text-amber-400" /> },
                 ].map((stat, i) => (
-                  <Card key={i} className="glass-panel border-transparent shadow-lg rounded-2xl relative overflow-hidden p-4">
-                    <div className="flex justify-between items-start">
+                  <Card key={i} className={`hud-card neon-glow-emerald rounded-2xl relative overflow-hidden p-4 group transition-transform duration-300 hover:-translate-y-1`}>
+                    <div className="flex justify-between items-start z-10 relative">
                       <div>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{stat.title}</p>
-                        <h3 className="text-2xl font-black text-white mt-1">{stat.val}</h3>
-                        <p className="text-[10px] text-gray-450 mt-0.5">{stat.desc}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-mono group-hover:text-white transition-colors">{stat.title}</p>
+                        <h3 className="text-3xl font-black text-white mt-1">{stat.val}</h3>
+                        <p className="text-[9px] text-gray-500 font-medium uppercase tracking-wider mt-1">{stat.desc}</p>
                       </div>
-                      <div className="p-2 bg-gray-950/40 rounded-lg border border-gray-800">
+                      <div className="p-2 bg-gray-950/40 rounded-lg border border-[rgba(16,185,129,0.2)]">
                         {stat.icon}
                       </div>
                     </div>
@@ -1054,13 +1054,13 @@ export default function SalesView({
               </div>
 
               {/* V3 Sales AI Navigation Tabs */}
-              <div className="flex gap-2 p-1 bg-gray-950/80 border border-gray-800 rounded-2xl max-w-lg">
+              <div className="flex gap-2 p-1 bg-gray-900/60 border border-[rgba(16,185,129,0.2)] rounded-2xl max-w-lg z-10 relative">
                 <button
                   onClick={() => setActiveSalesTab('pipeline')}
                   className={`flex-1 py-2 px-4 rounded-xl text-xs font-black tracking-wide transition-all ${
                     activeSalesTab === 'pipeline'
-                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/15'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-900/40'
+                      ? 'bg-[rgba(16,185,129,0.15)] text-emerald-400 border border-[rgba(16,185,129,0.4)] shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800/40 border border-transparent'
                   }`}
                 >
                   🎯 CRM & Pipeline
@@ -1069,8 +1069,8 @@ export default function SalesView({
                   onClick={() => setActiveSalesTab('config')}
                   className={`flex-1 py-2 px-4 rounded-xl text-xs font-black tracking-wide transition-all ${
                     activeSalesTab === 'config'
-                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/15'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-900/40'
+                      ? 'bg-[rgba(16,185,129,0.15)] text-emerald-400 border border-[rgba(16,185,129,0.4)] shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800/40 border border-transparent'
                   }`}
                 >
                   ⚙️ Business Config
@@ -1079,8 +1079,8 @@ export default function SalesView({
                   onClick={() => setActiveSalesTab('stepper')}
                   className={`flex-1 py-2 px-4 rounded-xl text-xs font-black tracking-wide transition-all relative ${
                     activeSalesTab === 'stepper'
-                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/15'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-900/40'
+                      ? 'bg-[rgba(16,185,129,0.15)] text-emerald-400 border border-[rgba(16,185,129,0.4)] shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800/40 border border-transparent'
                   }`}
                 >
                   🤖 Live Stepper
@@ -1095,8 +1095,8 @@ export default function SalesView({
                   onClick={() => setActiveSalesTab('analytics')}
                   className={`flex-1 py-2 px-4 rounded-xl text-xs font-black tracking-wide transition-all ${
                     activeSalesTab === 'analytics'
-                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/15'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-900/40'
+                      ? 'bg-[rgba(16,185,129,0.15)] text-emerald-400 border border-[rgba(16,185,129,0.4)] shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800/40 border border-transparent'
                   }`}
                 >
                   📈 Revenue Analytics
@@ -1205,7 +1205,9 @@ export default function SalesView({
 
                     {salesViewMode === 'pipeline' ? (
                       /* Pipeline View Container */
-                      <div className="flex gap-4 overflow-x-auto pb-4 pt-1 max-w-full custom-scrollbar min-h-[500px]">
+                      <div className="relative">
+                        <div className="cyberpunk-scanline rounded-2xl z-0" />
+                        <div className="flex gap-4 overflow-x-auto pb-4 pt-1 max-w-full custom-scrollbar min-h-[500px] z-10 relative">
                         {[
                           { id: 'captured', label: 'Captured', color: 'border-t-gray-500', glow: 'shadow-gray-500/5' },
                           { id: 'scored', label: 'Scored', color: 'border-t-cyan-500', glow: 'shadow-cyan-500/5' },
@@ -1249,7 +1251,7 @@ export default function SalesView({
                                   console.error(err);
                                 }
                               }}
-                              className="flex-shrink-0 w-64 bg-gray-950/40 border border-gray-800 rounded-2xl p-3 flex flex-col min-h-[460px] max-h-[580px] overflow-hidden"
+                              className={`flex-shrink-0 w-64 hud-card ${stage.id === 'won' ? 'neon-glow-emerald' : stage.id === 'lost' ? 'neon-glow-rose' : 'neon-glow-cyan'} rounded-2xl p-3 flex flex-col min-h-[460px] max-h-[580px] overflow-hidden`}
                             >
                               {/* Column Header */}
                               <div className={`border-t-2 ${stage.color} pt-2 pb-1.5 flex flex-col flex-shrink-0 border-b border-gray-900/80 mb-2`}>
@@ -1282,10 +1284,10 @@ export default function SalesView({
                                         setSelectedLead(lead);
                                         setIsEditingSalesLead(false);
                                       }}
-                                      className={`bg-gray-900/60 border rounded-xl p-3 cursor-grab active:cursor-grabbing hover:border-emerald-500/40 hover:bg-gray-900 transition-all shadow-md ${stage.glow} ${
+                                      className={`hud-card bg-[rgba(0,0,0,0.4)] border rounded-xl p-3 cursor-grab active:cursor-grabbing hover:border-emerald-500/40 hover:bg-[rgba(16,185,129,0.05)] transition-all shadow-md ${stage.glow} ${
                                         isSelected
                                           ? 'border-emerald-500 ring-1 ring-emerald-500/25 bg-emerald-950/5'
-                                          : 'border-gray-850'
+                                          : 'border-[rgba(255,255,255,0.05)]'
                                       }`}
                                     >
                                       <div className="flex justify-between items-start gap-1 mb-1">
@@ -1355,6 +1357,7 @@ export default function SalesView({
                             </div>
                           );
                         })}
+                        </div>
                       </div>
                     ) : (
                       /* Table View Container */
