@@ -138,6 +138,7 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-gray-400">AI Provider</label>
                 <Select value={provider} onValueChange={(val) => {
+                  if (!val) return;
                   setProvider(val);
                   if (val === 'gemini') setModel('gemini-2.5-flash');
                   else if (val === 'openai') setModel('gpt-4o');
