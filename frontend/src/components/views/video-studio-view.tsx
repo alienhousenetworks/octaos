@@ -9,6 +9,38 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Video, Plus, Loader2, Play, RefreshCw, FileJson, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
 
+const FakeProgressBar = () => {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    // Start with a small jump
+    setProgress(5);
+    
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        // Slow down progress as it gets higher, capping at 95%
+        if (prev >= 95) return 95;
+        const increment = prev < 50 ? 5 : prev < 80 ? 2 : 1;
+        return prev + increment;
+      });
+    }, 5000); // Update every 5 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="w-full max-w-[120px] flex flex-col gap-1 mt-1">
+      <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
+        <div 
+          className="h-full bg-violet-500 transition-all duration-1000 ease-in-out" 
+          style={{ width: `${progress}%` }} 
+        />
+      </div>
+      <span className="text-[9px] text-gray-500 text-right">{progress}%</span>
+    </div>
+  );
+};
+
 interface VideoStudioViewProps {
   token: string | null;
   API_URL: string;
@@ -108,7 +140,13 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
   const getStatusBadge = (status: string) => {
     switch(status) {
       case 'planned': return <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Planned</span>;
-      case 'rendering': return <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin"/> Rendering</span>;
+      case 'queued': return <span className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin"/> Queued</span>;
+      case 'rendering': return (
+        <div className="flex flex-col gap-1">
+          <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 w-max"><Loader2 className="h-3 w-3 animate-spin"/> Rendering</span>
+          <FakeProgressBar />
+        </div>
+      );
       case 'completed': return <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"><CheckCircle className="h-3 w-3"/> Ready</span>;
       case 'failed': return <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"><AlertTriangle className="h-3 w-3"/> Failed</span>;
       default: return <span className="bg-gray-500/10 text-gray-400 border border-gray-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin"/> Planning</span>;
