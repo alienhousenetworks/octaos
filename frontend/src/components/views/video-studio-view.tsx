@@ -137,7 +137,7 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-gray-400">AI Provider</label>
-                <Select value={provider} onValueChange={setProvider}>
+                <Select value={provider} onValueChange={(val) => val && setProvider(val)}>
                   <SelectTrigger className="bg-gray-900/50 border-gray-800 text-white h-9 text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -151,7 +151,7 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-gray-400">Model</label>
-                <Select value={model} onValueChange={setModel}>
+                <Select value={model} onValueChange={(val) => val && setModel(val)}>
                   <SelectTrigger className="bg-gray-900/50 border-gray-800 text-white h-9 text-xs">
                     <SelectValue />
                   </SelectTrigger>
