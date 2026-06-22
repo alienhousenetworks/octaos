@@ -85,7 +85,8 @@ Generate ONLY the JSON object. Do not wrap it in markdown code blocks.
                 prompt=prompt,
                 model=project.llm_model,
                 provider=project.llm_provider,
-                system_prompt="You are a JSON generating system. Output ONLY raw JSON."
+                system_prompt="You are a JSON generating system. Output ONLY raw JSON.",
+                max_tokens=4096
             )
             
             # Clean up JSON using regex to find the first '{' and last '}'

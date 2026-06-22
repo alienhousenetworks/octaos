@@ -54,7 +54,7 @@ class LLMGateway:
             import os
             return os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY") or ""
         return ""
-    async def complete(self, prompt: str, model: str = None, provider: str = "anthropic", system_prompt: str = None) -> str:
+    async def complete(self, prompt: str, model: str = None, provider: str = "anthropic", system_prompt: str = None, **kwargs) -> str:
         from app.services.ai_gateway import ai_gateway
         
         # 1. Infer task parameters for optimization routing
@@ -144,7 +144,8 @@ class LLMGateway:
             task_type=inferred_task_type,
             realtime=inferred_realtime,
             complexity=inferred_complexity,
-            bulk=inferred_bulk
+            bulk=inferred_bulk,
+            **kwargs
         )
 
 
