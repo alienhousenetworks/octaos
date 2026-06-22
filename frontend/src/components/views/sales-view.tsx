@@ -1470,7 +1470,7 @@ export default function SalesView({
                 {/* Right Pane: Lead Detail Panel */}
                 <div className="lg:col-span-1">
                   {!selectedLead ? (
-                    <Card className="glass-panel border-transparent rounded-3xl p-8 text-center flex flex-col items-center justify-center h-[550px] shadow-2xl relative">
+                    <Card className="hud-card neon-glow-emerald rounded-3xl p-8 text-center flex flex-col items-center justify-center h-[550px] relative">
                       <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
                       <div className="text-5xl mb-4">🎯</div>
                       <h3 className="text-base font-bold text-white">No Lead Selected</h3>
@@ -1479,7 +1479,7 @@ export default function SalesView({
                       </p>
                     </Card>
                   ) : (
-                    <Card className="glass-panel border-transparent rounded-3xl p-6 shadow-2xl relative flex flex-col min-h-[600px] overflow-hidden">
+                    <Card className="hud-card neon-glow-emerald rounded-3xl p-6 relative flex flex-col min-h-[600px] overflow-hidden">
                       <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
                       
                       {/* Identity Section */}
@@ -2221,7 +2221,9 @@ export default function SalesView({
               )}
 
               {activeSalesTab === 'config' && (
-                <Card className="glass-panel border-transparent rounded-3xl p-8 shadow-2xl relative">
+                <Card className="hud-card neon-glow-emerald rounded-3xl p-8 relative">
+                  <div className="cyberpunk-scanline rounded-3xl z-0" />
+                  <div className="z-10 relative">
                   <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
                   
                   <div className="mb-6">
@@ -2599,12 +2601,13 @@ export default function SalesView({
                       {salesActionLoading ? 'Starting Agent...' : '🚀 Launch Autonomous Sales AI V3'}
                     </Button>
                   </div>
+                  </div>
                 </Card>
               )}
 
               {activeSalesTab === 'stepper' && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  <Card className="lg:col-span-2 glass-panel border-transparent rounded-3xl p-6 shadow-2xl relative">
+                  <Card className="lg:col-span-2 hud-card neon-glow-emerald rounded-3xl p-6 relative">
                     <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
                     
                     <div className="mb-6 flex justify-between items-center border-b border-gray-800/60 pb-4">
