@@ -864,17 +864,17 @@ def plan_video_task(tenant_id: str, project_id: str):
 
 @celery_app.task(name="render_video_task")
 def render_video_task(tenant_id: str, project_id: str):
-    import httpx
-    import logging
     from app.db.session import SessionLocal
-    from app.models.video import VideoProject, VideoRender
-    from app.services.media.storage import upload_file_to_storage
-    import os
-    from datetime import datetime, timezone
-    from asgiref.sync import async_to_sync
-
     db = SessionLocal()
     try:
+        import httpx
+        import logging
+        from app.models.video import VideoProject, VideoRender
+        from app.services.media.storage import upload_file_to_storage
+        import os
+        from datetime import datetime, timezone
+        from asgiref.sync import async_to_sync
+
         project = db.query(VideoProject).filter(
             VideoProject.id == project_id, 
             VideoProject.tenant_id == tenant_id

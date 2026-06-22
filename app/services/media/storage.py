@@ -147,3 +147,8 @@ async def resolve_media_bytes(
             return None
 
     return None
+
+async def upload_file_to_storage(content: bytes, filename: str, mime_type: str) -> str:
+    """Async wrapper for _write_bytes, ignoring filename to use standard naming."""
+    prefix = filename.split('_')[0] if '_' in filename else 'upload'
+    return _write_bytes(content, mime_type, prefix=prefix)
