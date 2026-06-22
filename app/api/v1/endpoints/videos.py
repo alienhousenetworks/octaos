@@ -102,6 +102,19 @@ def list_video_projects(
 ) -> Any:
     return db.query(VideoProject).filter(VideoProject.tenant_id == tenant_id).order_by(VideoProject.created_at.desc()).all()
 
+@router.delete("/{project_id}")
+def delete_video_project(
+    project_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    project = db.query(VideoProject).filter(VideoProject.id == project_id, VideoProject.tenant_id == tenant_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    db.delete(project)
+    db.commit()
+    return {"status": "success", "message": "Video project deleted"}
+
 @router.get("/templates")
 def list_video_templates() -> Any:
     return {

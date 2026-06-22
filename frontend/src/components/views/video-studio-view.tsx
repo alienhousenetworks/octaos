@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Video, Plus, Loader2, Play, RefreshCw, FileJson, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Video, Plus, Loader2, Play, RefreshCw, FileJson, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
 
 interface VideoStudioViewProps {
   token: string | null;
@@ -82,6 +82,23 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
       } else {
         const data = await res.json();
         alert(`Failed to render: ${data.detail || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDelete = async (projectId: string) => {
+    if (!confirm('Are you sure you want to delete this video project? This cannot be undone.')) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/videos/${projectId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        fetchProjects();
+      } else {
+        const data = await res.json();
+        alert(`Failed to delete: ${data.detail || 'Unknown error'}`);
       }
     } catch (e) {
       console.error(e);
@@ -249,6 +266,10 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
                           <Play className="h-3 w-3 mr-1" /> Watch
                         </Button>
                       )}
+
+                      <Button variant="outline" size="sm" onClick={() => handleDelete(proj.id)} className="border-rose-900/50 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs px-2">
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
