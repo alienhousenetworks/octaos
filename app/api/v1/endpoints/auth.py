@@ -712,3 +712,65 @@ def get_public_settings(db: Session = Depends(deps.get_db)):
         "logo_url": result.get("logo_url"),
         "favicon_url": result.get("favicon_url"),
     }
+
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    phone_no: Optional[str] = None
+
+class OrganizationUpdate(BaseModel):
+    name: Optional[str] = None
+    company_email: Optional[str] = None
+    company_website: Optional[str] = None
+    company_address: Optional[str] = None
+
+@router.put("/profile")
+def update_profile(
+    profile_in: ProfileUpdate,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    if profile_in.name is not None:
+        current_user.name = profile_in.name
+    if profile_in.phone_no is not None:
+        current_user.phone_no = profile_in.phone_no
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return {
+        "name": current_user.name,
+        "phone_no": current_user.phone_no
+    }
+
+@router.put("/organization")
+def update_organization(
+    org_in: OrganizationUpdate,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    if current_user.role != "admin" and not current_user.is_system_admin:
+        raise HTTPException(status_code=403, detail="Only admins can manage organization details")
+        
+    tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Organization not found")
+        
+    if org_in.name is not None:
+        tenant.name = org_in.name
+    if org_in.company_email is not None:
+        tenant.company_email = org_in.company_email
+    if org_in.company_website is not None:
+        tenant.company_website = org_in.company_website
+    if org_in.company_address is not None:
+        tenant.company_address = org_in.company_address
+        
+    db.add(tenant)
+    db.commit()
+    db.refresh(tenant)
+    return {
+        "tenant_id": tenant.id,
+        "name": tenant.name,
+        "company_email": tenant.company_email,
+        "company_website": tenant.company_website,
+        "company_address": tenant.company_address
+    }
+

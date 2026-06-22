@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   User, Mail, Phone, Shield, Building2, Globe, MapPin,
   CheckCircle2, ChevronRight, LogIn, Loader2, RefreshCcw,
-  Star, Crown, Briefcase, ExternalLink, AlertCircle,
+  Star, Crown, Briefcase, ExternalLink, AlertCircle, Edit2, Save
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +41,15 @@ export default function ProfileView({
   const [editPhone, setEditPhone] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
+
+  // Edit organization state
+  const [editingOrg, setEditingOrg] = useState(false);
+  const [editOrgName, setEditOrgName] = useState('');
+  const [editOrgEmail, setEditOrgEmail] = useState('');
+  const [editOrgWebsite, setEditOrgWebsite] = useState('');
+  const [editOrgAddress, setEditOrgAddress] = useState('');
+  const [savingOrg, setSavingOrg] = useState(false);
+  const [orgSaved, setOrgSaved] = useState(false);
 
   const fetchOrganizations = useCallback(async () => {
     setLoadingOrgs(true);
@@ -129,6 +138,37 @@ export default function ProfileView({
       setEditing(false);
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleSaveOrganization = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingOrg(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/auth/organization`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editOrgName,
+          company_email: editOrgEmail,
+          company_website: editOrgWebsite,
+          company_address: editOrgAddress
+        }),
+      });
+      if (res.ok) {
+        setEditingOrg(false);
+        setOrgSaved(true);
+        await fetchOrganizations();
+        await fetchData?.();
+        setTimeout(() => setOrgSaved(false), 3000);
+      } else {
+        const err = await res.json();
+        alert(err.detail || 'Failed to save organization');
+      }
+    } catch {
+      alert('Network error while saving organization');
+    } finally {
+      setSavingOrg(false);
     }
   };
 
@@ -338,17 +378,59 @@ export default function ProfileView({
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-gray-800/60 grid grid-cols-1 gap-2.5">
-                  {userProfile?.company_website && (
-                    <OrgDetail icon={<Globe size={12} />} label="Website" value={userProfile.company_website} isLink />
-                  )}
-                  {userProfile?.company_email && (
-                    <OrgDetail icon={<Mail size={12} />} label="Company Email" value={userProfile.company_email} />
-                  )}
-                  {userProfile?.company_address && (
-                    <OrgDetail icon={<MapPin size={12} />} label="Address" value={userProfile.company_address} />
-                  )}
-                </div>
+                {editingOrg ? (
+                  <form onSubmit={handleSaveOrganization} className="pt-3 border-t border-gray-800/60 flex flex-col gap-3">
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Company Name</label>
+                      <input type="text" value={editOrgName} onChange={e => setEditOrgName(e.target.value)} className="w-full bg-black/40 border border-gray-800 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Company Email</label>
+                      <input type="email" value={editOrgEmail} onChange={e => setEditOrgEmail(e.target.value)} className="w-full bg-black/40 border border-gray-800 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Website</label>
+                      <input type="text" value={editOrgWebsite} onChange={e => setEditOrgWebsite(e.target.value)} className="w-full bg-black/40 border border-gray-800 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Address</label>
+                      <input type="text" value={editOrgAddress} onChange={e => setEditOrgAddress(e.target.value)} className="w-full bg-black/40 border border-gray-800 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors" />
+                    </div>
+                    <div className="flex gap-2 justify-end mt-2">
+                      <button type="button" onClick={() => setEditingOrg(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition-colors">Cancel</button>
+                      <button type="submit" disabled={savingOrg} className="px-3 py-1.5 text-xs bg-violet-600 hover:bg-violet-500 text-white rounded transition-colors flex items-center gap-1">
+                        {savingOrg ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                        Save
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="pt-3 border-t border-gray-800/60 grid grid-cols-1 gap-2.5">
+                    {userProfile?.company_website && (
+                      <OrgDetail icon={<Globe size={12} />} label="Website" value={userProfile.company_website} isLink />
+                    )}
+                    {userProfile?.company_email && (
+                      <OrgDetail icon={<Mail size={12} />} label="Company Email" value={userProfile.company_email} />
+                    )}
+                    {userProfile?.company_address && (
+                      <OrgDetail icon={<MapPin size={12} />} label="Address" value={userProfile.company_address} />
+                    )}
+                    {currentOrg.role === 'admin' && (
+                      <button
+                        onClick={() => {
+                          setEditOrgName(currentOrg.tenant_name || '');
+                          setEditOrgEmail(userProfile?.company_email || '');
+                          setEditOrgWebsite(userProfile?.company_website || '');
+                          setEditOrgAddress(userProfile?.company_address || '');
+                          setEditingOrg(true);
+                        }}
+                        className="mt-2 text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1 transition-colors w-fit"
+                      >
+                        <Edit2 size={10} /> Edit Organization
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-sm text-gray-500 flex items-center gap-2">
