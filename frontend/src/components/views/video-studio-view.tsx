@@ -54,7 +54,7 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
           title, 
           prompt, 
           provider: provider === 'auto' ? undefined : provider, 
-          model: model 
+          model: provider === 'auto' ? undefined : model
         })
       });
       if (res.ok) {
@@ -137,7 +137,12 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-gray-400">AI Provider</label>
-                <Select value={provider} onValueChange={(val) => val && setProvider(val)}>
+                <Select value={provider} onValueChange={(val) => {
+                  setProvider(val);
+                  if (val === 'gemini') setModel('gemini-2.5-flash');
+                  else if (val === 'openai') setModel('gpt-4o');
+                  else if (val === 'anthropic') setModel('claude-sonnet-4-6');
+                }}>
                   <SelectTrigger className="bg-gray-900/50 border-gray-800 text-white h-9 text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -149,22 +154,39 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-400">Model</label>
-                <Select value={model} onValueChange={(val) => val && setModel(val)}>
-                  <SelectTrigger className="bg-gray-900/50 border-gray-800 text-white h-9 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-gray-900 border-gray-800 text-white">
-                    <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
-                    <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
-                    <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                    <SelectItem value="gpt-4o-mini">GPT-4o mini</SelectItem>
-                    <SelectItem value="claude-sonnet-4-6">Claude 3.5 Sonnet</SelectItem>
-                    <SelectItem value="claude-haiku-4-5-20251001">Claude 3.5 Haiku</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              
+              {provider !== 'auto' && (
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-gray-400">Model</label>
+                  <Select value={model} onValueChange={(val) => val && setModel(val)}>
+                    <SelectTrigger className="bg-gray-900/50 border-gray-800 text-white h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                      {provider === 'gemini' && (
+                        <>
+                          <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                          <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+                          <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
+                        </>
+                      )}
+                      {provider === 'openai' && (
+                        <>
+                          <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                          <SelectItem value="gpt-4o-mini">GPT-4o mini</SelectItem>
+                        </>
+                      )}
+                      {provider === 'anthropic' && (
+                        <>
+                          <SelectItem value="claude-sonnet-4-6">Claude 3.5 Sonnet</SelectItem>
+                          <SelectItem value="claude-haiku-4-5-20251001">Claude 3.5 Haiku</SelectItem>
+                          <SelectItem value="claude-opus-4-8">Claude 3.5 Opus</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             <Button 
               onClick={handleCreateProject} 

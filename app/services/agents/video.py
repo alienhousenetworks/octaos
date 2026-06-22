@@ -78,6 +78,7 @@ VALID SCENE TYPES: HeroScene, FeatureScene, TimelineScene, ComparisonScene, Stat
 Generate ONLY the JSON object. Do not wrap it in markdown code blocks.
 """
 
+        result_str = ""
         try:
             # Let the LLMGateway figure out the best model or use the default
             result_str = await self.llm.complete(
@@ -109,6 +110,7 @@ Generate ONLY the JSON object. Do not wrap it in markdown code blocks.
         except Exception as e:
             logger.error(f"Failed to generate video blueprint: {e}")
             project.status = "failed"
+            project.blueprint = {"error": str(e), "raw_response": result_str}
             self.db.commit()
             self.log_activity("Video Planning Failed", str(e), "failed")
             return {"status": "error", "message": str(e)}
