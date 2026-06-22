@@ -18,7 +18,7 @@ header()  { echo -e "\n${BOLD}━━━ $* ━━━━━━━━━━━━�
 
 # ── Paths & constants ─────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_DIR="$SCRIPT_DIR"
+APP_DIR="$(dirname "$SCRIPT_DIR")"  # repo root is one level above scripts/
 ENV_FILE="$APP_DIR/.env"
 VENV_DIR="$APP_DIR/venv"
 FRONTEND_DIR="$APP_DIR/frontend"
@@ -27,7 +27,7 @@ LOG_DIR="/var/log/octaos"
 
 # ── Must-run-as-root check ────────────────────────────────────────────────────
 if [[ "$EUID" -ne 0 ]]; then
-  error "Please run as root:  sudo bash updatedeploy.sh"
+  error "Please run as root:  sudo bash scripts/updatedeploy.sh"
 fi
 
 # =============================================================================
@@ -37,7 +37,7 @@ if [[ -f "$ENV_FILE" ]]; then
   set -a; source "$ENV_FILE"; set +a
   success "Loaded configuration from .env"
 else
-  error ".env file not found at $ENV_FILE. Please run deploy.sh first."
+  error ".env file not found at $ENV_FILE. Please run scripts/deploy.sh first."
 fi
 
 # =============================================================================
@@ -93,11 +93,11 @@ if [[ -d "$VENV_DIR" ]]; then
   fi
   
   info "Generating new migrations if models changed..."
-  chmod +x manage.sh
-  ./manage.sh makemigrations "auto_deploy_update" || warn "makemigrations had warnings or no changes"
+  chmod +x "$SCRIPT_DIR/manage.sh"
+  "$SCRIPT_DIR/manage.sh" makemigrations "auto_deploy_update" || warn "makemigrations had warnings or no changes"
   
   info "Applying database migrations..."
-  ./manage.sh migrate || error "Migrations failed!"
+  "$SCRIPT_DIR/manage.sh" migrate || error "Migrations failed!"
   
   "$VENV_DIR/bin/python3" "$APP_DIR/init_db.py" || warn "init_db.py had warnings (may be safe to ignore)"
   success "Database migrations completed"
