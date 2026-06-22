@@ -87,6 +87,8 @@ def trigger_video_render(
         raise HTTPException(status_code=404, detail="Project not found")
     if project.status == "rendering":
         raise HTTPException(status_code=400, detail="Video is already rendering")
+    project.status = "rendering"
+    db.commit()
     
     from app.worker.tasks import render_video_task
     render_video_task.delay(tenant_id, project.id)
