@@ -411,7 +411,7 @@ export default function CampaignsView({
     }
   };
 
-    const handleGenerateMedia = async (postId: string, mediaType: 'image' | 'video', customPrompt: string) => {
+    const handleGenerateMedia = async (postId: string, mediaType: 'image' | 'video' | 'remotion', customPrompt: string) => {
     if (!customPrompt) {
       alert("Please enter a media prompt first.");
       return;
