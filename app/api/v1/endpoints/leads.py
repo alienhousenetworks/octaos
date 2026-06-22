@@ -515,3 +515,180 @@ def trigger_scoring(
     score_lead_task.delay(tenant_id, lead.id)
     return {"message": "Lead scoring triggered successfully!"}
 
+
+@router.get("/email-config-status")
+def get_email_config_status(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """Return which email channels are configured for this tenant."""
+    from app.services.email.sender import check_smtp_configured, check_gmail_configured
+    smtp_ok = check_smtp_configured(db, tenant_id)
+    gmail_ok = check_gmail_configured(db, tenant_id)
+    return {
+        "smtp_configured": smtp_ok,
+        "gmail_configured": gmail_ok,
+        "any_configured": smtp_ok or gmail_ok,
+        "recommended_channel": "gmail" if gmail_ok else ("smtp" if smtp_ok else None),
+    }
+
+
+@router.get("/{lead_id}/email-status")
+def get_lead_email_status(
+    lead_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """Return email send/reply status for a specific lead."""
+    from app.services.email.sender import check_smtp_configured, check_gmail_configured
+    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    
+    data = lead.data or {}
+    conversation = data.get("conversation", [])
+    
+    outbound_emails = [m for m in conversation if m.get("direction") == "outbound" and m.get("channel") in ("smtp", "gmail", "email")]
+    inbound_replies = [m for m in conversation if m.get("direction") == "inbound"]
+    
+    smtp_ok = check_smtp_configured(db, tenant_id)
+    gmail_ok = check_gmail_configured(db, tenant_id)
+    
+    return {
+        "lead_id": lead_id,
+        "email": lead.email,
+        "smtp_configured": smtp_ok,
+        "gmail_configured": gmail_ok,
+        "email_configured": smtp_ok or gmail_ok,
+        "emails_sent": len(outbound_emails),
+        "last_sent_at": outbound_emails[-1].get("at") if outbound_emails else None,
+        "last_sent_subject": data.get("outbound_subject"),
+        "replies_received": len(inbound_replies),
+        "last_reply_at": data.get("last_inbound_at"),
+        "last_reply_channel": data.get("last_inbound_channel"),
+        "prospect_interested": data.get("prospect_interested", False),
+        "reply_intent": data.get("reply_intent"),
+        "sent_actual": data.get("sent_actual", False),
+        "email_send_status": data.get("email_send_status", "not_attempted"),
+        "outreach_sent_at": data.get("outreach_sent_at"),
+        "conversation": conversation,
+    }
+
+
+@router.post("/check-replies")
+def check_replies_for_tenant(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """Manually trigger Gmail inbox polling for this tenant to check for new prospect replies."""
+    from app.services.sales.gmail_poll import poll_gmail_inbox_for_sales
+    from app.services.email.sender import check_gmail_configured
+    
+    if not check_gmail_configured(db, tenant_id):
+        return {
+            "queued": 0,
+            "message": "Gmail is not configured. Connect your Gmail account in API Management to enable reply tracking.",
+            "gmail_configured": False,
+        }
+    
+    try:
+        queued = poll_gmail_inbox_for_sales(db, tenant_id)
+        return {
+            "queued": queued,
+            "gmail_configured": True,
+            "message": f"Inbox polled successfully. {queued} new reply(ies) queued for processing." if queued else "No new replies found in the last 7 days.",
+        }
+    except Exception as e:
+        return {
+            "queued": 0,
+            "gmail_configured": True,
+            "message": f"Gmail poll error: {str(e)}",
+        }
+
+
+@router.post("/{lead_id}/send-outreach-smart")
+async def send_outreach_smart(
+    lead_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """Send AI-generated outreach email for a lead. Always returns structured result including config status."""
+    from app.services.email.sender import check_smtp_configured, check_gmail_configured, send_email_with_status
+    
+    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    
+    smtp_ok = check_smtp_configured(db, tenant_id)
+    gmail_ok = check_gmail_configured(db, tenant_id)
+    email_configured = smtp_ok or gmail_ok
+    
+    # Generate outreach message via AI
+    service = SalesService(db, tenant_id)
+    try:
+        message = await service.generate_outreach(lead_id)
+    except Exception as e:
+        message = None
+    
+    if not message:
+        # Fallback: use stored outbound body if available
+        message = (lead.data or {}).get("outbound_body", "")
+    
+    subject = f"Partnership Opportunity - {lead.company or 'Your Company'}"
+    
+    # Record in conversation regardless of send outcome
+    conv = list((lead.data or {}).get("conversation") or [])
+    email_send_status = "not_configured"
+    send_result = {"sent": False, "channel": None, "reason": "no_email_configured", "message": "Email credentials not configured."}
+    
+    if email_configured:
+        # Try to send
+        send_result = send_email_with_status(db, tenant_id, lead.email or lead.company_email or lead.personal_email, subject, message)
+        email_send_status = "sent" if send_result.get("sent") else "failed"
+    
+    # Always add to conversation history (even if not sent — marked as "staged")
+    conv_entry = {
+        "direction": "outbound",
+        "channel": send_result.get("channel") or "email",
+        "content": message,
+        "subject": subject,
+        "author": "Sales AI Agent",
+        "at": datetime.utcnow().isoformat(),
+        "sent": send_result.get("sent", False),
+        "send_status": email_send_status,
+    }
+    conv.append(conv_entry)
+    
+    new_status = "contacted" if send_result.get("sent") else lead.status
+    lead.status = new_status
+    lead.data = {
+        **(lead.data or {}),
+        "outreach_channel": send_result.get("channel") or "email",
+        "outbound_subject": subject,
+        "outbound_body": message,
+        "outreach_sent_at": datetime.utcnow().isoformat() if send_result.get("sent") else (lead.data or {}).get("outreach_sent_at"),
+        "conversation": conv,
+        "sent_actual": send_result.get("sent", False),
+        "email_send_status": email_send_status,
+    }
+    db.commit()
+    db.refresh(lead)
+    
+    return {
+        "lead_id": lead_id,
+        "message": message,
+        "email_configured": email_configured,
+        "smtp_configured": smtp_ok,
+        "gmail_configured": gmail_ok,
+        "sent": send_result.get("sent", False),
+        "channel": send_result.get("channel"),
+        "send_status": email_send_status,
+        "send_message": send_result.get("message", ""),
+        "lead": {
+            "id": lead.id,
+            "status": lead.status,
+            "email": lead.email,
+            "name": lead.name,
+            "company": lead.company,
+        },
+    }

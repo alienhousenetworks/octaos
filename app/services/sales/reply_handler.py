@@ -256,7 +256,7 @@ Rules:
             if not subject.lower().startswith("re:"):
                 subject = f"Re: {subject}"
             outreach_channel = (lead.data or {}).get("outreach_channel", "smtp")
-            sent = send_email(
+            result = send_email(
                 self.db,
                 self.tenant_id,
                 lead.email,
@@ -264,6 +264,7 @@ Rules:
                 content,
                 channel=outreach_channel,
             )
+            sent = result.get("sent", False) if isinstance(result, dict) else bool(result)
             if sent:
                 self._append_conversation(
                     lead, direction="outbound", channel=channel, content=content
@@ -275,9 +276,10 @@ Rules:
                     "success",
                 )
             else:
+                reason = result.get("reason", "unknown") if isinstance(result, dict) else "unknown"
                 self.log_activity(
                     "Sales Reply Failed",
-                    f"Could not send email to {lead.email}.",
+                    f"Could not send email to {lead.email}. Reason: {reason}",
                     "failed",
                 )
         elif channel == "whatsapp":

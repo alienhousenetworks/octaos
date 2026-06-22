@@ -348,6 +348,62 @@ export default function SalesView({
   const [newLeadFollowupNotes, setNewLeadFollowupNotes] = useState('');
   const [creatingLead, setCreatingLead] = useState(false);
 
+  // Email config + reply tracking states
+  const [emailConfig, setEmailConfig] = useState<{smtp_configured: boolean; gmail_configured: boolean; any_configured: boolean; recommended_channel: string | null} | null>(null);
+  const [checkingReplies, setCheckingReplies] = useState(false);
+  const [sendingOutreachSmart, setSendingOutreachSmart] = useState(false);
+  const [lastReplyCheckResult, setLastReplyCheckResult] = useState<{queued: number; message: string} | null>(null);
+  const [outreachSmartResult, setOutreachSmartResult] = useState<any>(null);
+
+  const fetchEmailConfig = async () => {
+    if (!token) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/email-config-status`);
+      if (res.ok) {
+        const data = await res.json();
+        setEmailConfig(data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch email config:', e);
+    }
+  };
+
+  const handleCheckReplies = async () => {
+    setCheckingReplies(true);
+    setLastReplyCheckResult(null);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/check-replies`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setLastReplyCheckResult(data);
+        if (data.queued > 0) {
+          fetchLeads();
+        }
+      }
+    } catch (e) {
+      console.error('Check replies error:', e);
+    } finally {
+      setCheckingReplies(false);
+    }
+  };
+
+  const handleSendOutreachSmart = async (leadId: string) => {
+    setSendingOutreachSmart(true);
+    setOutreachSmartResult(null);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/${leadId}/send-outreach-smart`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setOutreachSmartResult(data);
+        fetchLeads();
+      }
+    } catch (e) {
+      console.error('Smart outreach error:', e);
+    } finally {
+      setSendingOutreachSmart(false);
+    }
+  };
+
   // Fetch leads when filters change
   useEffect(() => {
     if (token) {
@@ -361,6 +417,7 @@ export default function SalesView({
       fetchMembers();
       fetchBusinessProfile();
       fetchWorkflowStatus();
+      fetchEmailConfig();
     }
   }, [token]);
 
@@ -1151,6 +1208,7 @@ export default function SalesView({
                       <div className="flex gap-4 overflow-x-auto pb-4 pt-1 max-w-full custom-scrollbar min-h-[500px]">
                         {[
                           { id: 'captured', label: 'Captured', color: 'border-t-gray-500', glow: 'shadow-gray-500/5' },
+                          { id: 'scored', label: 'Scored', color: 'border-t-cyan-500', glow: 'shadow-cyan-500/5' },
                           { id: 'enriched', label: 'Enriched', color: 'border-t-teal-500', glow: 'shadow-teal-500/5' },
                           { id: 'contacted', label: 'Contacted', color: 'border-t-blue-500', glow: 'shadow-blue-500/5' },
                           { id: 'replied', label: 'Replied', color: 'border-t-violet-500', glow: 'shadow-violet-500/5' },
@@ -1261,6 +1319,29 @@ export default function SalesView({
                                         <span className="text-[9px] font-mono text-gray-400 font-semibold bg-gray-950 px-1.5 py-0.5 rounded border border-gray-800">
                                           ★ {lead.score || 50}
                                         </span>
+                                      </div>
+                                      
+                                      <div className="flex flex-wrap gap-1 mt-1.5">
+                                        {(lead.data?.email_send_status === 'sent' || lead.data?.sent_actual) && (
+                                          <span className="text-[8px] flex items-center gap-0.5 bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20">
+                                            <Mail size={8} /> Sent
+                                          </span>
+                                        )}
+                                        {lead.data?.email_send_status === 'failed' && (
+                                          <span className="text-[8px] flex items-center gap-0.5 bg-rose-500/10 text-rose-450 px-1.5 py-0.5 rounded border border-rose-500/20">
+                                            <AlertCircle size={8} /> Failed
+                                          </span>
+                                        )}
+                                        {lead.data?.email_send_status === 'not_configured' && (
+                                          <span className="text-[8px] flex items-center gap-0.5 bg-amber-500/10 text-amber-450 px-1.5 py-0.5 rounded border border-amber-500/20" title="SMTP not configured">
+                                            <AlertCircle size={8} /> Draft
+                                          </span>
+                                        )}
+                                        {(lead.status === 'replied' || (lead.data?.conversation || []).some((m: any) => m.direction === 'inbound')) && (
+                                          <span className="text-[8px] flex items-center gap-0.5 bg-violet-500/10 text-violet-400 px-1.5 py-0.5 rounded border border-violet-500/20">
+                                            <MessageSquare size={8} /> Replied
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
                                   );
@@ -1921,29 +2002,58 @@ export default function SalesView({
                             )}
 
                             {/* Outreach Actions Center */}
-                            <div className="space-y-2 bg-gray-900/40 p-4 rounded-2xl border border-gray-850">
+                            <div className="space-y-3 bg-gray-900/40 p-4 rounded-2xl border border-gray-850">
                               <div className="flex items-center gap-2 text-xs font-bold text-white border-b border-gray-800/60 pb-1.5">
                                 <Activity size={13} className="text-emerald-400" /> Outreach Actions
                               </div>
                               
+                              {/* Email Config Warning */}
+                              {emailConfig && !emailConfig.any_configured && (
+                                <div className="bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl">
+                                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-450 uppercase">
+                                    <AlertCircle size={12} /> SMTP / Gmail Not Configured
+                                  </div>
+                                  <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">
+                                    You can draft AI emails, but they won't be sent until you add your email credentials in the Platform Settings.
+                                  </p>
+                                </div>
+                              )}
+                              
                               <div className="grid grid-cols-2 gap-2 pt-1">
                                 <Button
-                                  onClick={() => handleSendSalesOutreach(selectedLead.id)}
-                                  disabled={salesActionLoading}
+                                  onClick={() => handleSendOutreachSmart(selectedLead.id)}
+                                  disabled={sendingOutreachSmart}
                                   variant="outline"
-                                  className="border-gray-800 hover:bg-gray-800 text-white rounded-xl text-xs h-9 bg-transparent shadow"
+                                  className={`rounded-xl text-xs h-9 text-white shadow ${emailConfig?.any_configured ? 'border-emerald-600 bg-emerald-950/30 hover:bg-emerald-900/50' : 'border-gray-800 hover:bg-gray-800 bg-transparent'}`}
                                 >
-                                  {salesActionLoading ? 'Sending...' : '✉️ Send Outreach'}
+                                  {sendingOutreachSmart ? (
+                                    <Loader2 size={12} className="animate-spin mr-1" />
+                                  ) : emailConfig?.any_configured ? (
+                                    '✉️ Send AI Outreach'
+                                  ) : (
+                                    '📝 Draft AI Email'
+                                  )}
                                 </Button>
+                                
                                 <Button
-                                  onClick={() => handleBookSalesMeeting(selectedLead.id)}
-                                  disabled={salesActionLoading}
+                                  onClick={handleCheckReplies}
+                                  disabled={checkingReplies}
                                   variant="outline"
                                   className="border-gray-800 hover:bg-gray-800 text-white rounded-xl text-xs h-9 bg-transparent shadow"
                                 >
-                                  {salesActionLoading ? 'Booking...' : '📅 Book Meeting'}
+                                  {checkingReplies ? (
+                                    <Loader2 size={12} className="animate-spin mr-1" />
+                                  ) : (
+                                    '🔄 Check Replies'
+                                  )}
                                 </Button>
                               </div>
+                              
+                              {lastReplyCheckResult && (
+                                <div className={`text-[10px] p-2 rounded-lg border ${lastReplyCheckResult.queued > 0 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-gray-800/40 border-gray-800 text-gray-400'}`}>
+                                  {lastReplyCheckResult.message}
+                                </div>
+                              )}
                             </div>
 
                             {/* Log Human Update Form */}

@@ -71,6 +71,18 @@ def send_gmail_email(creds_dict: dict, to_email: str, subject: str, body: str):
     }
 
 
+def check_gmail_configured(db: Session, tenant_id: str) -> bool:
+    cred = get_credential(db, tenant_id, "gmail")
+    return bool(cred and cred.encrypted_key)
+
+
+def check_smtp_configured(db: Session, tenant_id: str) -> bool:
+    cred = get_credential(db, tenant_id, "smtp")
+    if not cred or not cred.encrypted_key:
+        return False
+    return bool(parse_smtp_credentials(decrypt_api_key(cred.encrypted_key)))
+
+
 def send_email(
     db: Session,
     tenant_id: str,
@@ -78,27 +90,83 @@ def send_email(
     subject: str,
     body: str,
     channel: str = "smtp",
-) -> bool:
+) -> Dict[str, Any]:
     if channel == "gmail":
+        if not check_gmail_configured(db, tenant_id):
+            return {"sent": False, "reason": "Gmail not configured"}
         cred = get_credential(db, tenant_id, "gmail")
-        if cred and cred.encrypted_key:
-            try:
-                creds_dict = json.loads(decrypt_api_key(cred.encrypted_key))
-                result = send_gmail_email(creds_dict, to_email, subject, body)
-                return bool(result and result.get("ok"))
-            except Exception:
-                return False
-        return False
+        try:
+            creds_dict = json.loads(decrypt_api_key(cred.encrypted_key))
+            result = send_gmail_email(creds_dict, to_email, subject, body)
+            return {"sent": True, "details": result}
+        except Exception as e:
+            return {"sent": False, "reason": str(e)}
 
+    if not check_smtp_configured(db, tenant_id):
+        return {"sent": False, "reason": "SMTP not configured"}
+    
     cred = get_credential(db, tenant_id, "smtp")
-    if cred and cred.encrypted_key:
-        smtp = parse_smtp_credentials(decrypt_api_key(cred.encrypted_key))
-        if smtp:
-            try:
-                return send_smtp_email(smtp, to_email, subject, body)
-            except Exception:
-                return False
-    return False
+    smtp = parse_smtp_credentials(decrypt_api_key(cred.encrypted_key))
+    try:
+        send_smtp_email(smtp, to_email, subject, body)
+        return {"sent": True}
+    except Exception as e:
+        return {"sent": False, "reason": str(e)}
+
+
+def send_email_with_status(
+    db: Session,
+    tenant_id: str,
+    to_email: str,
+    subject: str,
+    body: str,
+) -> dict:
+    """
+    Try to send email via Gmail first, then SMTP.
+    Always returns a structured dict: {sent, channel, reason, message}.
+    Never raises — safe to call without try/except.
+    """
+    gmail_ok = check_gmail_configured(db, tenant_id)
+    smtp_ok = check_smtp_configured(db, tenant_id)
+
+    if not gmail_ok and not smtp_ok:
+        return {
+            "sent": False,
+            "channel": None,
+            "reason": "no_email_configured",
+            "message": "Neither SMTP nor Gmail is configured. Add credentials in API Management.",
+        }
+
+    if not to_email:
+        return {
+            "sent": False,
+            "channel": None,
+            "reason": "no_recipient",
+            "message": "No email address available for this lead.",
+        }
+
+    # Try Gmail first
+    if gmail_ok:
+        try:
+            cred = get_credential(db, tenant_id, "gmail")
+            creds_dict = json.loads(decrypt_api_key(cred.encrypted_key))
+            result = send_gmail_email(creds_dict, to_email, subject, body)
+            if result and result.get("ok"):
+                return {"sent": True, "channel": "gmail", "reason": "success", "message": "Sent via Gmail"}
+        except Exception as e:
+            pass  # Fall through to SMTP
+
+    # Try SMTP
+    if smtp_ok:
+        try:
+            cred = get_credential(db, tenant_id, "smtp")
+            smtp = parse_smtp_credentials(decrypt_api_key(cred.encrypted_key))
+            if smtp and send_smtp_email(smtp, to_email, subject, body):
+                return {"sent": True, "channel": "smtp", "reason": "success", "message": "Sent via SMTP"}
+        except Exception as e:
+            return {"sent": False, "channel": "smtp", "reason": "send_failed", "message": f"SMTP send error: {str(e)}"}
+
+    return {"sent": False, "channel": None, "reason": "all_failed", "message": "All email channels failed."}
 
 
 def send_global_smtp_email(to_email: str, subject: str, body: str) -> bool:
