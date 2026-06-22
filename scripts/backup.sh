@@ -1,11 +1,16 @@
 #!/bin/bash
 # OctaOS Enterprise Backup & Disaster Recovery script
 # Performs automated pg_dump backup and rotates old backups.
+# Usage: sudo bash scripts/backup.sh
 
 set -e
 
-# Default configurations
-BACKUP_DIR="${BACKUP_DIR:-./backups}"
+# Resolve repo root (one level up from scripts/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="$(dirname "$SCRIPT_DIR")"  # repo root is one level above scripts/
+
+# Default configurations — BACKUP_DIR is relative to repo root
+BACKUP_DIR="${BACKUP_DIR:-$APP_DIR/backups}"
 KEEP_DAYS="${KEEP_DAYS:-7}"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="${BACKUP_DIR}/octaos_backup_${TIMESTAMP}.sql.gz"

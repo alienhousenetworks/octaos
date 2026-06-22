@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  OctaOS – Development / QA Deploy Script
-#  Usage: sudo bash deploy-dev.sh
+#  Usage: sudo bash scripts/deploy-dev.sh
 #
 #  What this does (in order):
 #   1. Checks / installs system dependencies (nginx, node, python3, redis, postgres)
@@ -30,7 +30,7 @@ header()  { echo -e "\n${BOLD}━━━ $* ━━━━━━━━━━━━�
 
 # ── Paths & constants ─────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_DIR="$SCRIPT_DIR"
+APP_DIR="$(dirname "$SCRIPT_DIR")"  # repo root is one level above scripts/
 ENV_FILE="$APP_DIR/.env"
 ENV_EXAMPLE="$APP_DIR/.env.example"
 VENV_DIR="$APP_DIR/venv"
@@ -40,7 +40,7 @@ APP_USER="${SUDO_USER:-$(whoami)}"   # run services as the invoking user, not ro
 
 # ── Must-run-as-root check ────────────────────────────────────────────────────
 if [[ "$EUID" -ne 0 ]]; then
-  error "Please run as root:  sudo bash deploy-dev.sh"
+  error "Please run as root:  sudo bash scripts/deploy-dev.sh"
 fi
 
 # =============================================================================

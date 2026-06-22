@@ -2,13 +2,13 @@
 # =============================================================================
 #  OctaOS – One-Time Database Rename Script
 #  Run this ONCE on your VPS before running updatedeploy.sh
-#  Usage: sudo bash rename_db.sh
+#  Usage: sudo bash scripts/rename_db.sh
 # =============================================================================
 
 set -euo pipefail
 
 if [[ "$EUID" -ne 0 ]]; then
-  echo -e "\033[0;31m[ERROR]\033[0m Please run as root: sudo bash rename_db.sh"
+  echo -e "\033[0;31m[ERROR]\033[0m Please run as root: sudo bash scripts/rename_db.sh"
   exit 1
 fi
 
@@ -24,4 +24,4 @@ su - postgres -c "psql -c \"ALTER DATABASE nexusos RENAME TO octaos;\"" || {
 }
 
 echo -e "\033[0;32m[OK]\033[0m Database rename step complete."
-echo "You can now safely run: sudo bash updatedeploy.sh"
+echo "You can now safely run: sudo bash scripts/updatedeploy.sh"

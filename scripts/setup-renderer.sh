@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  OctaOS – Video Renderer First-Time Setup
-#  Usage: sudo bash setup-renderer.sh
+#  Usage: sudo bash scripts/setup-renderer.sh
 # =============================================================================
 
 set -euo pipefail
@@ -16,10 +16,11 @@ warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RENDERER_DIR="$SCRIPT_DIR/video-renderer"
+APP_DIR="$(dirname "$SCRIPT_DIR")"   # repo root is one level above scripts/
+RENDERER_DIR="$APP_DIR/video-renderer"
 
 if [[ "$EUID" -ne 0 ]]; then
-  error "Please run as root:  sudo bash setup-renderer.sh"
+  error "Please run as root:  sudo bash scripts/setup-renderer.sh"
 fi
 
 if [[ ! -d "$RENDERER_DIR" ]]; then
