@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import {
   Activity, Users, DollarSign, BarChart3, Briefcase, Zap, BookOpen,
   LogOut, Calendar, MessageSquare, Clock, TrendingUp, Target, FileText, Key, Video,
-  Menu, X, ChevronRight, Settings2
+  Menu, X, ChevronRight, Settings2, UserCircle
 } from 'lucide-react';
 
 import KnowledgeView from '@/components/views/knowledge-view';
@@ -28,6 +28,7 @@ import MembersView from '@/components/views/members-view';
 import SystemAdminView from '@/components/views/system-admin-view';
 import ApiManagementView from '@/components/views/api-management-view';
 import VideoStudioView from '@/components/views/video-studio-view';
+import ProfileView from '@/components/views/profile-view';
 
 import LandingPage from '@/components/landing-page';
 import AuthForms from '@/components/auth-forms';
@@ -75,6 +76,12 @@ const NAV_GROUPS = [
       { id: 'api_management', name: 'API Management', icon: Key, color: '#8b5cf6', section: 'system' },
     ],
   },
+  {
+    label: 'Account',
+    items: [
+      { id: 'profile', name: 'My Profile', icon: UserCircle, color: '#c084fc', section: 'profile' },
+    ],
+  },
 ];
 
 export default function Home() {
@@ -95,7 +102,7 @@ export default function Home() {
       if (allowed && !allowed.includes('all')) {
         groups = groups.map(g => ({
           ...g,
-          items: g.items.filter(item => item.id === 'dashboard' || allowed.includes(item.section)),
+          items: g.items.filter(item => item.id === 'dashboard' || item.id === 'profile' || allowed.includes(item.section)),
         })).filter(g => g.items.length > 0);
       }
     }
@@ -337,6 +344,7 @@ export default function Home() {
       if (item) return item.name;
     }
     if (activeView === 'instructions') return 'Setup & API Guide';
+    if (activeView === 'profile') return 'My Profile';
     return 'Dashboard';
   };
 
@@ -609,18 +617,21 @@ export default function Home() {
 
             {/* User avatar chip */}
             {userProfile && (
-              <div
-                className="header-desktop-only flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-default"
-                style={{ background: 'rgba(139,92,246,0.08)', borderColor: 'rgba(139,92,246,0.2)', color: '#c4b5fd' }}
+              <button
+                onClick={() => handleNavClick('profile')}
+                className="header-desktop-only flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all"
+                style={{ background: 'rgba(139,92,246,0.08)', borderColor: activeView === 'profile' ? 'rgba(139,92,246,0.4)' : 'rgba(139,92,246,0.2)', color: '#c4b5fd' }}
+                id="header-profile-btn"
+                title="My Profile"
               >
                 <div
                   className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
                   style={{ background: 'linear-gradient(135deg,#7c3aed,#4f46e5)' }}
                 >
-                  {userProfile.email?.[0]?.toUpperCase() ?? 'U'}
+                  {(userProfile.name || userProfile.email)?.[0]?.toUpperCase() ?? 'U'}
                 </div>
-                <span className="max-w-[100px] truncate">{userProfile.email}</span>
-              </div>
+                <span className="max-w-[100px] truncate">{userProfile.name || userProfile.email}</span>
+              </button>
             )}
           </div>
         </header>
@@ -753,6 +764,19 @@ export default function Home() {
               fetchWithAuth={fetchWithAuth}
               fetchData={fetchData}
               timeline={timeline}
+            />
+          </div>
+
+          <div className={activeView === 'profile' ? 'block animate-fade-in-up' : 'hidden'}>
+            <ProfileView
+              token={token}
+              API_URL={API_URL}
+              fetchWithAuth={fetchWithAuth}
+              userProfile={userProfile}
+              setUserProfile={setUserProfile}
+              setToken={(t) => { setToken(t); localStorage.setItem('token', t); }}
+              setTenantId={(id) => { setTenantId(id); localStorage.setItem('tenant_id', id); }}
+              fetchData={fetchData}
             />
           </div>
 

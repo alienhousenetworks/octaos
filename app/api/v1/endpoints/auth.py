@@ -445,18 +445,70 @@ def login_resend_otp(
 
 @router.get("/me")
 def read_current_user(
-    current_user: User = Depends(deps.get_current_user)
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
 ) -> Any:
+    tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
     return {
         "id": current_user.id,
         "email": current_user.email,
         "tenant_id": current_user.tenant_id,
+        "tenant_name": tenant.name if tenant else None,
+        "company_website": tenant.company_website if tenant else None,
+        "company_email": tenant.company_email if tenant else None,
+        "company_address": tenant.company_address if tenant else None,
         "name": getattr(current_user, "name", None),
         "phone_no": getattr(current_user, "phone_no", None),
         "role": getattr(current_user, "role", "member"),
         "allowed_sections": getattr(current_user, "allowed_sections", None),
-        "is_system_admin": getattr(current_user, "is_system_admin", False)
+        "is_system_admin": getattr(current_user, "is_system_admin", False),
+        "is_verified": getattr(current_user, "is_verified", False),
     }
+
+
+class SwitchTenantRequest(BaseModel):
+    tenant_id: str
+
+
+@router.get("/my-organizations")
+def list_my_organizations(
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    """Return all organizations (tenants) associated with the current user's email."""
+    users = db.query(User).filter(User.email == current_user.email).all()
+    result = []
+    for u in users:
+        tenant = db.query(Tenant).filter(Tenant.id == u.tenant_id).first()
+        if tenant and tenant.is_active:
+            result.append({
+                "tenant_id": u.tenant_id,
+                "tenant_name": tenant.name,
+                "company_email": tenant.company_email,
+                "company_website": tenant.company_website,
+                "role": u.role,
+                "is_current": u.tenant_id == current_user.tenant_id,
+            })
+    return result
+
+
+@router.post("/switch-tenant")
+def switch_tenant(
+    switch_in: SwitchTenantRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+) -> Any:
+    """Switch the active organization for the current user's email."""
+    user = db.query(User).filter(
+        User.email == current_user.email,
+        User.tenant_id == switch_in.tenant_id
+    ).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Organization not found for this account")
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="This organization account is inactive")
+    access_token = create_access_token(subject=user.id, tenant_id=user.tenant_id, organization_id=user.organization_id)
+    return {"access_token": access_token, "token_type": "bearer", "tenant_id": user.tenant_id}
 
 class InviteCreate(BaseModel):
     email: Optional[EmailStr] = None
