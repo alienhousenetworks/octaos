@@ -14,7 +14,16 @@ from app.api import deps
 from app.core.config import settings
 from app.core.celery_app import celery_app
 from app.models.verticals import AgentMeeting
-from app.models.boardroom_events import MeetingEvent, MeetingEvidence, MeetingAction
+from app.models.boardroom_events import (
+    MeetingEvent,
+    MeetingEvidence,
+    MeetingAction,
+    DecisionCharter,
+    MeetingOption,
+    MeetingPosition,
+    DissentRecord,
+    DecisionOutcome,
+)
 from app.schemas import verticals as schemas
 from app.schemas.boardroom import (
     MeetingEventOut,
@@ -22,6 +31,12 @@ from app.schemas.boardroom import (
     MeetingActionOut,
     MeetingActionApprove,
     MeetingActionReject,
+    DecisionCharterOut,
+    MeetingOptionOut,
+    MeetingPositionOut,
+    DissentRecordOut,
+    DecisionOutcomeOut,
+    ChairmanInterventionRequest,
 )
 from app.services.agents.boardroom import BoardroomService
 
@@ -357,6 +372,133 @@ def reject_meeting_action(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# ---------------------------------------------------------------------------
+# Institutional Governance Endpoints (Charter, Options, Dissents, Outcomes)
+# ---------------------------------------------------------------------------
+
+@router.get("/meetings/{meeting_id}/charter", response_model=Optional[DecisionCharterOut])
+def get_meeting_charter(
+    meeting_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    meeting = db.query(AgentMeeting).filter(
+        AgentMeeting.id == meeting_id,
+        AgentMeeting.tenant_id == tenant_id
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    charter = db.query(DecisionCharter).filter(
+        DecisionCharter.meeting_id == meeting_id
+    ).first()
+    return charter
+
+
+@router.get("/meetings/{meeting_id}/options", response_model=List[MeetingOptionOut])
+def get_meeting_options(
+    meeting_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    meeting = db.query(AgentMeeting).filter(
+        AgentMeeting.id == meeting_id,
+        AgentMeeting.tenant_id == tenant_id
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    options = db.query(MeetingOption).filter(
+        MeetingOption.meeting_id == meeting_id
+    ).order_by(MeetingOption.created_at.asc()).all()
+    return options
+
+
+@router.get("/meetings/{meeting_id}/positions", response_model=List[MeetingPositionOut])
+def get_meeting_positions(
+    meeting_id: str,
+    round_no: Optional[int] = Query(None, alias="round"),
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    meeting = db.query(AgentMeeting).filter(
+        AgentMeeting.id == meeting_id,
+        AgentMeeting.tenant_id == tenant_id
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    q = db.query(MeetingPosition).filter(MeetingPosition.meeting_id == meeting_id)
+    if round_no is not None:
+        q = q.filter(MeetingPosition.round == round_no)
+    return q.order_by(MeetingPosition.created_at.asc()).all()
+
+
+@router.get("/meetings/{meeting_id}/dissents", response_model=List[DissentRecordOut])
+def get_meeting_dissents(
+    meeting_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    meeting = db.query(AgentMeeting).filter(
+        AgentMeeting.id == meeting_id,
+        AgentMeeting.tenant_id == tenant_id
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    dissents = db.query(DissentRecord).filter(
+        DissentRecord.meeting_id == meeting_id
+    ).order_by(DissentRecord.created_at.asc()).all()
+    return dissents
+
+
+@router.get("/meetings/{meeting_id}/outcomes", response_model=List[DecisionOutcomeOut])
+def get_meeting_outcomes(
+    meeting_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    meeting = db.query(AgentMeeting).filter(
+        AgentMeeting.id == meeting_id,
+        AgentMeeting.tenant_id == tenant_id
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    outcomes = db.query(DecisionOutcome).filter(
+        DecisionOutcome.meeting_id == meeting_id
+    ).order_by(DecisionOutcome.review_date.asc()).all()
+    return outcomes
+
+
+@router.post("/meetings/{meeting_id}/intervene", response_model=MeetingEventOut)
+def intervene_as_chairman(
+    meeting_id: str,
+    payload: ChairmanInterventionRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """Inject a human Chairman directive or constraint into the active boardroom deliberation."""
+    meeting = db.query(AgentMeeting).filter(
+        AgentMeeting.id == meeting_id,
+        AgentMeeting.tenant_id == tenant_id
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    service = BoardroomService(db, tenant_id)
+    try:
+        ev = service.inject_chairman_directive(
+            meeting_id=meeting_id,
+            directive=payload.directive,
+            actor="Chair (Human)"
+        )
+        return ev
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/meetings/{meeting_id}/cancel", response_model=schemas.AgentMeeting)
 def cancel_meeting(
     meeting_id: str,
@@ -407,7 +549,7 @@ async def rerun_meeting(
 @router.get("/meetings/{meeting_id}/export")
 def export_meeting(
     meeting_id: str,
-    format: str = Query("md", regex="^(md|json)$"),
+    format: str = Query("md", pattern="^(md|json)$"),
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id)
 ) -> Any:
@@ -421,6 +563,9 @@ def export_meeting(
     evidence = db.query(MeetingEvidence).filter(MeetingEvidence.meeting_id == meeting_id).all()
     actions = db.query(MeetingAction).filter(MeetingAction.meeting_id == meeting_id).all()
     events = db.query(MeetingEvent).filter(MeetingEvent.meeting_id == meeting_id).order_by(MeetingEvent.seq.asc()).all()
+    charter = db.query(DecisionCharter).filter(DecisionCharter.meeting_id == meeting_id).first()
+    options = db.query(MeetingOption).filter(MeetingOption.meeting_id == meeting_id).all()
+    dissents = db.query(DissentRecord).filter(DissentRecord.meeting_id == meeting_id).all()
 
     if format == "json":
         return JSONResponse({
@@ -432,8 +577,29 @@ def export_meeting(
             "created_at": meeting.created_at.isoformat() if meeting.created_at else None,
             "started_at": meeting.started_at.isoformat() if meeting.started_at else None,
             "finished_at": meeting.finished_at.isoformat() if meeting.finished_at else None,
+            "charter": {
+                "decision_type": charter.decision_type,
+                "question": charter.question,
+                "owner": charter.decision_owner,
+                "cost_of_delay_per_week": charter.cost_of_delay_per_week,
+                "criteria_weights": charter.criteria_weights,
+            } if charter else None,
+            "options": [{
+                "option_code": o.option_code,
+                "title": o.title,
+                "description": o.description,
+                "financial_model": o.financial_model or {},
+                "weighted_score": o.weighted_score,
+            } for o in options],
             "evidence": [{"source_ref": e.source_ref, "type": e.source_type, "trust": e.trust_score, "excerpt": e.excerpt} for e in evidence],
             "actions": [{"id": a.id, "type": a.action_type, "assigned_to": a.assigned_to, "risk": a.risk_tier, "status": a.status, "desc": a.description} for a in actions],
+            "dissents": [{
+                "agent": d.agent,
+                "preferred_option": d.preferred_option,
+                "dissent_position": d.dissent_position,
+                "addressed": d.addressed,
+                "requires_human_signoff": d.requires_human_signoff,
+            } for d in dissents],
             "transcript": meeting.transcript or [],
             "events_count": len(events)
         })
@@ -445,11 +611,36 @@ def export_meeting(
         f"**Status**: {meeting.status} (Phase: {meeting.current_phase})",
         f"**Date**: {meeting.created_at.strftime('%Y-%m-%d %H:%M UTC') if meeting.created_at else 'N/A'}",
         f"**Participants**: {', '.join(meeting.participants or [])}",
+    ]
+    if charter:
+        weights_str = ", ".join(f"{w.get('name', 'k')}: {w.get('weight', 0)}" for w in (charter.criteria_weights or [])) if isinstance(charter.criteria_weights, list) else str(charter.criteria_weights)
+        lines.extend([
+            "",
+            f"## 📋 Decision Charter ({charter.decision_type.upper()})",
+            f"- **Question**: {charter.question}",
+            f"- **Owner**: {charter.decision_owner}",
+            f"- **Cost of Delay**: ${charter.cost_of_delay_per_week:,.0f} / week",
+            f"- **Criteria Weights**: {weights_str}",
+        ])
+    if options:
+        lines.extend([
+            "",
+            "## ⚖️ Options Matrix",
+            "| Option | Code | EV | Downside (P10) | Score |",
+            "|---|---|---|---|---|",
+        ])
+        for opt in options:
+            fm = opt.financial_model or {}
+            ev_val = fm.get('ev', 0)
+            p10_val = fm.get('downside_p10', 0)
+            lines.append(f"| {opt.title} | `{opt.option_code}` | ${ev_val:,.0f} | ${p10_val:,.0f} | {opt.weighted_score:.2f} |")
+
+    lines.extend([
         "",
         "## 1. Evidence Pack",
         "| Source | Type | Trust Score | Excerpt |",
         "|---|---|---|---|",
-    ]
+    ])
     for ev in evidence:
         lines.append(f"| `{ev.source_ref}` | {ev.source_type} | {ev.trust_score or 'N/A'}% | {ev.excerpt or ''} |")
 
@@ -461,6 +652,16 @@ def export_meeting(
     ])
     for act in actions:
         lines.append(f"| `{act.id}` | **{act.risk_tier.upper()}** | {act.assigned_to} | `{act.status}` | {act.description} | {act.approved_by or '-'} |")
+
+    if dissents:
+        lines.extend([
+            "",
+            "## ⚠️ Dissent Register",
+            "| Agent | Preferred Option | Dissent Rationale | Addressed |",
+            "|---|---|---|---|",
+        ])
+        for dis in dissents:
+            lines.append(f"| **{dis.agent}** | {dis.preferred_option or 'N/A'} | {dis.dissent_position} | {'Yes' if dis.addressed else 'Pending Signoff'} |")
 
     lines.extend([
         "",

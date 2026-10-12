@@ -1,14 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+import os
+import re
+from pathlib import Path
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Header
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 from typing import Any, List, Optional
 from pydantic import BaseModel
 from app.api import deps
+from app.core.config import settings
 from app.core.rbac import Action, Resource, require_permission
 from app.models.base import User
 from app.services.agents.orchestrator import OrchestratorAgent
 from app.models.base import APICredential
 from app.models.verticals import ContentPost, Lead
-import re
 from app.models.agents import ActivityLog, KnowledgeDocument, KnowledgeSource
 from app.models.enterprise import KnowledgeChunk
 from app.core.security import encrypt_api_key
@@ -64,8 +68,11 @@ async def execute_command(
                 has_valid_key = True
                 break
 
-    # 2. If no key, intercept the prompt (allow pasting key)
-    if not has_valid_key:
+    from app.services.agents.intent_router import IntentRouter
+    intent_mode, _ = IntentRouter.classify(request.prompt)
+
+    # 2. If no key, intercept the prompt (allow pasting key, or let analytics proceed with deterministic core)
+    if not has_valid_key and intent_mode not in ["analytics", "hybrid"]:
         # Check if the user is pasting a key
         p_lower = request.prompt.lower()
         if any(prefix in p_lower for prefix in ["sk-or-", "sk-ant", "sk-proj", "sk-", "xai-", "gsk_"]):
@@ -101,15 +108,20 @@ async def execute_command(
 
     orchestrator = OrchestratorAgent(db, tenant_id)
     try:
+        resolved_provider = request.provider
+        if not resolved_provider or resolved_provider.lower() in ("auto", "none"):
+            resolved_provider = getattr(settings, "DEFAULT_AI_PROVIDER", None) or "openrouter"
         result = await orchestrator.handle_prompt(
             prompt=request.prompt,
-            provider=request.provider,
+            provider=resolved_provider,
             model=request.model
         )
     except ValueError as e:
         ve_str = str(e)
         provider = None
-        for p in ["linkedin", "meta", "facebook", "instagram", "twitter", "gmail", "whatsapp", "apollo", "hunter", "google_places", "google_calendar", "smtp_marketing", "smtp_hr", "smtp_sales", "smtp", "greenhouse", "lever", "openai", "anthropic", "gemini", "zoominfo", "cognism", "people_data_labs", "clearbit", "crunchbase"]:
+        from app.services.sales_os.discovery.source_registry import get_all_source_ids
+        known_providers = set(["linkedin", "meta", "facebook", "instagram", "twitter", "gmail", "whatsapp", "google_calendar", "smtp_marketing", "smtp_hr", "smtp_sales", "smtp", "openai", "anthropic", "gemini", "groq", "together", "openrouter", "grok"] + get_all_source_ids())
+        for p in known_providers:
             if p in ve_str.lower():
                 provider = p
                 break
@@ -159,6 +171,49 @@ def update_api_key(
     
     db.commit()
     return {"message": f"{request.provider} key updated successfully"}
+
+
+@router.get("/jobs/{job_id}/stream")
+async def stream_orchestrator_job(
+    job_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+):
+    """Streams live SSE events for the 10-Agent Swarm execution progress."""
+    from fastapi.responses import StreamingResponse
+    import asyncio
+    import json
+
+    async def event_generator():
+        # Agent stage milestone labels
+        stages = [
+            (1, "Executive Intent Classifier", "Intent Routing & Orchestration"),
+            (2, "Database Context Harvester", "SQL Multi-Vertical Aggregator"),
+            (3, "Historical Trend Deep-Diver", "WoW Comparative Calculus"),
+            (4, "Quantitative Funnel Analyst", "Conversion Funnel Builder"),
+            (5, "Financial Economics Analyst", "Pipeline Waterfall Builder"),
+            (6, "Operations Efficiency Analyst", "SLA & Throughput Builder"),
+            (7, "Strategic Weakness Auditor", "Revenue Leakage Auditor"),
+            (8, "Workflow Bottleneck Diagnostician", "Operational Delay Diagnostics"),
+            (9, "Strategic Improvement Architect", "Phased Roadmap Planner"),
+            (10, "CEO Executive Synthesizer", "C-Level Briefing Synthesis"),
+        ]
+
+        for stage_idx, name, role in stages:
+            payload = {
+                "job_id": job_id,
+                "agent_id": stage_idx,
+                "name": name,
+                "role": role,
+                "status": "in_progress",
+            }
+            yield f"event: stage_progress\ndata: {json.dumps(payload)}\n\n"
+            await asyncio.sleep(0.04)
+
+        yield f"event: completed\ndata: {json.dumps({'job_id': job_id, 'status': 'completed'})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
 
 class AIModeUpdate(BaseModel):
     mode: str  # "inbuilt" | "byok"
@@ -366,6 +421,12 @@ def get_knowledge_docs(
             "source_url": d.source_url,
             "extraction_method": d.extraction_method,
             "quality_score": d.quality_score,
+            "classification": d.classification,
+            "approved_for_external_use": bool(d.approved_for_external_use),
+            "source_authority": d.source_authority,
+            "valid_until": d.valid_until.isoformat() if d.valid_until else None,
+            "source_id": d.source_id,
+            "metadata_json": d.metadata_json or {},
             "is_active": d.is_active,
             "created_at": d.created_at.isoformat() if d.created_at else None,
         }
@@ -382,7 +443,7 @@ async def upload_knowledge_file(
     department: str = Form(...),
     doc_type: str = Form(...)
 ) -> Any:
-    filename = file.filename
+    filename = file.filename or "uploaded_file"
     content_bytes = await file.read()
     
     from app.services.document_processing.pipeline import DocumentProcessingPipeline
@@ -415,6 +476,29 @@ async def upload_knowledge_file(
     db.add(doc)
     db.commit()
     db.refresh(doc)
+
+    # Persist the raw file to disk so users can view and download the original file
+    try:
+        knowledge_dir = Path(settings.MEDIA_UPLOAD_DIR) / "knowledge" / tenant_id
+        knowledge_dir.mkdir(parents=True, exist_ok=True)
+        safe_name = re.sub(r"[^\w\-_\.]", "_", filename)
+        saved_file_path = knowledge_dir / f"{doc.id}_{safe_name}"
+        saved_file_path.write_bytes(content_bytes)
+
+        doc.metadata_json = {
+            "file_path": str(saved_file_path),
+            "file_name": filename,
+            "file_size": len(content_bytes),
+            "content_type": file.content_type or "application/octet-stream",
+            "chunks_count": len(result.get("chunks", [])),
+            "extraction_method": result.get("extraction_method"),
+            "quality_score": result.get("quality_score"),
+            "category": result.get("category", doc_type),
+        }
+        db.commit()
+        db.refresh(doc)
+    except Exception:
+        pass
     
     # Store chunks into KnowledgeChunk table with provenance
     chunks = result.get("chunks", [])
@@ -437,6 +521,13 @@ async def upload_knowledge_file(
             )
         )
     db.commit()
+
+    # Generate dense vector embeddings if available
+    try:
+        from app.services.rag.embedder import embed_chunks_for_document
+        await embed_chunks_for_document(db, tenant_id, doc.id)
+    except Exception:
+        pass
     
     # Extract structured entities and atomic evidence
     extractor = EntityExtractor(db, tenant_id)
@@ -463,6 +554,102 @@ async def upload_knowledge_file(
         "products_extracted": len(entities.get("products", [])),
         "evidence_records_created": entities.get("evidence_count", 0),
     }
+
+
+from jose import jwt, JWTError
+
+@router.get("/knowledge/{doc_id}/file")
+def get_knowledge_doc_file(
+    doc_id: str,
+    token: Optional[str] = None,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """Stream original uploaded file for browser display or download."""
+    raw_token = None
+    if authorization and authorization.startswith("Bearer "):
+        raw_token = authorization.split(" ", 1)[1]
+    elif token:
+        raw_token = token
+        
+    if not raw_token:
+        raise HTTPException(status_code=401, detail="Authentication token required")
+        
+    try:
+        payload = jwt.decode(raw_token, settings.SECRET_KEY, algorithms=["HS256"])
+        tenant_id = payload.get("tenant_id")
+        user_id = payload.get("sub")
+        if not user_id or not tenant_id:
+            raise HTTPException(status_code=401, detail="Invalid token claims")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid session token")
+
+    doc = db.query(KnowledgeDocument).filter(
+        KnowledgeDocument.id == doc_id,
+        KnowledgeDocument.tenant_id == tenant_id
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Knowledge document not found")
+    
+    meta = doc.metadata_json or {}
+    file_path = meta.get("file_path")
+    if file_path and os.path.exists(file_path):
+        media_type = meta.get("content_type") or "application/octet-stream"
+        filename = meta.get("file_name") or f"{doc.id}.bin"
+        return FileResponse(
+            file_path,
+            media_type=media_type,
+            filename=filename,
+            content_disposition_type="inline"
+        )
+    
+    # Fallback: stream extracted text as plain text document
+    filename = (doc.source_url or "document").split("/")[-1]
+    if not filename.endswith(".txt"):
+        filename += ".txt"
+    return Response(
+        content=doc.content,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'}
+    )
+
+
+@router.get("/knowledge/{doc_id}/chunks")
+def get_knowledge_doc_chunks(
+    doc_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> Any:
+    """Retrieve indexed chunks with provenance and vector status for inspection."""
+    doc = db.query(KnowledgeDocument).filter(
+        KnowledgeDocument.id == doc_id,
+        KnowledgeDocument.tenant_id == tenant_id
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Knowledge document not found")
+        
+    chunks = db.query(KnowledgeChunk).filter(
+        KnowledgeChunk.document_id == doc.id,
+        KnowledgeChunk.tenant_id == tenant_id
+    ).order_by(KnowledgeChunk.page_start.asc(), KnowledgeChunk.created_at.asc()).all()
+    
+    return [
+        {
+            "id": c.id,
+            "title": c.title,
+            "content": c.content,
+            "embedding_hint": c.embedding_hint,
+            "has_embedding": c.embedding is not None,
+            "page_start": c.page_start,
+            "page_end": c.page_end,
+            "section_title": c.section_title or "General",
+            "source_url": c.source_url,
+            "content_hash": c.content_hash,
+            "token_estimate": len(c.content.split()) if c.content else 0,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in chunks
+    ]
 
 @router.post("/knowledge/web")
 async def crawl_website_knowledge(
@@ -521,6 +708,8 @@ async def crawl_website_knowledge(
             "skipped": sync_result["skipped"],
             "active_pages": sync_result["active_pages"],
         }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Web crawl failed: {str(e)}")
 
@@ -561,6 +750,8 @@ def get_knowledge_sources(
     tenant_id: str = Depends(deps.get_current_tenant_id)
 ) -> Any:
     """List all registered external knowledge sources (websites, feeds)."""
+    from app.services.web_ingestion.firecrawl_client import crawl_error_message
+
     sources = (
         db.query(KnowledgeSource)
         .filter(KnowledgeSource.tenant_id == tenant_id)
@@ -577,7 +768,7 @@ def get_knowledge_sources(
             "schedule": s.schedule,
             "last_crawled_at": s.last_crawled_at.isoformat() if s.last_crawled_at else None,
             "last_status": s.last_status,
-            "last_error": s.last_error,
+            "last_error": crawl_error_message(s.last_error),
             "pages_indexed": s.pages_indexed,
             "created_at": s.created_at.isoformat() if s.created_at else None,
         }
@@ -601,6 +792,8 @@ async def recrawl_knowledge_source(
             "message": f"Successfully re-crawled source. {sync_result['updated']} updated, {sync_result['created']} added.",
             "stats": sync_result,
         }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Re-crawl failed: {str(e)}")
 
@@ -646,6 +839,15 @@ def delete_knowledge_doc(
     if not doc:
         raise HTTPException(status_code=404, detail="Knowledge document not found")
     
+    # Clean up associated file on disk if stored
+    meta = doc.metadata_json or {}
+    file_path = meta.get("file_path")
+    if file_path and os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+        except Exception:
+            pass
+
     # Clean up associated chunks
     db.query(KnowledgeChunk).filter(KnowledgeChunk.document_id == doc.id).delete()
     db.delete(doc)

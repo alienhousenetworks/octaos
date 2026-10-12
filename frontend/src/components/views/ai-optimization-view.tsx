@@ -57,7 +57,7 @@ export default function AIOptimizationView({
     <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-300">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-2">
+                  <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2">
                     <DollarSign className="text-emerald-400 h-8 w-8 animate-pulse" /> AI Cost Control Center
                   </h1>
                   <p className="text-gray-400 mt-1">Standardise provider APIs, optimize token usage, route workloads dynamically, and track latency savings.</p>
@@ -77,8 +77,8 @@ export default function AIOptimizationView({
                     <DollarSign className="h-4 w-4 text-emerald-450" />
                   </CardHeader>
                   <CardContent className="space-y-1">
-                    <div className="text-3xl font-black text-white">${optimizationMetrics?.total_spend?.toFixed(4) || "0.0000"}</div>
-                    <p className="text-[10px] text-gray-500 font-medium">{optimizationMetrics?.active_providers?.length || 0} active providers connected</p>
+                    <div className="text-xl font-semibold text-white">${optimizationMetrics?.total_spend?.toFixed(4) || "0.0000"}</div>
+                    <p className="text-xs text-gray-500 font-medium">{optimizationMetrics?.active_providers?.length || 0} active providers connected</p>
                   </CardContent>
                 </Card>
 
@@ -89,8 +89,8 @@ export default function AIOptimizationView({
                     <Zap className="h-4 w-4 text-violet-400" />
                   </CardHeader>
                   <CardContent className="space-y-1">
-                    <div className="text-3xl font-black text-white">{optimizationMetrics?.cache_metrics?.hit_rate || 0}%</div>
-                    <p className="text-[10px] text-gray-500 font-medium">{optimizationMetrics?.cache_metrics?.hits || 0} hits out of {optimizationMetrics?.cache_metrics?.total_calls || 0} requests</p>
+                    <div className="text-xl font-semibold text-white">{optimizationMetrics?.cache_metrics?.hit_rate || 0}%</div>
+                    <p className="text-xs text-gray-500 font-medium">{optimizationMetrics?.cache_metrics?.hits || 0} hits out of {optimizationMetrics?.cache_metrics?.total_calls || 0} requests</p>
                   </CardContent>
                 </Card>
 
@@ -101,8 +101,8 @@ export default function AIOptimizationView({
                     <Clock className="h-4 w-4 text-blue-400" />
                   </CardHeader>
                   <CardContent className="space-y-1">
-                    <div className="text-3xl font-black text-white">{optimizationMetrics?.cache_metrics?.latency_saved || 0}s</div>
-                    <p className="text-[10px] text-gray-500 font-medium">Bypassed LLM processing delays</p>
+                    <div className="text-xl font-semibold text-white">{optimizationMetrics?.cache_metrics?.latency_saved || 0}s</div>
+                    <p className="text-xs text-gray-500 font-medium">Bypassed LLM processing delays</p>
                   </CardContent>
                 </Card>
 
@@ -113,8 +113,8 @@ export default function AIOptimizationView({
                     <BarChart3 className="h-4 w-4 text-amber-400" />
                   </CardHeader>
                   <CardContent className="space-y-1">
-                    <div className="text-3xl font-black text-emerald-400">+${((optimizationMetrics?.cache_metrics?.savings || 0) + (optimizationMetrics?.batch_metrics?.async_savings || 0)).toFixed(4)}</div>
-                    <p className="text-[10px] text-gray-500 font-medium">From cache hits and batch runs</p>
+                    <div className="text-xl font-semibold text-emerald-400">+${((optimizationMetrics?.cache_metrics?.savings || 0) + (optimizationMetrics?.batch_metrics?.async_savings || 0)).toFixed(4)}</div>
+                    <p className="text-xs text-gray-500 font-medium">From cache hits and batch runs</p>
                   </CardContent>
                 </Card>
               </div>
@@ -124,10 +124,10 @@ export default function AIOptimizationView({
                 <Card className="lg:col-span-8 glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between">
                   <div className="flex items-center justify-between mb-4 border-b border-gray-800 pb-4">
                     <div>
-                      <h3 className="font-extrabold text-lg text-white">Universal AI Providers Gateway</h3>
+                      <h3 className="font-semibold text-lg text-white">Universal AI Providers Gateway</h3>
                       <p className="text-xs text-gray-400">Standardised provider telemetry, average latency, and configuration state.</p>
                     </div>
-                    <span className="text-[10px] text-violet-400 font-bold uppercase tracking-wider font-mono">Dynamic Fallback Active</span>
+                    <span className="text-xs text-violet-400 font-bold uppercase tracking-wider font-mono">Dynamic Fallback Active</span>
                   </div>
 
                   <div className="overflow-x-auto">
@@ -148,18 +148,18 @@ export default function AIOptimizationView({
                             <TableRow key={p} className="border-gray-800 hover:bg-gray-900/20">
                               <TableCell className="p-4 whitespace-nowrap">
                                 <div className="flex items-center gap-2">
-                                  <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-1 rounded text-white text-[10px] font-bold uppercase w-16 text-center">
+                                  <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-1 rounded text-white text-xs font-bold uppercase w-16 text-center">
                                     {p}
                                   </div>
                                   <span className="text-xs text-white capitalize font-semibold">{p}</span>
                                 </div>
                               </TableCell>
                               <TableCell className="p-4">
-                                <span className={`inline-flex items-center gap-1 border px-2 py-0.5 rounded text-[10px] font-bold ${
-                                  isConfigured 
-                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                    : 'bg-gray-800/60 text-gray-500 border-gray-700/60'
-                                }`}>
+                                <span className={`inline-flex items-center gap-1 border px-2 py-0.5 rounded text-xs font-bold ${
+ isConfigured 
+ ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+ : 'bg-gray-800/60 text-gray-500 border-gray-700/60'
+ }`}>
                                   {isConfigured ? "● Connected" : "○ Not Configured"}
                                 </span>
                               </TableCell>
@@ -184,7 +184,7 @@ export default function AIOptimizationView({
                 <Card className="lg:col-span-4 glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
-                      <h3 className="font-extrabold text-lg text-white">Universal Cache</h3>
+                      <h3 className="font-semibold text-lg text-white">Universal Cache</h3>
                       <Zap className="text-violet-400 h-5 w-5" />
                     </div>
 
@@ -219,7 +219,7 @@ export default function AIOptimizationView({
                     </div>
                   </div>
 
-                  <div className="text-[11px] text-violet-300/80 bg-violet-500/5 border border-violet-500/10 p-3 rounded-lg flex items-start gap-2 mt-4">
+                  <div className="text-xs text-violet-300/80 bg-violet-500/5 border border-violet-500/10 p-3 rounded-lg flex items-start gap-2 mt-4">
                     <Zap size={14} className="mt-0.5 flex-shrink-0" />
                     <p>
                       <strong>Optimize logic:</strong> Prompts matching Global, Department or Workflow templates bypass LLM endpoints. Saves 100% tokens and execution lag.
@@ -233,8 +233,8 @@ export default function AIOptimizationView({
                 {/* Routing Distribution */}
                 <Card className="lg:col-span-6 glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl p-6 shadow-2xl relative overflow-hidden">
                   <div className="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
-                    <h3 className="font-extrabold text-lg text-white">Dynamic Department Workload Routing</h3>
-                    <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider font-mono">Routing Analytics</span>
+                    <h3 className="font-semibold text-lg text-white">Dynamic Department Workload Routing</h3>
+                    <span className="text-xs text-emerald-400 font-bold uppercase tracking-wider font-mono">Routing Analytics</span>
                   </div>
 
                   <div className="space-y-4">
@@ -244,7 +244,7 @@ export default function AIOptimizationView({
                         <div key={dept} className="space-y-1.5">
                           <div className="flex justify-between text-xs">
                             <span className="font-bold text-white capitalize">{dept} tasks</span>
-                            <span className="text-gray-400 text-[10px]">{totalDeptCalls} requests</span>
+                            <span className="text-gray-400 text-xs">{totalDeptCalls} requests</span>
                           </div>
                           
                           {totalDeptCalls > 0 ? (
@@ -274,27 +274,27 @@ export default function AIOptimizationView({
                               })}
                             </div>
                           ) : (
-                            <div className="w-full bg-gray-800 h-3 rounded-md text-[9px] text-center text-gray-500 font-bold flex items-center justify-center">
+                            <div className="w-full bg-gray-800 h-3 rounded-md text-xs text-center text-gray-500 font-bold flex items-center justify-center">
                               No calls routed yet
                             </div>
                           )}
 
                           {/* Percentages row */}
-                          <div className="flex gap-2.5 flex-wrap text-[9px] font-semibold text-gray-400 mt-1">
+                          <div className="flex gap-2.5 flex-wrap text-xs font-semibold text-gray-400 mt-1">
                             {Object.entries(providers).map(([provider, count]: [string, any]) => {
                               const pct = ((count / totalDeptCalls) * 100).toFixed(0);
                               return (
                                 <span key={provider} className="flex items-center gap-1">
                                   <span className={`h-1.5 w-1.5 rounded-full ${
-                                    provider === 'openrouter' ? 'bg-sky-500' :
-                                    provider === 'together' ? 'bg-pink-500' :
-                                    provider === 'openai' ? 'bg-emerald-500' :
-                                    provider === 'anthropic' ? 'bg-violet-600' :
-                                    provider === 'gemini' ? 'bg-blue-500' :
-                                    provider === 'groq' ? 'bg-orange-500' :
-                                    provider === 'grok' ? 'bg-purple-600' : 'bg-gray-450'
-                                  }`} />
-                                  <span className="capitalize text-[10px]">{provider}</span> ({pct}%)
+ provider === 'openrouter' ? 'bg-sky-500' :
+ provider === 'together' ? 'bg-pink-500' :
+ provider === 'openai' ? 'bg-emerald-500' :
+ provider === 'anthropic' ? 'bg-violet-600' :
+ provider === 'gemini' ? 'bg-blue-500' :
+ provider === 'groq' ? 'bg-orange-500' :
+ provider === 'grok' ? 'bg-purple-600' : 'bg-gray-450'
+ }`} />
+                                  <span className="capitalize text-xs">{provider}</span> ({pct}%)
                                 </span>
                               );
                             })}
@@ -309,22 +309,22 @@ export default function AIOptimizationView({
                 <Card className="lg:col-span-6 glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
-                      <h3 className="font-extrabold text-lg text-white">Batch Orchestration System</h3>
-                      <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider font-mono">Async Batch Telemetry</span>
+                      <h3 className="font-semibold text-lg text-white">Batch Orchestration System</h3>
+                      <span className="text-xs text-amber-400 font-bold uppercase tracking-wider font-mono">Async Batch Telemetry</span>
                     </div>
 
                     <div className="grid grid-cols-3 gap-4 mb-6">
                       <div className="p-3 border border-gray-800 rounded-xl bg-gray-950/20 text-center shadow-inner">
-                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider block">Jobs Processed</span>
-                        <div className="text-xl font-black text-white mt-1">{optimizationMetrics?.batch_metrics?.total_jobs || 0}</div>
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Jobs Processed</span>
+                        <div className="text-xl font-semibold text-white mt-1">{optimizationMetrics?.batch_metrics?.total_jobs || 0}</div>
                       </div>
                       <div className="p-3 border border-gray-800 rounded-xl bg-gray-950/20 text-center shadow-inner">
-                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider block">Tasks Completed</span>
-                        <div className="text-xl font-black text-white mt-1">{optimizationMetrics?.batch_metrics?.total_tasks_processed || 0}</div>
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Tasks Completed</span>
+                        <div className="text-xl font-semibold text-white mt-1">{optimizationMetrics?.batch_metrics?.total_tasks_processed || 0}</div>
                       </div>
                       <div className="p-3 border border-gray-800 rounded-xl bg-gray-950/20 text-center shadow-inner bg-emerald-500/5 border-emerald-500/10">
-                        <span className="text-[9px] font-bold text-emerald-450 uppercase tracking-wider block">Batch Savings</span>
-                        <div className="text-xl font-black text-emerald-400 mt-1">${optimizationMetrics?.batch_metrics?.async_savings?.toFixed(2) || "0.00"}</div>
+                        <span className="text-xs font-bold text-emerald-450 uppercase tracking-wider block">Batch Savings</span>
+                        <div className="text-xl font-semibold text-emerald-400 mt-1">${optimizationMetrics?.batch_metrics?.async_savings?.toFixed(2) || "0.00"}</div>
                       </div>
                     </div>
 
@@ -349,7 +349,7 @@ export default function AIOptimizationView({
                     </div>
                   </div>
 
-                  <div className="text-[11px] text-amber-300/80 bg-amber-500/5 border border-amber-500/10 p-3 rounded-lg flex items-start gap-2 mt-4">
+                  <div className="text-xs text-amber-300/80 bg-amber-500/5 border border-amber-500/10 p-3 rounded-lg flex items-start gap-2 mt-4">
                     <Clock size={14} className="mt-0.5 flex-shrink-0" />
                     <p>
                       <strong>Batch API integration:</strong> Supports native API batch submission (e.g. OpenAI/Anthropic 50% discount) or falls back to Celery background processing.

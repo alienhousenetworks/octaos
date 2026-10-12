@@ -1,5 +1,7 @@
 'use client';
 
+import { notify, confirmAction } from '@/lib/notify';
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -77,7 +79,7 @@ export default function MembersView({
         setInviteLink(absoluteUrl);
         setInviteEmail('');
       } else {
-        alert("Failed to generate invitation");
+        notify("Failed to generate invitation");
       }
     } catch (e) {
       console.error(e);
@@ -107,7 +109,7 @@ export default function MembersView({
       if (res.ok) {
         fetchMembers();
       } else {
-        alert("Failed to update role");
+        notify("Failed to update role");
       }
     } catch (e) {
       console.error(e);
@@ -137,7 +139,7 @@ export default function MembersView({
       if (res.ok) {
         fetchMembers();
       } else {
-        alert("Failed to update permissions");
+        notify("Failed to update permissions");
       }
     } catch (e) {
       console.error(e);
@@ -145,7 +147,7 @@ export default function MembersView({
   };
 
   const handleDeleteMember = async (userId: string) => {
-    if (!confirm("Are you sure you want to remove this member?")) return;
+    if (!(await confirmAction("Are you sure you want to remove this member?"))) return;
     try {
       const res = await fetchWithAuth(`${API_URL}/auth/members/${userId}`, {
         method: 'DELETE'
@@ -154,7 +156,7 @@ export default function MembersView({
         fetchMembers();
       } else {
         const err = await res.json();
-        alert(err.detail || "Failed to remove member");
+        notify(err.detail || "Failed to remove member");
       }
     } catch (e) {
       console.error(e);
@@ -165,7 +167,7 @@ export default function MembersView({
     <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-300">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2">
             <Users className="text-rose-450 h-8 w-8" /> Members & Access control
           </h1>
           <p className="text-gray-400 mt-1">Manage team members, generate invitation links, and customize vertical permissions.</p>
@@ -176,7 +178,7 @@ export default function MembersView({
         {/* Invite Generator */}
         <Card className="glass-panel border-violet-500/20 rounded-3xl p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between h-fit">
           <div>
-            <h3 className="font-extrabold text-lg text-white mb-2">Invite New Member</h3>
+            <h3 className="font-semibold text-lg text-white mb-2">Invite New Member</h3>
             <p className="text-xs text-gray-400 mb-4">Generate a unique link to invite a team member to join your organization.</p>
             
             <form onSubmit={handleGenerateInvite} className="space-y-4">
@@ -202,7 +204,7 @@ export default function MembersView({
 
             {inviteLink && (
               <div className="mt-6 p-4 bg-gray-950/60 border border-violet-500/20 rounded-xl space-y-2.5">
-                <label className="text-[10px] font-bold text-violet-400 uppercase tracking-wider block">Invite Link Created</label>
+                <label className="text-xs font-bold text-violet-400 uppercase tracking-wider block">Invite Link Created</label>
                 <div className="flex gap-2">
                   <Input 
                     readOnly
@@ -217,7 +219,7 @@ export default function MembersView({
                     {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
                   </Button>
                 </div>
-                <p className="text-[10px] text-gray-500">This link is single-use and will expire in 7 days.</p>
+                <p className="text-xs text-gray-500">This link is single-use and will expire in 7 days.</p>
               </div>
             )}
           </div>
@@ -227,7 +229,7 @@ export default function MembersView({
         <Card className="lg:col-span-2 glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl p-6 shadow-2xl relative overflow-hidden">
           <div className="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
             <div>
-              <h3 className="font-extrabold text-lg text-white">Active Members</h3>
+              <h3 className="font-semibold text-lg text-white">Active Members</h3>
               <p className="text-xs text-gray-400">Configure roles and specific section access per user.</p>
             </div>
             {loading && <Loader2 className="animate-spin h-5 w-5 text-gray-400" />}
@@ -249,7 +251,7 @@ export default function MembersView({
                     <TableCell className="p-4">
                       <div>
                         <div className="text-xs text-white font-bold">{member.name || 'No Name'}</div>
-                        <div className="text-[10px] text-gray-500">{member.email}</div>
+                        <div className="text-xs text-gray-500">{member.email}</div>
                       </div>
                     </TableCell>
                     <TableCell className="p-4">
@@ -264,7 +266,7 @@ export default function MembersView({
                     </TableCell>
                     <TableCell className="p-4">
                       {member.role === 'admin' ? (
-                        <span className="inline-flex items-center gap-1 bg-violet-500/10 text-violet-400 border border-violet-500/20 px-2 py-0.5 rounded text-[10px] font-bold">
+                        <span className="inline-flex items-center gap-1 bg-violet-500/10 text-violet-400 border border-violet-500/20 px-2 py-0.5 rounded text-xs font-bold">
                           <Shield size={10} /> Full Access (Admin)
                         </span>
                       ) : (
@@ -272,7 +274,7 @@ export default function MembersView({
                           {sectionsList.map(sec => {
                             const isAllowed = member.allowed_sections ? member.allowed_sections.includes(sec.id) : true;
                             return (
-                              <label key={sec.id} className="flex items-center gap-1.5 text-[10px] text-gray-300 cursor-pointer">
+                              <label key={sec.id} className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer">
                                 <input
                                   type="checkbox"
                                   checked={isAllowed}

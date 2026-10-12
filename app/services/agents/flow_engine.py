@@ -9,7 +9,7 @@ from app.models.flow_engine import (
     FlowVersion,
     FlowRun,
     StepRun,
-    ApprovalRequest,
+    FlowApprovalRequest,
     ExecutionEvent,
 )
 from app.services.agents.runtime import agent_runtime
@@ -168,7 +168,7 @@ class FlowExecutionEngine:
                 # ── 4. APPROVAL STEP ──
                 elif step_type == "approval":
                     existing_appr = (
-                        db.query(ApprovalRequest)
+                        db.query(FlowApprovalRequest)
                         .filter_by(flow_run_id=flow_run.id, step_run_id=step_run.id)
                         .first()
                     )
@@ -186,7 +186,7 @@ class FlowExecutionEngine:
                         return
                     else:
                         if not existing_appr:
-                            approval = ApprovalRequest(
+                            approval = FlowApprovalRequest(
                                 tenant_id=flow_run.tenant_id,
                                 flow_run_id=flow_run.id,
                                 step_run_id=step_run.id,
@@ -242,7 +242,7 @@ class FlowExecutionEngine:
     async def resume_after_approval(
         self, db: Session, approval_id: str, approver_name: str = "Admin", modified_payload: Optional[Dict] = None
     ) -> FlowRun:
-        approval = db.query(ApprovalRequest).filter_by(id=approval_id).first()
+        approval = db.query(FlowApprovalRequest).filter_by(id=approval_id).first()
         if not approval or approval.status != "pending":
             raise ValueError("Approval request not found or not in pending state.")
 

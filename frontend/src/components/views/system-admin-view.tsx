@@ -1,5 +1,7 @@
 'use client';
 
+import { notify, confirmAction } from '@/lib/notify';
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -95,7 +97,7 @@ export default function SystemAdminView({
         // reload tenants
         fetchTenants();
       } else {
-        alert("Failed to toggle tenant state");
+        notify("Failed to toggle tenant state");
       }
     } catch (e) {
       console.error(e);
@@ -103,7 +105,7 @@ export default function SystemAdminView({
   };
 
   const handleDeleteTenant = async (tenantId: string) => {
-    if (!confirm("Are you sure you want to permanently delete this company and all its users? This action cannot be undone.")) return;
+    if (!(await confirmAction("Are you sure you want to permanently delete this company and all its users? This action cannot be undone."))) return;
     try {
       const res = await fetchWithAuth(`${API_URL}/system-admin/tenants/${tenantId}`, {
         method: 'DELETE'
@@ -112,7 +114,7 @@ export default function SystemAdminView({
         fetchTenants();
         fetchUsers();
       } else {
-        alert("Failed to delete tenant");
+        notify("Failed to delete tenant");
       }
     } catch (e) {
       console.error(e);
@@ -120,7 +122,7 @@ export default function SystemAdminView({
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm("Are you sure you want to permanently delete this user?")) return;
+    if (!(await confirmAction("Are you sure you want to permanently delete this user?"))) return;
     try {
       const res = await fetchWithAuth(`${API_URL}/system-admin/users/${userId}`, {
         method: 'DELETE'
@@ -128,7 +130,7 @@ export default function SystemAdminView({
       if (res.ok) {
         fetchUsers();
       } else {
-        alert("Failed to delete user");
+        notify("Failed to delete user");
       }
     } catch (e) {
       console.error(e);
@@ -207,7 +209,7 @@ export default function SystemAdminView({
     <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-300">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2">
             <Zap className="text-yellow-400 h-8 w-8 animate-pulse" /> Global System Admin Panel
           </h1>
           <p className="text-gray-400 mt-1">Monitor tenant activities, manage user permissions, and control company status across the platform.</p>
@@ -231,8 +233,8 @@ export default function SystemAdminView({
             <Globe className="h-4 w-4 text-blue-400" />
           </CardHeader>
           <CardContent className="space-y-1">
-            <div className="text-3xl font-black text-white">{stats.tenants_count}</div>
-            <p className="text-[10px] text-gray-500 font-medium">Registered business organizations</p>
+            <div className="text-xl font-semibold text-white">{stats.tenants_count}</div>
+            <p className="text-xs text-gray-500 font-medium">Registered business organizations</p>
           </CardContent>
         </Card>
 
@@ -243,8 +245,8 @@ export default function SystemAdminView({
             <Users className="h-4 w-4 text-violet-400" />
           </CardHeader>
           <CardContent className="space-y-1">
-            <div className="text-3xl font-black text-white">{stats.users_count}</div>
-            <p className="text-[10px] text-gray-500 font-medium">Total active/verified user accounts</p>
+            <div className="text-xl font-semibold text-white">{stats.users_count}</div>
+            <p className="text-xs text-gray-500 font-medium">Total active/verified user accounts</p>
           </CardContent>
         </Card>
 
@@ -255,8 +257,8 @@ export default function SystemAdminView({
             <DollarSign className="h-4 w-4 text-emerald-450" />
           </CardHeader>
           <CardContent className="space-y-1">
-            <div className="text-3xl font-black text-emerald-400">${stats.total_spend.toFixed(4)}</div>
-            <p className="text-[10px] text-gray-500 font-medium">Aggregated LLM gateway charges</p>
+            <div className="text-xl font-semibold text-emerald-400">${stats.total_spend.toFixed(4)}</div>
+            <p className="text-xs text-gray-500 font-medium">Aggregated LLM gateway charges</p>
           </CardContent>
         </Card>
 
@@ -267,8 +269,8 @@ export default function SystemAdminView({
             <Activity className="h-4 w-4 text-amber-400" />
           </CardHeader>
           <CardContent className="space-y-1">
-            <div className="text-3xl font-black text-white">{stats.total_calls}</div>
-            <p className="text-[10px] text-gray-500 font-medium">All provider requests processed</p>
+            <div className="text-xl font-semibold text-white">{stats.total_calls}</div>
+            <p className="text-xs text-gray-500 font-medium">All provider requests processed</p>
           </CardContent>
         </Card>
       </div>
@@ -278,24 +280,24 @@ export default function SystemAdminView({
         <button
           onClick={() => setActiveTab('tenants')}
           className={`px-4 py-2 font-bold text-sm border-b-2 transition-all ${
-            activeTab === 'tenants' ? 'border-yellow-400 text-yellow-400' : 'border-transparent text-gray-400 hover:text-white'
-          }`}
+ activeTab === 'tenants' ? 'border-yellow-400 text-yellow-400' : 'border-transparent text-gray-400 hover:text-white'
+ }`}
         >
           Tenants (Companies)
         </button>
         <button
           onClick={() => setActiveTab('users')}
           className={`px-4 py-2 font-bold text-sm border-b-2 transition-all ${
-            activeTab === 'users' ? 'border-yellow-400 text-yellow-400' : 'border-transparent text-gray-400 hover:text-white'
-          }`}
+ activeTab === 'users' ? 'border-yellow-400 text-yellow-400' : 'border-transparent text-gray-400 hover:text-white'
+ }`}
         >
           Users List
         </button>
         <button
           onClick={() => setActiveTab('branding')}
           className={`px-4 py-2 font-bold text-sm border-b-2 transition-all ${
-            activeTab === 'branding' ? 'border-yellow-400 text-yellow-400' : 'border-transparent text-gray-400 hover:text-white'
-          }`}
+ activeTab === 'branding' ? 'border-yellow-400 text-yellow-400' : 'border-transparent text-gray-400 hover:text-white'
+ }`}
         >
           System Branding
         </button>
@@ -327,28 +329,28 @@ export default function SystemAdminView({
                 {tenants.map(tenant => (
                   <TableRow key={tenant.id} className="border-gray-800 hover:bg-gray-900/20">
                     <TableCell className="p-4 font-bold text-white text-xs">{tenant.name}</TableCell>
-                    <TableCell className="p-4 font-mono text-gray-300 text-[10px]">{tenant.subdomain || 'N/A'}</TableCell>
+                    <TableCell className="p-4 font-mono text-gray-300 text-xs">{tenant.subdomain || 'N/A'}</TableCell>
                     <TableCell className="p-4 text-xs font-semibold">{tenant.users_count}</TableCell>
                     <TableCell className="p-4">
                       {tenant.configured_keys && tenant.configured_keys.length > 0 ? (
                         <div className="flex gap-1 flex-wrap">
                           {tenant.configured_keys.map((k: string) => (
-                            <span key={k} className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[8px] font-bold font-mono uppercase">
+                            <span key={k} className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded text-xs font-bold font-mono uppercase">
                               {k}
                             </span>
                           ))}
                         </div>
                       ) : (
-                        <span className="text-[10px] text-gray-500 font-semibold italic">No keys configured</span>
+                        <span className="text-xs text-gray-500 font-semibold italic">No keys configured</span>
                       )}
                     </TableCell>
                     <TableCell className="p-4 text-xs font-mono font-semibold text-emerald-400">${tenant.spend.toFixed(4)}</TableCell>
                     <TableCell className="p-4">
-                      <span className={`inline-flex items-center gap-1 border px-2 py-0.5 rounded text-[10px] font-bold ${
-                        tenant.is_active 
-                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                          : 'bg-rose-500/10 text-rose-450 border-rose-500/20'
-                      }`}>
+                      <span className={`inline-flex items-center gap-1 border px-2 py-0.5 rounded text-xs font-bold ${
+ tenant.is_active 
+ ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+ : 'bg-rose-500/10 text-rose-450 border-rose-500/20'
+ }`}>
                         {tenant.is_active ? "Active" : "Suspended"}
                       </span>
                     </TableCell>
@@ -357,18 +359,18 @@ export default function SystemAdminView({
                         <Button
                           size="xs"
                           onClick={() => handleToggleTenant(tenant.id)}
-                          className={`text-[10px] font-bold rounded-lg px-2.5 py-1 ${
-                            tenant.is_active 
-                              ? 'bg-rose-950/40 text-rose-400 border border-rose-900/30 hover:bg-rose-900/40' 
-                              : 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/30 hover:bg-emerald-900/40'
-                          }`}
+                          className={`text-xs font-bold rounded-lg px-2.5 py-1 ${
+ tenant.is_active 
+ ? 'bg-rose-950/40 text-rose-400 border border-rose-900/30 hover:bg-rose-900/40' 
+ : 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/30 hover:bg-emerald-900/40'
+ }`}
                         >
                           {tenant.is_active ? "Suspend" : "Activate"}
                         </Button>
                         <Button
                           size="xs"
                           onClick={() => handleDeleteTenant(tenant.id)}
-                          className="bg-red-950/40 text-red-400 border border-red-900/30 hover:bg-red-900/40 text-[10px] font-bold rounded-lg px-2.5 py-1"
+                          className="bg-red-950/40 text-red-400 border border-red-900/30 hover:bg-red-900/40 text-xs font-bold rounded-lg px-2.5 py-1"
                         >
                           <Trash2 className="h-3 w-3 mr-1" /> Delete
                         </Button>
@@ -398,14 +400,14 @@ export default function SystemAdminView({
                     <TableCell className="p-4">
                       <div>
                         <div className="text-xs text-white font-bold">{user.name || 'No Name'}</div>
-                        <div className="text-[10px] text-gray-500">{user.email}</div>
+                        <div className="text-xs text-gray-500">{user.email}</div>
                       </div>
                     </TableCell>
                     <TableCell className="p-4 text-xs font-semibold capitalize">{user.role}</TableCell>
                     <TableCell className="p-4 text-xs">{user.tenant_name}</TableCell>
                     <TableCell className="p-4">
                       {user.is_system_admin ? (
-                        <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-0.5 rounded text-[10px] font-bold">
+                        <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-0.5 rounded text-xs font-bold">
                           <Shield size={10} /> System Admin
                         </span>
                       ) : (
@@ -413,11 +415,11 @@ export default function SystemAdminView({
                       )}
                     </TableCell>
                     <TableCell className="p-4">
-                      <span className={`inline-flex items-center gap-1 border px-2 py-0.5 rounded text-[10px] font-bold ${
-                        user.is_active 
-                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                          : 'bg-rose-500/10 text-rose-450 border-rose-500/20'
-                      }`}>
+                      <span className={`inline-flex items-center gap-1 border px-2 py-0.5 rounded text-xs font-bold ${
+ user.is_active 
+ ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+ : 'bg-rose-500/10 text-rose-450 border-rose-500/20'
+ }`}>
                         {user.is_active ? "Active" : "Disabled"}
                       </span>
                     </TableCell>
@@ -425,7 +427,7 @@ export default function SystemAdminView({
                       <Button
                         size="xs"
                         onClick={() => handleDeleteUser(user.id)}
-                        className="bg-red-950/40 text-red-400 border border-red-900/30 hover:bg-red-900/40 text-[10px] font-bold rounded-lg px-2.5 py-1"
+                        className="bg-red-950/40 text-red-400 border border-red-900/30 hover:bg-red-900/40 text-xs font-bold rounded-lg px-2.5 py-1"
                       >
                         <Trash2 className="h-3 w-3 mr-1" /> Delete
                       </Button>

@@ -1,36 +1,52 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Zap, Clock, DollarSign, Users, Calendar, Image as ImageIcon } from 'lucide-react';
+import { getAccessToken } from '@/lib/auth-session';
 
-interface LandingPageProps {
-  setAppState: (state: 'landing' | 'login' | 'signup' | 'app') => void;
-  logoUrl?: string | null;
-}
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
 
-export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) {
+export default function LandingPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [tasksPerDay, setTasksPerDay] = useState(60);
   const [hourlyRate, setHourlyRate] = useState(35);
   const [activePreviewAgent, setActivePreviewAgent] = useState('marketing');
+  const setAppState = (state: 'landing' | 'login' | 'signup' | 'app') => {
+    if (state === 'login') router.push('/login');
+    else if (state === 'signup') router.push('/signup');
+    else if (state === 'app') router.push('/app/home');
+    else router.push('/');
+  };
+
+  useEffect(() => {
+    const invite = searchParams.get('token');
+    if (invite) {
+      router.replace(`/signup?token=${encodeURIComponent(invite)}`);
+      return;
+    }
+    if (getAccessToken()) router.replace('/app/home');
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    fetch(`${API_URL}/auth/settings`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (data?.logo_url) setLogoUrl(data.logo_url); })
+      .catch(() => undefined);
+  }, []);
 
   const hoursSaved = Math.round(tasksPerDay * 0.75 * 30);
   const moneySaved = Math.round(hoursSaved * hourlyRate);
 
   return (
-    <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans">
-      {/* Ambient background glows */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[rgba(139,92,246,0.15)] rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[rgba(59,130,246,0.15)] rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute top-[40%] left-[25%] w-[400px] h-[400px] bg-[rgba(16,185,129,0.06)] rounded-full blur-[150px] pointer-events-none" />
-
-      {/* Global Grid Overlay */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
-
+    <div className="min-h-screen bg-background text-foreground relative font-sans">
       {/* Header */}
       <header className="sticky top-0 z-50 h-20 glass-panel border-b border-[rgba(167,139,250,0.1)] flex items-center justify-between px-8 md:px-16">
-        <div className="flex items-center gap-3 text-2xl font-black tracking-tight text-white">
+        <div className="flex items-center gap-3 text-2xl font-semibold tracking-tight text-white">
           {logoUrl ? (
             <img src={logoUrl} alt="OctaOS Logo" className="h-10 w-auto max-w-[180px] object-contain" />
           ) : (
@@ -49,7 +65,7 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
           </button>
           <button 
             onClick={() => setAppState('signup')} 
-            className="bg-white hover:bg-gray-100 text-black font-bold px-5 py-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 text-sm shadow-md"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium px-4 py-2 rounded-lg text-sm"
           >
             Sign Up
           </button>
@@ -59,14 +75,14 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
       {/* Hero Content */}
       <main className="max-w-7xl mx-auto px-8 md:px-16 pt-20 pb-32 relative z-10">
         <div className="text-center space-y-6 max-w-4xl mx-auto mb-20">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[rgba(139,92,246,0.1)] border border-[rgba(139,92,246,0.2)] text-violet-400 text-xs font-semibold uppercase tracking-wider animate-bounce">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
             <Zap size={12} className="fill-violet-400" />
             <span>OctaOS Autopilot v1.2</span>
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-tight leading-[1.1] animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <h1 className="text-5xl md:text-7xl font-semibold text-white tracking-tight leading-[1.1] animate-in fade-in slide-in-from-bottom-4 duration-500">
             Your Autonomous <br />
-            <span className="bg-gradient-to-r from-violet-400 via-indigo-400 to-emerald-400 text-transparent bg-clip-text animate-text-shine">
+            <span className="bg-gradient-to-r from-violet-400 via-indigo-400 to-emerald-400 text-transparent bg-clip-text">
               AI Agent Workforce.
             </span>
           </h1>
@@ -78,7 +94,7 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
             <button 
               onClick={() => setAppState('signup')} 
-              className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-lg font-bold px-8 py-4 rounded-xl shadow-xl shadow-violet-500/30 hover:shadow-violet-500/40 transition-all hover:scale-105 active:scale-95"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground text-base font-medium px-6 py-3 rounded-lg"
             >
               Deploy Your AI Team
             </button>
@@ -87,7 +103,7 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
                 const el = document.getElementById('previews');
                 el?.scrollIntoView({ behavior: 'smooth' });
               }} 
-              className="bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.07)] text-white text-lg font-bold px-8 py-4 rounded-xl border border-gray-700/50 hover:border-gray-600 transition-all hover:scale-105 active:scale-95"
+              className="bg-transparent hover:bg-muted text-foreground text-base font-medium px-6 py-3 rounded-lg border border-border"
             >
               Watch Previews
             </button>
@@ -97,7 +113,7 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
         {/* Interactive Agent Previews */}
         <div id="previews" className="mb-24 scroll-mt-24">
           <div className="text-center mb-10">
-            <h2 className="text-3xl font-extrabold text-white">Meet Your Virtual Employees</h2>
+            <h2 className="text-3xl font-semibold text-white">Meet Your Virtual Employees</h2>
             <p className="text-gray-400 mt-2">Click each department tab to preview live workspace outputs.</p>
           </div>
 
@@ -199,7 +215,7 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
                       <div className="flex items-center gap-3 mb-3">
                         <div className="bg-violet-600/20 text-violet-400 p-2 rounded-lg text-xs font-bold">LINKEDIN</div>
                         <span className="text-xs text-gray-400 font-medium">Day 4 of 30</span>
-                        <span className="ml-auto text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded font-bold uppercase">Pending Approval</span>
+                        <span className="ml-auto text-xs bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded font-bold uppercase">Pending Approval</span>
                       </div>
                       <div className="bg-[rgba(255,255,255,0.02)] p-4 rounded-xl border border-gray-800 text-sm text-gray-300 whitespace-pre-line leading-relaxed">
                         {"☕️ Work hard, coffee harder! \n\nWe're thrilled to introduce our new Organic Cold Brew at BlueBottle Cafe. Cold-steeped for 18 hours for maximum smoothness and low acidity. Pop in today and grab your jar! \n\n#cafevibes #organicroast #coldbrew"}
@@ -210,7 +226,7 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
                       <div className="text-center p-4">
                         <ImageIcon size={36} className="text-violet-400 mx-auto mb-2 animate-bounce" />
                         <span className="text-xs text-gray-400 font-bold block uppercase tracking-wider">AI Graphic Generated</span>
-                        <span className="text-[10px] text-gray-500 italic block mt-0.5">Prompt: \"Vibrant graphic showcasing cold brew coffee on wooden table, cafe vibes, modern illustration\"</span>
+                        <span className="text-xs text-gray-500 italic block mt-0.5">Prompt: \"Vibrant graphic showcasing cold brew coffee on wooden table, cafe vibes, modern illustration\"</span>
                       </div>
                     </div>
 
@@ -227,7 +243,7 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
                       <div className="flex items-center gap-3 mb-4">
                         <div className="bg-emerald-600/20 text-emerald-400 p-2 rounded-lg text-xs font-bold">APOLLO.IO</div>
                         <span className="text-xs text-gray-400 font-medium">B2B Sourcing Active</span>
-                        <span className="ml-auto text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold uppercase">4 Leads Found</span>
+                        <span className="ml-auto text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold uppercase">4 Leads Found</span>
                       </div>
 
                       <div className="border border-gray-800 rounded-xl overflow-hidden bg-[rgba(0,0,0,0.2)]">
@@ -251,9 +267,9 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
                                 <td className="p-3">{l.comp}</td>
                                 <td className="p-3 text-violet-400 font-mono">{l.mail}</td>
                                 <td className="p-3">
-                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                    l.stat === 'Replied / Booked' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'
-                                  }`}>
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+ l.stat === 'Replied / Booked' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'
+ }`}>
                                     {l.stat}
                                   </span>
                                 </td>
@@ -269,7 +285,7 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
                         SMTP Live Log:
                       </div>
-                      <p className="text-[11px] text-gray-400 leading-relaxed font-mono">
+                      <p className="text-xs text-gray-400 leading-relaxed font-mono">
                         [2026-05-21 11:30] Sent email Pitch_Template_V1 to s.connor@cyberdyne.io. Subject: "Automating support workflows for Cyberdyne..."
                       </p>
                     </div>
@@ -282,7 +298,7 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
                       <div className="flex items-center gap-3 mb-4">
                         <div className="bg-blue-600/20 text-blue-400 p-2 rounded-lg text-xs font-bold">WHATSAPP</div>
                         <span className="text-xs text-gray-400 font-medium">Customer Support Sandbox</span>
-                        <span className="ml-auto text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold uppercase">Solved By AI</span>
+                        <span className="ml-auto text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold uppercase">Solved By AI</span>
                       </div>
 
                       {/* WhatsApp Bubble Layout */}
@@ -298,7 +314,7 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
                         {/* Agent Auto Reply */}
                         <div className="flex justify-end">
                           <div className="bg-blue-600 text-white rounded-2xl rounded-tr-none px-3.5 py-2 max-w-[80%] text-xs shadow-md border border-blue-500">
-                            <div className="flex items-center gap-1.5 mb-1 text-[10px] text-blue-200 font-bold">
+                            <div className="flex items-center gap-1.5 mb-1 text-xs text-blue-200 font-bold">
                               <Zap size={10} className="fill-blue-200" /> AI Auto-Replied
                             </div>
                             Yes, we offer worldwide shipping to over 150 countries! 🌍 Shipping rates depend on your location and order size, which are automatically calculated at checkout. Feel free to enter your address during checkout to view the exact rate. Let me know if you have other questions!
@@ -307,7 +323,7 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
                       </div>
                     </div>
 
-                    <div className="text-[11px] text-blue-300/80 bg-blue-500/5 border border-blue-500/10 p-3 rounded-lg flex items-start gap-2">
+                    <div className="text-xs text-blue-300/80 bg-blue-500/5 border border-blue-500/10 p-3 rounded-lg flex items-start gap-2">
                       <Clock size={14} className="mt-0.5 flex-shrink-0" />
                       <p>
                         <strong>Contextual Intelligence:</strong> The AI Agent read your uploaded `Pricing & Shipping Guidelines` PDF in the Knowledge Base to craft this accurate response without any manual code.
@@ -322,19 +338,19 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
                       <div className="flex items-center gap-3 mb-4">
                         <div className="bg-amber-600/20 text-amber-400 p-2 rounded-lg text-xs font-bold">RECRUITER</div>
                         <span className="text-xs text-gray-400 font-medium">Job: Sr. Backend Engineer</span>
-                        <span className="ml-auto text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded font-bold uppercase">Interview Scheduled</span>
+                        <span className="ml-auto text-xs bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded font-bold uppercase">Interview Scheduled</span>
                       </div>
 
                       {/* Candidate Card */}
                       <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-800 space-y-3">
                         <div className="flex justify-between items-center">
                           <div>
-                            <h4 className="font-extrabold text-sm text-white">Sarah Connor</h4>
+                            <h4 className="font-semibold text-sm text-white">Sarah Connor</h4>
                             <p className="text-xs text-gray-400">Experience: 5 years Python, Go, PostgreSQL</p>
                           </div>
                           <div className="text-right">
-                            <span className="text-lg font-black text-emerald-400 block">96%</span>
-                            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Match Score</span>
+                            <span className="text-lg font-semibold text-emerald-400 block">96%</span>
+                            <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">Match Score</span>
                           </div>
                         </div>
 
@@ -353,7 +369,7 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
                       </div>
                     </div>
 
-                    <div className="text-[11px] text-amber-300/80 bg-amber-500/5 border border-amber-500/10 p-3 rounded-lg flex items-center gap-2">
+                    <div className="text-xs text-amber-300/80 bg-amber-500/5 border border-amber-500/10 p-3 rounded-lg flex items-center gap-2">
                       <Users size={14} className="flex-shrink-0" />
                       <p>Hunter scans job boards, scores candidates, conducts initial mail screens, and books directly into your calendar.</p>
                     </div>
@@ -366,10 +382,9 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
 
         {/* Calculator Section */}
         <div className="glass-panel border-violet-500/15 rounded-3xl p-8 shadow-2xl relative overflow-hidden mb-16">
-          <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-indigo-600/5 rounded-full blur-[100px] pointer-events-none" />
           
           <div className="max-w-3xl mx-auto text-center mb-8">
-            <h2 className="text-3xl font-extrabold text-white tracking-tight">AI Workforce Savings Calculator</h2>
+            <h2 className="text-3xl font-semibold text-white tracking-tight">AI Workforce Savings Calculator</h2>
             <p className="text-gray-400 mt-2">Adjust the sliders to estimate the direct hours and capital saved by using OctaOS.</p>
           </div>
 
@@ -390,7 +405,7 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
                   onChange={e => setTasksPerDay(parseInt(e.target.value))}
                   className="w-full h-2 rounded-lg bg-gray-800 appearance-none cursor-pointer slider-thumb accent-violet-500"
                 />
-                <div className="flex justify-between text-[10px] text-gray-500">
+                <div className="flex justify-between text-xs text-gray-500">
                   <span>5 Tasks</span>
                   <span>300 Tasks</span>
                 </div>
@@ -410,7 +425,7 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
                   onChange={e => setHourlyRate(parseInt(e.target.value))}
                   className="w-full h-2 rounded-lg bg-gray-800 appearance-none cursor-pointer slider-thumb accent-violet-500"
                 />
-                <div className="flex justify-between text-[10px] text-gray-500">
+                <div className="flex justify-between text-xs text-gray-500">
                   <span>$15/hr</span>
                   <span>$120/hr</span>
                 </div>
@@ -421,15 +436,15 @@ export default function LandingPage({ setAppState, logoUrl }: LandingPageProps) 
             <div className="grid grid-cols-2 gap-4 bg-[rgba(255,255,255,0.01)] border border-gray-800 p-6 rounded-2xl">
               <div className="text-center p-4 border border-gray-800/40 rounded-xl bg-gray-950/20 shadow-inner">
                 <Clock size={24} className="text-violet-400 mx-auto mb-2" />
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Hours Saved / Mo</span>
-                <div className="text-3xl font-black text-white mt-1">{hoursSaved} hrs</div>
-                <span className="text-[9px] text-gray-400 block mt-1">Based on 0.75h/task</span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Hours Saved / Mo</span>
+                <div className="text-3xl font-semibold text-white mt-1">{hoursSaved} hrs</div>
+                <span className="text-xs text-gray-400 block mt-1">Based on 0.75h/task</span>
               </div>
               <div className="text-center p-4 border border-gray-800/40 rounded-xl bg-gray-950/20 shadow-inner">
                 <DollarSign size={24} className="text-emerald-400 mx-auto mb-2" />
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Savings Value / Mo</span>
-                <div className="text-3xl font-black text-emerald-400 mt-1">${moneySaved.toLocaleString()}</div>
-                <span className="text-[9px] text-emerald-500/80 block mt-1 font-semibold">Net ROI: 99.8%</span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Savings Value / Mo</span>
+                <div className="text-3xl font-semibold text-emerald-400 mt-1">${moneySaved.toLocaleString()}</div>
+                <span className="text-xs text-emerald-500/80 block mt-1 font-semibold">Net ROI: 99.8%</span>
               </div>
             </div>
           </div>

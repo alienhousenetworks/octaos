@@ -41,6 +41,10 @@ celery_app.conf.beat_schedule = {
         "task": "poll_and_execute_workflows",
         "schedule": crontab(minute="*"),
     },
+    "poll-scheduled-triggers": {
+        "task": "poll_scheduled_triggers",
+        "schedule": crontab(minute="*"),
+    },
     "publish-scheduled-posts": {
         "task": "publish_scheduled_posts",
         "schedule": crontab(minute="*/5"),
@@ -60,6 +64,10 @@ celery_app.conf.beat_schedule = {
     "recrawl-knowledge-sources": {
         "task": "recrawl_due_knowledge_sources_task",
         "schedule": crontab(minute="45", hour="*/4"),  # every 4 hours
+    },
+    "scan-regional-context-radar": {
+        "task": "scan_regional_context_radar_task",
+        "schedule": crontab(day_of_month="1", hour=4, minute=0),  # monthly on the 1st
     },
 }
 

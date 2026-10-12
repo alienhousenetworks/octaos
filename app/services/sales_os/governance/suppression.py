@@ -7,6 +7,7 @@ Enforces:
 """
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Tuple, Dict, Any
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.models.deal_room import SuppressionRecord, DealActivity
 from app.models.verticals import Lead
@@ -46,6 +47,7 @@ class SuppressionService:
         email: Optional[str] = None,
         domain: Optional[str] = None,
         phone: Optional[str] = None,
+        channel: Optional[str] = None,
     ) -> SuppressionCheckResult:
         """Check if email, domain, or phone is suppressed for this tenant.
 
@@ -70,16 +72,8 @@ class SuppressionService:
         # 1. Check email
         if email:
             clean_email = email.strip().lower()
-            record = (
-                self.db.query(SuppressionRecord)
-                .filter(
-                    SuppressionRecord.tenant_id == self.tenant_id,
-                    SuppressionRecord.identifier_type == "email",
-                    SuppressionRecord.identifier_value == clean_email,
-                )
-                .first()
-            )
-            if record and (not record.expires_at or record.expires_at > now):
+            record = self._active_record("email", clean_email, channel, now)
+            if record:
                 return SuppressionCheckResult(True, f"Email suppressed: {record.reason}")
 
             # Check domain part of email
@@ -92,16 +86,8 @@ class SuppressionService:
         # 2. Check domain
         if domain:
             clean_domain = domain.strip().lower().replace("www.", "")
-            record = (
-                self.db.query(SuppressionRecord)
-                .filter(
-                    SuppressionRecord.tenant_id == self.tenant_id,
-                    SuppressionRecord.identifier_type == "domain",
-                    SuppressionRecord.identifier_value == clean_domain,
-                )
-                .first()
-            )
-            if record and (not record.expires_at or record.expires_at > now):
+            record = self._active_record("domain", clean_domain, channel, now)
+            if record:
                 return SuppressionCheckResult(True, f"Domain suppressed: {record.reason}")
 
         # 3. Check phone
@@ -109,19 +95,32 @@ class SuppressionService:
             import re
             clean_phone = re.sub(r"\D", "", phone)
             if clean_phone:
-                record = (
-                    self.db.query(SuppressionRecord)
-                    .filter(
-                        SuppressionRecord.tenant_id == self.tenant_id,
-                        SuppressionRecord.identifier_type == "phone",
-                        SuppressionRecord.identifier_value == clean_phone,
-                    )
-                    .first()
-                )
-                if record and (not record.expires_at or record.expires_at > now):
+                record = self._active_record("phone", clean_phone, channel, now)
+                if record:
                     return SuppressionCheckResult(True, f"Phone suppressed: {record.reason}")
 
         return SuppressionCheckResult(False, None)
+
+    def _active_record(self, identifier_type: str, identifier_value: str, channel: Optional[str], now: datetime):
+        records = (
+            self.db.query(SuppressionRecord)
+            .filter(
+                or_(
+                    SuppressionRecord.tenant_id == self.tenant_id,
+                    SuppressionRecord.scope == "global",
+                ),
+                SuppressionRecord.identifier_type == identifier_type,
+                SuppressionRecord.identifier_value == identifier_value,
+            )
+            .all()
+        )
+        for record in records:
+            if record.expires_at and record.expires_at <= now:
+                continue
+            if channel and record.channel and record.channel not in {channel, "all"}:
+                continue
+            return record
+        return None
 
     def check_frequency_limit(
         self,
@@ -179,6 +178,9 @@ class SuppressionService:
         origin: str = "system",
         notes: Optional[str] = None,
         expires_days: Optional[int] = None,
+        channel: Optional[str] = None,
+        jurisdiction: Optional[str] = None,
+        scope: str = "tenant",
     ) -> SuppressionRecord:
         """Add an entry to the suppression registry."""
         clean_val = identifier_value.strip().lower()
@@ -205,6 +207,9 @@ class SuppressionService:
             existing.origin = origin
             existing.notes = notes
             existing.expires_at = expires_at
+            existing.channel = channel
+            existing.jurisdiction = jurisdiction
+            existing.scope = scope or "tenant"
             self.db.commit()
             return existing
 
@@ -215,6 +220,9 @@ class SuppressionService:
             reason=reason,
             origin=origin,
             notes=notes,
+            channel=channel,
+            jurisdiction=jurisdiction,
+            scope=scope or "tenant",
             expires_at=expires_at,
         )
         self.db.add(record)

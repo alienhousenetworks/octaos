@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from app.models.base import Base, Tenant
 from app.models.agents import KnowledgeDocument, KnowledgeSource
 from app.models.enterprise import KnowledgeChunk
-from app.services.web_ingestion.firecrawl_client import validate_target_url, FirecrawlClient
+from app.services.web_ingestion.firecrawl_client import validate_target_url, FirecrawlClient, crawl_error_message
 from app.services.web_ingestion.website_sync import WebsiteSyncService
 
 
@@ -33,6 +33,30 @@ def test_ssrf_protection():
     # Adds https if missing
     safe_added = validate_target_url("github.com/pricing")
     assert safe_added == "https://github.com/pricing"
+
+    # A sentence is not a URL. Do not prefix https:// and hand it to the crawler.
+    with pytest.raises(ValueError, match="not a web address|cannot be crawled|website URL"):
+        validate_target_url("Most teams misunderstand the real bottleneck in operations.")
+
+
+def test_firecrawl_url_error_is_rewritten():
+    raw = (
+        "Bad Request: Failed to start crawl. Bad Request - "
+        "[{'code': 'invalid_format', 'format': 'url', 'path': ['url'], 'message': 'Invalid URL'}]"
+    )
+    message = crawl_error_message(raw)
+    assert message is not None
+    assert "Invalid URL" not in message
+    assert "example.com" in message
+
+
+def test_sentence_never_reaches_firecrawl(monkeypatch):
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "fc-test-dummy-key")
+    client = FirecrawlClient(api_key="fc-test-dummy-key")
+    with patch.object(client, "_get_app") as app:
+        with pytest.raises(ValueError, match="website URL"):
+            client.crawl_website("Most teams misunderstand the real bottleneck in operations.")
+        app.assert_not_called()
 
 
 @pytest.fixture

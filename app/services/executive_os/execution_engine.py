@@ -89,7 +89,10 @@ class DurableExecutionEngine:
         current_state = WorkflowState(wf.status.upper()) if hasattr(WorkflowState, wf.status.upper()) else WorkflowState.COMPILED
         if not validate_workflow_transition(current_state, WorkflowState.RUNNING):
             if current_state != WorkflowState.RUNNING:
-                raise ValueError(f"Invalid transition from {current_state} to RUNNING.")
+                if current_state == WorkflowState.DRAFT:
+                    current_state = WorkflowState.COMPILED
+                else:
+                    raise ValueError(f"Invalid transition from {current_state} to RUNNING.")
 
         wf.status = WorkflowState.RUNNING.value
         self.db.flush()

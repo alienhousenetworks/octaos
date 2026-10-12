@@ -91,11 +91,16 @@ class QualifierAgent(BaseSalesAgent):
             + scores["budget_fit"] * 0.25
         )
 
-        timing = deal_room.timing_score or 0.5
         evidence_cov = 1.0 - (len(missing_info) * 0.25)
         evidence_cov = max(0.2, evidence_cov)
 
-        priority = round(icp_fit * timing * evidence_cov, 3)
+        if deal_room.timing_score:
+            timing = deal_room.timing_score
+            priority = round(icp_fit * timing * evidence_cov, 3)
+        else:
+            timing = None
+            missing_info.append("timing_unknown")
+            priority = round(icp_fit * evidence_cov, 3)
         deal_room.icp_fit_score = round(icp_fit, 3)
         deal_room.priority_index = priority
 
@@ -130,7 +135,7 @@ class QualifierAgent(BaseSalesAgent):
             recommended_next_step="account_research" if is_qualified else "enrich_further",
             data={
                 "icp_fit_score": round(icp_fit, 3),
-                "timing_score": round(timing, 3),
+                "timing_score": None if timing is None else round(timing, 3),
                 "priority_index": priority,
                 "dimension_scores": scores,
             },

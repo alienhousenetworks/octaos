@@ -165,22 +165,33 @@ def handle_lead_with_ai_task(tenant_id: str, lead_id: str):
 
 
 @celery_app.task(name="generate_campaign_task")
-def generate_campaign_task(tenant_id: str, params: dict):
+def generate_campaign_task(tenant_id: str, params: dict, job_id: str = None, *args, **kwargs):
     from app.services.llm_gateway import LLMGateway
-    from app.models.verticals import ContentPost
+    from app.models.verticals import ContentPost, GenerationJob
     from app.models.agents import ActivityLog
     from app.services.marketing.campaign_os.orchestrator import CampaignOSOrchestrator
     from asgiref.sync import async_to_sync
+    from datetime import datetime, timezone
     import logging
     
     task_logger = logging.getLogger("generate_campaign_task")
+    if not job_id and isinstance(params, dict):
+        job_id = params.get("job_id") or kwargs.get("job_id")
+    elif not job_id and kwargs.get("job_id"):
+        job_id = kwargs.get("job_id")
+
     db = SessionLocal()
     try:
         topic = params.get("topic", "our company")
         days = int(params.get("days", 30))
         platforms = params.get("platforms", ["linkedin", "instagram", "facebook"])
-        image_provider = params.get("image_provider", "openai")
-        video_provider = params.get("video_provider", "pika")
+        img_sel = params.get("image", {}) if isinstance(params.get("image"), dict) else {}
+        vid_sel = params.get("video", {}) if isinstance(params.get("video"), dict) else {}
+        image_provider = img_sel.get("provider") or params.get("image_provider", "together")
+        image_model = img_sel.get("model") or params.get("image_model")
+        video_provider = vid_sel.get("provider") or params.get("video_provider", "together")
+        video_model = vid_sel.get("model") or params.get("video_model")
+        reference_image_url = params.get("reference_image_url")
         generate_images = bool(params.get("generate_images", True))
         generate_videos = bool(params.get("generate_videos", False))
 
@@ -196,8 +207,21 @@ def generate_campaign_task(tenant_id: str, params: dict):
         db.commit()
 
         # Execute the 3-stage Campaign OS Orchestrator
-        orchestrator = CampaignOSOrchestrator(db, tenant_id)
+        orchestrator = CampaignOSOrchestrator(db, tenant_id, job_id=job_id)
         result = async_to_sync(orchestrator.execute_campaign_dag)(params)
+
+        if result.get("status") == "failed":
+            task_logger.error(f"[generate_campaign_task] DAG failed: {result.get('error')}")
+            if job_id:
+                try:
+                    job = db.query(GenerationJob).filter(GenerationJob.id == job_id).first()
+                    if job:
+                        job.status = "failed"
+                        job.error = result.get("error")
+                        db.commit()
+                except Exception:
+                    pass
+            return result
 
         # Dispatch Media Rendering with Circuit Breakers (if requested and prompt exists)
         llm = LLMGateway(db, tenant_id)
@@ -205,6 +229,8 @@ def generate_campaign_task(tenant_id: str, params: dict):
             db.query(ContentPost)
             .filter(
                 ContentPost.tenant_id == tenant_id,
+                ContentPost.status != "failed",
+                ContentPost.approval_status != "failed",
                 ContentPost.image_url == None,  # noqa: E711
             )
             .order_by(ContentPost.created_at.desc())
@@ -216,25 +242,61 @@ def generate_campaign_task(tenant_id: str, params: dict):
             # Image Rendering Dispatch
             if generate_images and post.image_prompt and not post.image_url:
                 try:
-                    raw = async_to_sync(llm.generate_image)(post.image_prompt, provider=image_provider)
+                    raw = async_to_sync(llm.generate_image)(
+                        post.image_prompt,
+                        provider=image_provider,
+                        model=image_model,
+                        reference_image_url=reference_image_url,
+                    )
                     if raw and not raw.startswith("error:"):
                         post.image_url = async_to_sync(ensure_public_url)(raw, prefix="img")
+                        post.used_model = f"{image_provider}/{image_model or 'default'}"
                     elif raw and raw.startswith("error:"):
                         post.image_url = raw  # Keep error sentinel for UI warning
                 except Exception as img_err:
                     task_logger.warning(f"Image generation failed gracefully for post {post.id}: {img_err}")
                     # Circuit breaker: graceful degradation to text-only
 
-            # Video Rendering Dispatch
+            # Video Rendering Dispatch (supports image-to-video if post has image_url)
             if generate_videos and post.video_prompt and not post.video_url:
                 try:
-                    v_raw = async_to_sync(llm.generate_video)(post.video_prompt, provider=video_provider)
+                    v_ref = post.image_url if (post.image_url and not post.image_url.startswith("error:")) else reference_image_url
+                    v_raw = async_to_sync(llm.generate_video)(
+                        post.video_prompt,
+                        provider=video_provider,
+                        model=video_model,
+                        reference_image_url=v_ref,
+                    )
                     if v_raw and not str(v_raw).startswith("error:"):
                         post.video_url = async_to_sync(ensure_public_url)(v_raw, prefix="vid", default_mime="video/mp4")
+                        post.used_model = f"{video_provider}/{video_model or 'default'}"
                 except Exception as vid_err:
                     task_logger.warning(f"Video generation failed gracefully for post {post.id}: {vid_err}")
 
         db.commit()
+
+        if job_id:
+            try:
+                job = db.query(GenerationJob).filter(GenerationJob.id == job_id).first()
+                if job:
+                    payload = dict(job.request_payload or {})
+                    payload["current_stage"] = "dispatch"
+                    payload["current_stage_label"] = "Campaign Generation Ready"
+                    payload["progress_pct"] = 100.0
+                    for s in payload.get("stages", []):
+                        s["status"] = "completed"
+                    logs = list(payload.get("logs", []))
+                    logs.append({
+                        "stage": "Complete",
+                        "message": f"Campaign generated successfully! {result.get('total_posts_generated', 0)} posts ready ({result.get('approved_count', 0)} approved).",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    })
+                    payload["logs"] = logs
+                    job.request_payload = payload
+                    job.status = "completed"
+                    db.commit()
+            except Exception as j_err:
+                task_logger.debug(f"Failed to finalize job: {j_err}")
 
         final_log = ActivityLog(
             tenant_id=tenant_id,
@@ -250,6 +312,25 @@ def generate_campaign_task(tenant_id: str, params: dict):
 
     except Exception as e:
         task_logger.error(f"Error in Campaign OS DAG task: {e}", exc_info=True)
+        if job_id:
+            try:
+                job = db.query(GenerationJob).filter(GenerationJob.id == job_id).first()
+                if job:
+                    payload = dict(job.request_payload or {})
+                    payload["progress_pct"] = 0.0
+                    logs = list(payload.get("logs", []))
+                    logs.append({
+                        "stage": "Error",
+                        "message": f"Campaign generation halted: {str(e)[:150]}",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    })
+                    payload["logs"] = logs
+                    job.request_payload = payload
+                    job.status = "failed"
+                    job.error = str(e)
+                    db.commit()
+            except Exception:
+                pass
         error_log = ActivityLog(
             tenant_id=tenant_id,
             agent_name="Campaign OS",
@@ -316,6 +397,24 @@ def run_daily_operations():
             
         # Also run scheduled post publishing
         publish_scheduled_posts()
+    finally:
+        db.close()
+
+@celery_app.task(name="autonomous_marketing_pulse_task")
+def autonomous_marketing_pulse_task(tenant_id: str, params: Optional[dict] = None):
+    from app.services.agents.marketing import MarketingAgent
+    from asgiref.sync import async_to_sync
+    import logging
+    task_logger = logging.getLogger("autonomous_marketing_pulse_task")
+    db = SessionLocal()
+    try:
+        agent = MarketingAgent(db, tenant_id)
+        result = async_to_sync(agent.autonomous_marketing_pulse)(params or {})
+        task_logger.info(f"Autonomous pulse completed for tenant {tenant_id}: {result.get('message')}")
+        return result
+    except Exception as e:
+        task_logger.error(f"Error in autonomous_marketing_pulse_task for tenant {tenant_id}: {e}", exc_info=True)
+        raise e
     finally:
         db.close()
 
@@ -647,6 +746,129 @@ def poll_and_execute_workflows():
         db.close()
 
 
+@celery_app.task(name="poll_scheduled_triggers")
+def poll_scheduled_triggers():
+    from app.models.schedules import ScheduledTrigger
+    from app.models.verticals import BusinessProfile
+    from app.models.agents import ActivityLog
+    from datetime import datetime, timezone
+    import logging
+
+    task_logger = logging.getLogger("poll_scheduled_triggers")
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        due_triggers = (
+            db.query(ScheduledTrigger)
+            .filter(
+                ScheduledTrigger.is_active == True,
+                ScheduledTrigger.next_run_at <= now,
+            )
+            .all()
+        )
+
+        for trigger in due_triggers:
+            task_logger.info(f"Executing scheduled trigger {trigger.id} for {trigger.target_type} (tenant: {trigger.tenant_id})")
+            
+            trigger.last_run_at = now
+            trigger.last_status = "running"
+            trigger.next_run_at = trigger.calculate_next_run(from_time=now)
+            db.commit()
+
+            try:
+                if trigger.target_type in ("lead_generation", "prompt_sales_agent"):
+                    config = trigger.config or {}
+                    provider = config.get("provider", "auto")
+                    model = config.get("model")
+                    count = int(config.get("count") or config.get("lead_count") or 50)
+                    freshness = config.get("freshness") or "30_days"
+                    prompt_text = trigger.instructions or "Find high-intent B2B target accounts fitting current market opportunities."
+
+                    run_sales_v3_task.delay(
+                        trigger.tenant_id,
+                        provider=provider,
+                        model=model,
+                        count=count,
+                        freshness=freshness,
+                        mode="prompt_agent",
+                        prompt_instructions=prompt_text
+                    )
+                    
+                    log = ActivityLog(
+                        tenant_id=trigger.tenant_id,
+                        agent_name="Prompt Sales Agent",
+                        action="Scheduled Prompt Agent Triggered",
+                        description=f"Autonomous prompt lead discovery triggered on schedule ({trigger.frequency} at {trigger.time_of_day}).",
+                        status="success"
+                    )
+                    db.add(log)
+                    db.commit()
+
+                elif trigger.target_type == "configured_sales_engine":
+                    config = trigger.config or {}
+                    provider = config.get("provider", "auto")
+                    model = config.get("model")
+                    count = int(config.get("count") or config.get("lead_count") or 50)
+                    freshness = config.get("freshness") or "30_days"
+
+                    run_sales_v3_task.delay(
+                        trigger.tenant_id,
+                        provider=provider,
+                        model=model,
+                        count=count,
+                        freshness=freshness,
+                        mode="configured_engine"
+                    )
+
+                    log = ActivityLog(
+                        tenant_id=trigger.tenant_id,
+                        agent_name="Configured Sales Engine",
+                        action="Scheduled Configured Engine Triggered",
+                        description=f"Autonomous configured sales engine triggered on schedule ({trigger.frequency} at {trigger.time_of_day}).",
+                        status="success"
+                    )
+                    db.add(log)
+                    db.commit()
+
+                elif trigger.target_type == "campaign_planner":
+                    config = trigger.config or {}
+                    topic = config.get("topic") or (trigger.instructions[:80] if trigger.instructions else "Scheduled Campaign")
+                    days = int(config.get("days", 30))
+                    platforms = config.get("platforms", ["linkedin", "instagram", "facebook"])
+                    
+                    params = {
+                        "topic": topic,
+                        "days": days,
+                        "platforms": platforms,
+                        "generate_images": config.get("generate_images", True),
+                        "instructions": trigger.instructions
+                    }
+                    generate_campaign_task.delay(trigger.tenant_id, params)
+
+                    log = ActivityLog(
+                        tenant_id=trigger.tenant_id,
+                        agent_name="Campaign OS",
+                        action="Scheduled Campaign Triggered",
+                        description=f"Autonomous {days}-day campaign generation triggered on schedule ({trigger.frequency} at {trigger.time_of_day}).",
+                        status="success"
+                    )
+                    db.add(log)
+                    db.commit()
+
+                trigger.last_status = "success"
+                db.commit()
+            except Exception as trig_err:
+                task_logger.error(f"Error executing trigger {trigger.id}: {trig_err}")
+                trigger.last_status = "failed"
+                trigger.last_error = str(trig_err)[:300]
+                db.commit()
+
+    except Exception as e:
+        task_logger.error(f"Error in poll_scheduled_triggers: {e}")
+    finally:
+        db.close()
+
+
 @celery_app.task(name="run_ceo_workflow_task")
 def run_ceo_workflow_task(tenant_id: str, workflow_id: str):
     from app.services.agents.ceo import CEOService
@@ -661,12 +883,27 @@ def run_ceo_workflow_task(tenant_id: str, workflow_id: str):
         db.close()
 
 @celery_app.task(name="run_sales_v3_task")
-def run_sales_v3_task(tenant_id: str, provider: str = "gemini", model: str = None, count: int = 50):
+def run_sales_v3_task(
+    tenant_id: str,
+    provider: str = None,
+    model: str = None,
+    count: int = 50,
+    freshness: str = None,
+    mode: str = "configured_engine",
+    prompt_instructions: str = None
+):
     from app.services.agents.sales import SalesAgent
     db = SessionLocal()
     try:
         agent = SalesAgent(db, tenant_id)
-        async_to_sync(agent.run_sales_ai_v3_workflow)(provider=provider, model=model, count=count)
+        async_to_sync(agent.run_sales_ai_v3_workflow)(
+            provider=provider,
+            model=model,
+            count=count,
+            freshness=freshness,
+            mode=mode,
+            prompt_instructions=prompt_instructions
+        )
     except Exception as e:
         print(f"Error in run_sales_v3_task: {e}")
         raise e
@@ -710,6 +947,42 @@ def rebuild_marketing_learning_task(tenant_id: str):
         db.close()
 
 
+@celery_app.task(name="scan_regional_context_radar_task")
+def scan_regional_context_radar_task(tenant_id: str = None, days_ahead: int = 30):
+    """Monthly background scanner for cultural, seasonal, and commercial moments in target regions."""
+    from app.models.base import Tenant
+    from app.services.marketing.context_radar.calendar_engine import CalendarEngine
+    from app.services.knowledge_os.brand_synthesizer import BrandKnowledgeService
+    import logging
+
+    task_logger = logging.getLogger("scan_regional_context_radar_task")
+    db = SessionLocal()
+    try:
+        if tenant_id:
+            tenant_ids = [tenant_id]
+        else:
+            tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active == True).all()]  # noqa: E712
+
+        summary = []
+        for tid in tenant_ids:
+            try:
+                brand_knowledge = BrandKnowledgeService(db, tid).synthesize()
+                cal_engine = CalendarEngine(db, tid)
+                events = async_to_sync(cal_engine.discover_agentic_regional_events)(
+                    days_ahead=days_ahead,
+                    force_refresh=True,
+                    brand_context=brand_knowledge,
+                )
+                summary.append({"tenant_id": tid, "events_discovered": len(events)})
+                task_logger.info(f"Discovered {len(events)} regional events for tenant {tid}")
+            except Exception as e:
+                task_logger.warning(f"Error scanning regional radar for tenant {tid}: {e}")
+                summary.append({"tenant_id": tid, "error": str(e)[:200]})
+        return {"status": "ok", "tenants": summary}
+    finally:
+        db.close()
+
+
 @celery_app.task(name="dead_letter_handler")
 def dead_letter_handler(task_name: str, task_id: str, exception: str, args: str, kwargs: str):
     import logging
@@ -747,6 +1020,34 @@ def dead_letter_handler(task_name: str, task_id: str, exception: str, args: str,
             error=exception,
             tenant_id=tenant_id,
         )
+
+        # Mark associated GenerationJob as failed so it does not stay orphaned in 'queued'
+        failed_job_id = None
+        if isinstance(parsed_kwargs, dict) and parsed_kwargs.get("job_id"):
+            failed_job_id = parsed_kwargs.get("job_id")
+        elif len(parsed_args) > 1 and isinstance(parsed_args[1], dict) and parsed_args[1].get("job_id"):
+            failed_job_id = parsed_args[1].get("job_id")
+
+        if failed_job_id:
+            try:
+                from app.models.verticals import GenerationJob
+                gen_job = db.query(GenerationJob).filter(GenerationJob.id == failed_job_id).first()
+                if gen_job and gen_job.status in ("queued", "in_progress"):
+                    gen_job.status = "failed"
+                    gen_job.error = f"Celery task failure: {exception[:250]}"
+                    payload = dict(gen_job.request_payload or {})
+                    logs = list(payload.get("logs", []))
+                    logs.append({
+                        "stage": "Error",
+                        "message": f"Worker task failed: {exception[:150]}",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    })
+                    payload["logs"] = logs
+                    gen_job.request_payload = payload
+                    db.commit()
+            except Exception as j_err:
+                logger.debug(f"Failed to update generation job from DLQ: {j_err}")
+
         return {"status": "DLQ_RECORDED", "task_id": task_id, "persisted": True}
     except Exception as e:
         logger.error(f"Failed to persist DLQ job: {e}")
@@ -885,3 +1186,131 @@ def recrawl_due_knowledge_sources_task():
                     logging.error(f"Periodic crawl failed for source {s.id}: {e}")
     finally:
         db.close()
+
+
+@celery_app.task(name="execute_media_generation_job_task")
+def execute_media_generation_job_task(job_id: str):
+    """Execute asynchronous image/video generation job and persist result to durable storage."""
+    from app.db.session import SessionLocal
+    from app.models.verticals import GenerationJob, ContentPost
+    from app.services.ai_gateway.registry import ModelRegistry
+    from app.services.ai_gateway.providers.base import VideoReq, ImageReq, JobHandle
+    from app.services.media.storage import ensure_public_url
+    from asgiref.sync import async_to_sync
+    import asyncio
+    import logging
+
+    logger = logging.getLogger("execute_media_generation_job_task")
+    db = SessionLocal()
+    try:
+        job = db.query(GenerationJob).filter(GenerationJob.id == job_id).first()
+        if not job:
+            logger.error(f"GenerationJob {job_id} not found.")
+            return
+
+        job.status = "in_progress"
+        job.attempts = (job.attempts or 0) + 1
+        db.commit()
+
+        registry = ModelRegistry.get_instance()
+        provider_name = (job.provider or "together").lower()
+        adapter = registry.get_adapter(provider_name)
+        if not adapter:
+            job.status = "failed"
+            job.error = f"Unsupported provider '{job.provider}'"
+            db.commit()
+            return
+
+        from app.services.ai_gateway import ai_gateway
+        api_key = ai_gateway._get_api_key(db, job.tenant_id, provider_name)
+        if not api_key:
+            job.status = "failed"
+            job.error = f"API key for {provider_name.title()} is missing."
+            db.commit()
+            return
+
+        payload = job.request_payload or {}
+        prompt = payload.get("prompt", "")
+        ref_image = payload.get("reference_image_url")
+        ar = payload.get("aspect_ratio", "16:9" if job.kind == "video" else "1:1")
+
+        if job.kind == "video":
+            req = VideoReq(
+                model=job.model,
+                prompt=prompt,
+                reference_image_url=ref_image,
+                aspect_ratio=ar,
+                duration_seconds=int(payload.get("duration_seconds", 5)),
+            )
+
+            # Submit or use existing provider job ID
+            if not job.provider_job_id:
+                handle = async_to_sync(adapter.submit_video)(req, api_key=api_key)
+                job.provider_job_id = handle.job_id
+                db.commit()
+            else:
+                handle = JobHandle(job_id=job.provider_job_id, provider=provider_name, model=job.model)
+
+            # Poll for completion (up to 60 iterations * 5s = 5 minutes)
+            final_url = None
+            for _ in range(60):
+                status = async_to_sync(adapter.poll_video)(handle, api_key=api_key)
+                if status.status == "completed" and status.result_url:
+                    final_url = status.result_url
+                    break
+                elif status.status == "failed":
+                    raise Exception(status.error or "Video generation provider reported failure.")
+                async_to_sync(asyncio.sleep)(5)
+
+            if not final_url:
+                raise Exception("Video generation timed out after 5 minutes.")
+
+            # Persist to permanent storage
+            permanent_url = async_to_sync(ensure_public_url)(final_url, prefix="vid", default_mime="video/mp4") or final_url
+            job.status = "completed"
+            job.result_url = permanent_url
+            db.commit()
+
+            if job.post_id:
+                post = db.query(ContentPost).filter(ContentPost.id == job.post_id).first()
+                if post:
+                    post.video_url = permanent_url
+                    post.video_prompt = prompt
+                    post.used_model = f"{provider_name}/{job.model}"
+                    db.commit()
+
+        elif job.kind == "image":
+            img_req = ImageReq(
+                model=job.model,
+                prompt=prompt,
+                reference_image_url=ref_image,
+                aspect_ratio=ar,
+            )
+            res = async_to_sync(adapter.generate_image)(img_req, api_key=api_key)
+            permanent_url = async_to_sync(ensure_public_url)(res.image_url, prefix="img") or res.image_url
+            job.status = "completed"
+            job.result_url = permanent_url
+            db.commit()
+
+            if job.post_id:
+                post = db.query(ContentPost).filter(ContentPost.id == job.post_id).first()
+                if post:
+                    post.image_url = permanent_url
+                    post.image_prompt = prompt
+                    post.used_model = f"{provider_name}/{job.model}"
+                    db.commit()
+
+    except Exception as e:
+        logger.error(f"Error in execute_media_generation_job_task for job {job_id}: {e}")
+        db.rollback()
+        job = db.query(GenerationJob).filter(GenerationJob.id == job_id).first()
+        if job:
+            job.status = "failed"
+            job.error = str(e)
+            db.commit()
+    finally:
+        db.close()
+
+
+# Registers the sales-os discovery task. It is not on the beat schedule.
+from app.workers.sales_os.discovery import run_sales_os_discovery_task  # noqa: E402, F401

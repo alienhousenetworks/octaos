@@ -1,5 +1,7 @@
 'use client';
 
+import { notify, confirmAction } from '@/lib/notify';
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,7 +38,7 @@ const FakeProgressBar = () => {
           style={{ width: `${progress}%` }} 
         />
       </div>
-      <span className="text-[9px] text-gray-500 text-right">{progress}%</span>
+      <span className="text-xs text-gray-500 text-right">{progress}%</span>
     </div>
   );
 };
@@ -76,7 +78,7 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
   }, [token]);
 
   const handleCreateProject = async () => {
-    if (!prompt || !title) return alert('Please enter title and prompt');
+    if (!prompt || !title) return notify('Please enter title and prompt');
     setLoading(true);
     try {
       const res = await fetchWithAuth(`${API_URL}/videos/create`, {
@@ -93,9 +95,9 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
         setPrompt('');
         setTitle('');
         fetchProjects();
-        alert('Video project created! AI is planning the storyboard.');
+        notify('Video project created! AI is planning the storyboard.');
       } else {
-        alert('Failed to create video project.');
+        notify('Failed to create video project.');
       }
     } catch (e) {
       console.error(e);
@@ -109,11 +111,11 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
         method: 'POST'
       });
       if (res.ok) {
-        alert('Rendering started!');
+        notify('Rendering started!');
         fetchProjects();
       } else {
         const data = await res.json();
-        alert(`Failed to render: ${data.detail || 'Unknown error'}`);
+        notify(`Failed to render: ${data.detail || 'Unknown error'}`);
       }
     } catch (e) {
       console.error(e);
@@ -121,7 +123,7 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
   };
 
   const handleDelete = async (projectId: string) => {
-    if (!confirm('Are you sure you want to delete this video project? This cannot be undone.')) return;
+    if (!(await confirmAction('Are you sure you want to delete this video project? This cannot be undone.'))) return;
     try {
       const res = await fetchWithAuth(`${API_URL}/videos/${projectId}`, {
         method: 'DELETE'
@@ -130,7 +132,7 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
         fetchProjects();
       } else {
         const data = await res.json();
-        alert(`Failed to delete: ${data.detail || 'Unknown error'}`);
+        notify(`Failed to delete: ${data.detail || 'Unknown error'}`);
       }
     } catch (e) {
       console.error(e);
@@ -139,17 +141,17 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
 
   const getStatusBadge = (status: string) => {
     switch(status) {
-      case 'planned': return <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Planned</span>;
-      case 'queued': return <span className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin"/> Queued</span>;
+      case 'planned': return <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">Planned</span>;
+      case 'queued': return <span className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin"/> Queued</span>;
       case 'rendering': return (
         <div className="flex flex-col gap-1">
-          <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 w-max"><Loader2 className="h-3 w-3 animate-spin"/> Rendering</span>
+          <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1 w-max"><Loader2 className="h-3 w-3 animate-spin"/> Rendering</span>
           <FakeProgressBar />
         </div>
       );
-      case 'completed': return <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"><CheckCircle className="h-3 w-3"/> Ready</span>;
-      case 'failed': return <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"><AlertTriangle className="h-3 w-3"/> Failed</span>;
-      default: return <span className="bg-gray-500/10 text-gray-400 border border-gray-500/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin"/> Planning</span>;
+      case 'completed': return <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1"><CheckCircle className="h-3 w-3"/> Ready</span>;
+      case 'failed': return <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1"><AlertTriangle className="h-3 w-3"/> Failed</span>;
+      default: return <span className="bg-gray-500/10 text-gray-400 border border-gray-500/20 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin"/> Planning</span>;
     }
   };
 
@@ -157,7 +159,7 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
+          <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-3">
             <Video className="text-violet-400" /> AI Video Studio
           </h1>
           <p className="text-gray-400 mt-1">Generate programmatic motion graphics for marketing and social media.</p>

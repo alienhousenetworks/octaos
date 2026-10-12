@@ -7,6 +7,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.core.config import settings
+from jose import jwt
 from app.db.session import SessionLocal
 from app.services.executive_os.execution_engine import DurableExecutionEngine
 from app.services.executive_os.sse_manager import SSEManager
@@ -157,7 +159,8 @@ async def stream_workflow_events(
     request: Request,
     last_event_id: Optional[str] = Header(None, alias="Last-Event-ID"),
     last_event_id_query: Optional[int] = Query(None, alias="last_event_id"),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    token: Optional[str] = Query(None),
+    db: Session = Depends(deps.get_db),
 ):
     effective_last_id = last_event_id_query
     if effective_last_id is None and last_event_id is not None:
@@ -166,10 +169,30 @@ async def stream_workflow_events(
         except ValueError:
             pass
 
+    resolved_tenant_id = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        bearer_token = auth_header.split(" ", 1)[1]
+        try:
+            payload = jwt.decode(bearer_token, settings.SECRET_KEY, algorithms=["HS256"])
+            resolved_tenant_id = payload.get("tenant_id")
+        except Exception:
+            pass
+
+    if not resolved_tenant_id and token:
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+            resolved_tenant_id = payload.get("tenant_id")
+        except Exception:
+            pass
+
+    if not resolved_tenant_id:
+        raise HTTPException(status_code=401, detail="Authentication required for SSE stream")
+
     return StreamingResponse(
         SSEManager.event_generator(
             db_factory=SessionLocal,
-            tenant_id=tenant_id,
+            tenant_id=resolved_tenant_id,
             workflow_id=workflow_id,
             last_event_id=effective_last_id,
             poll_interval=0.5,
@@ -309,7 +332,7 @@ def get_evidence_cluster_details(
 # --- Strategy Compiler & Multi-Plan Endpoints ---
 
 class CompilePlanRequest(BaseModel):
-    workflow_id: str
+    workflow_id: Optional[str] = None
     prompt: str
     budget_override: Optional[float] = None
 
@@ -330,6 +353,7 @@ def compile_strategy_plans(
         return [
             {
                 "id": p.id,
+                "workflow_id": p.workflow_id,
                 "version_num": p.version_num,
                 "strategy_variant": p.strategy_variant,
                 "status": p.status,
@@ -338,11 +362,17 @@ def compile_strategy_plans(
                 "executive_summary": p.executive_summary,
                 "estimated_budget": float(p.estimated_budget),
                 "quant_forecast": p.quant_forecast,
-                "fragility_score": p.red_team_critique.get("fragility_score"),
-                "compliance_status": p.compliance_scorecard.get("compliance_status")
+                "meeting_id": p.quant_forecast.get("meeting_id") if isinstance(p.quant_forecast, dict) else None,
+                "council_participants": p.quant_forecast.get("council_participants", []) if isinstance(p.quant_forecast, dict) else [],
+                "agent_deliberations": p.quant_forecast.get("agent_deliberations", []) if isinstance(p.quant_forecast, dict) else [],
+                "roi_scorecard": p.quant_forecast.get("roi_scorecard", {}) if isinstance(p.quant_forecast, dict) else {},
+                "consensus_summary": p.quant_forecast.get("consensus_summary", "") if isinstance(p.quant_forecast, dict) else "",
+                "fragility_score": p.red_team_critique.get("fragility_score") if isinstance(p.red_team_critique, dict) else None,
+                "compliance_status": p.compliance_scorecard.get("compliance_status") if isinstance(p.compliance_scorecard, dict) else None
             }
             for p in plans
         ]
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -408,9 +438,15 @@ def get_workflow_plan_details(
         "estimated_budget": float(plan.estimated_budget),
         "max_budget_envelope": float(plan.max_budget_envelope),
         "quant_forecast": plan.quant_forecast,
+        "meeting_id": plan.quant_forecast.get("meeting_id") if isinstance(plan.quant_forecast, dict) else None,
+        "council_participants": plan.quant_forecast.get("council_participants", []) if isinstance(plan.quant_forecast, dict) else [],
+        "agent_deliberations": plan.quant_forecast.get("agent_deliberations", []) if isinstance(plan.quant_forecast, dict) else [],
+        "roi_scorecard": plan.quant_forecast.get("roi_scorecard", {}) if isinstance(plan.quant_forecast, dict) else {},
+        "consensus_summary": plan.quant_forecast.get("consensus_summary", "") if isinstance(plan.quant_forecast, dict) else "",
         "red_team_critique": plan.red_team_critique,
         "compliance_scorecard": plan.compliance_scorecard,
         "created_at": plan.created_at.isoformat(),
+
         "nodes": [
             {
                 "id": n.id,
@@ -874,4 +910,328 @@ def get_workflow_post_mortem(
         "key_learnings": pm.key_learnings,
         "created_at": pm.created_at.isoformat()
     }
+
+
+# ==============================================================================
+# INTERACTIVE CEO WORKSPACE & REAL EMPLOYEE ORCHESTRATION ENDPOINTS
+# ==============================================================================
+
+class InteractivePlanRequest(BaseModel):
+    prompt: str
+    budget_cap: Optional[float] = 25000.0
+    timeline_days: Optional[int] = 30
+    user_feedback: Optional[str] = None
+    feedback_history: Optional[list] = None
+    workflow_id: Optional[str] = None
+
+class InteractiveMeetingRequest(BaseModel):
+    prompt: str
+    plan_id: str
+    budget_cap: Optional[float] = 25000.0
+    timeline_days: Optional[int] = 30
+    user_feedback: Optional[str] = None
+    workflow_id: Optional[str] = None
+
+class InteractiveAssignRequest(BaseModel):
+    workflow_id: str
+    plan_id: str
+    meeting_id: Optional[str] = None
+
+
+@router.post("/interactive/plan")
+def interactive_draft_or_refine_plan(
+    payload: InteractivePlanRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """
+    Ingests directive prompt + company knowledge base (BusinessProfile + KnowledgeDocuments).
+    Drafts or refines the strategic plan with user feedback history.
+    """
+    from app.services.executive_os.ceo_interactive_orchestrator import CEOInteractiveOrchestrator
+    orchestrator = CEOInteractiveOrchestrator(db, tenant_id)
+    try:
+        plan_data = orchestrator.draft_or_refine_plan(
+            prompt=payload.prompt,
+            budget_cap=payload.budget_cap or 25000.0,
+            timeline_days=payload.timeline_days or 30,
+            user_feedback=payload.user_feedback,
+            feedback_history=payload.feedback_history,
+            workflow_id=payload.workflow_id
+        )
+        return plan_data
+    except Exception as e:
+        logger.error(f"Error drafting/refining plan: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to draft strategy plan: {str(e)}")
+
+
+@router.post("/interactive/summon-meeting")
+def interactive_summon_meeting(
+    payload: InteractiveMeetingRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """
+    Summons the required executive agents, conducts the meeting with turn-by-turn dialogue,
+    critiques, and computes the optimized ROI scorecard.
+    """
+    from app.services.executive_os.ceo_interactive_orchestrator import CEOInteractiveOrchestrator
+    orchestrator = CEOInteractiveOrchestrator(db, tenant_id)
+    try:
+        meeting_data = orchestrator.conduct_interactive_meeting(
+            prompt=payload.prompt,
+            plan_id=payload.plan_id,
+            budget_cap=payload.budget_cap or 25000.0,
+            timeline_days=payload.timeline_days or 30,
+            user_feedback=payload.user_feedback,
+            workflow_id=payload.workflow_id
+        )
+        return meeting_data
+    except Exception as e:
+        logger.error(f"Error convening council meeting: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to summon council meeting: {str(e)}")
+
+
+@router.post("/interactive/assign-and-execute")
+def interactive_assign_and_execute(
+    payload: InteractiveAssignRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """
+    Approves council decisions, assigns tasks to respective specialist employees,
+    generates live deliverables, and transitions workflow to execution.
+    """
+    from app.services.executive_os.ceo_interactive_orchestrator import CEOInteractiveOrchestrator
+    orchestrator = CEOInteractiveOrchestrator(db, tenant_id)
+    try:
+        team_status = orchestrator.assign_and_execute(
+            workflow_id=payload.workflow_id,
+            plan_id=payload.plan_id,
+            meeting_id=payload.meeting_id
+        )
+        return team_status
+    except Exception as e:
+        logger.error(f"Error assigning tasks and executing: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to assign and execute: {str(e)}")
+
+
+@router.get("/interactive/team-status/{workflow_id}")
+def get_interactive_team_status(
+    workflow_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """
+    Fetches real-time status of employees, current tasks, progress percentages, and deliverables.
+    """
+    from app.services.executive_os.ceo_interactive_orchestrator import CEOInteractiveOrchestrator
+    orchestrator = CEOInteractiveOrchestrator(db, tenant_id)
+    try:
+        return orchestrator.get_team_status(workflow_id)
+    except Exception as e:
+        logger.error(f"Error retrieving team status for workflow {workflow_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get team status: {str(e)}")
+
+
+@router.get("/interactive/company-context")
+def get_interactive_company_context(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """
+    Fetches active company profile and knowledge base snippets for contextual planning.
+    """
+    from app.services.executive_os.ceo_interactive_orchestrator import CEOInteractiveOrchestrator
+    orchestrator = CEOInteractiveOrchestrator(db, tenant_id)
+    try:
+        return orchestrator.get_company_context()
+    except Exception as e:
+        logger.error(f"Error retrieving company context: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get company context: {str(e)}")
+
+
+@router.get("/interactive/workspaces")
+def list_interactive_workspaces(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """
+    Returns list of all past CEO / Executive workspaces with enriched metadata.
+    """
+    from app.services.executive_os.ceo_interactive_orchestrator import CEOInteractiveOrchestrator
+    orchestrator = CEOInteractiveOrchestrator(db, tenant_id)
+    try:
+        return orchestrator.list_workspaces()
+    except Exception as e:
+        logger.error(f"Error listing workspaces: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list workspaces: {str(e)}")
+
+
+@router.get("/interactive/workspaces/{workflow_id}")
+def get_interactive_workspace_state(
+    workflow_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """
+    Returns complete state of a workspace: workflow details, latest plan, meeting transcript/MOM, and deliverables.
+    """
+    from app.services.executive_os.ceo_interactive_orchestrator import CEOInteractiveOrchestrator
+    orchestrator = CEOInteractiveOrchestrator(db, tenant_id)
+    try:
+        return orchestrator.get_workspace_state(workflow_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error loading workspace state for {workflow_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load workspace state: {str(e)}")
+
+
+@router.delete("/interactive/workspaces/{workflow_id}")
+def delete_interactive_workspace(
+    workflow_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """
+    Cascading deletes a CEO workspace and its associated plans, meetings, events, and tasks.
+    """
+    from app.services.executive_os.ceo_interactive_orchestrator import CEOInteractiveOrchestrator
+    orchestrator = CEOInteractiveOrchestrator(db, tenant_id)
+    try:
+        success = orchestrator.delete_workspace(workflow_id)
+        return {"status": "DELETED", "workflow_id": workflow_id, "success": success}
+    except Exception as e:
+        logger.error(f"Error deleting workspace {workflow_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete workspace: {str(e)}")
+
+
+class ScheduleCampaignRequest(BaseModel):
+    workflow_id: str
+    days: Optional[int] = 14
+    platforms: Optional[list] = None
+
+class SalesStageRequest(BaseModel):
+    deal_id: str
+    new_stage: str
+
+class SupportPolicyRequest(BaseModel):
+    reply_mode: str
+    auto_replies: Optional[dict] = None
+
+class EmailDispatchRequest(BaseModel):
+    workflow_id: Optional[str] = None
+    lead_id: Optional[str] = None
+    test_email: Optional[str] = None
+
+
+@router.post("/interactive/campaign/schedule")
+def schedule_campaign_posts(
+    payload: ScheduleCampaignRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """
+    Invokes Campaign Planner AI to generate scheduled social posts across calendar dates.
+    """
+    from app.services.executive_os.ceo_interactive_orchestrator import CEOInteractiveOrchestrator
+    orchestrator = CEOInteractiveOrchestrator(db, tenant_id)
+    try:
+        posts = orchestrator.generate_scheduled_campaign(
+            workflow_id=payload.workflow_id,
+            days=payload.days or 14,
+            platforms=payload.platforms
+        )
+        return {"status": "SCHEDULED", "workflow_id": payload.workflow_id, "posts": posts}
+    except Exception as e:
+        logger.error(f"Error scheduling campaign posts: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to schedule campaign: {str(e)}")
+
+
+@router.get("/interactive/operations/{workflow_id}")
+def get_operations_overview(
+    workflow_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """
+    Fetches real-time status across all 4 operational pillars:
+    Campaign, Sales Pipeline, Support, and Email Dispatch.
+    """
+    from app.services.executive_os.ceo_interactive_orchestrator import CEOInteractiveOrchestrator
+    orchestrator = CEOInteractiveOrchestrator(db, tenant_id)
+    try:
+        return orchestrator.get_operations_overview(workflow_id)
+    except Exception as e:
+        logger.error(f"Error fetching operations overview for {workflow_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get operations overview: {str(e)}")
+
+
+@router.post("/interactive/sales/stage")
+def update_sales_stage(
+    payload: SalesStageRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """
+    Advances a DealRoom to a new pipeline stage from the CEO Command Center.
+    """
+    from app.services.executive_os.ceo_interactive_orchestrator import CEOInteractiveOrchestrator
+    orchestrator = CEOInteractiveOrchestrator(db, tenant_id)
+    try:
+        return orchestrator.advance_sales_pipeline_stage(deal_id=payload.deal_id, new_stage=payload.new_stage)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error advancing deal stage: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update deal stage: {str(e)}")
+
+
+@router.post("/interactive/support/policy")
+def update_support_policy(
+    payload: SupportPolicyRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """
+    Updates Customer Support posture (review_first vs auto_send) from executive governance.
+    """
+    from app.services.executive_os.ceo_interactive_orchestrator import CEOInteractiveOrchestrator
+    orchestrator = CEOInteractiveOrchestrator(db, tenant_id)
+    try:
+        return orchestrator.configure_support_policy(reply_mode=payload.reply_mode, auto_replies=payload.auto_replies)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error configuring support policy: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to configure support policy: {str(e)}")
+
+
+@router.post("/interactive/email/send")
+def send_executive_email(
+    payload: EmailDispatchRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """
+    Dispatches test email or cold outreach to qualified leads via Gmail / SMTP.
+    """
+    from app.services.executive_os.ceo_interactive_orchestrator import CEOInteractiveOrchestrator
+    orchestrator = CEOInteractiveOrchestrator(db, tenant_id)
+    try:
+        return orchestrator.dispatch_executive_email(
+            lead_id=payload.lead_id,
+            test_email=payload.test_email,
+            workflow_id=payload.workflow_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error dispatching email: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to dispatch email: {str(e)}")
+
+
+
+
 

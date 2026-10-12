@@ -116,6 +116,26 @@ def book_meeting_for_lead(
         raise ValueError(f"Google Calendar API Error: {exc}. Please verify your Google Workspace connection.")
 
     lead.status = "meeting_scheduled"
+    
+    # Generate Pre-Meeting Brief for the Account Executive
+    brief = {
+        "account_name": lead.company or "Target Account",
+        "prospect_name": lead.name,
+        "prospect_email": lead.email,
+        "pain_points": lead.target_context or (lead.data or {}).get("pain_points") or "Operational efficiency and pipeline growth",
+        "qualification_notes": lead.why or f"Qualified lead with score {lead.score or 'N/A'}",
+        "meeting_time": meeting_time,
+        "meeting_link": meet_url,
+        "conversation_summary": f"Inbound inquiry with {lead.name} at {lead.company} successfully resolved and scheduled.",
+        "recommended_agenda": [
+            "1. Confirm business priorities & current operational bottlenecks",
+            "2. Align target solution to verified pain points",
+            "3. Demonstrate platform workflow & ROI impact",
+            "4. Define next steps & decision stakeholder alignment"
+        ],
+        "generated_at": datetime.now(timezone.utc).isoformat()
+    }
+
     lead.data = {
         **(lead.data or {}),
         "meeting_time": meeting_time,
@@ -125,6 +145,7 @@ def book_meeting_for_lead(
         "reminder_1h_sent": False,
         "reminder_24h_sent": False,
         "telegram_meeting_booked_sent": False,
+        "pre_meeting_brief": brief,
     }
 
     booked_msg = format_meeting_booked_message(lead, meeting_time, meet_url)

@@ -1,5 +1,7 @@
 'use client';
 
+import { notify } from '@/lib/notify';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -487,10 +489,10 @@ export default function MarketplaceView({
         setInstallConfig({});
         fetchPackages();
         fetchData();
-        alert(`'${configuringPack.name}' installed and provisioned into section '${configuringPack.section}'.`);
+        notify(`'${configuringPack.name}' installed and provisioned into section '${configuringPack.section}'.`);
       } else {
         const err = await res.json();
-        alert(`Installation failed: ${err.detail || 'Unknown error'}`);
+        notify(`Installation failed: ${err.detail || 'Unknown error'}`);
       }
     } catch (e) {
       console.error(e);
@@ -508,7 +510,7 @@ export default function MarketplaceView({
       try {
         parsedInputs = JSON.parse(runInputJson);
       } catch {
-        alert('Invalid JSON input parameters');
+        notify('Invalid JSON input parameters');
         setTriggeringRun(false);
         return;
       }
@@ -528,7 +530,7 @@ export default function MarketplaceView({
             setRunModalPack(null);
             fetchRunsAndApprovals();
             setActiveTab('installed');
-            alert('Flow run initiated successfully.');
+            notify('Flow run initiated successfully.');
           }
         }
       }
@@ -568,7 +570,7 @@ export default function MarketplaceView({
   // Handle Create Custom Package
   const handleCreatePackage = async () => {
     if (!newPackName.trim() || !newPackDesc.trim()) {
-      alert('Please fill in package name and description.');
+      notify('Please fill in package name and description.');
       return;
     }
     setSavingNewPack(true);
@@ -617,11 +619,11 @@ export default function MarketplaceView({
         setTimeout(() => setClonedSuccessMsg(null), 6000);
       } else {
         const err = await res.json();
-        alert(`Error cloning pack: ${err.detail || 'Request failed'}`);
+        notify(`Error cloning pack: ${err.detail || 'Request failed'}`);
       }
     } catch (e) {
       console.error(e);
-      alert('Failed to clone package.');
+      notify('Failed to clone package.');
     } finally {
       setCloningId(null);
     }
@@ -652,7 +654,7 @@ export default function MarketplaceView({
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800/60 pb-6">
         <div>
-          <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-3">
+          <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-3">
             <Briefcase className="text-pink-500 h-9 w-9" /> Autonomous Package Marketplace
           </h1>
           <p className="text-gray-400 mt-1">
@@ -665,37 +667,37 @@ export default function MarketplaceView({
           <button
             onClick={() => setActiveTab('catalog')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'catalog'
-                ? 'bg-pink-600 text-white shadow-lg shadow-pink-500/20'
-                : 'text-gray-400 hover:text-white'
-            }`}
+ activeTab === 'catalog'
+ ? 'bg-pink-600 text-white shadow-lg shadow-pink-500/20'
+ : 'text-gray-400 hover:text-white'
+ }`}
           >
             <Compass size={14} /> Workflow Packages
           </button>
           <button
             onClick={() => setActiveTab('installed')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'installed'
-                ? 'bg-pink-600 text-white shadow-lg shadow-pink-500/20'
-                : 'text-gray-400 hover:text-white'
-            }`}
+ activeTab === 'installed'
+ ? 'bg-pink-600 text-white shadow-lg shadow-pink-500/20'
+ : 'text-gray-400 hover:text-white'
+ }`}
           >
             <Activity size={14} /> Live Runs & History
-            <span className="text-[10px] bg-pink-500/20 text-pink-300 px-1.5 py-0.5 rounded-full ml-1">
+            <span className="text-xs bg-pink-500/20 text-pink-300 px-1.5 py-0.5 rounded-full ml-1">
               {flowRuns.length}
             </span>
           </button>
           <button
             onClick={() => setActiveTab('approvals')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'approvals'
-                ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/20'
-                : 'text-gray-400 hover:text-white'
-            }`}
+ activeTab === 'approvals'
+ ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/20'
+ : 'text-gray-400 hover:text-white'
+ }`}
           >
             <ShieldCheck size={14} /> Approval Inbox
             {approvals.length > 0 && (
-              <span className="text-[10px] bg-amber-500 text-black font-extrabold px-1.5 py-0.5 rounded-full ml-1 animate-pulse">
+              <span className="text-xs bg-amber-500 text-black font-semibold px-1.5 py-0.5 rounded-full ml-1 animate-pulse">
                 {approvals.length}
               </span>
             )}
@@ -732,30 +734,30 @@ export default function MarketplaceView({
                 <button
                   onClick={() => setPackOriginFilter('all')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    packOriginFilter === 'all'
-                      ? 'bg-pink-600 text-white shadow-sm'
-                      : 'text-gray-400 hover:text-white'
-                  }`}
+ packOriginFilter === 'all'
+ ? 'bg-pink-600 text-white shadow-sm'
+ : 'text-gray-400 hover:text-white'
+ }`}
                 >
                   All ({packages.length})
                 </button>
                 <button
                   onClick={() => setPackOriginFilter('inbuilt')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                    packOriginFilter === 'inbuilt'
-                      ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/20'
-                      : 'text-emerald-400 hover:text-emerald-300'
-                  }`}
+ packOriginFilter === 'inbuilt'
+ ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/20'
+ : 'text-emerald-400 hover:text-emerald-300'
+ }`}
                 >
                   <Zap size={11} className="fill-current" /> Inbuilt Core ({packages.filter((p) => p.is_inbuilt || p.is_system).length})
                 </button>
                 <button
                   onClick={() => setPackOriginFilter('custom')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    packOriginFilter === 'custom'
-                      ? 'bg-violet-600 text-white shadow-sm'
-                      : 'text-gray-400 hover:text-white'
-                  }`}
+ packOriginFilter === 'custom'
+ ? 'bg-violet-600 text-white shadow-sm'
+ : 'text-gray-400 hover:text-white'
+ }`}
                 >
                   Custom
                 </button>
@@ -775,10 +777,10 @@ export default function MarketplaceView({
                     key={s.id}
                     onClick={() => setSelectedSection(s.id)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      selectedSection === s.id
-                        ? 'bg-pink-600 text-white'
-                        : 'text-gray-400 hover:text-white'
-                    }`}
+ selectedSection === s.id
+ ? 'bg-pink-600 text-white'
+ : 'text-gray-400 hover:text-white'
+ }`}
                   >
                     {s.label}
                   </button>
@@ -800,7 +802,7 @@ export default function MarketplaceView({
 
             <Button
               onClick={() => setIsCreatePackOpen(true)}
-              className="bg-pink-600 hover:bg-pink-500 text-white font-bold h-10 rounded-xl px-4 shadow-lg shadow-pink-500/20 flex items-center gap-2 hover:scale-[1.02] active:scale-95 transition-all self-start lg:self-auto"
+              className="bg-pink-600 hover:bg-pink-500 text-white font-bold h-10 rounded-xl px-4 shadow-lg shadow-pink-500/20 flex items-center gap-2 active:scale-95 transition-all self-start lg:self-auto"
             >
               <Plus size={16} /> Create Custom Package
             </Button>
@@ -808,7 +810,7 @@ export default function MarketplaceView({
 
           {/* Industry Verticals Quick-Filter Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 pt-0.5 no-scrollbar text-xs">
-            <span className="text-[10px] uppercase font-bold text-gray-500 whitespace-nowrap mr-1 flex items-center gap-1">
+            <span className="text-xs uppercase font-bold text-gray-500 whitespace-nowrap mr-1 flex items-center gap-1">
               Industries:
             </span>
             {INDUSTRY_CATEGORIES.map((cat) => (
@@ -816,10 +818,10 @@ export default function MarketplaceView({
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`px-3 py-1 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 border ${
-                  selectedCategory === cat.id
-                    ? 'bg-pink-600 border-pink-500 text-white shadow-sm shadow-pink-500/20'
-                    : 'bg-gray-900/60 border-gray-800/80 text-gray-400 hover:text-white hover:border-gray-700'
-                }`}
+ selectedCategory === cat.id
+ ? 'bg-pink-600 border-pink-500 text-white shadow-sm shadow-pink-500/20'
+ : 'bg-gray-900/60 border-gray-800/80 text-gray-400 hover:text-white hover:border-gray-700'
+ }`}
               >
                 <span>{cat.icon}</span>
                 <span>{cat.label}</span>
@@ -865,27 +867,27 @@ export default function MarketplaceView({
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex flex-wrap items-center gap-1.5">
                         {pack.is_inbuilt || pack.is_system ? (
-                          <span className="flex items-center gap-1 text-[9px] uppercase font-black tracking-widest text-emerald-300 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30 shadow-sm shadow-emerald-500/10">
+                          <span className="flex items-center gap-1 text-xs uppercase font-semibold tracking-widest text-emerald-300 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30 shadow-sm shadow-emerald-500/10">
                             <Zap size={10} className="fill-emerald-400 text-emerald-400" /> Inbuilt
                           </span>
                         ) : (
-                          <span className="text-[9px] uppercase font-bold text-violet-300 bg-violet-500/10 px-2 py-0.5 rounded-md border border-violet-500/20">
+                          <span className="text-xs uppercase font-bold text-violet-300 bg-violet-500/10 px-2 py-0.5 rounded-md border border-violet-500/20">
                             Custom Pack
                           </span>
                         )}
                         {pack.is_core_default && (
-                          <span className="text-[9px] font-extrabold uppercase tracking-wide text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-md border border-amber-500/30">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-md border border-amber-500/30">
                             Core Default
                           </span>
                         )}
-                        <span className="text-[9px] uppercase font-black tracking-widest text-pink-400 bg-pink-500/10 px-2.5 py-0.5 rounded-full border border-pink-500/20">
+                        <span className="text-xs uppercase font-semibold tracking-widest text-pink-400 bg-pink-500/10 px-2.5 py-0.5 rounded-full border border-pink-500/20">
                           {pack.section}
                         </span>
-                        <span className="text-[9px] uppercase font-bold text-gray-400 bg-gray-900 px-2 py-0.5 rounded-md border border-gray-800">
+                        <span className="text-xs uppercase font-bold text-gray-400 bg-gray-900 px-2 py-0.5 rounded-md border border-gray-800">
                           {pack.category}
                         </span>
                       </div>
-                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 whitespace-nowrap">
+                      <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 whitespace-nowrap">
                         {pack.time_saved} saved
                       </span>
                     </div>
@@ -895,8 +897,8 @@ export default function MarketplaceView({
                         {pack.icon}
                       </div>
                       <div>
-                        <CardTitle className="text-lg text-white font-extrabold leading-snug">{pack.name}</CardTitle>
-                        <span className="text-[10px] text-gray-400 font-medium">Complexity: {pack.complexity}</span>
+                        <CardTitle className="text-lg text-white font-semibold leading-snug">{pack.name}</CardTitle>
+                        <span className="text-xs text-gray-400 font-medium">Complexity: {pack.complexity}</span>
                       </div>
                     </div>
 
@@ -906,13 +908,13 @@ export default function MarketplaceView({
 
                     {/* Verifiable Eval Score Badge */}
                     <div className="mt-3 p-2.5 bg-gray-950/70 border border-gray-800/80 rounded-xl space-y-1">
-                      <div className="flex items-center justify-between text-[10px]">
+                      <div className="flex items-center justify-between text-xs">
                         <span className="text-gray-400 font-bold uppercase flex items-center gap-1">
                           <ShieldCheck size={11} className="text-emerald-400" /> Evaluation Benchmark
                         </span>
-                        <span className="text-emerald-400 font-extrabold">{evalScores.task_success}% Success</span>
+                        <span className="text-emerald-400 font-semibold">{evalScores.task_success}% Success</span>
                       </div>
-                      <div className="flex justify-between text-[9px] text-gray-500 font-mono">
+                      <div className="flex justify-between text-xs text-gray-500 font-mono">
                         <span>Latency: ~{evalScores.avg_latency_s}s</span>
                         <span>Cost: ~${evalScores.avg_cost_usd}/run</span>
                       </div>
@@ -921,12 +923,12 @@ export default function MarketplaceView({
 
                   <CardContent className="mt-auto pt-4 border-t border-gray-800/60 p-0 space-y-4">
                     <div className="space-y-1.5">
-                      <span className="text-[10px] font-bold uppercase text-gray-500 tracking-wider">
+                      <span className="text-xs font-bold uppercase text-gray-500 tracking-wider">
                         Included Pipeline Features:
                       </span>
                       <ul className="space-y-1">
                         {pack.features.map((feat, idx) => (
-                          <li key={idx} className="text-[11px] text-gray-300 flex items-center gap-2 leading-tight">
+                          <li key={idx} className="text-xs text-gray-300 flex items-center gap-2 leading-tight">
                             <span className="h-1 w-1 rounded-full bg-pink-500 flex-shrink-0" />
                             <span>{feat}</span>
                           </li>
@@ -954,7 +956,7 @@ export default function MarketplaceView({
                             <span className="hidden sm:inline">Clone</span>
                           </Button>
                           <div
-                            className="h-10 px-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-center text-emerald-400 text-xs font-extrabold"
+                            className="h-10 px-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-center text-emerald-400 text-xs font-semibold"
                             title="Pre-installed and active in this workspace"
                           >
                             Active ✓
@@ -967,7 +969,7 @@ export default function MarketplaceView({
                               setConfiguringPack(pack);
                               setInstallConfig(pack.config_schema ? { ...pack.config_schema } : {});
                             }}
-                            className="flex-1 bg-pink-600 hover:bg-pink-500 text-white font-bold h-10 rounded-xl shadow-lg shadow-pink-500/20 hover:scale-[1.02] active:scale-95 transition-all text-xs"
+                            className="flex-1 bg-pink-600 hover:bg-pink-500 text-white font-bold h-10 rounded-xl shadow-lg shadow-pink-500/20 active:scale-95 transition-all text-xs"
                           >
                             Configure & Install
                           </Button>
@@ -1030,21 +1032,21 @@ export default function MarketplaceView({
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800/60 pb-4">
                     <div>
                       <div className="flex items-center gap-2.5">
-                        <span className="font-extrabold text-white text-base">{run.flow_name}</span>
+                        <span className="font-semibold text-white text-base">{run.flow_name}</span>
                         <span
-                          className={`text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border ${
-                            run.status === 'succeeded'
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                              : run.status === 'waiting_approval'
-                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse'
-                              : run.status === 'failed'
-                              ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                              : 'bg-violet-500/10 text-violet-400 border-violet-500/20'
-                          }`}
+                          className={`text-xs font-semibold uppercase px-2.5 py-0.5 rounded-full border ${
+ run.status === 'succeeded'
+ ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+ : run.status === 'waiting_approval'
+ ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse'
+ : run.status === 'failed'
+ ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+ : 'bg-violet-500/10 text-violet-400 border-violet-500/20'
+ }`}
                         >
                           {run.status.replace('_', ' ')}
                         </span>
-                        <span className="text-[10px] bg-gray-900 border border-gray-800 text-gray-400 px-2 py-0.5 rounded-md font-bold uppercase">
+                        <span className="text-xs bg-gray-900 border border-gray-800 text-gray-400 px-2 py-0.5 rounded-md font-bold uppercase">
                           {run.section}
                         </span>
                       </div>
@@ -1061,7 +1063,7 @@ export default function MarketplaceView({
 
                   {/* Step Timeline */}
                   <div className="space-y-2">
-                    <span className="text-[10px] font-bold uppercase text-gray-500 tracking-wider block">
+                    <span className="text-xs font-bold uppercase text-gray-500 tracking-wider block">
                       Execution Steps:
                     </span>
                     <div className="grid grid-cols-1 gap-2">
@@ -1082,7 +1084,7 @@ export default function MarketplaceView({
                             )}
                             <div>
                               <span className="font-bold text-white">{st.step_id}</span>
-                              <span className="text-[10px] text-gray-400 ml-2 font-mono uppercase">
+                              <span className="text-xs text-gray-400 ml-2 font-mono uppercase">
                                 [{st.step_type}]
                               </span>
                             </div>
@@ -1090,23 +1092,23 @@ export default function MarketplaceView({
 
                           <div className="flex items-center gap-3 text-right">
                             {st.duration_ms > 0 && (
-                              <span className="text-[10px] text-gray-500 font-mono">
+                              <span className="text-xs text-gray-500 font-mono">
                                 {(st.duration_ms / 1000).toFixed(1)}s
                               </span>
                             )}
                             {st.cost_usd > 0 && (
-                              <span className="text-[10px] text-emerald-400 font-mono">
+                              <span className="text-xs text-emerald-400 font-mono">
                                 ${st.cost_usd.toFixed(4)}
                               </span>
                             )}
                             <span
-                              className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-md ${
-                                st.status === 'succeeded'
-                                  ? 'bg-emerald-500/10 text-emerald-400'
-                                  : st.status === 'waiting_approval'
-                                  ? 'bg-amber-500/10 text-amber-400'
-                                  : 'bg-gray-800 text-gray-400'
-                              }`}
+                              className={`text-xs font-bold uppercase px-2 py-0.5 rounded-md ${
+ st.status === 'succeeded'
+ ? 'bg-emerald-500/10 text-emerald-400'
+ : st.status === 'waiting_approval'
+ ? 'bg-amber-500/10 text-amber-400'
+ : 'bg-gray-800 text-gray-400'
+ }`}
                             >
                               {st.status}
                             </span>
@@ -1154,10 +1156,10 @@ export default function MarketplaceView({
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                        <span className="text-xs font-semibold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
                           Risk: {appr.risk_level}
                         </span>
-                        <h3 className="text-base font-extrabold text-white">{appr.title}</h3>
+                        <h3 className="text-base font-semibold text-white">{appr.title}</h3>
                       </div>
                       <p className="text-xs text-gray-400 mt-1">{appr.description}</p>
                     </div>
@@ -1189,7 +1191,7 @@ export default function MarketplaceView({
       <Dialog open={!!configuringPack} onOpenChange={(open) => !open && setConfiguringPack(null)}>
         <DialogContent className="glass-panel border-pink-500/20 text-white rounded-3xl max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-white font-extrabold text-xl flex items-center gap-2">
+            <DialogTitle className="text-white font-semibold text-xl flex items-center gap-2">
               <span>{configuringPack?.icon}</span> Install {configuringPack?.name}
             </DialogTitle>
           </DialogHeader>
@@ -1206,10 +1208,10 @@ export default function MarketplaceView({
 
               {/* Permissions & Scopes Summary */}
               <div className="p-3 bg-violet-950/20 border border-violet-500/20 rounded-xl space-y-1.5">
-                <span className="text-[10px] font-bold uppercase text-violet-400 block">
+                <span className="text-xs font-bold uppercase text-violet-400 block">
                   Permissions & Capabilities Requested:
                 </span>
-                <div className="text-[11px] text-gray-300 space-y-1">
+                <div className="text-xs text-gray-300 space-y-1">
                   <div className="flex items-center gap-1.5">
                     <Check size={12} className="text-emerald-400" />
                     <span>Read verified company knowledge and prospect data</span>
@@ -1265,7 +1267,7 @@ export default function MarketplaceView({
       <Dialog open={!!runModalPack} onOpenChange={(open) => !open && setRunModalPack(null)}>
         <DialogContent className="glass-panel border-violet-500/20 text-white rounded-3xl max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-white font-extrabold text-xl flex items-center gap-2">
+            <DialogTitle className="text-white font-semibold text-xl flex items-center gap-2">
               <Play className="text-violet-400" /> Run {runModalPack?.name}
             </DialogTitle>
           </DialogHeader>
@@ -1279,17 +1281,17 @@ export default function MarketplaceView({
                     <button
                       type="button"
                       onClick={() => setRunInputJson(JSON.stringify(runModalPack.sample_input, null, 2))}
-                      className="text-[10px] text-pink-400 hover:text-pink-300 font-bold underline cursor-pointer"
+                      className="text-xs text-pink-400 hover:text-pink-300 font-bold underline cursor-pointer"
                     >
                       Reset Sample
                     </button>
                   )}
-                  <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  <span className="text-xs text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                     ✨ Pre-Populated
                   </span>
                 </div>
               </div>
-              <p className="text-[11px] text-gray-400">
+              <p className="text-xs text-gray-400">
                 Pre-populated with realistic test inputs for {runModalPack?.name}. You can edit any parameter before triggering.
               </p>
               <Textarea
@@ -1317,7 +1319,7 @@ export default function MarketplaceView({
       <Dialog open={!!decisionModalAppr} onOpenChange={(open) => !open && setDecisionModalAppr(null)}>
         <DialogContent className="glass-panel border-amber-500/20 text-white rounded-3xl max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-white font-extrabold text-xl flex items-center gap-2">
+            <DialogTitle className="text-white font-semibold text-xl flex items-center gap-2">
               <ShieldCheck className="text-amber-400" /> Human Approval Sign-Off
             </DialogTitle>
           </DialogHeader>
@@ -1325,19 +1327,19 @@ export default function MarketplaceView({
           {decisionModalAppr && (
             <div className="space-y-4 py-3">
               <div>
-                <h4 className="font-extrabold text-white text-sm">{decisionModalAppr.title}</h4>
+                <h4 className="font-semibold text-white text-sm">{decisionModalAppr.title}</h4>
                 <p className="text-xs text-gray-400 mt-0.5">{decisionModalAppr.description}</p>
               </div>
 
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-gray-400 uppercase">Execution Data Review</span>
+                <span className="text-xs font-bold text-gray-400 uppercase">Execution Data Review</span>
                 <div className="p-3 bg-gray-950 rounded-xl border border-gray-800 text-xs font-mono text-gray-200 max-h-[160px] overflow-y-auto">
                   {JSON.stringify(decisionModalAppr.payload, null, 2)}
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">
+                <label className="text-xs font-bold text-gray-400 uppercase">
                   Rejection Reason (if declining)
                 </label>
                 <Input
@@ -1359,7 +1361,7 @@ export default function MarketplaceView({
                 <Button
                   onClick={() => handleApprovalDecision('approve')}
                   disabled={decidingAppr}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-extrabold h-10 rounded-xl text-xs shadow-lg shadow-amber-500/20"
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold h-10 rounded-xl text-xs shadow-lg shadow-amber-500/20"
                 >
                   {decidingAppr ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
                   Approve & Resume Flow
@@ -1376,7 +1378,7 @@ export default function MarketplaceView({
       <Dialog open={isCreatePackOpen} onOpenChange={setIsCreatePackOpen}>
         <DialogContent className="glass-panel border-pink-500/20 text-white rounded-3xl max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-white font-extrabold text-xl flex items-center gap-2">
+            <DialogTitle className="text-white font-semibold text-xl flex items-center gap-2">
               <Plus className="text-pink-400" /> Create & Publish Custom Package
             </DialogTitle>
           </DialogHeader>

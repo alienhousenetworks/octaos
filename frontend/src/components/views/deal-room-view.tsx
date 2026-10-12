@@ -466,8 +466,8 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
                         key={r.id} 
                         onClick={() => fetchRoomDetails(r.id)}
                         className={`cursor-pointer transition-colors border-slate-800/80 ${
-                          isSelected ? 'bg-cyan-950/40 border-l-4 border-l-cyan-500' : 'hover:bg-slate-800/40'
-                        }`}
+ isSelected ? 'bg-cyan-950/40 border-l-4 border-l-cyan-500' : 'hover:bg-slate-800/40'
+ }`}
                       >
                         <TableCell>
                           <div className="font-semibold text-slate-100 flex items-center gap-1.5">
@@ -477,11 +477,11 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
                         </TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            r.stage === 'meeting_booked' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                            r.stage === 'in_cadence' ? 'bg-indigo-950 text-indigo-400 border border-indigo-800' :
-                            r.stage === 'qualified' ? 'bg-cyan-950 text-cyan-400 border border-cyan-800' :
-                            'bg-slate-800 text-slate-300'
-                          }`}>
+ r.stage === 'meeting_booked' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
+ r.stage === 'in_cadence' ? 'bg-indigo-950 text-indigo-400 border border-indigo-800' :
+ r.stage === 'qualified' ? 'bg-cyan-950 text-cyan-400 border border-cyan-800' :
+ 'bg-slate-800 text-slate-300'
+ }`}>
                             {r.stage.replace('_', ' ')}
                           </span>
                         </TableCell>
@@ -601,7 +601,7 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
                   {selectedRoom.risk_flags && selectedRoom.risk_flags.length > 0 && (
                     <div className="flex flex-wrap gap-1 justify-end max-w-[200px]">
                       {selectedRoom.risk_flags.map((flag: string, idx: number) => (
-                        <span key={idx} className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-950/70 border border-amber-800 text-amber-300">
+                        <span key={idx} className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-950/70 border border-amber-800 text-amber-300">
                           {flag.replace(/_/g, ' ')}
                         </span>
                       ))}
@@ -694,14 +694,14 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
                             <div className="text-xs text-slate-400">{m.title}</div>
                             <div className="text-xs text-cyan-400/90 font-mono mt-1">{m.email}</div>
                             <div className="mt-2 flex items-center gap-1.5">
-                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300">
+                              <span className="px-1.5 py-0.5 rounded text-xs bg-slate-800 text-slate-300">
                                 {m.role_type.replace('_', ' ')}
                               </span>
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] ${
-                                m.engagement_state === 'replied' ? 'bg-emerald-950 text-emerald-400' :
-                                m.engagement_state === 'contacted' ? 'bg-indigo-950 text-indigo-400' :
-                                'bg-slate-900 text-slate-400'
-                              }`}>
+                              <span className={`px-1.5 py-0.5 rounded text-xs ${
+ m.engagement_state === 'replied' ? 'bg-emerald-950 text-emerald-400' :
+ m.engagement_state === 'contacted' ? 'bg-indigo-950 text-indigo-400' :
+ 'bg-slate-900 text-slate-400'
+ }`}>
                                 {m.engagement_state}
                               </span>
                             </div>
@@ -836,7 +836,7 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
                     <div className="text-xs font-semibold text-slate-200">
                       Groundedness Score: {Math.round((composerResult.confidence || 0) * 100)}%
                     </div>
-                    <div className="text-[11px] text-slate-400">
+                    <div className="text-xs text-slate-400">
                       {composerResult.decision === 'ready' 
                         ? 'All claims verified against Primary Source evidence. Approved for dispatch.'
                         : 'Ungrounded claims detected. Human review required before sending.'}
@@ -844,8 +844,8 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
                   </div>
                 </div>
                 <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                  composerResult.decision === 'ready' ? 'bg-emerald-950 text-emerald-300' : 'bg-amber-950 text-amber-300'
-                }`}>
+ composerResult.decision === 'ready' ? 'bg-emerald-950 text-emerald-300' : 'bg-amber-950 text-amber-300'
+ }`}>
                   {composerResult.decision.toUpperCase()}
                 </span>
               </div>
@@ -877,7 +877,7 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
                   <div className="text-xs uppercase font-semibold text-slate-400">Evidence Citations</div>
                   <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
                     {composerResult.evidence.map((ev: any, idx: number) => (
-                      <div key={idx} className="p-2 bg-slate-950 rounded border border-slate-800/80 text-[11px] text-slate-300">
+                      <div key={idx} className="p-2 bg-slate-950 rounded border border-slate-800/80 text-xs text-slate-300">
                         <span className="text-cyan-400 font-mono">[{ev.source || 'Verified Source'}]:</span> {ev.claim}
                       </div>
                     ))}

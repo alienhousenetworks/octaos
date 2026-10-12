@@ -1,13 +1,32 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { DollarSign, Users, Activity, Briefcase, Calendar, BarChart3, Clock, Eye, EyeOff, Building, Cpu, Database, Network } from 'lucide-react';
-import { marketplacePacks } from './marketplace-packs';
+import {
+  Eye,
+  EyeOff,
+  TrendingUp,
+  Target,
+  DollarSign,
+  Activity,
+  CheckCircle2,
+  AlertTriangle,
+  Users,
+  Share2,
+  Bot,
+  Zap,
+  BarChart3,
+  Layers,
+  ShieldCheck,
+  ArrowUpRight,
+  Sparkles,
+  Inbox,
+  Filter,
+} from 'lucide-react';
+import PageHeader from '@/components/shell/page-header';
+import Stat from '@/components/shell/stat';
+import StatusBadge from '@/components/shell/status-badge';
+import { EmptyState } from '@/components/shell/states';
 
 interface DashboardViewProps {
   metrics: any;
@@ -18,6 +37,11 @@ interface DashboardViewProps {
   uninstallApp: (appName: string) => Promise<void>;
   handleApprovePost: (postId: string) => Promise<void>;
   handleRejectPost: (postId: string) => Promise<void>;
+}
+
+function metricValue(value: unknown) {
+  if (value === undefined || value === null || value === '') return '—';
+  return value as React.ReactNode;
 }
 
 export default function DashboardView({
@@ -31,452 +55,711 @@ export default function DashboardView({
   handleRejectPost,
 }: DashboardViewProps) {
   const [hideRevenue, setHideRevenue] = useState(false);
+  const [activeTab, setActiveTab] = useState<'all' | 'revenue' | 'content' | 'operations'>('all');
 
-  const dailyTasksRaw = metrics.daily_tasks || {
-    marketing: [2, 4, 1, 5, 6, 3, 5],
-    sales: [1, 2, 2, 4, 5, 3, 6],
-    support: [2, 2, 1, 3, 4, 3, 3],
+  const posts = queue?.posts || [];
+  const leads = queue?.leads || [];
+  const pending = posts.length + leads.length;
+
+  // Primary Metrics
+  const rate = metrics?.automation_success_rate;
+  const revenue = metrics?.revenue_impact;
+  const pipelineVal = metrics?.pipeline_value;
+  const aiCost = metrics?.ai_cost;
+
+  // Daily Tasks
+  const daily = metrics?.daily_tasks;
+  const dates = daily?.dates || ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'];
+  const mDaily = daily?.marketing || [0, 0, 0, 0, 0, 0, 0];
+  const sDaily = daily?.sales || [0, 0, 0, 0, 0, 0, 0];
+  const supDaily = daily?.support || [0, 0, 0, 0, 0, 0, 0];
+  const totalsDaily = daily?.totals || mDaily.map((m: number, i: number) => m + (sDaily[i] || 0) + (supDaily[i] || 0));
+  const maxDaily = Math.max(1, ...totalsDaily);
+
+  // Cross-Vertical Structured Analytics
+  const funnel = metrics?.funnel || {
+    captured: metrics?.leads_generated || leads.length,
+    contacted: Math.max(0, (metrics?.leads_generated || leads.length) - (metrics?.lead_metrics?.uncontacted || 0)),
+    qualified: metrics?.leads_generated ? Math.round(Number(metrics.leads_generated) * 0.4) : 0,
+    converted: metrics?.leads_generated ? Math.round(Number(metrics.leads_generated) * 0.15) : 0,
   };
 
-  const hasBreakdown = dailyTasksRaw && !Array.isArray(dailyTasksRaw);
-  const marketingData = hasBreakdown ? (dailyTasksRaw.marketing || []) : (Array.isArray(dailyTasksRaw) ? dailyTasksRaw : [2, 4, 1, 5, 6, 3, 5]);
-  const salesData = hasBreakdown ? (dailyTasksRaw.sales || []) : [];
-  const supportData = hasBreakdown ? (dailyTasksRaw.support || []) : [];
-
-  const allVals = [...marketingData, ...salesData, ...supportData];
-  const maxVal = allVals.length > 0 ? Math.max(...allVals, 10) : 10;
-
-  const getPoints = (data: number[]) => {
-    return data.map((val: number, i: number) => {
-      const x = (i * 500) / 6;
-      const y = 130 - (val / maxVal) * 100;
-      return { x, y, val };
-    });
+  const dealStages = metrics?.deal_stages || {};
+  const channelPerf = metrics?.channel_performance || [];
+  const ticketData = metrics?.ticket_analytics || {
+    open: 0,
+    pending_human: 0,
+    resolved: Number(metrics?.tickets_resolved || 0),
+    sla_compliance: 100,
+    sla_breach_rate: 0,
+  };
+  const leadMetrics = metrics?.lead_metrics || {
+    total: Number(metrics?.leads_generated || 0),
+    unassigned: 0,
+    uncontacted: 0,
+    conversion_rate: 0,
+    wow_change: 0,
+  };
+  const marketingMetrics = metrics?.marketing_metrics || {
+    total_posts: Number(metrics?.posts_published || 0),
+    total_impressions: 0,
+    avg_engagement_rate: 0,
+  };
+  const agentFleet = metrics?.agent_fleet || {
+    total_actions: timeline.length,
+    agent_activity: {},
+  };
+  const flowPerf = metrics?.flow_performance || {
+    total_runs: 0,
+    succeeded_runs: 0,
+    failed_runs: 0,
+    success_rate: rate,
+    ai_cost: aiCost,
   };
 
-  const marketingPoints = getPoints(marketingData);
-  const salesPoints = getPoints(salesData);
-  const supportPoints = getPoints(supportData);
-
-  const getPaths = (pts: any[]) => {
-    if (pts.length === 0) return { strokePath: '', areaPath: '' };
-    const stroke = pts.map((p: any, i: number) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-    const area = `${stroke} L500,150 L0,150 Z`;
-    return { strokePath: stroke, areaPath: area };
-  };
-
-  const marketingPaths = getPaths(marketingPoints);
-  const salesPaths = getPaths(salesPoints);
-  const supportPaths = getPaths(supportPoints);
-
-  const getDayNames = () => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const result = [];
-    const today = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(today.getDate() - i);
-      if (i === 0) {
-        result.push('Today');
-      } else {
-        result.push(days[d.getDay()]);
-      }
-    }
-    return result;
-  };
-  const dayNames = getDayNames();
-
-  const renderMetricModalContent = (title: string, val: string | number) => {
-    return (
-      <div className="space-y-4">
-        <div className="p-4 bg-gray-900/60 rounded-xl border border-gray-800">
-          <p className="text-sm text-gray-400">Current Value</p>
-          <p className="text-3xl font-black text-white mt-1">{val}</p>
-        </div>
-        <p className="text-xs text-gray-500">Historical data for {title} would be displayed here.</p>
-        <div className="h-32 w-full bg-[rgba(139,92,246,0.05)] border border-[rgba(139,92,246,0.1)] rounded-lg flex items-center justify-center">
-          <span className="text-[10px] text-violet-400/50 uppercase tracking-widest font-mono">Loading Data Stream...</span>
-        </div>
-      </div>
-    );
-  };
-
-  // Dynamic calculations for Content Matrix
-  const draftPosts = Math.floor((metrics.posts_published || 0) * 0.2) + 2; // Add 2 as base drafting
-  const inReviewPosts = queue.posts?.length || 0;
-  const publishedPosts = metrics.posts_published || 0;
-  const totalPosts = draftPosts + inReviewPosts + publishedPosts || 1;
-
-  // Dynamic calculations for Acquisition Funnel
-  const totalSourced = metrics.leads_generated || 0;
-  const contacted = Math.floor(totalSourced * 0.6);
-  const qualified = metrics.meetings_booked || 0;
-
-  // Dynamic calculations for Radar Chart
-  const eng = metrics.automation_success_rate ? Math.max(0.2, metrics.automation_success_rate / 100) : 0.5;
-  const reach = Math.max(0.2, Math.min((metrics.posts_published || 0) / 50, 1));
-  const qual = Math.max(0.2, Math.min((metrics.meetings_booked || 0) / 10, 1));
-  const conv = totalSourced ? Math.max(0.2, Math.min(qualified / totalSourced, 1)) : 0.2;
-  const cons = Math.max(0.2, Math.min((marketingData.length || 1) / 7, 1));
-  const vol = Math.max(0.2, Math.min(totalSourced / 100, 1));
-
-  const radarPts = [
-    { x: 100, y: 100 - eng * 80 },
-    { x: 100 + reach * 80, y: 100 - reach * 40 },
-    { x: 100 + qual * 80, y: 100 + qual * 40 },
-    { x: 100, y: 100 + conv * 80 },
-    { x: 100 - cons * 80, y: 100 + cons * 40 },
-    { x: 100 - vol * 80, y: 100 - vol * 40 }
-  ];
-  const radarPolygon = radarPts.map(p => `${p.x},${p.y}`).join(' ');
+  // Agent activity sorted
+  const sortedAgents = Object.entries(agentFleet.agent_activity || {})
+    .sort(([, a], [, b]) => (b as number) - (a as number))
+    .slice(0, 6);
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto relative">
-      
-      {/* Live Ticker */}
-      <div className="live-ticker-container -mx-8 mb-8">
-        <div className="live-ticker-text">
-          SYSTEM STATUS: ONLINE | CPU: 12% | MEM: 4.2GB | ACTIVE NODES: {apps.length} | NETWORK LATENCY: 14ms | ENCRYPTION: AES-256 | {timeline.length > 0 ? timeline[0].description : 'WAITING FOR TRIGGERS'}
-        </div>
-      </div>
-
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-extrabold text-white tracking-tight glitch-text" data-text="AI Operating Dashboard">AI Operating Dashboard</h1>
-          <p className="text-gray-400 mt-1">Live metrics from your autonomous AI workforce.</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={() => setHideRevenue(!hideRevenue)}
-            className="flex items-center gap-2 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] px-3 py-1.5 rounded-xl text-xs text-gray-400 font-semibold hover:text-white transition-colors"
-          >
-            {hideRevenue ? <EyeOff size={14} /> : <Eye size={14} />}
-            {hideRevenue ? 'Show Revenue' : 'Hide Revenue'}
-          </button>
-          <div className="flex items-center gap-2 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] px-4 py-2 rounded-xl text-xs text-emerald-400 font-semibold shadow-inner">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="uppercase tracking-widest font-mono text-[10px]">Sync OK</span>
-          </div>
-        </div>
-      </div>
-      
-      {/* HUD Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 relative">
-        <div className="cyberpunk-scanline rounded-2xl" />
-        
-        {[
-          { title: "Revenue Impact", val: hideRevenue ? "$***,***" : `$${(metrics.revenue_impact || 0).toLocaleString()}`, desc: "Direct sales attributed", icon: <DollarSign className="h-4 w-4 text-emerald-400" />, glow: "neon-glow-emerald" },
-          { title: "Leads Sourced", val: metrics.leads_generated || 0, desc: "B2B sales prospects found", icon: <Users className="h-4 w-4 text-emerald-400" />, glow: "neon-glow-emerald" },
-          { title: "Content Published", val: metrics.posts_published || 0, desc: "Social media posts live", icon: <Activity className="h-4 w-4 text-violet-400" />, glow: "neon-glow-violet" },
-          { title: "Candidates Sourced", val: metrics.candidates_sourced || 0, desc: "HR applicants indexed", icon: <Briefcase className="h-4 w-4 text-amber-400" />, glow: "neon-glow-violet" },
-          { title: "Interviews Booked", val: metrics.interviews_scheduled || 0, desc: "Google Meet calls scheduled", icon: <Calendar className="h-4 w-4 text-amber-400" />, glow: "neon-glow-violet" },
-          { title: "Success Rate", val: `${metrics.automation_success_rate || 99.5}%`, desc: "Autopilot efficiency rate", icon: <BarChart3 className="h-4 w-4 text-pink-400" />, glow: "neon-glow-cyan" },
-        ].map((m, idx) => (
-          <Dialog key={idx}>
-            <DialogTrigger nativeButton={false} render={<div className="h-full" />}>
-              <Card className={`hud-card h-full ${m.glow} cursor-pointer group transition-transform duration-300 hover:-translate-y-1`}>
-                <CardHeader className="flex flex-row items-center justify-between pb-2 z-10 relative">
-                  <CardTitle className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-mono group-hover:text-white transition-colors">{m.title}</CardTitle>
-                  {m.icon}
-                </CardHeader>
-                <CardContent className="space-y-1 z-10 relative text-left">
-                  <div className="text-3xl font-black text-white">{m.val}</div>
-                  <p className="text-[9px] text-gray-500 font-medium uppercase tracking-wider">{m.desc}</p>
-                </CardContent>
-              </Card>
-            </DialogTrigger>
-            <DialogContent className="glass-panel border-violet-500/30 text-white rounded-2xl">
-              <DialogHeader>
-                <DialogTitle className="text-xl font-bold font-mono tracking-wider uppercase text-violet-400">{m.title} Data Stream</DialogTitle>
-              </DialogHeader>
-              {renderMetricModalContent(m.title, m.val)}
-            </DialogContent>
-          </Dialog>
-        ))}
-      </div>
-
-      {/* NEW WIDGETS ROW: Content Matrix & Acquisition */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* Content Performance Matrix (Radar + Pipeline) */}
-        <Card className="hud-card neon-glow-violet p-6 flex flex-col justify-between min-h-[300px]">
-          <div className="flex items-center justify-between mb-4 border-b border-[rgba(139,92,246,0.3)] pb-4 z-10 relative">
-            <div>
-              <h3 className="font-extrabold text-lg text-white font-mono uppercase tracking-widest">Content Matrix</h3>
-              <p className="text-[10px] text-violet-400 uppercase tracking-widest">Pipeline & Performance Radar</p>
-            </div>
-            <Activity className="text-violet-400" size={20} />
-          </div>
-          
-          <div className="flex flex-col md:flex-row gap-6 z-10 relative flex-1">
-            {/* SVG Radar Chart Mockup */}
-            <div className="flex-1 flex items-center justify-center relative">
-               <svg viewBox="0 0 200 200" className="w-40 h-40 overflow-visible">
-                 {/* Outer grids */}
-                 <polygon points="100,20 180,60 180,140 100,180 20,140 20,60" fill="rgba(139,92,246,0.1)" stroke="rgba(139,92,246,0.4)" strokeWidth="1"/>
-                 <polygon points="100,40 160,75 160,125 100,160 40,125 40,75" fill="none" stroke="rgba(139,92,246,0.2)" strokeWidth="1"/>
-                 <polygon points="100,60 140,85 140,115 100,140 60,115 60,85" fill="none" stroke="rgba(139,92,246,0.2)" strokeWidth="1"/>
-                 
-                 {/* Axis lines */}
-                 <line x1="100" y1="100" x2="100" y2="20" stroke="rgba(139,92,246,0.3)" strokeWidth="1"/>
-                 <line x1="100" y1="100" x2="180" y2="60" stroke="rgba(139,92,246,0.3)" strokeWidth="1"/>
-                 <line x1="100" y1="100" x2="180" y2="140" stroke="rgba(139,92,246,0.3)" strokeWidth="1"/>
-                 <line x1="100" y1="100" x2="100" y2="180" stroke="rgba(139,92,246,0.3)" strokeWidth="1"/>
-                 <line x1="100" y1="100" x2="20" y2="140" stroke="rgba(139,92,246,0.3)" strokeWidth="1"/>
-                 <line x1="100" y1="100" x2="20" y2="60" stroke="rgba(139,92,246,0.3)" strokeWidth="1"/>
-                 
-                 {/* Data Polygon */}
-                 <polygon points={radarPolygon} fill="rgba(6,182,212,0.4)" stroke="#06b6d4" strokeWidth="2"/>
-                 {radarPts.map((p, i) => (
-                   <circle key={i} cx={p.x} cy={p.y} r="3" fill="#fff" />
-                 ))}
-               </svg>
-               <div className="absolute top-0 text-[8px] text-gray-400 font-mono">Engagement</div>
-               <div className="absolute bottom-0 text-[8px] text-gray-400 font-mono">Conversion</div>
-            </div>
-
-            {/* IG Content Pipeline */}
-            <div className="flex-1 flex flex-col justify-center space-y-3">
-              <div className="space-y-1">
-                <div className="flex justify-between text-[10px] font-mono text-gray-400 uppercase">
-                  <span>Drafting</span>
-                  <span className="text-violet-400">{draftPosts} Items</span>
-                </div>
-                <div className="h-1.5 w-full bg-gray-900 rounded-full overflow-hidden">
-                  <div className="h-full bg-violet-500 shadow-[0_0_10px_#8b5cf6]" style={{ width: `${(draftPosts / totalPosts) * 100}%` }} />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-[10px] font-mono text-gray-400 uppercase">
-                  <span>In Review</span>
-                  <span className="text-amber-400">{inReviewPosts} Items</span>
-                </div>
-                <div className="h-1.5 w-full bg-gray-900 rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-500 shadow-[0_0_10px_#f59e0b]" style={{ width: `${(inReviewPosts / totalPosts) * 100}%` }} />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-[10px] font-mono text-gray-400 uppercase">
-                  <span>Published</span>
-                  <span className="text-emerald-400">{publishedPosts} Items</span>
-                </div>
-                <div className="h-1.5 w-full bg-gray-900 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 shadow-[0_0_10px_#10b981]" style={{ width: `${(publishedPosts / totalPosts) * 100}%` }} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Acquisition Funnel Widget */}
-        <Card className="hud-card neon-glow-emerald p-6 flex flex-col justify-between min-h-[300px]">
-          <div className="flex items-center justify-between mb-4 border-b border-[rgba(16,185,129,0.3)] pb-4 z-10 relative">
-            <div>
-              <h3 className="font-extrabold text-lg text-white font-mono uppercase tracking-widest">Acquisition</h3>
-              <p className="text-[10px] text-emerald-400 uppercase tracking-widest">Lead Generation Funnel</p>
-            </div>
-            <Network className="text-emerald-400" size={20} />
-          </div>
-
-          <div className="flex flex-col gap-3 z-10 relative flex-1 justify-center">
-            <div className="flex items-center bg-gray-900/60 border border-[rgba(16,185,129,0.2)] rounded-lg p-3">
-              <div className="w-16 text-center text-emerald-400 font-mono text-xl font-bold">{totalSourced > 1000 ? (totalSourced/1000).toFixed(1)+'k' : totalSourced}</div>
-              <div className="flex-1 ml-4">
-                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Sourced</div>
-                <div className="h-1 w-full bg-gray-800 mt-1"><div className="h-full bg-emerald-500 w-[100%]" /></div>
-              </div>
-            </div>
-            <div className="flex items-center bg-gray-900/60 border border-[rgba(16,185,129,0.2)] rounded-lg p-3 ml-4">
-              <div className="w-16 text-center text-emerald-400 font-mono text-xl font-bold">{contacted > 1000 ? (contacted/1000).toFixed(1)+'k' : contacted}</div>
-              <div className="flex-1 ml-4">
-                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Contacted</div>
-                <div className="h-1 w-full bg-gray-800 mt-1"><div className="h-full bg-emerald-500" style={{ width: totalSourced ? `${(contacted / totalSourced) * 100}%` : '0%' }} /></div>
-              </div>
-            </div>
-            <div className="flex items-center bg-gray-900/60 border border-[rgba(16,185,129,0.2)] rounded-lg p-3 ml-8">
-              <div className="w-16 text-center text-emerald-400 font-mono text-xl font-bold">{qualified > 1000 ? (qualified/1000).toFixed(1)+'k' : qualified}</div>
-              <div className="flex-1 ml-4">
-                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Qualified Responses</div>
-                <div className="h-1 w-full bg-gray-800 mt-1"><div className="h-full bg-emerald-500" style={{ width: totalSourced ? `${(qualified / totalSourced) * 100}%` : '0%' }} /></div>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-      </div>
-
-      {/* Advanced SVG Chart & Activity Center */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 relative z-10">
-        <div className="cyberpunk-scanline rounded-2xl pointer-events-none" />
-        
-        {/* Visual Chart Card */}
-        <Card className="hud-card lg:col-span-8 p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4 border-b border-[rgba(139,92,246,0.2)] pb-4 z-10 relative">
-            <div>
-              <h3 className="font-extrabold text-lg text-white font-mono tracking-widest uppercase">Task Automation Telemetry</h3>
-              <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest mt-1">Total automated agent tasks over 7 days</p>
-            </div>
-            <div className="flex items-center gap-3 text-[9px] text-gray-400 font-bold uppercase tracking-widest">
-              <span className="flex items-center gap-1.5"><span className="h-2 w-2 shadow-[0_0_5px_#8b5cf6] bg-violet-500" /> MKT</span>
-              <span className="flex items-center gap-1.5"><span className="h-2 w-2 shadow-[0_0_5px_#10b981] bg-emerald-500" /> SLS</span>
-              <span className="flex items-center gap-1.5"><span className="h-2 w-2 shadow-[0_0_5px_#3b82f6] bg-blue-500" /> SUP</span>
-            </div>
-          </div>
-
-          <div className="relative w-full h-44 mt-2 flex items-end z-10">
-            <svg viewBox="0 0 500 150" className="w-full h-full overflow-visible" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="chartGradientMarketing" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.35" />
-                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.0" />
-                </linearGradient>
-                <linearGradient id="chartGradientSales" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
-                  <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-                </linearGradient>
-                <linearGradient id="chartGradientSupport" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.35" />
-                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
-              {/* Grid Lines */}
-              <line x1="0" y1="30" x2="500" y2="30" stroke="rgba(255,255,255,0.05)" strokeDasharray="2 6" />
-              <line x1="0" y1="75" x2="500" y2="75" stroke="rgba(255,255,255,0.05)" strokeDasharray="2 6" />
-              <line x1="0" y1="120" x2="500" y2="120" stroke="rgba(255,255,255,0.05)" strokeDasharray="2 6" />
-              
-              {/* Areas & Strokes */}
-              {marketingPaths.areaPath && (
-                <>
-                  <path d={marketingPaths.areaPath} fill="url(#chartGradientMarketing)" />
-                  <path d={marketingPaths.strokePath} fill="none" stroke="#8b5cf6" strokeWidth="2" strokeDasharray="4 2" />
-                </>
-              )}
-              {salesPaths.areaPath && (
-                <>
-                  <path d={salesPaths.areaPath} fill="url(#chartGradientSales)" />
-                  <path d={salesPaths.strokePath} fill="none" stroke="#10b981" strokeWidth="2" strokeDasharray="4 2" />
-                </>
-              )}
-              {supportPaths.areaPath && (
-                <>
-                  <path d={supportPaths.areaPath} fill="url(#chartGradientSupport)" />
-                  <path d={supportPaths.strokePath} fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="4 2" />
-                </>
-              )}
-              
-              {/* Dots & Text */}
-              {[...marketingPoints, ...salesPoints, ...supportPoints].map((p, i) => (
-                <g key={`pt-${i}`}>
-                  <rect x={p.x - 2} y={p.y - 2} width="4" height="4" fill="#fff" opacity="0.8" />
-                </g>
-              ))}
-            </svg>
-          </div>
-          
-          <div className="flex justify-between text-[9px] text-gray-500 font-bold tracking-widest font-mono uppercase mt-4 pt-3 border-t border-[rgba(139,92,246,0.2)] z-10 relative">
-            {dayNames.map((name, i) => (
-              <span key={i}>{name}</span>
-            ))}
-          </div>
-        </Card>
-
-        {/* Developer Terminal Activity Log */}
-        <Card className="hud-card lg:col-span-4 p-6 shadow-2xl relative overflow-hidden flex flex-col h-full min-h-[280px]">
-          <div className="flex items-center justify-between pb-3 border-b border-[rgba(139,92,246,0.3)] mb-3 z-10 relative">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 bg-rose-500/80 shadow-[0_0_5px_#f43f5e]" />
-              <span className="w-2.5 h-2.5 bg-amber-500/80 shadow-[0_0_5px_#f59e0b]" />
-              <span className="w-2.5 h-2.5 bg-emerald-500/80 shadow-[0_0_5px_#10b981]" />
-            </div>
-            <span className="text-[10px] text-violet-400 font-bold uppercase tracking-widest font-mono">Terminal Log</span>
-          </div>
-          <div className="flex-1 overflow-y-auto space-y-2.5 font-mono text-[10px] uppercase tracking-wider leading-relaxed text-gray-300 pr-1 max-h-[180px] z-10 relative">
-            {timeline.slice(0, 8).map((log) => (
-              <div key={log.id} className="text-gray-400 border-l border-gray-800 pl-2">
-                <span className="text-violet-400 font-semibold">[{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span>{" "}
-                <span className="text-emerald-400">({log.agent_name})</span>{" "}
-                <span className="text-white font-medium">{log.action}:</span> {log.description}
-              </div>
-            ))}
-            {timeline.length === 0 && (
-              <div className="text-gray-500 italic">Listening for system triggers...</div>
-            )}
-          </div>
-          <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[rgba(139,92,246,0.3)] text-[10px] text-emerald-400 font-bold font-mono tracking-widest z-10 relative">
-            <span className="h-2 w-2 bg-emerald-400 animate-ping" />
-            <span>SOCKET OK.</span>
-            <span className="inline-block w-2 h-3 bg-emerald-400 animate-pulse" />
-          </div>
-        </Card>
-      </div>
-
-      {/* "My Agents" Skyline */}
-      <div className="space-y-6 pt-4 relative z-10">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h3 className="font-extrabold text-2xl text-white font-mono uppercase tracking-widest">My Agents Skyline</h3>
-            <p className="text-[10px] font-mono tracking-widest text-gray-400 mt-1 uppercase">Active Workflow Nodes</p>
-          </div>
-          {apps.length > 0 && (
-            <span className="text-[10px] font-mono uppercase font-extrabold tracking-widest text-cyan-400 bg-[rgba(6,182,212,0.1)] px-3 py-1 border border-[rgba(6,182,212,0.3)] shadow-[0_0_10px_rgba(6,182,212,0.2)]">
-              {apps.length} NODES ONLINE
-            </span>
-          )}
-        </div>
-        
-        {apps.length === 0 ? (
-          <Card className="hud-card border-dashed border-[rgba(139,92,246,0.3)] p-8 text-center space-y-4">
-            <div className="text-5xl text-violet-400/50">
-              <Cpu size={48} className="mx-auto" />
-            </div>
-            <div className="max-w-md mx-auto space-y-2 z-10 relative">
-              <h4 className="text-sm font-bold text-white font-mono uppercase tracking-widest">No Active Nodes</h4>
-              <p className="text-xs text-gray-400 font-mono">Deploy packages from the Marketplace to activate skyline nodes.</p>
-            </div>
-            <Button 
-              onClick={() => setActiveView('marketplace')}
-              className="bg-[rgba(139,92,246,0.2)] border border-[rgba(139,92,246,0.5)] hover:bg-[rgba(139,92,246,0.4)] text-violet-300 font-bold font-mono tracking-widest h-9 px-6 uppercase text-[10px] z-10 relative"
+    <div className="mx-auto max-w-7xl space-y-6 animate-in fade-in duration-300">
+      {/* Header with Quick Actions & Live Indicator */}
+      <PageHeader
+        title="Workspace Overview"
+        description="Unified real-time analytics across revenue, marketing channels, and autonomous agent operations."
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant={pending > 0 ? 'default' : 'outline'}
+              onClick={() => setActiveView('approvals')}
+              className="relative"
             >
-              INITIALIZE DEPLOYMENT
+              {pending > 0 ? (
+                <>
+                  <span className="mr-1.5 flex h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                  Review {pending} approvals
+                </>
+              ) : (
+                'Approvals queue'
+              )}
             </Button>
-          </Card>
-        ) : (
-          <div className="flex items-end h-[300px] gap-2 overflow-x-auto pb-4 px-2">
-            {apps.map((app, index) => {
-              const matchedPack = marketplacePacks.find(p => p.name === app.app_name);
-              // Calculate a pseudo-random height for the skyline building based on index and name length
-              const buildingHeight = 150 + ((index * 47) % 100); 
-              
-              return (
-                <div key={app.id} className="relative group flex-shrink-0" style={{ width: '120px', height: `${buildingHeight}px` }}>
-                  {/* Building Block */}
-                  <div className="absolute inset-0 bg-gradient-to-b from-[rgba(139,92,246,0.4)] to-[rgba(8,6,22,0.8)] border border-[rgba(139,92,246,0.6)] shadow-[0_0_15px_rgba(139,92,246,0.2)] flex flex-col items-center justify-start p-2 transition-transform duration-300 group-hover:-translate-y-4 cursor-pointer">
-                    
-                    {/* Glowing Windows Effect */}
-                    <div className="absolute inset-0 opacity-20 bg-[linear-gradient(to_bottom,transparent_2px,rgba(255,255,255,0.1)_3px)] bg-[size:100%_8px] pointer-events-none" />
-                    
-                    <div className="w-8 h-8 rounded bg-[rgba(139,92,246,0.2)] border border-violet-500/50 flex items-center justify-center mb-2 z-10">
-                      {matchedPack ? <span className="text-sm">{matchedPack.icon}</span> : <Building size={14} className="text-violet-300"/>}
-                    </div>
-                    <span className="text-[9px] font-mono font-bold text-white uppercase text-center break-words w-full z-10">
-                      {app.app_name.substring(0, 15)}
-                    </span>
-                    <span className="mt-1 w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_5px_#10b981] animate-pulse z-10" />
-                  </div>
-                  
-                  {/* Hover Tooltip/Modal snippet */}
-                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-[rgba(8,6,22,0.95)] border border-[rgba(139,92,246,0.6)] p-3 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 z-50 w-48 hud-card">
-                    <p className="text-[10px] font-mono text-violet-400 font-bold uppercase border-b border-gray-700 pb-1 mb-1">{app.app_name}</p>
-                    <p className="text-[9px] text-gray-400 font-mono leading-tight">{matchedPack?.desc || "Active node."}</p>
-                    <div className="text-[8px] text-emerald-400 mt-2 font-mono">STATUS: ONLINE</div>
+          </div>
+        }
+      />
+
+      {/* Domain Navigation Tabs */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+        <div className="flex items-center gap-1 rounded-lg bg-secondary/50 p-1 text-xs">
+          <button
+            type="button"
+            onClick={() => setActiveTab('all')}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+              activeTab === 'all'
+                ? 'bg-primary text-primary-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            All Analytics
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('revenue')}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+              activeTab === 'revenue'
+                ? 'bg-primary text-primary-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Revenue & Pipeline
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('content')}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+              activeTab === 'content'
+                ? 'bg-primary text-primary-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Marketing & Reach
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('operations')}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+              activeTab === 'operations'
+                ? 'bg-primary text-primary-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Agent Operations
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Live telemetry active</span>
+        </div>
+      </div>
+
+      {/* Top Executive KPI Ribbon */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+        <Stat
+          label="Closed Revenue"
+          value={
+            <span className="inline-flex items-center gap-1.5">
+              {hideRevenue || revenue === undefined || revenue === null
+                ? hideRevenue
+                  ? '••••'
+                  : '—'
+                : `$${Number(revenue).toLocaleString()}`}
+              <button
+                type="button"
+                aria-label={hideRevenue ? 'Show revenue' : 'Hide revenue'}
+                onClick={() => setHideRevenue((val) => !val)}
+                className="text-muted-foreground hover:text-foreground transition-colors ml-0.5"
+              >
+                {hideRevenue ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+              </button>
+            </span>
+          }
+          hint="Attributed closed sales"
+        />
+
+        <Stat
+          label="Deal Pipeline"
+          value={
+            pipelineVal !== undefined && pipelineVal !== null && pipelineVal > 0
+              ? `$${Number(pipelineVal).toLocaleString()}`
+              : '—'
+          }
+          hint="Active sales opportunities"
+        />
+
+        <Stat
+          label="Leads Sourced"
+          value={
+            <span className="flex items-baseline gap-2">
+              <span>{metricValue(metrics?.leads_generated ?? leadMetrics.total)}</span>
+              {leadMetrics.conversion_rate > 0 && (
+                <span className="text-xs text-emerald-400 font-normal">
+                  {leadMetrics.conversion_rate}% conv
+                </span>
+              )}
+            </span>
+          }
+          hint="Total indexed prospects"
+        />
+
+        <Stat
+          label="Content Reach"
+          value={
+            marketingMetrics.total_impressions > 0
+              ? `${Number(marketingMetrics.total_impressions).toLocaleString()}`
+              : metricValue(metrics?.posts_published)
+          }
+          hint={marketingMetrics.total_impressions > 0 ? 'Total social impressions' : 'Posts published'}
+        />
+
+        <Stat
+          label="AI Compute Spend"
+          value={
+            aiCost !== undefined && aiCost !== null
+              ? `$${Number(aiCost).toFixed(3)}`
+              : '—'
+          }
+          hint="Flow engine & models"
+        />
+
+        <Stat
+          label="Flow Success"
+          value={rate === undefined || rate === null || rate === '' ? '—' : `${rate}%`}
+          hint={flowPerf.total_runs ? `${flowPerf.succeeded_runs}/${flowPerf.total_runs} completed runs` : 'Autonomous tasks'}
+        />
+
+        <Stat
+          label="Support SLA"
+          value={ticketData.sla_compliance ? `${ticketData.sla_compliance}%` : '—'}
+          hint={ticketData.open > 0 ? `${ticketData.open} open tickets` : 'All resolved within SLA'}
+        />
+      </div>
+
+      {/* SECTION 1: REVENUE & PIPELINE ANALYTICS */}
+      {(activeTab === 'all' || activeTab === 'revenue') && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold tracking-tight flex items-center gap-2">
+              <TrendingUp className="size-4 text-emerald-400" />
+              Acquisition & Pipeline Velocity
+            </h2>
+            <Button variant="ghost" size="sm" onClick={() => setActiveView('sales')} className="text-xs">
+              Open Sales Pipeline <ArrowUpRight className="size-3.5 ml-1" />
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {/* 4-Stage Lead Conversion Funnel */}
+            <div className="rounded-lg border border-border bg-card p-4 space-y-4 lg:col-span-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium">Lead Conversion Funnel</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Prospect progression from capture to conversion</p>
+                </div>
+                {leadMetrics.wow_change !== 0 && leadMetrics.wow_change !== null && (
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                      leadMetrics.wow_change > 0
+                        ? 'bg-emerald-500/10 text-emerald-400'
+                        : 'bg-rose-500/10 text-rose-400'
+                    }`}
+                  >
+                    {leadMetrics.wow_change > 0 ? '+' : ''}
+                    {leadMetrics.wow_change}% WoW
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 pt-1">
+                <div className="rounded-md border border-border/60 bg-secondary/30 p-3">
+                  <div className="text-xs text-muted-foreground">1. Captured</div>
+                  <div className="text-xl font-semibold mt-1">{funnel.captured || 0}</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">Raw prospects</div>
+                  <div className="mt-2 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-primary" style={{ width: '100%' }} />
                   </div>
                 </div>
-              );
-            })}
+
+                <div className="rounded-md border border-border/60 bg-secondary/30 p-3">
+                  <div className="text-xs text-muted-foreground">2. Contacted</div>
+                  <div className="text-xl font-semibold mt-1">{funnel.contacted || 0}</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    {funnel.captured ? `${Math.round(((funnel.contacted || 0) / funnel.captured) * 100)}% reach` : '0% reach'}
+                  </div>
+                  <div className="mt-2 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-indigo-400"
+                      style={{
+                        width: `${funnel.captured ? Math.min(100, Math.round(((funnel.contacted || 0) / funnel.captured) * 100)) : 0}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-border/60 bg-secondary/30 p-3">
+                  <div className="text-xs text-muted-foreground">3. Qualified</div>
+                  <div className="text-xl font-semibold mt-1">{funnel.qualified || 0}</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    {funnel.captured ? `${Math.round(((funnel.qualified || 0) / funnel.captured) * 100)}% qualified` : '0% qualified'}
+                  </div>
+                  <div className="mt-2 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-400"
+                      style={{
+                        width: `${funnel.captured ? Math.min(100, Math.round(((funnel.qualified || 0) / funnel.captured) * 100)) : 0}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-border/60 bg-secondary/30 p-3">
+                  <div className="text-xs text-muted-foreground">4. Converted</div>
+                  <div className="text-xl font-semibold mt-1">{funnel.converted || 0}</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    {funnel.captured ? `${Math.round(((funnel.converted || 0) / funnel.captured) * 100)}% win rate` : '0% win rate'}
+                  </div>
+                  <div className="mt-2 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-amber-400"
+                      style={{
+                        width: `${funnel.captured ? Math.min(100, Math.round(((funnel.converted || 0) / funnel.captured) * 100)) : 0}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Triage Alerts */}
+              {(leadMetrics.unassigned > 0 || leadMetrics.uncontacted > 0) && (
+                <div className="flex flex-wrap items-center gap-3 rounded-md bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-300">
+                  <AlertTriangle className="size-4 shrink-0 text-amber-400" />
+                  <span>
+                    Attention required: <strong>{leadMetrics.unassigned} unassigned</strong> leads and{' '}
+                    <strong>{leadMetrics.uncontacted} uncontacted</strong> prospects waiting for engagement.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Deal Rooms & Stage Distribution */}
+            <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium">Deal Rooms by Stage</h3>
+                <span className="text-xs text-muted-foreground">
+                  {Object.keys(dealStages).length > 0 ? `${Object.keys(dealStages).length} stages` : 'Empty'}
+                </span>
+              </div>
+
+              {Object.keys(dealStages).length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground">
+                  No active deal room opportunities tracked.
+                </div>
+              ) : (
+                <div className="space-y-2.5 pt-1">
+                  {Object.entries(dealStages).map(([stage, data]: [string, any]) => (
+                    <div key={stage} className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="size-2 rounded-full bg-primary" />
+                        <span className="capitalize font-medium">{stage.replace(/_/g, ' ')}</span>
+                        <span className="text-muted-foreground">({data.count})</span>
+                      </div>
+                      <span className="font-semibold text-foreground">
+                        ${Number(data.value || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-border/60 flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Total Open Value</span>
+                <span className="font-bold text-foreground">
+                  ${Number(pipelineVal || 0).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SECTION 2: MARKETING & CONTENT REACH */}
+      {(activeTab === 'all' || activeTab === 'content') && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold tracking-tight flex items-center gap-2">
+              <Share2 className="size-4 text-indigo-400" />
+              Content Reach & Multi-Channel Performance
+            </h2>
+            <Button variant="ghost" size="sm" onClick={() => setActiveView('campaigns')} className="text-xs">
+              Open Campaigns <ArrowUpRight className="size-3.5 ml-1" />
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {/* Multi-Channel Distribution */}
+            <div className="rounded-lg border border-border bg-card p-4 lg:col-span-2 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium">Channel Distribution</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Cross-platform publish volume and audience engagement</p>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Avg engagement: <strong className="text-foreground">{marketingMetrics.avg_engagement_rate}%</strong>
+                </div>
+              </div>
+
+              {channelPerf.length === 0 ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 py-2">
+                  {['LinkedIn', 'Twitter / X', 'Instagram', 'Facebook'].map((plat) => (
+                    <div key={plat} className="rounded-md border border-border/50 bg-secondary/20 p-3 text-center">
+                      <p className="text-xs font-medium text-foreground">{plat}</p>
+                      <p className="text-lg font-semibold mt-1">0</p>
+                      <p className="text-[11px] text-muted-foreground">0 impressions</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 py-2">
+                  {channelPerf.map((ch: any) => (
+                    <div key={ch.platform} className="rounded-md border border-border/60 bg-secondary/30 p-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold capitalize text-foreground">{ch.platform}</p>
+                        <span className="text-[10px] rounded bg-primary/10 text-primary px-1.5 py-0.5">
+                          {ch.engagement_rate}% ER
+                        </span>
+                      </div>
+                      <p className="text-xl font-bold mt-1.5">{ch.posts || 0} posts</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {Number(ch.impressions || 0).toLocaleString()} impressions
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Pipeline Stage Health */}
+            <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+              <h3 className="text-sm font-medium">Publishing Pipeline</h3>
+              <dl className="space-y-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted-foreground">Waiting for review</dt>
+                  <dd className="font-semibold text-amber-400">{posts.length} posts</dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted-foreground">Published live</dt>
+                  <dd className="font-semibold text-foreground">
+                    {metricValue(metrics?.posts_published ?? marketingMetrics.total_posts)}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted-foreground">Total social impressions</dt>
+                  <dd className="font-semibold text-foreground">
+                    {Number(marketingMetrics.total_impressions || 0).toLocaleString()}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted-foreground">Benchmark engagement rate</dt>
+                  <dd className="font-semibold text-emerald-400">
+                    {marketingMetrics.avg_engagement_rate}%
+                  </dd>
+                </div>
+              </dl>
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={() => setActiveView('campaigns')}
+                >
+                  Create new campaign post
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SECTION 3: AGENT FLEET & OPERATIONAL VELOCITY */}
+      {(activeTab === 'all' || activeTab === 'operations') && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold tracking-tight flex items-center gap-2">
+              <Activity className="size-4 text-violet-400" />
+              Agent Fleet Velocity & 7-Day Execution
+            </h2>
+            <Button variant="ghost" size="sm" onClick={() => setActiveView('orchestrator')} className="text-xs">
+              Open Orchestrator <ArrowUpRight className="size-3.5 ml-1" />
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {/* Stacked 7-Day Activity Chart */}
+            <div className="rounded-lg border border-border bg-card p-4 lg:col-span-2 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-medium">Daily Task Execution (Last 7 Days)</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Automated workload volume grouped by department</p>
+                </div>
+                <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-sm bg-indigo-500" /> Marketing
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-sm bg-emerald-500" /> Sales
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-sm bg-violet-500" /> Support / Ops
+                  </span>
+                </div>
+              </div>
+
+              {/* Stacked Bar Columns */}
+              <div className="grid grid-cols-7 gap-2 pt-2">
+                {dates.map((d: string, index: number) => {
+                  const m = mDaily[index] || 0;
+                  const s = sDaily[index] || 0;
+                  const sup = supDaily[index] || 0;
+                  const total = totalsDaily[index] || m + s + sup;
+                  const barHeight = Math.max(8, Math.round((total / maxDaily) * 110));
+
+                  const mPct = total > 0 ? (m / total) * 100 : 0;
+                  const sPct = total > 0 ? (s / total) * 100 : 0;
+                  const supPct = total > 0 ? (sup / total) * 100 : 0;
+
+                  return (
+                    <div key={index} className="flex flex-col items-center group">
+                      <span className="text-[11px] font-semibold text-foreground mb-1 group-hover:text-primary transition-colors">
+                        {total}
+                      </span>
+                      <div className="flex h-28 w-full max-w-10 flex-col-reverse justify-start overflow-hidden rounded-md bg-secondary/40 p-0.5">
+                        <div
+                          className="flex flex-col-reverse w-full rounded-sm overflow-hidden transition-all duration-300"
+                          style={{ height: `${barHeight}px` }}
+                        >
+                          {mPct > 0 && <div className="w-full bg-indigo-500" style={{ height: `${mPct}%` }} />}
+                          {sPct > 0 && <div className="w-full bg-emerald-500" style={{ height: `${sPct}%` }} />}
+                          {supPct > 0 && <div className="w-full bg-violet-500" style={{ height: `${supPct}%` }} />}
+                        </div>
+                      </div>
+                      <p className="mt-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{d}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* AI Agent Telemetry & Reliability */}
+            <div className="rounded-lg border border-border bg-card p-4 space-y-4">
+              <div>
+                <h3 className="text-sm font-medium">Agent Fleet Health</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Autonomous execution and top active agents</p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Workflow Success Rate</span>
+                  <span className="font-semibold text-foreground">
+                    {rate !== undefined && rate !== null ? `${rate}%` : '100%'}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500"
+                    style={{ width: `${rate !== undefined && rate !== null ? rate : 100}%` }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
+                  <div className="rounded-md border border-border/50 bg-secondary/30 p-2">
+                    <span className="text-muted-foreground text-[10px]">Total Runs</span>
+                    <p className="font-semibold text-sm mt-0.5">{flowPerf.total_runs || 0}</p>
+                  </div>
+                  <div className="rounded-md border border-border/50 bg-secondary/30 p-2">
+                    <span className="text-muted-foreground text-[10px]">AI Compute</span>
+                    <p className="font-semibold text-sm mt-0.5">
+                      ${Number(flowPerf.ai_cost || 0).toFixed(3)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-border/60">
+                  <p className="text-[11px] font-medium text-muted-foreground mb-2">Most Active Autonomous Agents</p>
+                  {sortedAgents.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-2 text-center">No agent executions logged yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {sortedAgents.map(([agent, count]) => (
+                        <div key={agent} className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <Bot className="size-3.5 text-primary shrink-0" />
+                            <span className="truncate font-medium">{agent}</span>
+                          </div>
+                          <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground font-semibold">
+                            {count as number} actions
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SECTION 4: OPERATIONAL ACTION HUB */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Needs a decision */}
+        <section className="rounded-lg border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <h2 className="text-sm font-semibold flex items-center gap-1.5">
+              <Inbox className="size-4 text-primary" /> Needs a decision
+            </h2>
+            <span className="text-xs text-muted-foreground">{pending} awaiting review</span>
+          </div>
+          <div className="divide-y divide-border max-h-[380px] overflow-y-auto">
+            {pending === 0 && (
+              <p className="px-4 py-8 text-center text-sm text-muted-foreground">Nothing is waiting for decision.</p>
+            )}
+            {posts.slice(0, 6).map((post) => (
+              <div key={post.id} className="space-y-2 px-4 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <StatusBadge status={post.platform || 'review'} />
+                  <span className="text-xs text-muted-foreground">{post.day ? `Day ${post.day}` : 'Post'}</span>
+                </div>
+                <p className="line-clamp-2 text-sm">{post.content}</p>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => handleRejectPost(post.id)}>
+                    Reject
+                  </Button>
+                  <Button size="sm" onClick={() => handleApprovePost(post.id)}>
+                    Approve
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {leads.slice(0, 4).map((lead) => (
+              <div key={lead.id} className="flex items-center justify-between px-4 py-3 text-sm">
+                <div>
+                  <p className="font-medium">{lead.name}</p>
+                  <p className="text-xs text-muted-foreground">{lead.company}</p>
+                </div>
+                <StatusBadge status={lead.source || lead.status} />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Live Activity Stream */}
+        <section className="rounded-lg border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <h2 className="text-sm font-semibold flex items-center gap-1.5">
+              <Activity className="size-4 text-muted-foreground" /> Activity Stream
+            </h2>
+            <span className="text-xs text-muted-foreground">Real-time actions</span>
+          </div>
+          <div className="divide-y divide-border max-h-[380px] overflow-y-auto">
+            {timeline.length === 0 && (
+              <p className="px-4 py-8 text-center text-sm text-muted-foreground">No activity recorded yet.</p>
+            )}
+            {timeline.slice(0, 8).map((log) => (
+              <div key={log.id} className="px-4 py-3">
+                <p className="text-sm">
+                  <span className="font-medium text-foreground">{log.agent_name}</span>
+                  <span className="text-muted-foreground"> · {log.action}</span>
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{log.description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      {/* Installed Apps Marketplace Ribbon */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold flex items-center gap-1.5">
+            <Layers className="size-4 text-primary" /> Installed Agent Packs
+          </h2>
+          <Button variant="outline" size="sm" onClick={() => setActiveView('marketplace')}>
+            Browse Marketplace
+          </Button>
+        </div>
+        {apps.length === 0 ? (
+          <EmptyState
+            title="No apps installed"
+            description="Install a marketplace pack when you want an automated agent workflow in this workspace."
+            action={<Button onClick={() => setActiveView('marketplace')}>Browse marketplace</Button>}
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {apps.map((app) => (
+              <div
+                key={app.id}
+                className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-3"
+              >
+                <p className="truncate text-sm font-medium">{app.app_name}</p>
+                <Button variant="ghost" size="sm" onClick={() => uninstallApp(app.app_name)}>
+                  Remove
+                </Button>
+              </div>
+            ))}
           </div>
         )}
-      </div>
-
+      </section>
     </div>
   );
 }
+

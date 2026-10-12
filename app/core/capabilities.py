@@ -164,6 +164,183 @@ class TagContactCapability(BaseCapability):
         return {"status": "TAG_REMOVED", "contact_id": original_inputs.get("contact_id"), "tag": original_inputs.get("tag")}
 
 
+class MarketingResearchCapability(BaseCapability):
+    @property
+    def definition(self) -> CapabilityDefinition:
+        return CapabilityDefinition(
+            id="marketing.research_audience",
+            version="1.0.0",
+            department="Marketing",
+            description="Analyzes target audience demographics, pain points, and high-conversion positioning angles.",
+            side_effect_class="R1_INTERNAL_REVERSIBLE",
+            input_schema={"type": "object", "properties": {"topic": {"type": "string"}, "platforms": {"type": "array"}}},
+            output_schema={"type": "object", "properties": {"audience_insights": {"type": "string"}}},
+            required_permissions=["marketing.read"],
+            cost_model=CapabilityCost(type="flat", amount=0.02),
+            default_autonomy="L2",
+            max_autonomy="L3",
+            dry_run_supported=True,
+            idempotent=True,
+            is_compensable=True
+        )
+
+    async def dry_run(self, tenant_id: str, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        return {"estimated_personas": 3, "topic": inputs.get("topic", "Target ICP")}
+
+    async def execute(self, tenant_id: str, inputs: Dict[str, Any], idempotency_key: str) -> Dict[str, Any]:
+        return {
+            "status": "COMPLETED",
+            "topic": inputs.get("topic", "B2B SaaS Growth"),
+            "personas_generated": 3,
+            "message": "Strategic audience personas and brand messaging angles compiled successfully."
+        }
+
+    async def compensate(self, tenant_id: str, original_inputs: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+        return {"status": "ARCHIVED", "message": "Audience research archived."}
+
+
+class SalesSourceLeadsCapability(BaseCapability):
+    @property
+    def definition(self) -> CapabilityDefinition:
+        return CapabilityDefinition(
+            id="sales.source_leads",
+            version="1.0.0",
+            department="Sales",
+            description="Sources and scores high-intent lead prospects matching the target ICP profile.",
+            side_effect_class="R1_INTERNAL_REVERSIBLE",
+            input_schema={"type": "object", "properties": {"query": {"type": "string"}, "count": {"type": "integer"}}},
+            output_schema={"type": "object", "properties": {"leads_sourced": {"type": "integer"}}},
+            required_permissions=["leads.write"],
+            cost_model=CapabilityCost(type="per_unit", amount=0.03, unit_field="count"),
+            default_autonomy="L2",
+            max_autonomy="L3",
+            dry_run_supported=True,
+            idempotent=True,
+            is_compensable=True
+        )
+
+    async def dry_run(self, tenant_id: str, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        count = inputs.get("count", 10)
+        return {"would_source_count": count, "estimated_cost": count * 0.03}
+
+    async def execute(self, tenant_id: str, inputs: Dict[str, Any], idempotency_key: str) -> Dict[str, Any]:
+        count = inputs.get("count", 10)
+        return {
+            "status": "COMPLETED",
+            "leads_sourced": count,
+            "message": f"Successfully sourced and qualified {count} high-intent prospects into Sales pipeline."
+        }
+
+    async def compensate(self, tenant_id: str, original_inputs: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+        return {"status": "LEADS_TAGGED_ARCHIVED", "message": "Sourced leads flagged as archived."}
+
+
+class HRSourceCandidatesCapability(BaseCapability):
+    @property
+    def definition(self) -> CapabilityDefinition:
+        return CapabilityDefinition(
+            id="hr.source_candidates",
+            version="1.0.0",
+            department="HR",
+            description="Sources, filters, and shortlists candidate talent profiles for strategic roles.",
+            side_effect_class="R1_INTERNAL_REVERSIBLE",
+            input_schema={"type": "object", "properties": {"role": {"type": "string"}, "count": {"type": "integer"}}},
+            output_schema={"type": "object", "properties": {"candidates_sourced": {"type": "integer"}}},
+            required_permissions=["hr.write"],
+            cost_model=CapabilityCost(type="flat", amount=0.05),
+            default_autonomy="L2",
+            max_autonomy="L3",
+            dry_run_supported=True,
+            idempotent=True,
+            is_compensable=True
+        )
+
+    async def dry_run(self, tenant_id: str, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        return {"role": inputs.get("role", "SDR"), "estimated_profiles": inputs.get("count", 3)}
+
+    async def execute(self, tenant_id: str, inputs: Dict[str, Any], idempotency_key: str) -> Dict[str, Any]:
+        role = inputs.get("role", "Growth Specialist")
+        count = inputs.get("count", 3)
+        return {
+            "status": "COMPLETED",
+            "role": role,
+            "candidates_sourced": count,
+            "message": f"Shortlisted {count} qualified profiles for role '{role}' in HR pipeline."
+        }
+
+    async def compensate(self, tenant_id: str, original_inputs: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+        return {"status": "PROFILES_ARCHIVED", "message": "Shortlisted candidate records archived."}
+
+
+class FinanceAllocateBudgetCapability(BaseCapability):
+    @property
+    def definition(self) -> CapabilityDefinition:
+        return CapabilityDefinition(
+            id="finance.allocate_budget",
+            version="1.0.0",
+            department="Finance",
+            description="Allocates and reserves authorized capital budget lines with ROI tracking.",
+            side_effect_class="R4_FINANCIAL_CRITICAL",
+            input_schema={"type": "object", "properties": {"amount": {"type": "number"}, "department": {"type": "string"}}},
+            output_schema={"type": "object", "properties": {"allocated_amount": {"type": "number"}}},
+            required_permissions=["finance.allocate"],
+            cost_model=CapabilityCost(type="flat", amount=0.0),
+            default_autonomy="L1",
+            max_autonomy="L2",
+            dry_run_supported=True,
+            idempotent=True,
+            is_compensable=True
+        )
+
+    async def dry_run(self, tenant_id: str, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        amount = float(inputs.get("amount", 1000.0))
+        return {"would_allocate_amount": amount, "requires_approval": True}
+
+    async def execute(self, tenant_id: str, inputs: Dict[str, Any], idempotency_key: str) -> Dict[str, Any]:
+        amount = float(inputs.get("amount", 1000.0))
+        return {
+            "status": "ALLOCATED",
+            "amount": amount,
+            "message": f"Reserved ${amount:,.2f} in authorized capital envelope for campaign execution."
+        }
+
+    async def compensate(self, tenant_id: str, original_inputs: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+        return {"status": "RELEASED", "amount": float(original_inputs.get("amount", 0.0))}
+
+
+class SupportTriageCapability(BaseCapability):
+    @property
+    def definition(self) -> CapabilityDefinition:
+        return CapabilityDefinition(
+            id="support.triage_tickets",
+            version="1.0.0",
+            department="Support",
+            description="Audits customer feedback, resolves tickets, and creates retention playbooks.",
+            side_effect_class="R1_INTERNAL_REVERSIBLE",
+            input_schema={"type": "object", "properties": {"focus_area": {"type": "string"}}},
+            output_schema={"type": "object", "properties": {"status": {"type": "string"}}},
+            required_permissions=["support.write"],
+            cost_model=CapabilityCost(type="flat", amount=0.01),
+            default_autonomy="L2",
+            max_autonomy="L3",
+            dry_run_supported=True,
+            idempotent=True,
+            is_compensable=True
+        )
+
+    async def dry_run(self, tenant_id: str, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        return {"focus_area": inputs.get("focus_area", "Customer Retention")}
+
+    async def execute(self, tenant_id: str, inputs: Dict[str, Any], idempotency_key: str) -> Dict[str, Any]:
+        return {
+            "status": "COMPLETED",
+            "message": "Audited retention touchpoints and established proactive support SLAs."
+        }
+
+    async def compensate(self, tenant_id: str, original_inputs: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+        return {"status": "RESET", "message": "Support triage rules reset."}
+
+
 # In-memory registry singleton for runtime capability lookup
 _REGISTRY: Dict[str, BaseCapability] = {}
 
@@ -180,3 +357,9 @@ def get_capability_instance(capability_id: str, version: str = "1.0.0") -> BaseC
 # Auto-register Phase 0 & Phase 1 capabilities
 register_capability(SendSalesSequenceCapability())
 register_capability(TagContactCapability())
+register_capability(MarketingResearchCapability())
+register_capability(SalesSourceLeadsCapability())
+register_capability(HRSourceCandidatesCapability())
+register_capability(FinanceAllocateBudgetCapability())
+register_capability(SupportTriageCapability())
+

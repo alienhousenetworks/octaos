@@ -1,0 +1,238 @@
+{
+  "text": [
+    {
+      "provider": "openrouter",
+      "slug": "anthropic/claude-3.7-sonnet",
+      "display_name": "Claude 3.7 Sonnet",
+      "specialty": "Frontier Creative & Hybrid Reasoning",
+      "badge": "Frontier Flagship"
+    },
+    {
+      "provider": "openrouter",
+      "slug": "anthropic/claude-3.5-sonnet",
+      "display_name": "Claude 3.5 Sonnet",
+      "specialty": "B2B & Thought Leadership Nuance",
+      "badge": "Editorial Gold Standard"
+    },
+    {
+      "provider": "openrouter",
+      "slug": "openai/gpt-4o",
+      "display_name": "OpenAI GPT-4o",
+      "specialty": "Omnichannel Social Copy & Viral Hooks",
+      "badge": "High Conversion"
+    },
+    {
+      "provider": "openrouter",
+      "slug": "deepseek/deepseek-r1",
+      "display_name": "DeepSeek R1",
+      "specialty": "Deep Strategic Campaign Planning",
+      "badge": "Reasoning Specialist"
+    },
+    {
+      "provider": "together",
+      "slug": "deepseek-ai/DeepSeek-V3",
+      "display_name": "DeepSeek V3",
+      "specialty": "High-Speed Bulk Post Generation",
+      "badge": "Fast & Eloquent"
+    },
+    {
+      "provider": "openrouter",
+      "slug": "google/gemini-2.5-pro",
+      "display_name": "Gemini 2.5 Pro",
+      "specialty": "Long-Form Blogs & Technical Analysis",
+      "badge": "Deep Context"
+    },
+    {
+      "provider": "openrouter",
+      "slug": "google/gemini-2.5-flash",
+      "display_name": "Gemini 2.5 Flash",
+      "specialty": "Low-Latency Drafts & Iterations",
+      "badge": "High Speed"
+    },
+    {
+      "provider": "together",
+      "slug": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+      "display_name": "Llama 3.3 70B Turbo",
+      "specialty": "Grounded Open Enterprise Messaging",
+      "badge": "Open Frontier"
+    },
+    {
+      "provider": "together",
+      "slug": "Qwen/Qwen2.5-72B-Instruct-Turbo",
+      "display_name": "Qwen 2.5 72B Turbo",
+      "specialty": "Global Multi-Language Localization",
+      "badge": "Polyglot Leader"
+    },
+    {
+      "provider": "openrouter",
+      "slug": "openai/o3-mini",
+      "display_name": "OpenAI o3-mini",
+      "specialty": "Structured Creative Intent & Schema Compliance",
+      "badge": "Logic & Schemas"
+    }
+  ],
+  "image": [
+    {
+      "provider": "together",
+      "slug": "black-forest-labs/FLUX.1-dev",
+      "display_name": "FLUX.1 [dev]",
+      "specialty": "Photorealistic Commercial Realism",
+      "badge": "Photo Champion",
+      "modes": ["text_to_image"]
+    },
+    {
+      "provider": "together",
+      "slug": "black-forest-labs/FLUX.1-schnell",
+      "display_name": "FLUX.1 [schnell]",
+      "specialty": "Ultra-Fast Social Graphics",
+      "badge": "Realtime Speed",
+      "modes": ["text_to_image"]
+    },
+    {
+      "provider": "together",
+      "slug": "black-forest-labs/FLUX.1-canny",
+      "display_name": "FLUX.1 [canny]",
+      "specialty": "Edge-Guided Brand Asset Remixing",
+      "badge": "Image+Text to Image",
+      "modes": ["image_to_image", "text_to_image"]
+    },
+    {
+      "provider": "together",
+      "slug": "black-forest-labs/FLUX.1-redux",
+      "display_name": "FLUX.1 [redux]",
+      "specialty": "Brand Style & Identity Transfer",
+      "badge": "Style Transfer",
+      "modes": ["image_to_image", "text_to_image"]
+    },
+    {
+      "provider": "together",
+      "slug": "black-forest-labs/FLUX.1-depth",
+      "display_name": "FLUX.1 [depth]",
+      "specialty": "3D Depth-Preserved Environment Placing",
+      "badge": "Spatial Consistency",
+      "modes": ["image_to_image", "text_to_image"]
+    },
+    {
+      "provider": "together",
+      "slug": "black-forest-labs/FLUX.2-pro",
+      "display_name": "FLUX.2 Pro",
+      "specialty": "Commercial Posters & Multi-Reference",
+      "badge": "Next-Gen Pro",
+      "modes": ["text_to_image", "image_to_image"]
+    },
+    {
+      "provider": "openrouter",
+      "slug": "recraft/recraft-v3",
+      "display_name": "Recraft v3",
+      "specialty": "Brand Vector Graphics & Design Posters",
+      "badge": "Vector & Brand",
+      "modes": ["text_to_image"]
+    },
+    {
+      "provider": "openrouter",
+      "slug": "ideogram/ideogram-v2",
+      "display_name": "Ideogram v2",
+      "specialty": "Flawless In-Image Typography & Headlines",
+      "badge": "Typography Leader",
+      "modes": ["text_to_image"]
+    },
+    {
+      "provider": "openrouter",
+      "slug": "bytedance-seed/seedream-4.5",
+      "display_name": "Seedream 4.5",
+      "specialty": "Cinematic Storytelling & Visual Ambiance",
+      "badge": "Cinematic Mood",
+      "modes": ["text_to_image"]
+    },
+    {
+      "provider": "together",
+      "slug": "stabilityai/stable-diffusion-xl-base-1.0",
+      "display_name": "SDXL Base 1.0",
+      "specialty": "Open-Weights Commercial Production",
+      "badge": "Open Standard",
+      "modes": ["text_to_image", "image_to_image"]
+    }
+  ],
+  "video": [
+    {
+      "provider": "together",
+      "slug": "minimax/video-01",
+      "display_name": "MiniMax Video-01",
+      "specialty": "High-Fidelity Organic Physical Motion",
+      "badge": "Cinematic Physics",
+      "modes": ["text_to_video", "image_to_video"]
+    },
+    {
+      "provider": "openrouter",
+      "slug": "kling-ai/kling-v1.5",
+      "display_name": "Kling v1.5",
+      "specialty": "Complex Kinetic & Fluid Simulation",
+      "badge": "Motion Realism",
+      "modes": ["text_to_video", "image_to_video"]
+    },
+    {
+      "provider": "openrouter",
+      "slug": "luma/ray-2",
+      "display_name": "Luma Ray 2",
+      "specialty": "Dynamic Camera Dolly & Orbit Control",
+      "badge": "Camera Master",
+      "modes": ["text_to_video", "image_to_video"]
+    },
+    {
+      "provider": "openrouter",
+      "slug": "runway/gen-3-alpha",
+      "display_name": "Runway Gen-3 Alpha",
+      "specialty": "Hollywood-Grade Visual Effects & Lighting",
+      "badge": "Studio Grade",
+      "modes": ["text_to_video", "image_to_video"]
+    },
+    {
+      "provider": "together",
+      "slug": "Wan-AI/Wan2.1-T2V-14B",
+      "display_name": "Wan2.1 T2V 14B",
+      "specialty": "Open Cinematic Text-to-Video Engine",
+      "badge": "Open Frontier",
+      "modes": ["text_to_video"]
+    },
+    {
+      "provider": "together",
+      "slug": "Wan-AI/Wan2.1-I2V-14B",
+      "display_name": "Wan2.1 I2V 14B",
+      "specialty": "Image-to-Video Still Post Animation",
+      "badge": "Animate Images",
+      "modes": ["image_to_video"]
+    },
+    {
+      "provider": "together",
+      "slug": "THUDM/CogVideoX-5b",
+      "display_name": "CogVideoX 5B",
+      "specialty": "Smooth Temporal Transitions & Parallax",
+      "badge": "Temporal Smooth",
+      "modes": ["text_to_video"]
+    },
+    {
+      "provider": "together",
+      "slug": "Lightricks/LTX-Video",
+      "display_name": "LTX-Video",
+      "specialty": "High-Speed Realtime Video Loops",
+      "badge": "Rapid Loop",
+      "modes": ["text_to_video"]
+    },
+    {
+      "provider": "together",
+      "slug": "stabilityai/stable-video-diffusion-img2vid-xt",
+      "display_name": "SVD-XT Image-to-Video",
+      "specialty": "Camera Motion Synthesis for Brand Stills",
+      "badge": "Image Animator",
+      "modes": ["image_to_video"]
+    },
+    {
+      "provider": "openrouter",
+      "slug": "google/veo-2.0",
+      "display_name": "Google Veo 2.0",
+      "specialty": "4K High-Definition Documentary Aesthetic",
+      "badge": "4K Ultra-HD",
+      "modes": ["text_to_video"]
+    }
+  ]
+}

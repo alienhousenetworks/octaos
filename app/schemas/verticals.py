@@ -1,5 +1,5 @@
 from pydantic import BaseModel, validator
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 class LeadBase(BaseModel):
@@ -58,6 +58,23 @@ class ContentPostBase(BaseModel):
 class ContentPostCreate(ContentPostBase):
     pass
 
+class ContentPostManualMultiCreate(BaseModel):
+    platforms: List[str] = ["linkedin"]
+    content: str
+    tags: Optional[List[str]] = []
+    scheduled_at: Optional[datetime] = None
+    image_url: Optional[str] = None
+    video_url: Optional[str] = None
+    is_manual_media: Optional[bool] = True
+    publish_mode: str = "schedule"  # "now" | "schedule" | "draft"
+    day: Optional[int] = 1
+    image_prompt: Optional[str] = None
+    image_prompt_enabled: Optional[bool] = False
+    video_prompt: Optional[str] = None
+    video_prompt_enabled: Optional[bool] = False
+    remotion_prompt: Optional[str] = None
+    remotion_prompt_enabled: Optional[bool] = False
+
 class ContentPost(ContentPostBase):
     id: str
     tenant_id: str
@@ -79,29 +96,88 @@ class ContentPost(ContentPostBase):
     performance_score: Optional[float] = 0
     learning_tags: Optional[List[str]] = None
     insights_synced_at: Optional[datetime] = None
+    used_model: Optional[str] = None
+    fallback_reason: Optional[str] = None
+    cost_usd: Optional[float] = 0.0
 
     class Config:
         from_attributes = True
+
+
+class ModelSelection(BaseModel):
+    provider: str = "auto"  # auto | openrouter | together
+    model: Optional[str] = None  # None = Auto/curated default
+    allow_fallback: bool = True
+
 
 class CampaignCreate(BaseModel):
     topic: str
     days: int = 30
     platforms: List[str] = ["linkedin", "instagram", "facebook"]
-    text_provider: str = "auto"
+    content_format: str = "social_posts"  # social_posts | blog_articles | video_first | omnichannel_mix
+    text: ModelSelection = ModelSelection()
+    image: ModelSelection = ModelSelection()
+    video: ModelSelection = ModelSelection()
+    reference_image_url: Optional[str] = None
+    budget_cap_usd: Optional[float] = None
+    # Backward compatibility fields
+    text_provider: Optional[str] = "auto"
     text_model: Optional[str] = None
-    image_provider: str = "openai"
-    video_provider: str = "pika"
+    image_provider: Optional[str] = "together"
+    video_provider: Optional[str] = "together"
     generate_images: bool = True
-    generate_videos: bool = True
+    generate_videos: bool = False
     generate_remotion: bool = False
     remotion_provider: Optional[str] = "gemini"
     remotion_model: Optional[str] = "gemini-2.5-flash"
-
+    # Cadence and Multi-Slot Scheduling
+    posts_per_day: int = 1  # 1 (Peak Slot), 2 (Morning + Evening), 3 (Omnichannel Horizon)
+    target_time_slots: Optional[List[str]] = None  # e.g., ["09:00", "17:00"]
     @validator("days")
     def validate_days(cls, v):
         if v < 1 or v > 30:
             raise ValueError("Campaign duration must be between 1 and 30 days.")
         return v
+
+
+class ModelValidateRequest(BaseModel):
+    provider: str
+    modality: str  # text, image, video
+    model: str
+    mode: Optional[str] = None  # text_to_text, text_to_image, image_to_image, text_to_video, image_to_video
+
+
+class ModelValidateResponse(BaseModel):
+    status: str  # available | incompatible | not_found | no_key | unverified
+    message: str
+    display_name: Optional[str] = None
+    capabilities: Optional[dict] = None
+    pricing: Optional[dict] = None
+    context_length: Optional[int] = None
+    suggestions: List[str] = []
+    link: Optional[str] = None
+
+
+class CustomModelCreate(BaseModel):
+    provider: str
+    slug: str
+    modality: str
+    mode: Optional[str] = None
+
+
+class JobStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    result_url: Optional[str] = None
+    error: Optional[str] = None
+    progress_pct: Optional[float] = None
+    cost_usd: float = 0.0
+    current_stage: Optional[str] = None
+    stages: Optional[List[Dict[str, Any]]] = None
+    stage_logs: Optional[List[Dict[str, Any]]] = None
+    kind: Optional[str] = None
+    topic: Optional[str] = None
+    days: Optional[int] = None
 
 class CandidateBase(BaseModel):
     name: Optional[str] = None
@@ -179,6 +255,7 @@ class BusinessProfileBase(BaseModel):
     v3_workflow_status: Optional[dict] = None
     sales_emails: Optional[List[str]] = None
     support_emails: Optional[List[str]] = None
+    lead_freshness: Optional[str] = "30_days"
 
 class BusinessProfileCreate(BusinessProfileBase):
     pass

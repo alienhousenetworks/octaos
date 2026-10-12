@@ -18,7 +18,7 @@ from app.models.flow_engine import (
     FlowVersion,
     FlowRun,
     StepRun,
-    ApprovalRequest,
+    FlowApprovalRequest,
     UsageEvent,
     PackageDefinition,
     PackageVersion,
@@ -33,6 +33,7 @@ from app.services.agents.seeder import (
     ensure_default_installations,
     get_system_packages_fallback,
 )
+from app.services.analytics.metrics_service import MetricsService
 
 router = APIRouter()
 
@@ -146,6 +147,10 @@ def get_dashboard_metrics(
     metrics = db.query(AgentMetric).filter(AgentMetric.tenant_id == tenant_id).all()
     res = {m.metric_name: m.value for m in metrics}
 
+    # Harvest deterministic verified cross-vertical aggregates
+    harvester = MetricsService(db, tenant_id)
+    harvested = harvester.harvest()
+
     # Dynamic AI Cost calculated from real usage_events + provider_usage
     flow_cost = db.query(func.sum(UsageEvent.cost_usd)).filter(UsageEvent.tenant_id == tenant_id).scalar() or 0.0
     provider_cost = db.query(func.sum(ProviderUsage.cost)).filter(ProviderUsage.tenant_id == tenant_id).scalar() or 0.0
@@ -156,9 +161,9 @@ def get_dashboard_metrics(
     succeeded_runs = db.query(FlowRun).filter(FlowRun.tenant_id == tenant_id, FlowRun.status == "succeeded").count()
 
     if total_runs > 0:
-        automation_success_rate = (succeeded_runs / total_runs) * 100.0
+        automation_success_rate = round((succeeded_runs / total_runs) * 100.0, 2)
     else:
-        automation_success_rate = 99.4
+        automation_success_rate = None
 
     # Daily execution activity grouped over the last 7 days
     now = datetime.now(timezone.utc)
@@ -201,23 +206,88 @@ def get_dashboard_metrics(
         ).count()
         support_daily_tasks.append(sup_count)
 
+    daily_totals = [m + s + sup for m, s, sup in zip(marketing_daily_tasks, sales_daily_tasks, support_daily_tasks)]
+
     daily_tasks_data = {
         "dates": [(now - timedelta(days=i)).strftime("%b %d") for i in range(6, -1, -1)],
         "marketing": marketing_daily_tasks,
         "sales": sales_daily_tasks,
-        "support": support_daily_tasks
+        "support": support_daily_tasks,
+        "totals": daily_totals,
     }
 
+    # Extract items safely from harvested metrics
+    def item_val(metric_id: str, default: float = 0.0) -> float:
+        metric = harvested.items.get(metric_id)
+        return float(metric.value) if metric and metric.value is not None else default
+
+    leads_total = item_val("leads.total")
+    posts_total = item_val("marketing.total_posts")
+    tickets_resolved_count = float(harvested.raw_ticket_distribution.get("resolved", 0))
+    candidates_total = item_val("hr.candidates_total")
+    revenue_won = item_val("deals.won_value")
+    pipeline_total = item_val("deals.pipeline_value")
+
+    # Resolve core values with backward-compatible priority (AgentMetric > Harvested SQL count)
+    leads_generated = res.get("leads_generated", leads_total)
+    posts_published = res.get("posts_published", posts_total)
+    tickets_resolved = res.get("tickets_resolved", tickets_resolved_count)
+    revenue_impact = res.get("revenue_impact", revenue_won)
+    candidates_sourced = res.get("candidates_sourced", candidates_total)
+    interviews_scheduled = res.get("interviews_scheduled", 0.0)
+
+    lead_metric_item = harvested.items.get("leads.total")
+    wow_change = lead_metric_item.change_pct_wow if lead_metric_item else 0.0
+
     return {
-        "leads_generated": res.get("leads_generated", 0.0),
-        "posts_published": res.get("posts_published", 0.0),
-        "tickets_resolved": res.get("tickets_resolved", 0.0),
-        "revenue_impact": res.get("revenue_impact", 0.0),
-        "candidates_sourced": res.get("candidates_sourced", 0.0),
-        "interviews_scheduled": res.get("interviews_scheduled", 0.0),
+        # Core & backwards-compatible keys
+        "leads_generated": leads_generated,
+        "posts_published": posts_published,
+        "tickets_resolved": tickets_resolved,
+        "revenue_impact": revenue_impact,
+        "candidates_sourced": candidates_sourced,
+        "interviews_scheduled": interviews_scheduled,
         "ai_cost": round(total_ai_cost, 3),
-        "automation_success_rate": round(automation_success_rate, 2),
-        "daily_tasks": daily_tasks_data
+        "automation_success_rate": automation_success_rate,
+        "daily_tasks": daily_tasks_data,
+
+        # Structured cross-department analytics
+        "funnel": harvested.raw_funnel,
+        "deal_stages": harvested.raw_deal_stages,
+        "pipeline_value": round(pipeline_total, 2),
+        "channel_performance": harvested.raw_channel_performance,
+        "ticket_analytics": {
+            "open": int(harvested.raw_ticket_distribution.get("open", 0)),
+            "pending_human": int(harvested.raw_ticket_distribution.get("pending_human", 0)),
+            "resolved": int(tickets_resolved_count),
+            "sla_compliance": round(item_val("tickets.sla_compliance", 100.0), 1),
+            "sla_breach_rate": round(item_val("tickets.sla_breach_rate", 0.0), 1),
+        },
+        "lead_metrics": {
+            "total": int(leads_total),
+            "unassigned": int(item_val("leads.unassigned_count")),
+            "uncontacted": int(item_val("leads.uncontacted_count")),
+            "conversion_rate": round(item_val("leads.conversion_rate"), 1),
+            "wow_change": wow_change,
+        },
+        "marketing_metrics": {
+            "total_posts": int(posts_total),
+            "total_impressions": round(item_val("marketing.total_impressions"), 0),
+            "avg_engagement_rate": round(item_val("marketing.avg_engagement_rate"), 2),
+        },
+        "agent_fleet": {
+            "total_actions": int(item_val("operations.agent_actions")),
+            "agent_activity": harvested.raw_agent_activity,
+        },
+        "flow_performance": {
+            "total_runs": total_runs,
+            "succeeded_runs": succeeded_runs,
+            "failed_runs": max(0, total_runs - succeeded_runs),
+            "success_rate": automation_success_rate,
+            "ai_cost": round(total_ai_cost, 3),
+            "flow_cost": round(float(flow_cost), 3),
+            "provider_cost": round(float(provider_cost), 3),
+        },
     }
 
 
@@ -556,9 +626,9 @@ def list_pending_approvals(
     tenant_id: str = Depends(deps.get_current_tenant_id)
 ) -> Any:
     approvals = (
-        db.query(ApprovalRequest)
+        db.query(FlowApprovalRequest)
         .filter_by(tenant_id=tenant_id, status="pending")
-        .order_by(ApprovalRequest.created_at.desc())
+        .order_by(FlowApprovalRequest.created_at.desc())
         .all()
     )
     return [
@@ -584,7 +654,7 @@ async def decide_approval_request(
     current_user: User = Depends(deps.get_current_user),
     request: ApprovalDecisionRequest
 ) -> Any:
-    approval = db.query(ApprovalRequest).filter_by(id=approval_id, tenant_id=tenant_id).first()
+    approval = db.query(FlowApprovalRequest).filter_by(id=approval_id, tenant_id=tenant_id).first()
     if not approval:
         raise HTTPException(status_code=404, detail="Approval request not found.")
 

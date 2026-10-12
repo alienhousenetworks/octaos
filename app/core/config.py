@@ -86,6 +86,20 @@ class Settings(BaseSettings):
     # OPTIONAL
     PINTEREST_ACCESS_TOKEN: Optional[str] = None
 
+    # WEB INGESTION & CRAWLER
+    FIRECRAWL_API_KEY: Optional[str] = None
+    FIRECRAWL_API_URL: Optional[str] = None
+
+    # OAUTH & CONNECTORS — Google & GitHub
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+    GOOGLE_PROJECT_ID: Optional[str] = "octaos-project"
+    GITHUB_CLIENT_ID: Optional[str] = None
+    GITHUB_CLIENT_SECRET: Optional[str] = None
+
+    # EMBEDDINGS & MODEL TOKENS
+    HF_TOKEN: Optional[str] = None
+
     # Stripe (optional / legacy)
     STRIPE_SECRET_KEY: Optional[str] = None
     STRIPE_WEBHOOK_SECRET: Optional[str] = None
@@ -150,6 +164,26 @@ class Settings(BaseSettings):
             self.SMTP_FROM = self.DEFAULT_FROM_EMAIL
         elif self.EMAIL_HOST_USER is not None:
             self.SMTP_FROM = self.EMAIL_HOST_USER
+
+        import os
+        for k in (
+            "FIRECRAWL_API_KEY",
+            "FIRECRAWL_API_URL",
+            "GOOGLE_CLIENT_ID",
+            "GOOGLE_CLIENT_SECRET",
+            "GOOGLE_PROJECT_ID",
+            "GITHUB_CLIENT_ID",
+            "GITHUB_CLIENT_SECRET",
+            "OPENROUTER_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "GROQ_API_KEY",
+            "GEMINI_API_KEY",
+            "TOGETHER_API_KEY",
+            "HF_TOKEN",
+        ):
+            v = getattr(self, k, None)
+            if v and not os.environ.get(k):
+                os.environ[k] = str(v)
 
     model_config = SettingsConfigDict(
         case_sensitive=True,

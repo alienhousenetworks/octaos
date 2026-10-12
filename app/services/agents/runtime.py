@@ -8,7 +8,7 @@ from app.models.flow_engine import (
     AgentVersion,
     UsageEvent,
     ExecutionEvent,
-    ApprovalRequest,
+    FlowApprovalRequest,
 )
 from app.models.agents import KnowledgeDocument
 from app.services.ai_gateway import ai_gateway
@@ -83,7 +83,7 @@ class AgentRuntime:
 
             if tool_def.approval_required and not dry_run:
                 # Create ApprovalRequest and pause execution
-                approval = ApprovalRequest(
+                approval = FlowApprovalRequest(
                     tenant_id=tenant_id,
                     flow_run_id=flow_run_id or "adhoc_run",
                     step_run_id=step_run_id or "adhoc_step",

@@ -15,7 +15,8 @@ class OrchestratorTask(BaseModel):
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
 class OrchestratorPlan(BaseModel):
-    tasks: List[OrchestratorTask]
+    message: Optional[str] = None
+    tasks: List[OrchestratorTask] = Field(default_factory=list)
 
 class CandidateProfile(BaseModel):
     name: str

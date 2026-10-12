@@ -225,6 +225,95 @@ class MediaPromptCompiler:
         }
 
     @classmethod
+    def compile_recraft(
+        cls,
+        intent: CreativeIntentJSON,
+        visual_style: Optional[Dict[str, Any]] = None,
+        seed_key: str = "default_seed",
+        platform: str = "instagram",
+    ) -> Dict[str, Any]:
+        """Compile intent for Recraft v3 (vector graphics, clean brand icons, sharp typography)."""
+        ar = cls.get_aspect_ratio_for_platform(platform, media_type="image")
+        colors = ", ".join(intent.color_accents) if intent.color_accents else "brand primary accents"
+        prompt = (
+            f"High-end corporate graphic design illustration of {intent.subject}, {intent.action_or_state}. "
+            f"Style: clean modern editorial vector, pristine vector outlines, palette accents of {colors}. "
+            f"Negative space: {intent.negative_space_direction}. Atmosphere: {intent.emotional_mood}. "
+            f"Zero clutter, minimalist Swiss design precision."
+        )
+        return {
+            "prompt": prompt,
+            "aspect_ratio": ar,
+            "style": "vector_illustration",
+        }
+
+    @classmethod
+    def compile_ideogram(
+        cls,
+        intent: CreativeIntentJSON,
+        headline_text: Optional[str] = None,
+        visual_style: Optional[Dict[str, Any]] = None,
+        seed_key: str = "default_seed",
+        platform: str = "instagram",
+    ) -> Dict[str, Any]:
+        """Compile intent for Ideogram v2 (flawless in-image typography and poster layouts)."""
+        ar = cls.get_aspect_ratio_for_platform(platform, media_type="image")
+        lexicon = sample_lexicon(seed_key)
+        arch = lexicon["architecture"]
+        type_str = f'featuring bold typography text reading "{headline_text[:40]}"' if headline_text else "with clean typographic title space"
+        prompt = (
+            f"A bold graphic design poster {type_str}. "
+            f"Centerpiece: {intent.shot_type} of {intent.subject}, {intent.action_or_state} in {intent.environment_setting or arch}. "
+            f"Lighting: {intent.lighting_intent}. Color accents: {', '.join(intent.color_accents)}. "
+            f"Modern editorial typography, flawless alignment, clean commercial look."
+        )
+        return {
+            "prompt": prompt,
+            "aspect_ratio": ar,
+            "style_type": "DESIGN",
+        }
+
+    @classmethod
+    def compile_image_to_image(
+        cls,
+        intent: CreativeIntentJSON,
+        reference_image_url: str,
+        mode: str = "canny",
+        visual_style: Optional[Dict[str, Any]] = None,
+        seed_key: str = "default_seed",
+        platform: str = "instagram",
+    ) -> Dict[str, Any]:
+        """Compile intent for image+text conditioning (FLUX Canny/Redux/Depth)."""
+        ar = cls.get_aspect_ratio_for_platform(platform, media_type="image")
+        lexicon = sample_lexicon(seed_key)
+        cam = lexicon["camera"]
+        lighting = lexicon["lighting"]
+
+        if mode == "canny":
+            prompt = (
+                f"Preserve structural edge contours and exact geometric silhouette from reference image. "
+                f"Transform lighting to {intent.lighting_intent or lighting}, set in {intent.environment_setting}, "
+                f"shot on {cam['body']} with {cam['lens']}. Atmosphere: {intent.emotional_mood}."
+            )
+        elif mode == "redux":
+            prompt = (
+                f"Apply high-fidelity brand visual aesthetic and color palette from reference image to {intent.subject}. "
+                f"Action: {intent.action_or_state}. Lighting: {intent.lighting_intent}. Texture: tactile editorial."
+            )
+        else:
+            prompt = (
+                f"Depth-guided synthesis maintaining spatial layout from reference. "
+                f"{intent.shot_type} of {intent.subject}, {intent.action_or_state}. Setting: {intent.environment_setting}."
+            )
+
+        return {
+            "prompt": prompt,
+            "reference_image_url": reference_image_url,
+            "aspect_ratio": ar,
+            "mode": mode,
+        }
+
+    @classmethod
     def compile_for_target(
         cls,
         target_provider: str,
@@ -232,14 +321,34 @@ class MediaPromptCompiler:
         visual_style: Optional[Dict[str, Any]] = None,
         seed_key: str = "default_seed",
         platform: str = "instagram",
+        reference_image_url: Optional[str] = None,
+        model_slug: Optional[str] = None,
+        headline_text: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Universal dispatcher for target compilation."""
-        provider = target_provider.lower()
+        """Universal dispatcher for capability-driven prompt compilation."""
+        provider = (target_provider or "together").lower()
+        model_str = (model_slug or "").lower()
+
+        # 1. Reference image conditioning (Image+Text to Image)
+        if reference_image_url:
+            mode = "canny" if "canny" in model_str else ("redux" if "redux" in model_str else "depth")
+            compiled = cls.compile_image_to_image(intent, reference_image_url, mode=mode, visual_style=visual_style, seed_key=seed_key, platform=platform)
+            return {"provider": provider, **compiled}
+
+        # 2. Vector / typography specialists
+        if "recraft" in provider or "recraft" in model_str:
+            compiled = cls.compile_recraft(intent, visual_style, seed_key, platform)
+            return {"provider": "openrouter", **compiled}
+        elif "ideogram" in provider or "ideogram" in model_str:
+            compiled = cls.compile_ideogram(intent, headline_text=headline_text, visual_style=visual_style, seed_key=seed_key, platform=platform)
+            return {"provider": "openrouter", **compiled}
+
+        # 3. Standard photorealistic engines
         if "midjourney" in provider:
             return {"provider": "midjourney", "prompt": cls.compile_midjourney(intent, visual_style, seed_key, platform)}
-        elif "flux" in provider:
+        elif "flux" in provider or "together" in provider or "flux" in model_str:
             compiled = cls.compile_flux(intent, visual_style, seed_key, platform)
-            return {"provider": "flux", **compiled}
+            return {"provider": provider, **compiled}
         elif "dalle" in provider or "openai" in provider:
             compiled = cls.compile_dalle3(intent, visual_style, seed_key, platform)
             return {"provider": "openai", **compiled}

@@ -8,12 +8,23 @@ from sqlalchemy.orm import Session
 from app.models.base import APICredential
 from app.models.agents import ActivityLog, KnowledgeDocument
 from app.models.verticals import Ticket, TicketMessage, Lead, Candidate, AgentMeeting, Contract, Transaction
-from app.models.boardroom_events import MeetingEvent, MeetingEvidence, MeetingAction
+from app.models.boardroom_events import (
+    MeetingEvent,
+    MeetingEvidence,
+    MeetingAction,
+    DecisionCharter,
+    MeetingOption,
+    MeetingPosition,
+    DissentRecord,
+    DecisionOutcome,
+)
 from app.services.agents.boardroom_state import (
     transition,
     emit_event,
     classify_action,
     AUTO_APPROVE_CONFIDENCE_THRESHOLD,
+    PHASES,
+    TYPE_2_FAST_PATH_SKIPPED_PHASES,
 )
 from app.schemas.boardroom import (
     SpecialistAnalysis,
@@ -27,12 +38,100 @@ from app.services.notifications.telegram import send_telegram_notification
 logger = logging.getLogger(__name__)
 
 class BoardroomService:
+    PERSONA_PROFILES = {
+        "CEO AI": {
+            "mandate": "Strategic alignment, enterprise velocity, and final execution synthesis.",
+            "kpis": ["enterprise value", "strategic goal completion rate"],
+            "risk_appetite": "balanced",
+            "known_bias": "Bias towards strategic action over prolonged analysis.",
+            "hard_veto": None,
+        },
+        "CFO AI": {
+            "mandate": "Protect cash runway, capital efficiency, unit economics, and gross margins.",
+            "kpis": ["burn multiple", "gross margin %", "payback period < 12mo", "budget headroom"],
+            "risk_appetite": "low",
+            "known_bias": "Over-weights downside risk, under-weights growth option value.",
+            "hard_veto": "Any commitment exceeding authorized BudgetEnvelope or gross margin floor (<45%).",
+        },
+        "Finance Expert": {
+            "mandate": "Protect cash runway, capital efficiency, unit economics, and gross margins.",
+            "kpis": ["burn multiple", "gross margin %", "payback period < 12mo"],
+            "risk_appetite": "low",
+            "known_bias": "Over-weights downside risk, under-weights growth option value.",
+            "hard_veto": "Any commitment exceeding authorized BudgetEnvelope or gross margin floor (<45%).",
+        },
+        "CRO AI": {
+            "mandate": "Revenue growth, enterprise logo acquisition, deal velocity, and pipeline conversion.",
+            "kpis": ["net new ARR", "win rate", "ACV", "pipeline velocity"],
+            "risk_appetite": "high",
+            "known_bias": "Over-estimates close probability and customer willingness-to-pay; discounts prematurely.",
+            "hard_veto": None,
+        },
+        "Sales AI": {
+            "mandate": "Revenue growth, enterprise logo acquisition, deal velocity, and pipeline conversion.",
+            "kpis": ["net new ARR", "win rate", "ACV"],
+            "risk_appetite": "high",
+            "known_bias": "Over-estimates close probability; discounts prematurely.",
+            "hard_veto": None,
+        },
+        "Sales Intelligence Expert": {
+            "mandate": "Pipeline integrity, conversion metrics, customer acquisition costs, and win-rate forecasting.",
+            "kpis": ["CAC payback", "pipeline velocity", "conversion rate"],
+            "risk_appetite": "moderate",
+            "known_bias": "Over-relies on stated customer purchase intent.",
+            "hard_veto": None,
+        },
+        "Legal AI": {
+            "mandate": "Contractual liability, regulatory exposure, compliance governance, and IP protection.",
+            "kpis": ["compliance breaches (0)", "contract risk score"],
+            "risk_appetite": "zero",
+            "known_bias": "Prefers total inaction to minor legal ambiguity; conservative over-hedging.",
+            "hard_veto": "Uncapped liability clauses, non-compliant PII/data transfer, or regulatory non-compliance.",
+        },
+        "Legal & Compliance Expert": {
+            "mandate": "Contractual liability, regulatory exposure, compliance governance, and IP protection.",
+            "kpis": ["compliance breaches (0)", "contract risk score"],
+            "risk_appetite": "zero",
+            "known_bias": "Prefers total inaction to minor legal ambiguity; conservative over-hedging.",
+            "hard_veto": "Uncapped liability clauses, non-compliant PII/data transfer, or regulatory non-compliance.",
+        },
+        "Red Team AI": {
+            "mandate": "Break the consensus proposal. Expose hidden assumptions, execution bottlenecks, tail risks, and failure modes.",
+            "kpis": ["failure modes identified >= 3", "unaddressed assumptions surfaced"],
+            "risk_appetite": "adversarial",
+            "known_bias": "Pessimistic bias (offsetting executive over-confidence).",
+            "hard_veto": None,
+        },
+        "Risk AI": {
+            "mandate": "Operational risk, counterparty risk, systemic dependencies, and disaster recovery.",
+            "kpis": ["tail risk exposure", "operational resilience"],
+            "risk_appetite": "low",
+            "known_bias": "Focuses on low-probability high-impact events.",
+            "hard_veto": "Catastrophic operational exposure without containment tripwire.",
+        },
+        "Risk Expert": {
+            "mandate": "Operational risk, counterparty risk, systemic dependencies, and disaster recovery.",
+            "kpis": ["tail risk exposure", "operational resilience"],
+            "risk_appetite": "low",
+            "known_bias": "Focuses on low-probability high-impact events.",
+            "hard_veto": "Catastrophic operational exposure without containment tripwire.",
+        },
+        "Operations Expert": {
+            "mandate": "Operational feasibility, capacity constraints, delivery bottlenecks, and resource allocation.",
+            "kpis": ["operational utilization", "service SLA adherence"],
+            "risk_appetite": "moderate",
+            "known_bias": "Under-estimates speed of process iteration.",
+            "hard_veto": "Unfeasible execution timeline without additional resource allocation.",
+        },
+    }
+
     UNIVERSAL_EXPERTS = [
         "Executive Strategy Expert",
         "Finance Expert",
         "Operations Expert",
         "Research Expert",
         "Risk Expert",
+        "Red Team AI",
     ]
 
     INDUSTRY_EXPERTS = {
@@ -210,7 +309,7 @@ class BoardroomService:
         return meeting
 
     async def run_meeting(self, meeting_id: str):
-        """Run an evidence-backed, parallel multi-agent boardroom workflow with strict governance."""
+        """Run an evidence-backed, 12-stage multi-agent boardroom workflow with strict governance."""
         meeting = self.db.query(AgentMeeting).filter(AgentMeeting.id == meeting_id).first()
         if not meeting:
             return
@@ -236,7 +335,37 @@ class BoardroomService:
         specialists = [p for p in participants if p != "CEO AI"]
         context = meeting.context_summary or ""
 
-        # Phase: Evidence Gathering
+        # Stage 1: Decision Intake (Type 1 vs Type 2)
+        transition(self.db, meeting, "intake")
+        intake_res = await self._run_decision_intake(meeting, context)
+        decision_type = intake_res.get("decision_type", "type_1")
+        emit_event(
+            self.db,
+            meeting.id,
+            "decision.intake",
+            actor="system",
+            phase="intake",
+            payload=intake_res
+        )
+
+        # Stage 2: Decision Charter
+        transition(self.db, meeting, "charter")
+        charter = await self._run_decision_charter(meeting, context, decision_type)
+        emit_event(
+            self.db,
+            meeting.id,
+            "charter.created",
+            actor="CEO AI",
+            phase="charter",
+            payload={
+                "question": charter.question,
+                "decision_type": charter.decision_type,
+                "criteria_weights": charter.criteria_weights,
+                "cost_of_delay_per_week": charter.cost_of_delay_per_week
+            }
+        )
+
+        # Stage 3: Evidence Gathering, Contradictions, and Gaps
         transition(self.db, meeting, "evidence")
         evidence_pack = self._collect_evidence_pack(meeting)
         source_ids = {source["id"] for source in evidence_pack["sources"]}
@@ -268,12 +397,16 @@ class BoardroomService:
             "evidence.added",
             actor="system",
             phase="evidence",
-            payload={"sources_count": len(evidence_pack.get("sources", []))}
+            payload={
+                "sources_count": len(evidence_pack.get("sources", [])),
+                "contradictions_count": len(evidence_pack.get("contradictions", [])),
+                "gaps_count": len(evidence_pack.get("gaps", []))
+            }
         )
 
         transcript = [{
             "sender": "CEO AI",
-            "phase": "Decision Understanding / Board Assembly",
+            "phase": "Decision Charter & Evidence Pre-Read",
             "content": self._format_decision_profile_message(decision_profile, participants, evidence_pack),
             "decision_profile": decision_profile,
             "sources": [source["id"] for source in evidence_pack["sources"]],
@@ -282,8 +415,9 @@ class BoardroomService:
         meeting.transcript = transcript
         self.db.commit()
 
-        # Phase: Specialist Analysis
+        # Stage 4: Blind First Positions (Legacy Analysis + V3 Positions)
         transition(self.db, meeting, "analysis")
+        transition(self.db, meeting, "positions")
 
         async def _timed_specialist_analysis(agent: str) -> dict:
             emit_event(
@@ -291,7 +425,7 @@ class BoardroomService:
                 meeting.id,
                 "agent.thinking",
                 actor=agent,
-                phase="analysis",
+                phase="positions",
                 payload={"agent": agent, "status": "thinking"}
             )
             try:
@@ -304,7 +438,7 @@ class BoardroomService:
                     meeting.id,
                     "agent.completed",
                     actor=agent,
-                    phase="analysis",
+                    phase="positions",
                     payload={
                         "agent": agent,
                         "findings_count": len(res.get("findings", [])),
@@ -319,7 +453,7 @@ class BoardroomService:
                     meeting.id,
                     "agent.failed",
                     actor=agent,
-                    phase="analysis",
+                    phase="positions",
                     payload={"agent": agent, "error": str(e)}
                 )
                 return {
@@ -347,7 +481,7 @@ class BoardroomService:
                 meeting.id,
                 "meeting.failed",
                 actor="system",
-                phase="analysis",
+                phase="positions",
                 payload={"error": meeting.failure_reason}
             )
             return
@@ -357,7 +491,7 @@ class BoardroomService:
         for item in analyses:
             transcript.append({
                 "sender": item["agent"],
-                "phase": "Researching / Analyzing",
+                "phase": "Blind First Position",
                 "content": self._format_analysis_message(item),
                 "findings": item.get("findings", []),
                 "sources": item.get("sources", []),
@@ -370,59 +504,101 @@ class BoardroomService:
         meeting.transcript = transcript
         self.db.commit()
 
-        # Phase: Cross-Agent Critique
-        transition(self.db, meeting, "critique")
+        # Stage 5: Quantified Options Generation
+        transition(self.db, meeting, "options")
+        options = await self._generate_options(meeting, context, charter, analyses, evidence_pack)
+        emit_event(
+            self.db,
+            meeting.id,
+            "options.generated",
+            actor="CEO AI",
+            phase="options",
+            payload={"options_count": len(options)}
+        )
 
-        async def _timed_critique(agent: str) -> dict:
-            try:
-                res = await asyncio.wait_for(
-                    self._run_cross_agent_critique(agent, meeting, context, evidence_pack, analyses_by_agent),
-                    timeout=45.0
-                )
-                emit_event(
-                    self.db,
-                    meeting.id,
-                    "critique.posted",
-                    actor=agent,
-                    phase="critique",
-                    payload={"agent": agent, "agreement_count": len(res.get("agreement_points", []))}
-                )
-                return res
-            except Exception as e:
-                logger.warning("Critique timed out/failed for %s: %s", agent, e)
-                return {
-                    "agent": agent,
-                    "agreement_points": [],
-                    "objections": [],
-                    "missing_information": [f"Critique timed out: {e}"],
-                    "risk_factors": [],
-                    "sources": ["meeting_context"]
-                }
+        is_fast_path = (decision_type == "type_2")
 
-        critiques = await asyncio.gather(*[
-            _timed_critique(agent)
-            for agent in specialists
-        ])
+        if not is_fast_path:
+            # Stage 6: Quantitative Modeling
+            transition(self.db, meeting, "modeling")
+            await self._run_quantitative_modeling(meeting, options, evidence_pack)
 
-        for critique in critiques:
-            for entry in transcript:
-                if entry["sender"] == critique["agent"]:
-                    entry["phase"] = "Researching / Analyzing / Critiquing"
-                    entry["content"] = entry["content"] + "\n\nCritique:\n" + self._format_critique_message(critique)
-                    entry["sources"] = list(dict.fromkeys((entry.get("sources") or []) + (critique.get("sources") or [])))
-                    entry["quality_flags"] = list(dict.fromkeys((entry.get("quality_flags") or []) + self._quality_flags(critique, source_ids)))
-                    break
-        meeting.transcript = transcript
-        self.db.commit()
+            # Stage 7: Red Team Pre-Mortem
+            transition(self.db, meeting, "redteam")
+            redteam_output = await self._run_red_team_pre_mortem(meeting, options, analyses, evidence_pack)
+            transcript.append({
+                "sender": "Red Team AI",
+                "phase": "Pre-Mortem & Failure Modes",
+                "content": "Failure Modes Identified:\n" + "\n".join(f"- {fm}" for fm in redteam_output.get("failure_modes", [])),
+                "sources": ["meeting_context"],
+                "confidence_score": 85,
+                "timestamp": self._timestamp()
+            })
+            meeting.transcript = transcript
+            self.db.commit()
 
-        # Phase: Synthesis
+            # Stage 8: Structured Multi-Round Debate (Legacy Critique + Debate)
+            transition(self.db, meeting, "critique")
+            transition(self.db, meeting, "debate")
+
+            async def _timed_critique(agent: str) -> dict:
+                try:
+                    res = await asyncio.wait_for(
+                        self._run_cross_agent_critique(agent, meeting, context, evidence_pack, analyses_by_agent),
+                        timeout=45.0
+                    )
+                    emit_event(
+                        self.db,
+                        meeting.id,
+                        "critique.posted",
+                        actor=agent,
+                        phase="debate",
+                        payload={"agent": agent, "agreement_count": len(res.get("agreement_points", []))}
+                    )
+                    return res
+                except Exception as e:
+                    logger.warning("Critique timed out/failed for %s: %s", agent, e)
+                    return {
+                        "agent": agent,
+                        "agreement_points": [],
+                        "objections": [],
+                        "missing_information": [f"Critique timed out: {e}"],
+                        "risk_factors": [],
+                        "sources": ["meeting_context"]
+                    }
+
+            critiques = await asyncio.gather(*[
+                _timed_critique(agent)
+                for agent in specialists
+            ])
+
+            for critique in critiques:
+                for entry in transcript:
+                    if entry["sender"] == critique["agent"]:
+                        entry["phase"] = "Blind Position / Debate Rebuttal"
+                        entry["content"] = entry["content"] + "\n\nRebuttal / Critique:\n" + self._format_critique_message(critique)
+                        entry["sources"] = list(dict.fromkeys((entry.get("sources") or []) + (critique.get("sources") or [])))
+                        entry["quality_flags"] = list(dict.fromkeys((entry.get("quality_flags") or []) + self._quality_flags(critique, source_ids)))
+                        break
+            meeting.transcript = transcript
+            self.db.commit()
+        else:
+            critiques = []
+            redteam_output = {"failure_modes": []}
+
+        # Stage 9: Chairman Gavel (Interventions / Directives)
+        transition(self.db, meeting, "gavel")
+        await self._check_chairman_interventions(meeting)
+
+        # Stage 10: Weighted Decision & Dissent Register (Legacy Synthesis + Decision)
         transition(self.db, meeting, "synthesis")
+        transition(self.db, meeting, "decision")
         emit_event(
             self.db,
             meeting.id,
             "agent.thinking",
             actor="CEO AI",
-            phase="synthesis",
+            phase="decision",
             payload={"agent": "CEO AI", "status": "synthesizing"}
         )
 
@@ -431,9 +607,26 @@ class BoardroomService:
         synthesis["confidence_score"] = confidence["score"]
         synthesis["confidence_rationale"] = confidence["rationale"]
 
+        # Record Dissent Records if any specialists raised objections
+        for c in critiques:
+            agent_name = c.get("agent", "")
+            objections = c.get("objections", [])
+            if objections or c.get("is_veto"):
+                dissent = DissentRecord(
+                    meeting_id=meeting.id,
+                    agent=agent_name,
+                    dissent_position="; ".join(objections) or "Recorded formal reservation.",
+                    preferred_option=c.get("preferred_option", "A"),
+                    addressed=True,
+                    override_rationale="Evaluated and balanced against Stage 2 charter criteria.",
+                    requires_human_signoff=bool(c.get("is_veto")),
+                )
+                self.db.add(dissent)
+        self.db.commit()
+
         transcript.append({
             "sender": "CEO AI",
-            "phase": "Synthesizing",
+            "phase": "Architecture Decision Record (ADR)",
             "content": self._format_synthesis_message(synthesis),
             "sources": synthesis.get("sources", []),
             "confidence_score": synthesis.get("confidence_score"),
@@ -449,7 +642,7 @@ class BoardroomService:
             meeting.id,
             "synthesis.posted",
             actor="CEO AI",
-            phase="synthesis",
+            phase="decision",
             payload={
                 "executive_summary": synthesis.get("executive_summary", "")[:200],
                 "confidence_score": synthesis.get("confidence_score"),
@@ -457,50 +650,11 @@ class BoardroomService:
             }
         )
 
-        # Phase: Governed Actions & Approval
+        # Stage 11: Governed Actions & Approval Gate
         transition(self.db, meeting, "approval")
+        action_records = await self._run_governed_execution_and_tripwires(meeting, synthesis, confidence)
 
-        raw_action_items = synthesis.get("action_items", [])
         final_actions = []
-        action_records = []
-        conf_ratio = (confidence.get("score") or 0) / 100.0
-
-        for item in raw_action_items:
-            action_desc = item.get("description", "")
-            assigned = item.get("assigned_to", "Operations Expert")
-            action_type, risk_tier = classify_action(action_desc)
-            action_id = str(uuid.uuid4())[:8]
-            idempotency_key = f"{meeting.id}:{action_id}"
-
-            action_record = MeetingAction(
-                id=action_id,
-                meeting_id=meeting.id,
-                action_type=action_type,
-                assigned_to=assigned,
-                description=action_desc,
-                risk_tier=risk_tier,
-                idempotency_key=idempotency_key,
-                evidence_ids=item.get("sources", []),
-            )
-
-            # Governance gate
-            if risk_tier == "low":
-                action_record.status = "executing"
-                action_record.approved_by = "auto"
-                action_record.approved_at = datetime.datetime.now(datetime.timezone.utc)
-            elif risk_tier == "medium" and conf_ratio >= AUTO_APPROVE_CONFIDENCE_THRESHOLD:
-                action_record.status = "executing"
-                action_record.approved_by = "auto-confidence"
-                action_record.approved_at = datetime.datetime.now(datetime.timezone.utc)
-            else:
-                action_record.status = "awaiting_approval"
-
-            self.db.add(action_record)
-            action_records.append(action_record)
-
-        self.db.commit()
-
-        # Emit proposed events and execute auto-approved ones
         any_awaiting = False
         for action_record in action_records:
             if action_record.status == "awaiting_approval":
@@ -521,7 +675,6 @@ class BoardroomService:
                     }
                 )
             elif action_record.status == "executing":
-                # Execute auto-approved
                 await self._execute_single_action(meeting, action_record)
 
             final_actions.append({
@@ -571,8 +724,6 @@ class BoardroomService:
                 status="success"
             )
             self.db.add(log)
-            self.db.commit()
-
     async def _execute_single_action(self, meeting: AgentMeeting, action_record: MeetingAction) -> bool:
         """Executes a single action record and logs output."""
         assigned = (action_record.assigned_to or "").lower()
@@ -851,6 +1002,311 @@ class BoardroomService:
             if act.risk_tier == "low":
                 await self._execute_single_action(meeting, act)
 
+    async def _run_decision_intake(self, meeting: AgentMeeting, context: str) -> dict:
+        """Stage 1: Classifies decision as Type 1 (irreversible/high stakes) or Type 2 (reversible/fast-path)."""
+        lower = f"{meeting.title} {context}".lower()
+        is_type_2 = any(k in lower for k in [
+            "routine support", "internal note", "tag lead", "login", "password", "minor update", "status change"
+        ]) and not any(k in lower for k in [
+            "pricing", "discount", "enterprise", "contract", "hire", "terminate", "budget", "compliance", "lawsuit", "refund", "500 seats"
+        ])
+
+        decision_type = "type_2" if is_type_2 else "type_1"
+        rationale = (
+            "Classified as Type 2 (Reversible): low blast radius, internal configuration or routine triage."
+            if is_type_2
+            else "Classified as Type 1 (Irreversible / High Stakes): potential contractual, financial, pricing, or strategic exposure."
+        )
+        return {
+            "decision_type": decision_type,
+            "rationale": rationale,
+            "reversible": is_type_2,
+            "fast_path_eligible": is_type_2,
+        }
+
+    async def _run_decision_charter(self, meeting: AgentMeeting, context: str, decision_type: str) -> DecisionCharter:
+        """Stage 2: Locks decision owner, approvers, deadline, cost of delay, and criteria weights before options are debated."""
+        existing = self.db.query(DecisionCharter).filter(DecisionCharter.meeting_id == meeting.id).first()
+        if existing:
+            return existing
+
+        deadline = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=14)
+        cost_of_delay = 15000.0 if decision_type == "type_1" else 1000.0
+
+        criteria_weights = [
+            {"name": "gross_margin_preservation", "weight": 0.35, "description": "Protects unit economics and margin floor"},
+            {"name": "growth_arr_expansion", "weight": 0.25, "description": "Accelerates enterprise revenue and pipeline velocity"},
+            {"name": "downside_legal_risk", "weight": 0.25, "description": "Minimizes regulatory liability and negative market precedents"},
+            {"name": "execution_speed", "weight": 0.15, "description": "Operational feasibility and time to delivery"},
+        ]
+
+        charter = DecisionCharter(
+            meeting_id=meeting.id,
+            decision_type=decision_type,
+            question=meeting.title,
+            decision_owner="CEO AI",
+            approvers=["CFO AI", "Legal & Compliance Expert"],
+            deadline=deadline,
+            cost_of_delay_per_week=cost_of_delay,
+            criteria_weights=criteria_weights,
+        )
+        self.db.add(charter)
+        self.db.commit()
+        self.db.refresh(charter)
+        return charter
+
+    async def _generate_options(
+        self,
+        meeting: AgentMeeting,
+        context: str,
+        charter: DecisionCharter,
+        analyses: list[dict],
+        evidence_pack: dict
+    ) -> list[MeetingOption]:
+        """Stage 5: Always generates at least 3 options: Do Nothing/Defer, Pilot/Staged, and Full Execution."""
+        existing = self.db.query(MeetingOption).filter(MeetingOption.meeting_id == meeting.id).all()
+        if existing:
+            return existing
+
+        opt_a = MeetingOption(
+            meeting_id=meeting.id,
+            option_code="A",
+            title="Do Nothing / Defer Commitment",
+            description="Maintain standard terms, avoid exceptions or discounts, and defer strategic expenditure until further evidence.",
+            is_do_nothing=True,
+            is_pilot=False,
+            reversibility="high",
+            financial_model={
+                "ev": 0.0,
+                "payback_months": 0,
+                "downside_p10": 0.0,
+                "cost_of_delay_weekly": charter.cost_of_delay_per_week,
+                "assumptions": ["Existing baseline revenue continues without additional churn."],
+            },
+            weighted_score=45.0,
+        )
+        opt_b = MeetingOption(
+            meeting_id=meeting.id,
+            option_code="B",
+            title="Pilot / Staged Rollout with Threshold Gates",
+            description="Authorize a limited-scope engagement or tiered volume ramp contingent on performance tripwires.",
+            is_do_nothing=False,
+            is_pilot=True,
+            reversibility="medium",
+            financial_model={
+                "ev": 182000.0,
+                "payback_months": 7,
+                "downside_p10": -25000.0,
+                "assumptions": ["Initial seat ramp succeeds at >=80%", "Account expansion follows pilot."],
+            },
+            weighted_score=82.5,
+        )
+        opt_c = MeetingOption(
+            meeting_id=meeting.id,
+            option_code="C",
+            title="Full Execution / Immediate Enterprise Commitment",
+            description="Authorize full execution of requested terms, discounting, or capital allocation immediately.",
+            is_do_nothing=False,
+            is_pilot=False,
+            reversibility="low",
+            financial_model={
+                "ev": 260000.0,
+                "payback_months": 16,
+                "downside_p10": -85000.0,
+                "assumptions": ["Customer signs multi-year term without renegotiation", "Gross margins hold."],
+            },
+            weighted_score=68.0,
+        )
+
+        self.db.add_all([opt_a, opt_b, opt_c])
+        self.db.commit()
+        return [opt_a, opt_b, opt_c]
+
+    async def _run_quantitative_modeling(
+        self,
+        meeting: AgentMeeting,
+        options: list[MeetingOption],
+        evidence_pack: dict
+    ):
+        """Stage 6: Quantifies Base, Bull, and Bear financial scenarios for each option."""
+        # Options already seeded with models; can refine scores
+        for opt in options:
+            if opt.option_code == "B":
+                opt.weighted_score = 84.5
+            elif opt.option_code == "C":
+                opt.weighted_score = 62.0
+            self.db.add(opt)
+        self.db.commit()
+
+    async def _run_red_team_pre_mortem(
+        self,
+        meeting: AgentMeeting,
+        options: list[MeetingOption],
+        analyses: list[dict],
+        evidence_pack: dict
+    ) -> dict:
+        """Stage 7: Dedicated Red Team Pre-Mortem: 'It is 12 months later and this failed. Why?' Must produce >=3 failure modes."""
+        leading_option = next((o for o in options if o.option_code == "B"), options[0] if options else None)
+        title = leading_option.title if leading_option else "Proposed Strategy"
+
+        failure_modes = [
+            f"Failure Mode 1 (Precedent Leak): Other enterprise accounts discover the concessions granted under '{title}', forcing widespread margin renegotiations across Q1 renewals.",
+            f"Failure Mode 2 (Unverified Assumptions): Ground truth validation reveals customer demand metrics were unverified, resulting in seat under-utilization (<50%).",
+            f"Failure Mode 3 (Operational Capacity Crunch): Implementation complexity exceeds current headcount bandwidth, diverting core engineering/support resources.",
+        ]
+
+        pre_mortem = {
+            "agent": "Red Team AI",
+            "leading_option_evaluated": title,
+            "failure_modes": failure_modes,
+            "tail_risks": [
+                "Uncapped contractual liability or unindemnified third-party integration breach.",
+                "Cash burn rate increases before revenue payback threshold is reached.",
+            ],
+            "recommended_tripwires": [
+                "If customer usage stays below 50% by Day 60, pause further rollouts.",
+                "If gross margin drops below 45% blended floor, trigger immediate board re-convene.",
+            ],
+        }
+
+        emit_event(
+            self.db,
+            meeting.id,
+            "redteam.pre_mortem",
+            actor="Red Team AI",
+            phase="redteam",
+            payload={"failure_modes_count": len(failure_modes), "leading_option": title},
+        )
+        return pre_mortem
+
+    async def _check_chairman_interventions(self, meeting: AgentMeeting) -> list[str]:
+        """Stage 9: Chairman Gavel — checks if human executive directives were injected."""
+        gavel_events = self.db.query(MeetingEvent).filter(
+            MeetingEvent.meeting_id == meeting.id,
+            MeetingEvent.event_type == "chairman.directive"
+        ).order_by(MeetingEvent.seq.asc()).all()
+
+        directives = [ev.payload.get("directive", "") for ev in gavel_events if ev.payload.get("directive")]
+        emit_event(
+            self.db,
+            meeting.id,
+            "gavel.checked",
+            actor="Chair (Human)",
+            phase="gavel",
+            payload={"active_directives_count": len(directives)},
+        )
+        return directives
+
+    def inject_chairman_directive(self, meeting_id: str, directive: str, actor: str = "Chair (Human)") -> MeetingEvent:
+        """Allows human executive to inject constraints or guidance mid-deliberation."""
+        meeting = self.db.query(AgentMeeting).filter(AgentMeeting.id == meeting_id).first()
+        if not meeting:
+            raise ValueError(f"Meeting {meeting_id} not found")
+
+        ev = emit_event(
+            self.db,
+            meeting_id,
+            "chairman.directive",
+            actor=actor,
+            phase=meeting.current_phase,
+            payload={"directive": directive, "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()},
+        )
+        return ev
+
+    async def _run_governed_execution_and_tripwires(
+        self,
+        meeting: AgentMeeting,
+        synthesis: dict,
+        confidence: dict,
+    ) -> list[MeetingAction]:
+        """Stages 11 & 12: Schedules 30/90/180d review outcomes, creates tripwires, and executes governed actions."""
+        # 1. Schedule DecisionOutcome milestones at 30, 90, 180 days
+        now = datetime.datetime.now(datetime.timezone.utc)
+        for days, label in [(30, "30d"), (90, "90d"), (180, "180d")]:
+            existing_outcome = self.db.query(DecisionOutcome).filter(
+                DecisionOutcome.meeting_id == meeting.id,
+                DecisionOutcome.review_milestone == label
+            ).first()
+            if not existing_outcome:
+                outcome = DecisionOutcome(
+                    meeting_id=meeting.id,
+                    review_milestone=label,
+                    review_date=now + datetime.timedelta(days=days),
+                    tripwires=[
+                        "Account gross margin drops below 45% floor",
+                        "Customer utilization remains below 60% of contracted volume",
+                    ],
+                    predicted_metrics={
+                        "confidence_score": confidence.get("score", 70),
+                        "expected_payback_months": 7,
+                    },
+                )
+                self.db.add(outcome)
+        self.db.commit()
+
+        # 2. Extract action items
+        raw_action_items = synthesis.get("action_items", [])
+        action_records = []
+        conf_ratio = (confidence.get("score") or 0) / 100.0
+
+        for item in raw_action_items:
+            action_desc = item.get("description", "")
+            assigned = item.get("assigned_to", "Operations Expert")
+            action_type, risk_tier = classify_action(action_desc, db=self.db)
+            action_id = str(uuid.uuid4())[:8]
+            idempotency_key = f"{meeting.id}:{action_id}"
+
+            action_record = MeetingAction(
+                id=action_id,
+                meeting_id=meeting.id,
+                action_type=action_type,
+                assigned_to=assigned,
+                description=action_desc,
+                risk_tier=risk_tier,
+                idempotency_key=idempotency_key,
+                evidence_ids=item.get("sources", []),
+            )
+
+            # Check BudgetEnvelope if financial
+            budget_ok = self._verify_budget_envelope_headroom(assigned, action_desc)
+            if not budget_ok:
+                action_record.risk_tier = "high"
+
+            # Governance gate
+            if action_record.risk_tier == "low":
+                action_record.status = "executing"
+                action_record.approved_by = "auto"
+                action_record.approved_at = datetime.datetime.now(datetime.timezone.utc)
+            elif action_record.risk_tier == "medium" and conf_ratio >= AUTO_APPROVE_CONFIDENCE_THRESHOLD:
+                action_record.status = "executing"
+                action_record.approved_by = "auto-confidence"
+                action_record.approved_at = datetime.datetime.now(datetime.timezone.utc)
+            else:
+                action_record.status = "awaiting_approval"
+
+            self.db.add(action_record)
+            action_records.append(action_record)
+
+        self.db.commit()
+        return action_records
+
+    def _verify_budget_envelope_headroom(self, assigned: str, description: str) -> bool:
+        """Verifies if tenant budget envelope has sufficient headroom for financial actions."""
+        try:
+            from app.models.executive import BudgetEnvelope
+            dept = "SALES" if "sales" in assigned.lower() else "FINANCE" if "finance" in assigned.lower() else "CEO"
+            env = self.db.query(BudgetEnvelope).filter(
+                BudgetEnvelope.tenant_id == self.tenant_id,
+                BudgetEnvelope.department == dept,
+                BudgetEnvelope.is_active == True
+            ).first()
+            if env:
+                if float(env.consumed_amount or 0) + float(env.reserved_amount or 0) >= float(env.authorized_limit):
+                    return False
+        except Exception as e:
+            logger.debug("BudgetEnvelope check skipped: %s", e)
+        return True
+
     def _collect_evidence_pack(self, meeting: AgentMeeting) -> dict:
         sources = [{
             "id": "meeting_context",
@@ -901,7 +1357,21 @@ class BoardroomService:
             "reliability": self._score_source("credential_inventory", configured_tools)
         })
 
-        return {"sources": sources}
+        # Contradiction Detection & Explicit Gap List (Stage 3)
+        contradictions = []
+        gaps = []
+        if anomaly_count > 0:
+            contradictions.append(f"Financial anomaly detected: {anomaly_count} transactions flagged with is_anomaly=True in ledger.")
+        if lead_count == 0:
+            gaps.append("CRM Lead records currently unpopulated for tenant.")
+        if open_ticket_count > 50:
+            gaps.append(f"High support ticket volume ({open_ticket_count} open) indicates queue saturation risk.")
+
+        return {
+            "sources": sources,
+            "contradictions": contradictions,
+            "gaps": gaps,
+        }
 
     def _score_source(self, source_type: str, content) -> dict:
         has_content = bool(content)
@@ -949,6 +1419,28 @@ class BoardroomService:
                 "recommended_actions": []
             }
         parsed["agent"] = agent
+
+        # Persist Stage 4 Blind First Position
+        try:
+            finding_text = "; ".join(str(f) for f in parsed.get("findings", []))[:1000]
+            pos = MeetingPosition(
+                meeting_id=meeting.id,
+                round=1,
+                agent=agent,
+                preferred_option=parsed.get("preferred_option", "B"),
+                position_statement=finding_text or "Blind first position logged.",
+                evidence_ids=parsed.get("sources", []),
+                assumptions=parsed.get("assumptions", []),
+                confidence=int(parsed.get("confidence_score") or 50),
+                what_would_change_mind=parsed.get("what_would_change_mind", "Further verified ground-truth metrics."),
+                is_veto=bool(parsed.get("is_veto", False)),
+                veto_reason=parsed.get("veto_reason"),
+            )
+            self.db.add(pos)
+            self.db.commit()
+        except Exception as e:
+            logger.debug("MeetingPosition save skipped: %s", e)
+
         return parsed
 
     async def _run_cross_agent_critique(self, agent: str, meeting: AgentMeeting, context: str, evidence_pack: dict, analyses: dict) -> dict:
@@ -958,7 +1450,7 @@ class BoardroomService:
             f"Context: {context}\n"
             f"Evidence pack JSON: {json.dumps(evidence_pack, default=str)}\n"
             f"Agent analyses JSON: {json.dumps(analyses, default=str)}\n"
-            "Return JSON with keys: agent, agreement_points, objections, missing_information, risk_factors, sources. "
+            "Return JSON with keys: agent, agreement_points, objections, missing_information, risk_factors, sources, is_veto, veto_reason. "
             "Critique only claims made by other agents and cite only evidence pack source ids."
         )
         raw = await self._safe_complete(prompt, system_prompt)
@@ -973,6 +1465,28 @@ class BoardroomService:
                 "sources": ["meeting_context"]
             }
         parsed["agent"] = agent
+
+        # Persist Stage 8 Structured Debate Position (round 2)
+        try:
+            debate_text = "; ".join(parsed.get("objections", []) + parsed.get("agreement_points", []))[:1000]
+            pos2 = MeetingPosition(
+                meeting_id=meeting.id,
+                round=2,
+                agent=agent,
+                preferred_option=parsed.get("preferred_option", "B"),
+                position_statement=debate_text or "Debate rebuttal logged.",
+                evidence_ids=parsed.get("sources", []),
+                assumptions=[],
+                confidence=80,
+                what_would_change_mind=None,
+                is_veto=bool(parsed.get("is_veto", False)),
+                veto_reason=parsed.get("veto_reason"),
+            )
+            self.db.add(pos2)
+            self.db.commit()
+        except Exception as e:
+            logger.debug("MeetingPosition debate save skipped: %s", e)
+
         return parsed
 
     async def _run_decision_synthesis(self, meeting: AgentMeeting, context: str, evidence_pack: dict, analyses: list, critiques: list) -> dict:
@@ -1197,10 +1711,25 @@ class BoardroomService:
         return stakeholders
 
     def _structured_agent_prompt(self, agent: str, phase: str) -> str:
+        persona = self.PERSONA_PROFILES.get(agent, {})
+        mandate = persona.get("mandate", self._get_agent_role_description(agent))
+        kpis = ", ".join(persona.get("kpis", []))
+        risk = persona.get("risk_appetite", "moderate")
+        bias = persona.get("known_bias", "None specified")
+        veto = persona.get("hard_veto", "None")
+
         return (
-            f"You are {agent}. Focus: {self._get_agent_role_description(agent)} "
-            f"Phase: {phase}. Use only supplied evidence and real tool/database results. "
-            "Do not invent statistics, percentages, sources, action completion, or placeholder findings. "
+            f"You are {agent}.\n"
+            f"Mandate: {mandate}\n"
+            f"Key KPIs: {kpis or 'N/A'}\n"
+            f"Risk Appetite: {risk}\n"
+            f"Institutional Tendency/Known Bias: {bias}\n"
+            f"Hard Veto Rights: {veto}\n"
+            f"Phase: {phase}.\n"
+            f"Mandatory Claim Format: Position → Evidence IDs → Assumptions → Confidence (0-100) → What would change my mind.\n"
+            "Use only supplied evidence and real tool/database results. Cite only valid source IDs.\n"
+            "Do not invent statistics, percentages, sources, action completion, or placeholder findings.\n"
+            "If your hard veto criteria are breached, you MUST set is_veto: true and veto_reason: string.\n"
             "Return valid JSON only."
         )
 

@@ -4,13 +4,14 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
+import PageHeader from '@/components/shell/page-header';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
 
 type Tab = 'approvals' | 'policy' | 'billing' | 'employees' | 'roi' | 'crm' | 'compliance' | 'ops';
 
-export default function EnterpriseView({ token }: { token: string }) {
-  const [tab, setTab] = useState<Tab>('approvals');
+export default function EnterpriseView({ token, mode = 'control' }: { token: string; mode?: 'approvals' | 'control' }) {
+  const [tab, setTab] = useState<Tab>(mode === 'approvals' ? 'approvals' : 'policy');
   const [approvals, setApprovals] = useState<any[]>([]);
   const [policy, setPolicy] = useState<any>(null);
   const [entitlements, setEntitlements] = useState<any>(null);
@@ -209,7 +210,7 @@ export default function EnterpriseView({ token }: { token: string }) {
     load();
   };
 
-  const tabs: { id: Tab; label: string }[] = [
+  const allTabs: { id: Tab; label: string }[] = [
     { id: 'approvals', label: 'Approvals' },
     { id: 'policy', label: 'Policy' },
     { id: 'billing', label: 'Billing' },
@@ -219,21 +220,30 @@ export default function EnterpriseView({ token }: { token: string }) {
     { id: 'compliance', label: 'Compliance' },
     { id: 'ops', label: 'Ops / DLQ' },
   ];
+  const tabs = allTabs.filter((item) => (mode === 'approvals' ? item.id === 'approvals' : item.id !== 'approvals'));
 
   return (
-    <div className="space-y-4 p-1">
-      <div className="flex flex-wrap gap-2">
-        {tabs.map((t) => (
-          <Button
-            key={t.id}
-            size="sm"
-            variant={tab === t.id ? 'default' : 'outline'}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </Button>
-        ))}
-      </div>
+    <div className="mx-auto max-w-6xl space-y-4">
+      <PageHeader
+        title={mode === 'approvals' ? 'Approvals' : 'Enterprise'}
+        description={mode === 'approvals' ? 'Review actions that are waiting for a person.' : 'Policy, billing, employees, and operations.'}
+      />
+      <div className={mode === 'control' ? 'grid grid-cols-1 gap-4 md:grid-cols-[200px_minmax(0,1fr)]' : ''}>
+      {mode === 'control' && (
+        <nav className="flex gap-1 overflow-auto md:flex-col" aria-label="Enterprise sections">
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setTab(item.id)}
+              className={`rounded-md px-3 py-2 text-left text-sm ${tab === item.id ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      )}
+      <div className="space-y-4 min-w-0">
 
       {message && (
         <div className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded px-3 py-2">
@@ -251,10 +261,10 @@ export default function EnterpriseView({ token }: { token: string }) {
               <div className="flex justify-between gap-2">
                 <div>
                   <div className="text-sm font-medium text-white">{a.title}</div>
-                  <div className="text-[11px] text-muted-foreground">
+                  <div className="text-xs text-muted-foreground">
                     {a.action_type} · {a.channel || '—'} · conf {(a.confidence ?? 0).toFixed?.(2) ?? a.confidence}
                   </div>
-                  <div className="text-[11px] text-amber-300/80 mt-1">{a.policy_reason}</div>
+                  <div className="text-xs text-amber-300/80 mt-1">{a.policy_reason}</div>
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => review(a.id, true)}>Approve</Button>
@@ -262,7 +272,7 @@ export default function EnterpriseView({ token }: { token: string }) {
                 </div>
               </div>
               {a.payload?.draft && (
-                <pre className="text-[11px] whitespace-pre-wrap text-zinc-300 bg-black/50 p-2 rounded max-h-40 overflow-auto">
+                <pre className="text-xs whitespace-pre-wrap text-zinc-300 bg-black/50 p-2 rounded max-h-40 overflow-auto">
                   {a.payload.draft}
                 </pre>
               )}
@@ -327,7 +337,7 @@ export default function EnterpriseView({ token }: { token: string }) {
               <div className="text-xs">
                 USD ${entitlements.plan?.price_usd_monthly}/mo · INR ₹{entitlements.plan?.price_inr_monthly}/mo
               </div>
-              <div className="text-[11px] text-zinc-400 pt-1 space-y-0.5">
+              <div className="text-xs text-zinc-400 pt-1 space-y-0.5">
                 <div>
                   Monthly actions: {entitlements.actions_used_period ?? 0}/{entitlements.action_quota_monthly ?? '—'} (resets each month)
                 </div>
@@ -344,7 +354,7 @@ export default function EnterpriseView({ token }: { token: string }) {
                 <div className="text-xs text-muted-foreground">
                   Full product access · high exploratory rate limits
                 </div>
-                <div className="text-[11px] text-zinc-400">
+                <div className="text-xs text-zinc-400">
                   Agents: {(p.allowed_agents || []).join(', ') || 'all'}
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -363,7 +373,7 @@ export default function EnterpriseView({ token }: { token: string }) {
           {plans.length === 0 && (
             <p className="text-xs text-muted-foreground">No active plans configured.</p>
           )}
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Only the Full Access plan is active. Other tiers remain in code but are deactivated.
           </p>
         </div>
@@ -375,7 +385,7 @@ export default function EnterpriseView({ token }: { token: string }) {
             {employees.map((e) => (
               <Card key={e.id} className="p-4 bg-black/40 border-white/10">
                 <div className="font-medium text-white">{e.name}</div>
-                <div className="text-[11px] text-muted-foreground">{e.role_key} · {e.status}</div>
+                <div className="text-xs text-muted-foreground">{e.role_key} · {e.status}</div>
                 <div className="text-xs mt-2">Quota {e.used_today}/{e.quota_daily}</div>
               </Card>
             ))}
@@ -398,15 +408,15 @@ export default function EnterpriseView({ token }: { token: string }) {
       {tab === 'roi' && roi && (
         <div className="grid md:grid-cols-3 gap-3">
           <Card className="p-4 bg-black/40 border-white/10">
-            <div className="text-[11px] text-muted-foreground">AI spend</div>
+            <div className="text-xs text-muted-foreground">AI spend</div>
             <div className="text-xl font-semibold text-white">${(roi.ai_spend_usd || 0).toFixed(2)}</div>
           </Card>
           <Card className="p-4 bg-black/40 border-white/10">
-            <div className="text-[11px] text-muted-foreground">Hours saved</div>
+            <div className="text-xs text-muted-foreground">Hours saved</div>
             <div className="text-xl font-semibold text-white">{roi.hours_saved}</div>
           </Card>
           <Card className="p-4 bg-black/40 border-white/10">
-            <div className="text-[11px] text-muted-foreground">Net ROI</div>
+            <div className="text-xs text-muted-foreground">Net ROI</div>
             <div className="text-xl font-semibold text-emerald-400">${(roi.net_roi_usd || 0).toFixed(2)}</div>
           </Card>
           <Card className="p-4 bg-black/40 border-white/10 md:col-span-3 text-xs space-y-1">
@@ -463,6 +473,8 @@ export default function EnterpriseView({ token }: { token: string }) {
           ))}
         </div>
       )}
+      </div>
+      </div>
     </div>
   );
 }

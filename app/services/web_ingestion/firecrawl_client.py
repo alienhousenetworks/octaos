@@ -7,15 +7,65 @@ Provides enterprise-grade web page scraping and multi-page site crawling with:
 4. Structured markdown normalization and robust retries
 """
 import os
+import re
 import socket
 import logging
 import ipaddress
 from urllib.parse import urlparse
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 logger = logging.getLogger(__name__)
+
+_HOST_LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
+_URL_HELP = "Enter a website URL such as https://example.com."
+
+
+def _retry_unless_rejected(exc: BaseException) -> bool:
+    """Retry transient crawl failures. A rejected URL will not succeed on retry."""
+    return not isinstance(exc, ValueError)
+
+
+def _require_public_host(hostname: str) -> None:
+    """Reject sentences, single labels, and non-public addresses before any crawl."""
+    raw = hostname.strip().lower().rstrip(".")
+    try:
+        ip = ipaddress.ip_address(raw)
+    except ValueError:
+        ip = None
+    if ip is not None:
+        if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+            raise ValueError(f"URL resolves to disallowed private network IP: {ip}")
+        return
+
+    try:
+        ascii_host = raw.encode("idna").decode("ascii")
+    except UnicodeError as exc:
+        raise ValueError(f"{_URL_HELP} That text is not a web address.") from exc
+
+    labels = ascii_host.split(".")
+    if len(labels) < 2 or any(not _HOST_LABEL.match(label) for label in labels):
+        raise ValueError(f"{_URL_HELP} That text is not a web address.")
+    tld = labels[-1]
+    if not tld.isalpha() or len(tld) < 2:
+        raise ValueError(f"{_URL_HELP} The address needs a domain such as .com.")
+
+
+def crawl_error_message(message: Optional[str]) -> Optional[str]:
+    """Hide vendor URL-validation payloads. Callers show this string to the user."""
+    if not message:
+        return None
+    if "Invalid URL" in message or "invalid_format" in message or "valid top-level domain" in message:
+        return f"{_URL_HELP} That address cannot be crawled."
+    return message
+
+
+def _reject_firecrawl_url_error(url: str, exc: Exception) -> None:
+    text = str(exc)
+    friendly = crawl_error_message(text)
+    if friendly != text:
+        raise ValueError(friendly) from exc
 
 
 def validate_target_url(url: str) -> str:
@@ -24,6 +74,9 @@ def validate_target_url(url: str) -> str:
         raise ValueError("URL must be a non-empty string.")
 
     cleaned_url = url.strip()
+    if any(ch.isspace() for ch in cleaned_url):
+        raise ValueError(f"{_URL_HELP} A sentence cannot be crawled.")
+
     parsed_initial = urlparse(cleaned_url)
     if parsed_initial.scheme and parsed_initial.scheme.lower() not in ("http", "https"):
         raise ValueError(f"Disallowed URL scheme: '{parsed_initial.scheme}'. Only HTTP and HTTPS are permitted.")
@@ -40,6 +93,8 @@ def validate_target_url(url: str) -> str:
     if hostname.lower() in ("localhost", "127.0.0.1", "::1", "metadata.google.internal", "169.254.169.254"):
         raise ValueError("Crawling internal loopback or cloud metadata services is prohibited.")
 
+    _require_public_host(hostname)
+
     # Resolve IP address to detect DNS rebinding or private subnet targets
     try:
         ip_str = socket.gethostbyname(hostname)
@@ -47,7 +102,7 @@ def validate_target_url(url: str) -> str:
         if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved:
             raise ValueError(f"URL resolves to disallowed private network IP: {ip_str}")
     except (socket.gaierror, UnicodeError) as e:
-        # If hostname resolution fails here, let the crawl client attempt it or raise informative error
+        # A well-formed public name can fail local DNS and still be crawled upstream.
         logger.debug(f"Host resolution check for {hostname}: {e}")
 
     return cleaned_url
@@ -87,7 +142,12 @@ class FirecrawlClient:
             kwargs["api_url"] = self.api_url
         return FirecrawlApp(**kwargs)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception(_retry_unless_rejected),
+        reraise=True,
+    )
     def scrape_url(self, url: str) -> Dict[str, Any]:
         """Scrape a single web page and return clean markdown and metadata."""
         safe_url = validate_target_url(url)
@@ -116,6 +176,7 @@ class FirecrawlClient:
             }
         except Exception as e:
             logger.error(f"Firecrawl scrape failed for {safe_url}: {e}")
+            _reject_firecrawl_url_error(safe_url, e)
             raise
 
     def crawl_website(
@@ -180,4 +241,5 @@ class FirecrawlClient:
             return results
         except Exception as e:
             logger.error(f"Firecrawl crawl failed for {safe_url}: {e}")
+            _reject_firecrawl_url_error(safe_url, e)
             raise

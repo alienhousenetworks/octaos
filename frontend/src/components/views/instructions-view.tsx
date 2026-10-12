@@ -1,6 +1,9 @@
 'use client';
 
+import { notify } from '@/lib/notify';
+
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -8,23 +11,23 @@ import { BookOpen, Zap, Search, Users, Cpu, MessageSquare, Briefcase, FileText, 
 
 interface InstructionsViewProps {
   configuredProviders: string[];
-  setIsKeyDialogOpen: (open: boolean) => void;
-  setKeyProvider: (provider: string) => void;
+  setIsKeyDialogOpen?: (open: boolean) => void;
+  setKeyProvider?: (provider: string) => void;
   API_URL: string;
   tenantId: string | null;
 }
 
 export default function InstructionsView({
   configuredProviders,
-  setIsKeyDialogOpen,
-  setKeyProvider,
   API_URL,
   tenantId,
 }: InstructionsViewProps) {
+  const router = useRouter();
+  const openIntegrations = () => router.push('/app/settings/integrations');
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-16 animate-in fade-in duration-300">
       <div>
-        <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-3">
+        <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-3">
           <BookOpen className="text-violet-500 h-9 w-9" /> Platform Setup & API Connection Guide
         </h1>
         <p className="text-gray-400 mt-1">Get your autonomous AI workspace connected, configured, and running in minutes.</p>
@@ -56,7 +59,7 @@ export default function InstructionsView({
 
               {/* Step 1 */}
               <div className="flex gap-6 relative">
-                <div className="h-9 w-9 rounded-full bg-violet-600 border-2 border-gray-950 flex items-center justify-center font-extrabold text-white text-sm shadow-lg z-10">
+                <div className="h-9 w-9 rounded-full bg-violet-600 border-2 border-gray-950 flex items-center justify-center font-semibold text-white text-sm shadow-lg z-10">
                   1
                 </div>
                 <div className="flex-1 space-y-1.5 pt-0.5">
@@ -69,33 +72,33 @@ export default function InstructionsView({
 
               {/* Step 2 */}
               <div className="flex gap-6 relative">
-                <div className="h-9 w-9 rounded-full bg-violet-600 border-2 border-gray-950 flex items-center justify-center font-extrabold text-white text-sm shadow-lg z-10">
+                <div className="h-9 w-9 rounded-full bg-violet-600 border-2 border-gray-950 flex items-center justify-center font-semibold text-white text-sm shadow-lg z-10">
                   2
                 </div>
                 <div className="flex-1 space-y-1.5 pt-0.5">
                   <h4 className="font-bold text-white text-base">Connect Your API Keys</h4>
                   <p className="text-gray-300 text-xs leading-relaxed">
-                    Open the <strong className="text-violet-400">API Provider Setup</strong> tab above. Check which services your pack needs (e.g. Meta Graph for Instagram, Apollo.io for B2B sales email). Click <strong className="text-violet-400 font-bold">API Settings</strong> in the top-right header, select the provider, paste your key, and click Save. Check if the status badge on the provider card turns <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-bold">● Connected</span>.
+                    Open the <strong className="text-violet-400">API Provider Setup</strong> tab above. Check which services your pack needs (e.g. Meta Graph for Instagram, Apollo.io for B2B sales email). Click <strong className="text-violet-400 font-bold">API Settings</strong> in the top-right header, select the provider, paste your key, and click Save. Check if the status badge on the provider card turns <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 px-2 py-0.5 rounded text-xs font-bold">● Connected</span>.
                   </p>
                 </div>
               </div>
 
               {/* Step 3 */}
               <div className="flex gap-6 relative">
-                <div className="h-9 w-9 rounded-full bg-pink-600 border-2 border-gray-950 flex items-center justify-center font-extrabold text-white text-sm shadow-lg z-10">
+                <div className="h-9 w-9 rounded-full bg-pink-600 border-2 border-gray-950 flex items-center justify-center font-semibold text-white text-sm shadow-lg z-10">
                   3
                 </div>
                 <div className="flex-1 space-y-1.5 pt-0.5">
                   <h4 className="font-bold text-white text-base">Instruct the Orchestrator AI</h4>
                   <p className="text-gray-300 text-xs leading-relaxed">
-                    Navigate to <strong className="text-violet-400">Orchestrator AI</strong> from the sidebar. Ask the AI to perform a task utilizing your installed pack. For example: <code className="bg-gray-950 px-2 py-1 rounded text-pink-400 text-[11px] font-mono">"Run the Restaurant Growth Pack to post our specials on Instagram today"</code>. The AI will look at your active integrations, generate the content draft, and process the request!
+                    Navigate to <strong className="text-violet-400">Orchestrator AI</strong> from the sidebar. Ask the AI to perform a task utilizing your installed pack. For example: <code className="bg-gray-950 px-2 py-1 rounded text-pink-400 text-xs font-mono">"Run the Restaurant Growth Pack to post our specials on Instagram today"</code>. The AI will look at your active integrations, generate the content draft, and process the request!
                   </p>
                 </div>
               </div>
 
               {/* Step 4 */}
               <div className="flex gap-6 relative">
-                <div className="h-9 w-9 rounded-full bg-pink-600 border-2 border-gray-950 flex items-center justify-center font-extrabold text-white text-sm shadow-lg z-10">
+                <div className="h-9 w-9 rounded-full bg-pink-600 border-2 border-gray-950 flex items-center justify-center font-semibold text-white text-sm shadow-lg z-10">
                   4
                 </div>
                 <div className="flex-1 space-y-1.5 pt-0.5">
@@ -143,20 +146,20 @@ export default function InstructionsView({
             <Card className="glass-panel border-transparent rounded-3xl overflow-hidden shadow-2xl relative p-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-4 mb-4">
                 <div>
-                  <h3 className="text-white font-extrabold text-lg flex items-center gap-2">1. AI Brains & Generators</h3>
+                  <h3 className="text-white font-semibold text-lg flex items-center gap-2">1. AI Brains & Generators</h3>
                   <p className="text-gray-400 text-xs mt-1">Powers the core thinking, writing, image creation, and video generation for your AI employees.</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${configuredProviders.includes('anthropic') || configuredProviders.includes('openai') || configuredProviders.includes('gemini') || configuredProviders.includes('openrouter') || configuredProviders.includes('together') || configuredProviders.includes('groq') || configuredProviders.includes('grok')
-                      ? 'bg-emerald-500/10 text-emerald-455 border-emerald-500/20'
-                      : 'bg-rose-500/10 text-rose-455 border-rose-500/20 animate-pulse'
-                    }`}>
+ ? 'bg-emerald-500/10 text-emerald-455 border-emerald-500/20'
+ : 'bg-rose-500/10 text-rose-455 border-rose-500/20 animate-pulse'
+ }`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${configuredProviders.includes('anthropic') || configuredProviders.includes('openai') || configuredProviders.includes('gemini') || configuredProviders.includes('openrouter') || configuredProviders.includes('together') || configuredProviders.includes('groq') || configuredProviders.includes('grok') ? 'bg-emerald-450' : 'bg-rose-450'
-                      }`} />
+ }`} />
                     {configuredProviders.includes('anthropic') || configuredProviders.includes('openai') || configuredProviders.includes('gemini') || configuredProviders.includes('openrouter') || configuredProviders.includes('together') || configuredProviders.includes('groq') || configuredProviders.includes('grok') ? 'Active' : 'Missing Primary Key'}
                   </span>
                   <Button
-                    onClick={() => { setKeyProvider('openrouter'); setIsKeyDialogOpen(true); }}
+                    onClick={openIntegrations}
                     className="bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold h-8 rounded-xl px-4"
                   >
                     Configure
@@ -272,20 +275,20 @@ export default function InstructionsView({
             <Card className="glass-panel border-transparent rounded-3xl overflow-hidden shadow-2xl relative p-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-4 mb-4">
                 <div>
-                  <h3 className="text-white font-extrabold text-lg flex items-center gap-2">2. Social Media (Meta & LinkedIn)</h3>
+                  <h3 className="text-white font-semibold text-lg flex items-center gap-2">2. Social Media (Meta & LinkedIn)</h3>
                   <p className="text-gray-400 text-xs mt-1">Allows the Marketing AI to draft and automatically publish campaigns on your profiles.</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${configuredProviders.includes('meta') || configuredProviders.includes('linkedin')
-                      ? 'bg-emerald-500/10 text-emerald-455 border-emerald-500/20'
-                      : 'bg-gray-800 text-gray-400 border-gray-700/60'
-                    }`}>
+ ? 'bg-emerald-500/10 text-emerald-455 border-emerald-500/20'
+ : 'bg-gray-800 text-gray-400 border-gray-700/60'
+ }`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${configuredProviders.includes('meta') || configuredProviders.includes('linkedin') ? 'bg-emerald-450' : 'bg-gray-500'
-                      }`} />
+ }`} />
                     {configuredProviders.includes('meta') || configuredProviders.includes('linkedin') ? 'Configured' : 'Not Connected'}
                   </span>
                   <Button
-                    onClick={() => { setKeyProvider('linkedin'); setIsKeyDialogOpen(true); }}
+                    onClick={openIntegrations}
                     className="bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold h-8 rounded-xl px-4"
                   >
                     Configure
@@ -305,7 +308,7 @@ export default function InstructionsView({
                     <li>Scroll down to add the <strong>Instagram Graph API</strong> product to your newly created app.</li>
                     <li>Navigate to the <strong>Tools &gt; Graph API Explorer</strong> in the top menu.</li>
                     <li>Select your app and generate a <strong>Page Access Token</strong>, ensuring you add the <code>instagram_content_publish</code>, <code>pages_show_list</code>, and <code>instagram_basic</code> permissions.</li>
-                    <li>Click "Generate Access Token". Use the <strong>Access Token Tool</strong> to extend it into a long-lived (60-day) token, then paste it into OctaOS. <em className="text-gray-500 text-[10px] block mt-1">(Make sure your Instagram Business Account is properly linked to your Facebook Page!)</em></li>
+                    <li>Click "Generate Access Token". Use the <strong>Access Token Tool</strong> to extend it into a long-lived (60-day) token, then paste it into OctaOS. <em className="text-gray-500 text-xs block mt-1">(Make sure your Instagram Business Account is properly linked to your Facebook Page!)</em></li>
                   </ol>
                 </div>
 
@@ -330,20 +333,20 @@ export default function InstructionsView({
             <Card className="glass-panel border-transparent rounded-3xl overflow-hidden shadow-2xl relative p-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-4 mb-4">
                 <div>
-                  <h3 className="text-white font-extrabold text-lg flex items-center gap-2">3. Chat Messaging (WhatsApp & Telegram)</h3>
+                  <h3 className="text-white font-semibold text-lg flex items-center gap-2">3. Chat Messaging (WhatsApp & Telegram)</h3>
                   <p className="text-gray-400 text-xs mt-1">Connects customer chat channels so the Support & Lead Gen AI can respond automatically.</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${configuredProviders.includes('whatsapp') || configuredProviders.includes('telegram')
-                      ? 'bg-emerald-500/10 text-emerald-455 border-emerald-500/20'
-                      : 'bg-gray-800 text-gray-400 border-gray-700/60'
-                    }`}>
+ ? 'bg-emerald-500/10 text-emerald-455 border-emerald-500/20'
+ : 'bg-gray-800 text-gray-400 border-gray-700/60'
+ }`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${configuredProviders.includes('whatsapp') || configuredProviders.includes('telegram') ? 'bg-emerald-450' : 'bg-gray-500'
-                      }`} />
+ }`} />
                     {configuredProviders.includes('whatsapp') || configuredProviders.includes('telegram') ? 'Configured' : 'Not Connected'}
                   </span>
                   <Button
-                    onClick={() => { setKeyProvider('whatsapp'); setIsKeyDialogOpen(true); }}
+                    onClick={openIntegrations}
                     className="bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold h-8 rounded-xl px-4"
                   >
                     Configure
@@ -388,16 +391,16 @@ export default function InstructionsView({
             <Card className="glass-panel border-transparent rounded-3xl overflow-hidden shadow-2xl relative p-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-4 mb-4">
                 <div>
-                  <h3 className="text-white font-extrabold text-lg flex items-center gap-2">4. Email & Bookings (Google Workspace / Gmail / Calendar)</h3>
+                  <h3 className="text-white font-semibold text-lg flex items-center gap-2">4. Email & Bookings (Google Workspace / Gmail / Calendar)</h3>
                   <p className="text-gray-400 text-xs mt-1">Allows agents to coordinate and send cold email campaigns or book meetings on your calendar.</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${configuredProviders.includes('gmail') || configuredProviders.includes('google_calendar') || configuredProviders.includes('smtp')
-                      ? 'bg-emerald-500/10 text-emerald-455 border-emerald-500/20'
-                      : 'bg-gray-800 text-gray-400 border-gray-700/60'
-                    }`}>
+ ? 'bg-emerald-500/10 text-emerald-455 border-emerald-500/20'
+ : 'bg-gray-800 text-gray-400 border-gray-700/60'
+ }`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${configuredProviders.includes('gmail') || configuredProviders.includes('google_calendar') || configuredProviders.includes('smtp') ? 'bg-emerald-450' : 'bg-gray-500'
-                      }`} />
+ }`} />
                     {configuredProviders.includes('gmail') || configuredProviders.includes('google_calendar') || configuredProviders.includes('smtp') ? 'Configured' : 'Not Connected'}
                   </span>
                   <Button
@@ -407,7 +410,7 @@ export default function InstructionsView({
                     Connect Google Account
                   </Button>
                   <Button
-                    onClick={() => { setKeyProvider('smtp'); setIsKeyDialogOpen(true); }}
+                    onClick={openIntegrations}
                     className="bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold h-8 rounded-xl px-4"
                   >
                     Configure SMTP
@@ -454,20 +457,20 @@ export default function InstructionsView({
             <Card className="glass-panel border-transparent rounded-3xl overflow-hidden shadow-2xl relative p-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-4 mb-4">
                 <div>
-                  <h3 className="text-white font-extrabold text-lg flex items-center gap-2">5. Sales Lead Generation (Apollo / Hunter / Google Maps / Apify)</h3>
+                  <h3 className="text-white font-semibold text-lg flex items-center gap-2">5. Sales Lead Generation (Apollo / Hunter / Google Maps / Apify)</h3>
                   <p className="text-gray-400 text-xs mt-1">Powers the Sales AI to extract and identify high-value contacts or local businesses.</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${configuredProviders.includes('apollo') || configuredProviders.includes('hunter') || configuredProviders.includes('google_places') || configuredProviders.includes('apify')
-                      ? 'bg-emerald-500/10 text-emerald-455 border-emerald-500/20'
-                      : 'bg-gray-800 text-gray-400 border-gray-700/60'
-                    }`}>
+ ? 'bg-emerald-500/10 text-emerald-455 border-emerald-500/20'
+ : 'bg-gray-800 text-gray-400 border-gray-700/60'
+ }`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${configuredProviders.includes('apollo') || configuredProviders.includes('hunter') || configuredProviders.includes('google_places') || configuredProviders.includes('apify') ? 'bg-emerald-450' : 'bg-gray-500'
-                      }`} />
+ }`} />
                     {configuredProviders.includes('apollo') || configuredProviders.includes('hunter') || configuredProviders.includes('google_places') || configuredProviders.includes('apify') ? 'Configured' : 'Not Connected'}
                   </span>
                   <Button
-                    onClick={() => { setKeyProvider('apify'); setIsKeyDialogOpen(true); }}
+                    onClick={openIntegrations}
                     className="bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold h-8 rounded-xl px-4"
                   >
                     Configure
@@ -527,7 +530,7 @@ export default function InstructionsView({
         {/* TAB CONTENT: QUICK PROMPTS */}
         <TabsContent value="quick_prompts" className="space-y-6 animate-in fade-in duration-200">
           <Card className="glass-panel border-transparent p-6 rounded-3xl shadow-2xl relative">
-            <h3 className="text-white font-extrabold text-lg mb-4 flex items-center gap-2">⚡ Autopilot Launch Commands</h3>
+            <h3 className="text-white font-semibold text-lg mb-4 flex items-center gap-2">⚡ Autopilot Launch Commands</h3>
             <p className="text-gray-300 text-xs leading-relaxed mb-6">
               Once you have installed a Marketplace Pack and configured its API keys, you can trigger its operation. Go to the <strong className="text-violet-400">Orchestrator AI</strong> chat tab and copy-paste any of the ready-to-run prompts below:
             </p>
@@ -537,15 +540,15 @@ export default function InstructionsView({
               <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between space-y-4 hover:border-pink-500/30 transition-all">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-pink-400 font-bold uppercase tracking-wider bg-pink-500/10 border border-pink-500/20 px-2 py-0.5 rounded-md">Restaurant Pack</span>
-                    <span className="text-[10px] text-gray-500">Local Marketing</span>
+                    <span className="text-xs text-pink-400 font-bold uppercase tracking-wider bg-pink-500/10 border border-pink-500/20 px-2 py-0.5 rounded-md">Restaurant Pack</span>
+                    <span className="text-xs text-gray-500">Local Marketing</span>
                   </div>
                   <p className="text-white text-xs font-semibold">"Trigger the daily special post for Restaurant Pack. Create a draft of today's specials (Steak & Potatoes with red wine) for Instagram."</p>
                 </div>
                 <Button
                   onClick={() => {
                     navigator.clipboard.writeText("Trigger the daily special post for Restaurant Pack. Create a draft of today's specials (Steak & Potatoes with red wine) for Instagram.");
-                    alert("Copied to clipboard! Go to Orchestrator AI to paste.");
+                    notify("Copied to clipboard! Go to Orchestrator AI to paste.");
                   }}
                   className="bg-gray-850 hover:bg-gray-800 text-gray-300 text-xs font-bold w-full h-8 rounded-xl"
                 >
@@ -557,15 +560,15 @@ export default function InstructionsView({
               <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between space-y-4 hover:border-pink-500/30 transition-all">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-pink-400 font-bold uppercase tracking-wider bg-pink-500/10 border border-pink-500/20 px-2 py-0.5 rounded-md">SaaS Outreach</span>
-                    <span className="text-[10px] text-gray-500">B2B Outbound</span>
+                    <span className="text-xs text-pink-400 font-bold uppercase tracking-wider bg-pink-500/10 border border-pink-500/20 px-2 py-0.5 rounded-md">SaaS Outreach</span>
+                    <span className="text-xs text-gray-500">B2B Outbound</span>
                   </div>
                   <p className="text-white text-xs font-semibold">"Execute the SaaS Outreach System. Sourcing 5 CTOs at early-stage AI startups in New York, and write personalized outbound LinkedIn DMs."</p>
                 </div>
                 <Button
                   onClick={() => {
                     navigator.clipboard.writeText("Execute the SaaS Outreach System. Sourcing 5 CTOs at early-stage AI startups in New York, and write personalized outbound LinkedIn DMs.");
-                    alert("Copied to clipboard! Go to Orchestrator AI to paste.");
+                    notify("Copied to clipboard! Go to Orchestrator AI to paste.");
                   }}
                   className="bg-gray-850 hover:bg-gray-800 text-gray-300 text-xs font-bold w-full h-8 rounded-xl"
                 >
@@ -577,15 +580,15 @@ export default function InstructionsView({
               <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between space-y-4 hover:border-pink-500/30 transition-all">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-pink-400 font-bold uppercase tracking-wider bg-pink-500/10 border border-pink-500/20 px-2 py-0.5 rounded-md">Real Estate Pack</span>
-                    <span className="text-[10px] text-gray-500">Real Estate</span>
+                    <span className="text-xs text-pink-400 font-bold uppercase tracking-wider bg-pink-500/10 border border-pink-500/20 px-2 py-0.5 rounded-md">Real Estate Pack</span>
+                    <span className="text-xs text-gray-500">Real Estate</span>
                   </div>
                   <p className="text-white text-xs font-semibold">"Generate property descriptions using the Real Estate Lead Engine for 456 Oak Ave. Make it sound premium with a luxury pool description."</p>
                 </div>
                 <Button
                   onClick={() => {
                     navigator.clipboard.writeText("Generate property descriptions using the Real Estate Lead Engine for 456 Oak Ave. Make it sound premium with a luxury pool description.");
-                    alert("Copied to clipboard! Go to Orchestrator AI to paste.");
+                    notify("Copied to clipboard! Go to Orchestrator AI to paste.");
                   }}
                   className="bg-gray-850 hover:bg-gray-800 text-gray-300 text-xs font-bold w-full h-8 rounded-xl"
                 >
@@ -597,15 +600,15 @@ export default function InstructionsView({
               <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between space-y-4 hover:border-pink-500/30 transition-all">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-pink-400 font-bold uppercase tracking-wider bg-pink-500/10 border border-pink-500/20 px-2 py-0.5 rounded-md">Creative Content</span>
-                    <span className="text-[10px] text-gray-500">Creative Agency</span>
+                    <span className="text-xs text-pink-400 font-bold uppercase tracking-wider bg-pink-500/10 border border-pink-500/20 px-2 py-0.5 rounded-md">Creative Content</span>
+                    <span className="text-xs text-gray-500">Creative Agency</span>
                   </div>
                   <p className="text-white text-xs font-semibold">"Create an SEO Blog Outline Writer task with the Creative Content Lab. Write a outline on 'How AI employees are transforming small businesses'."</p>
                 </div>
                 <Button
                   onClick={() => {
                     navigator.clipboard.writeText("Create an SEO Blog Outline Writer task with the Creative Content Lab. Write a outline on 'How AI employees are transforming small businesses'.");
-                    alert("Copied to clipboard! Go to Orchestrator AI to paste.");
+                    notify("Copied to clipboard! Go to Orchestrator AI to paste.");
                   }}
                   className="bg-gray-850 hover:bg-gray-800 text-gray-300 text-xs font-bold w-full h-8 rounded-xl"
                 >

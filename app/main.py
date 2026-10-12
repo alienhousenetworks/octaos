@@ -70,15 +70,30 @@ def startup_db_check():
     # Ensure Flow Engine tables and seeded agents/packages exist
     try:
         from app.models.base import Base
-        from app.models import flow_engine  # noqa: F401
+        from app.models import enterprise, flow_engine, automations, schedules  # noqa: F401
         from app.db.session import SessionLocal
         from app.services.agents.seeder import seed_system_agents, seed_system_packages
-        Base.metadata.create_all(bind=engine)
+        # One failing CREATE (pgvector) must not roll back the other tables.
+        for table in Base.metadata.sorted_tables:
+            try:
+                with engine.begin() as conn:
+                    table.create(bind=conn, checkfirst=True)
+            except Exception as table_error:
+                print(f"Skipped table {table.name}: {table_error.__class__.__name__}")
         db = SessionLocal()
         seed_system_agents(db)
         seed_system_packages(db)
         db.close()
         print("System agents and marketplace packages verified.")
+
+        # Ensure schema migrations for new columns on existing tables
+        try:
+            from sqlalchemy import text
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS lead_freshness VARCHAR DEFAULT '30_days';"))
+            print("business_profiles.lead_freshness column verified.")
+        except Exception as col_error:
+            print(f"Skipped lead_freshness column alter: {col_error}")
     except Exception as e:
         print(f"Flow engine startup check: {e}")
 

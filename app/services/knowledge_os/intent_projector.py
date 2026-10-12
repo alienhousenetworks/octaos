@@ -5,9 +5,12 @@ Workstream A:
 - Projects context dynamically based on IntentType
 - Strictly enforces KnowledgeAccessController boundaries (zero confidential leakage)
 """
+import logging
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.models.agents import KnowledgeDocument
 from app.models.deal_room import EvidenceRecord, CompanySalesContext
@@ -43,6 +46,8 @@ class CampaignContextProjection(BaseModel):
     )
     approved_claims: List[Dict[str, Any]] = Field(default_factory=list)
     product_highlights: List[Dict[str, Any]] = Field(default_factory=list)
+    products_catalog: List[Dict[str, Any]] = Field(default_factory=list)
+    motion_design_tokens: Dict[str, Any] = Field(default_factory=dict)
     target_audiences: List[Dict[str, Any]] = Field(default_factory=list)
     compliance_rules: List[str] = Field(
         default_factory=lambda: [
@@ -202,6 +207,38 @@ class CompanyContextProjectionEngine:
             "mood": "Cinematic high-contrast, authentic textures, architectural minimalism",
             "platform": platform or "multi-channel",
         }
+        products_catalog = []
+        motion_design_tokens = {}
+
+        # Enrich with synthesized brand & product catalog if available
+        try:
+            from app.services.knowledge_os.brand_synthesizer import BrandKnowledgeService
+            brand_service = BrandKnowledgeService(self.db, self.tenant_id)
+            bk = brand_service.synthesize()
+            if bk.get("brand_voice"):
+                brand_voice.update({k: v for k, v in bk["brand_voice"].items() if v})
+            if bk.get("visual_identity"):
+                visual_style.update({k: v for k, v in bk["visual_identity"].items() if v})
+            products_catalog = bk.get("products_catalog", [])
+            motion_design_tokens = bk.get("motion_design_tokens", {})
+        except Exception as synth_err:
+            logger.debug(f"[ProjectionEngine] BrandKnowledgeService fallback: {synth_err}")
+
+        # Assemble product highlights
+        product_highlights = [
+            {
+                "name": p.get("name", "Product"),
+                "usp": p.get("usp") or p.get("value_prop") or "Enterprise automation platform",
+                "offer": p.get("offer") or "Request a product demonstration",
+            }
+            for p in (products_catalog if products_catalog else [
+                {
+                    "name": profile.company_name if profile else "Product",
+                    "usp": profile.usp if profile else "Enterprise automation platform",
+                    "offer": profile.offer_details if profile else "Request a product demonstration",
+                }
+            ])
+        ]
 
         projection = CampaignContextProjection(
             company_name=company_name,
@@ -210,13 +247,9 @@ class CompanyContextProjectionEngine:
             brand_voice=brand_voice,
             visual_style=visual_style,
             approved_claims=approved_claims,
-            product_highlights=[
-                {
-                    "name": profile.company_name if profile else "Product",
-                    "usp": profile.usp if profile else "Enterprise automation platform",
-                    "offer": profile.offer_details if profile else "Request a product demonstration",
-                }
-            ],
+            product_highlights=product_highlights,
+            products_catalog=products_catalog,
+            motion_design_tokens=motion_design_tokens,
             target_audiences=[
                 {
                     "title": profile.target_decision_makers if profile else "VP / Director",

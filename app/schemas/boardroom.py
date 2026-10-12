@@ -152,3 +152,99 @@ class ConfidenceBreakdown(BaseModel):
     agent_agreement: int = Field(ge=0, le=100)
     grounding_pass_rate: int = Field(ge=0, le=100)
     rationale: str = ""
+
+
+# ---------------------------------------------------------------------------
+# 12-Stage Boardroom V3 Schemas (Charter, Options, Positions, ADR)
+# ---------------------------------------------------------------------------
+
+class DecisionCharterOut(BaseModel):
+    id: str
+    meeting_id: str
+    decision_type: str
+    question: str
+    decision_owner: str
+    approvers: list[str] = Field(default_factory=list)
+    deadline: Optional[datetime] = None
+    cost_of_delay_per_week: float = 0.0
+    criteria_weights: list[dict] = Field(default_factory=list)
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class MeetingOptionOut(BaseModel):
+    id: str
+    meeting_id: str
+    option_code: str
+    title: str
+    description: str
+    is_do_nothing: bool = False
+    is_pilot: bool = False
+    reversibility: str = "medium"
+    financial_model: dict = Field(default_factory=dict)
+    weighted_score: float = 0.0
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class MeetingPositionOut(BaseModel):
+    id: str
+    meeting_id: str
+    round: int = 1
+    agent: str
+    preferred_option: Optional[str] = None
+    position_statement: str
+    evidence_ids: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    confidence: int = Field(default=50, ge=0, le=100)
+    what_would_change_mind: Optional[str] = None
+    is_veto: bool = False
+    veto_reason: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DissentRecordOut(BaseModel):
+    id: str
+    meeting_id: str
+    agent: str
+    dissent_position: str
+    preferred_option: Optional[str] = None
+    addressed: bool = False
+    override_rationale: Optional[str] = None
+    requires_human_signoff: bool = False
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DecisionOutcomeOut(BaseModel):
+    id: str
+    meeting_id: str
+    review_milestone: str
+    review_date: datetime
+    tripwires: list[str] = Field(default_factory=list)
+    tripwire_triggered: bool = False
+    predicted_metrics: dict = Field(default_factory=dict)
+    actual_metrics: dict = Field(default_factory=dict)
+    agent_brier_scores: dict = Field(default_factory=dict)
+    reviewed_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ChairmanInterventionRequest(BaseModel):
+    """Directive or constraint injected by the human Chair mid-deliberation."""
+    directive: str
+    target_agent: Optional[str] = None  # None = all board members
+    override_veto: bool = False
+

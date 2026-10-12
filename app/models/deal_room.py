@@ -27,6 +27,9 @@ class SuppressionRecord(Base):
     reason = Column(String, nullable=False)  # unsubscribe | bounced | manual_dnc | complaint | invalid_format
     origin = Column(String, default="system")  # user | webhook | bounce_detector | import
     notes = Column(Text, nullable=True)
+    channel = Column(String, nullable=True)  # email | phone | social | all; null applies to every channel
+    jurisdiction = Column(String, nullable=True)
+    scope = Column(String, nullable=False, default="tenant")  # tenant | global
     expires_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
@@ -129,7 +132,7 @@ class AccountSignal(Base):
     headline = Column(String, nullable=False)
     details = Column(Text, nullable=True)
     evidence_url = Column(String, nullable=True)
-    confidence = Column(Float, default=1.0)
+    confidence = Column(Float, nullable=True)
     decay_half_life_days = Column(Integer, default=14)
     
     is_active = Column(Boolean, default=True)

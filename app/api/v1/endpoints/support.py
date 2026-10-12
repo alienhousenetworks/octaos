@@ -330,26 +330,26 @@ def get_widget_config(
     tenant_id: str,
     db: Session = Depends(deps.get_db),
 ) -> Any:
-    ensure_tenant_active(db, tenant_id)
+    tenant = ensure_tenant_active(db, tenant_id)
+    resolved_tenant_id = tenant.id
     cred = db.query(APICredential).filter(
-        APICredential.tenant_id == tenant_id,
+        APICredential.tenant_id == resolved_tenant_id,
         APICredential.provider == "support"
     ).first()
     settings_dict = _default_support_settings()
     if cred and cred.settings:
         settings_dict.update(cred.settings)
 
-    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     tenant_name = tenant.name if tenant else "Support"
 
-    service = SupportChatService(db, tenant_id)
+    service = SupportChatService(db, resolved_tenant_id)
     avail = service.check_agent_availability()
 
     custom_title = settings_dict.get("widget_title")
     title = custom_title if (custom_title and custom_title != "Customer Support") else f"{tenant_name} Support"
 
     return {
-        "tenant_id": tenant_id,
+        "tenant_id": resolved_tenant_id,
         "tenant_name": tenant_name,
         "title": title,
         "welcome_message": settings_dict.get("widget_welcome") or "Hi there! How can we assist you today?",
@@ -366,8 +366,9 @@ async def widget_message(
     payload: WidgetMessageRequest,
     db: Session = Depends(deps.get_db),
 ) -> Any:
-    ensure_tenant_active(db, tenant_id)
-    service = SupportChatService(db, tenant_id)
+    tenant = ensure_tenant_active(db, tenant_id)
+    resolved_tenant_id = tenant.id
+    service = SupportChatService(db, resolved_tenant_id)
     return await service.handle_visitor_message(
         session_id=payload.session_id,
         message=payload.message,
@@ -384,8 +385,9 @@ def widget_raise_ticket(
     payload: RaiseTicketRequest,
     db: Session = Depends(deps.get_db),
 ) -> Any:
-    ensure_tenant_active(db, tenant_id)
-    service = SupportChatService(db, tenant_id)
+    tenant = ensure_tenant_active(db, tenant_id)
+    resolved_tenant_id = tenant.id
+    service = SupportChatService(db, resolved_tenant_id)
     return service.raise_ticket_from_widget(
         session_id=payload.session_id,
         problem=payload.problem,
@@ -401,9 +403,10 @@ def widget_poll(
     session_id: str,
     db: Session = Depends(deps.get_db),
 ) -> Any:
-    ensure_tenant_active(db, tenant_id)
+    tenant = ensure_tenant_active(db, tenant_id)
+    resolved_tenant_id = tenant.id
     ticket = db.query(Ticket).filter(
-        Ticket.tenant_id == tenant_id,
+        Ticket.tenant_id == resolved_tenant_id,
         Ticket.session_id == session_id
     ).order_by(Ticket.created_at.desc()).first()
 
@@ -414,7 +417,7 @@ def widget_poll(
         TicketMessage.ticket_id == ticket.id
     ).order_by(TicketMessage.created_at.asc()).all()
 
-    service = SupportChatService(db, tenant_id)
+    service = SupportChatService(db, resolved_tenant_id)
     avail = service.check_agent_availability()
 
     agent_name = None

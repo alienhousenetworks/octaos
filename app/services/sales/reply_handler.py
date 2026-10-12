@@ -157,6 +157,33 @@ class SalesReplyHandler(BaseAgent):
         lead.data = data
         self.db.commit()
 
+        # Check if the prospect's query requires human clarification
+        if parsed.get("requires_human_clarification"):
+            data["awaiting_user_clarification"] = True
+            data["pending_question"] = parsed.get("unanswered_question") or content
+            data["clarification_requested_at"] = datetime.now(timezone.utc).isoformat()
+            lead.data = data
+            self.db.commit()
+
+            alert_msg = (
+                f"⚠️ AI Needs Your Help: Prospect Inquiry\n"
+                f"Lead: {lead.name} ({lead.company})\n"
+                f"Question: \"{content[:250]}\"\n\n"
+                f"Status: Missing from Knowledge Base. Please clarify in Sales Dashboard to respond and train AI."
+            )
+            send_sales_telegram(self.db, self.tenant_id, alert_msg)
+            self.log_activity(
+                "Sales AI Clarification Needed",
+                f"Prospect {lead.name} asked unverified question: '{content[:100]}'. Escalated to user.",
+                "warning",
+            )
+            return {
+                "status": "awaiting_user_clarification",
+                "lead_id": lead.id,
+                "intent": parsed.get("intent"),
+                "question": content,
+            }
+
         booked = False
         if (
             parsed.get("interested")
@@ -244,38 +271,70 @@ class SalesReplyHandler(BaseAgent):
     async def _classify_reply(
         self, lead: Lead, content: str, subject: Optional[str]
     ) -> Dict[str, Any]:
+        from app.models.deal_room import CompanySalesContext
+        from app.models.agents import KnowledgeDocument
+        
+        ctx = (
+            self.db.query(CompanySalesContext)
+            .filter(CompanySalesContext.tenant_id == self.tenant_id, CompanySalesContext.is_active == True)
+            .first()
+        )
+        docs = (
+            self.db.query(KnowledgeDocument)
+            .filter(KnowledgeDocument.tenant_id == self.tenant_id, KnowledgeDocument.is_active == True)
+            .limit(10)
+            .all()
+        )
+        doc_snippets = "\n".join([f"- [{d.doc_type} / {d.title}]: {d.content[:400]}" for d in docs])
+
         outbound = (lead.data or {}).get("outbound_body", "")
         history = (lead.data or {}).get("conversation") or []
         history_text = ""
         for msg in history[-10:]:
             history_text += f"{msg.get('direction', '?').upper()} ({msg.get('channel')}): {msg.get('content', '')}\n"
 
-        prompt = f"""You are a sales assistant analyzing a REAL inbound message from a prospect.
+        prompt = f"""You are an elite Sales Assistant analyzing a REAL inbound message from a prospect.
+Our Knowledge Base & Company Context:
+Company Overview: {ctx.company_overview if ctx else 'Enterprise System'}
+Products Catalog: {ctx.products_catalog if ctx else []}
+Objection Playbook: {ctx.objection_playbook if ctx else {{}}}
+Verified Knowledge Base Documents:
+{doc_snippets if doc_snippets else 'No extra knowledge documents available.'}
 
 Lead: {lead.name} at {lead.company}
 Our last outreach:
 {outbound}
 
-Conversation:
+Conversation History:
 {history_text}
 
 New inbound message ({subject or 'no subject'}):
 {content}
 
-Classify and respond planning. Output JSON only:
+Classify the prospect message and plan the response. Output JSON only:
 {{
-  "intent": "interested" | "question" | "decline" | "neutral",
+  "intent": "interested" | "question" | "objection" | "decline" | "neutral",
   "interested": true/false,
+  "requires_human_clarification": true/false,
+  "unanswered_question": "string or null",
+  "confidence": 0.0 to 1.0,
   "suggested_time": "meeting time they proposed or null",
   "summary": "one line summary",
   "should_auto_reply": true/false,
-  "suggested_reply": "professional reply text to send them (empty if decline and no reply needed)"
+  "suggested_reply": "professional reply text to send them (empty if decline or requires_human_clarification)"
 }}
 
-Rules:
-- interested=true only if they clearly want a call, demo, or meeting.
-- should_auto_reply=true for questions and neutral messages; false for clear unsubscribe/decline.
-- suggested_reply must sound human, concise, on-brand; do not mention AI.
+Strict Grounding & Human Escalation Rules:
+1. interested=true only if they clearly want a call, demo, or meeting.
+2. If the prospect asks a question or raises an objection that is ANSWERED by our Knowledge Base, Products Catalog, or Playbook:
+   - Provide a factual, concise suggested_reply directly grounded in those facts.
+   - Set requires_human_clarification = false and confidence >= 0.85.
+3. If the prospect asks about a feature, pricing detail, technical integration, or policy that is NOT covered in our Knowledge Base:
+   - You MUST set requires_human_clarification = true and confidence = 0.2.
+   - Set unanswered_question = the specific question or topic they asked about.
+   - Do NOT guess, simulate, or hallucinate an answer.
+4. If they decline/unsubscribe, set interested=false, should_auto_reply=false, requires_human_clarification=false.
+5. suggested_reply must sound human, concise, on-brand; never mention AI.
 """
         response = await self.llm.complete(
             prompt=prompt, provider="anthropic", model="claude-3-haiku-20240307"
@@ -289,16 +348,21 @@ Rules:
                 w in lower
                 for w in ("meet", "call", "demo", "schedule", "available", "yes", "interested")
             )
+            is_question = "?" in content or any(w in lower for w in ("how", "what", "pricing", "can you", "integrate", "support"))
+            # If docs exist and question is asked, check if covered
             return {
-                "intent": "interested" if interested else "neutral",
+                "intent": "interested" if interested else ("question" if is_question else "neutral"),
                 "interested": interested,
+                "requires_human_clarification": is_question and not bool(docs),
+                "unanswered_question": content if (is_question and not bool(docs)) else None,
+                "confidence": 0.5,
                 "suggested_time": None,
                 "summary": content[:120],
-                "should_auto_reply": True,
+                "should_auto_reply": not is_question,
                 "suggested_reply": (
                     "Thanks for getting back to me — happy to find a time that works. "
                     "What does your calendar look like this week?"
-                ),
+                ) if interested else "",
             }
 
     async def send_sales_reply(self, lead: Lead, channel: str, content: str) -> None:
@@ -350,3 +414,70 @@ Rules:
                     f"WhatsApp reply sent to {phone}.",
                     "success",
                 )
+
+    async def submit_human_clarification(
+        self,
+        lead_id: str,
+        answer: str,
+        *,
+        channel: str = "email",
+        add_to_kb: bool = True,
+        kb_title: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        lead = (
+            self.db.query(Lead)
+            .filter(Lead.id == lead_id, Lead.tenant_id == self.tenant_id)
+            .first()
+        )
+        if not lead:
+            return {"status": "error", "message": "Lead not found"}
+
+        data = dict(lead.data or {})
+        pending_question = data.get("pending_question") or "Prospect inquiry"
+
+        # 1. Dispatch the clarified reply to the prospect
+        await self.send_sales_reply(lead, channel, answer)
+
+        # 2. Ingest into Knowledge Base so the AI permanently learns this answer
+        if add_to_kb:
+            from app.models.agents import KnowledgeDocument
+            from app.services.sales_os.context_materializer import SalesContextMaterializer
+
+            title = kb_title or f"Q&A: {pending_question[:50]}"
+            new_doc = KnowledgeDocument(
+                tenant_id=self.tenant_id,
+                department="Sales",
+                doc_type="Product Q&A",
+                content=f"Prospect Question:\n{pending_question}\n\nVerified Answer:\n{answer}",
+                source_type="text",
+                approved_for_external_use=True,
+                metadata_json={"title": title},
+                is_active=True,
+            )
+            self.db.add(new_doc)
+            self.db.commit()
+
+            try:
+                materializer = SalesContextMaterializer(self.db, self.tenant_id)
+                await materializer.materialize_context()
+            except Exception:
+                pass
+
+        # 3. Clear pending state
+        data["awaiting_user_clarification"] = False
+        data["pending_question"] = None
+        data["clarified_at"] = datetime.now(timezone.utc).isoformat()
+        lead.data = data
+        self.db.commit()
+
+        self.log_activity(
+            "Sales Clarification Resolved",
+            f"Sent clarified response to {lead.name} and indexed to Knowledge Base.",
+            "success",
+        )
+        return {
+            "status": "success",
+            "lead_id": lead.id,
+            "added_to_kb": add_to_kb,
+            "message": "Clarification sent to prospect and indexed to Knowledge Base.",
+        }

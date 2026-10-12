@@ -83,3 +83,107 @@ class MeetingAction(Base):
     evidence_ids = Column(JSON, default=list)       # list of MeetingEvidence.id
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class DecisionCharter(Base):
+    """
+    Stage 2 — Decision Charter.
+    Locks criteria weights, decision owner, approvers, and cost of delay BEFORE options are debated.
+    """
+    __tablename__ = "boardroom_charters"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    meeting_id = Column(String, ForeignKey("agent_meetings.id", ondelete="CASCADE"),
+                        nullable=False, unique=True, index=True)
+    decision_type = Column(String, default="type_1")  # type_1 (irreversible) | type_2 (reversible)
+    question = Column(Text, nullable=False)
+    decision_owner = Column(String, default="CEO AI")
+    approvers = Column(JSON, default=list)            # ["CFO AI", "Legal AI"]
+    deadline = Column(DateTime(timezone=True), nullable=True)
+    cost_of_delay_per_week = Column(Float, default=0.0)
+    criteria_weights = Column(JSON, default=list)     # [{"name": "margin", "weight": 0.35}, ...]
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MeetingOption(Base):
+    """
+    Stage 5 & 6 — Quantified Options Generation & Modeling.
+    Always includes at least 3 options: do nothing / defer, pilot / staged, and full scale.
+    """
+    __tablename__ = "boardroom_options"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    meeting_id = Column(String, ForeignKey("agent_meetings.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    option_code = Column(String, nullable=False)      # A, B, C...
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    is_do_nothing = Column(Boolean, default=False)
+    is_pilot = Column(Boolean, default=False)
+    reversibility = Column(String, default="medium")  # high, medium, low
+    financial_model = Column(JSON, default=dict)      # {ev, payback_months, downside_p10, assumptions}
+    weighted_score = Column(Float, default=0.0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MeetingPosition(Base):
+    """
+    Stage 4 & 8 — Blind First Positions & Structured Multi-Round Debate.
+    Mandatory claim format: Position → Evidence IDs → Assumptions → Confidence (0-100) → What would change my mind.
+    """
+    __tablename__ = "boardroom_positions"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    meeting_id = Column(String, ForeignKey("agent_meetings.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    round = Column(Integer, default=1)                # 1 = blind first position, 2+ = debate
+    agent = Column(String, nullable=False)
+    preferred_option = Column(String, nullable=True)  # Option code (A, B, C)
+    position_statement = Column(Text, nullable=False)
+    evidence_ids = Column(JSON, default=list)
+    assumptions = Column(JSON, default=list)
+    confidence = Column(Integer, nullable=False)      # 0-100
+    what_would_change_mind = Column(Text, nullable=True)
+    is_veto = Column(Boolean, default=False)
+    veto_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class DissentRecord(Base):
+    """
+    Stage 10 — Dissent Register.
+    Tracks explicit unaddressed objections and overrides for audit and compliance.
+    """
+    __tablename__ = "boardroom_dissents"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    meeting_id = Column(String, ForeignKey("agent_meetings.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    agent = Column(String, nullable=False)
+    dissent_position = Column(Text, nullable=False)
+    preferred_option = Column(String, nullable=True)
+    addressed = Column(Boolean, default=False)
+    override_rationale = Column(Text, nullable=True)
+    requires_human_signoff = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class DecisionOutcome(Base):
+    """
+    Stage 11 & 12 — Governed Tripwires, Review Milestones, and Brier Score Calibration.
+    Compares predicted vs actual at 30/90/180 days to update agent reliability.
+    """
+    __tablename__ = "boardroom_outcomes"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    meeting_id = Column(String, ForeignKey("agent_meetings.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    review_milestone = Column(String, nullable=False) # 30d, 90d, 180d
+    review_date = Column(DateTime(timezone=True), nullable=False)
+    tripwires = Column(JSON, default=list)            # ["CAC > $350", "Margin < 40%"]
+    tripwire_triggered = Column(Boolean, default=False)
+    predicted_metrics = Column(JSON, default=dict)
+    actual_metrics = Column(JSON, default=dict)
+    agent_brier_scores = Column(JSON, default=dict)   # {"CFO AI": 0.12, "CRO AI": 0.38}
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

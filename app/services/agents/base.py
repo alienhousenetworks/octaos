@@ -30,11 +30,13 @@ class BaseAgent:
         from app.services.rag.hybrid_engine import HybridRAGEngine
 
         # 1. Pinned Directives & Brand Guidelines (Always included)
-        query = self.db.query(KnowledgeDocument).filter(
+        filters = [
             KnowledgeDocument.tenant_id == self.tenant_id,
-            KnowledgeDocument.is_active == True,
             KnowledgeDocument.doc_type.in_(["Prompt Directives", "Brand Guidelines"])
-        )
+        ]
+        if hasattr(KnowledgeDocument, "is_active"):
+            filters.append(KnowledgeDocument.is_active == True)
+        query = self.db.query(KnowledgeDocument).filter(*filters)
         if department:
             query = query.filter(KnowledgeDocument.department.in_([department, "General"]))
         pinned_docs = query.all()

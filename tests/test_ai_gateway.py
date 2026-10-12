@@ -108,6 +108,7 @@ async def test_gateway_failover_sequence(db_session=None):
     db = MagicMock(spec=Session)
     db.query.return_value.filter.return_value.all.return_value = [] # no credentials configured
     db.query.return_value.filter.return_value.first.return_value = None
+    gateway._get_configured_providers = MagicMock(return_value=[])
 
     with pytest.raises(ValueError) as exc_info:
         await gateway.executeRequest(
@@ -257,4 +258,79 @@ def test_inbuilt_vs_byok_mode():
             assert key_byok == "decrypted-user-key"
     finally:
         settings.OPENROUTER_API_KEY = original_or_key
+
+
+def test_configured_providers_ignores_non_ai_credentials():
+    from app.services.ai_gateway.gateway import AIProviderGateway
+    from app.models.base import APICredential
+    from unittest.mock import MagicMock
+
+    db = MagicMock(spec=Session)
+    gateway = AIProviderGateway()
+
+    # Simulate tenant having credentials for 'sales', 'smtp', and 'anthropic'
+    cred_sales = MagicMock(provider="sales", encrypted_key="enc1")
+    cred_smtp = MagicMock(provider="smtp", encrypted_key="enc2")
+    cred_anthropic = MagicMock(provider="anthropic", encrypted_key="enc3")
+
+    mock_query = MagicMock()
+    mock_query.filter.return_value.all.return_value = [cred_sales, cred_smtp, cred_anthropic]
+    mock_query.filter.return_value.first.return_value = None
+    db.query.return_value = mock_query
+
+    configured = gateway._get_configured_providers(db, tenant_id="tenant-123")
+    assert "anthropic" in configured
+    assert "sales" not in configured
+    assert "smtp" not in configured
+
+
+@pytest.mark.asyncio
+async def test_per_provider_circuit_breaker_failover():
+    from app.services.ai_gateway.gateway import AIProviderGateway
+    from app.core.resilience import get_llm_breaker
+    from unittest.mock import MagicMock, AsyncMock, patch
+
+    gateway = AIProviderGateway()
+    db = MagicMock(spec=Session)
+
+    # Trip the anthropic breaker manually
+    anthropic_breaker = get_llm_breaker("anthropic")
+    # Simulate breaker being open
+    anthropic_breaker.half_open()
+    try:
+        # Trip it to open state
+        for _ in range(5):
+            try:
+                with anthropic_breaker.calling():
+                    raise RuntimeError("Anthropic outage")
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # Verify anthropic breaker is open
+    assert anthropic_breaker.current_state == "open"
+    # Verify openrouter breaker is closed
+    or_breaker = get_llm_breaker("openrouter")
+    assert or_breaker.current_state == "closed"
+
+    # Gateway configured with anthropic and openrouter
+    with patch.object(gateway, "_get_configured_providers", return_value=["anthropic", "openrouter"]):
+        with patch.object(gateway, "_get_api_key", return_value="dummy-key"):
+            mock_adapter = MagicMock()
+            mock_adapter.execute_request = AsyncMock(return_value={
+                "content": "Failover success from OpenRouter",
+                "input_tokens": 10,
+                "output_tokens": 20,
+            })
+            with patch.object(gateway, "_get_adapter", return_value=mock_adapter):
+                result = await gateway.executeRequest(
+                    db=db,
+                    tenant_id="tenant-123",
+                    prompt="Hello",
+                    provider="anthropic",
+                    model="claude-sonnet-4-6",
+                )
+                assert result == "Failover success from OpenRouter"
+
 

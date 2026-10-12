@@ -54,7 +54,7 @@ def get_ceo_workflows(
 ) -> Any:
     workflows = db.query(Workflow).filter(
         Workflow.tenant_id == tenant_id,
-        Workflow.vertical == "CEO"
+        Workflow.vertical.in_(["CEO", "EXECUTIVE"])
     ).order_by(Workflow.created_at.desc()).all()
     return workflows
 
@@ -67,11 +67,22 @@ def get_ceo_workflow_details(
     workflow = db.query(Workflow).filter(
         Workflow.id == workflow_id,
         Workflow.tenant_id == tenant_id,
-        Workflow.vertical == "CEO"
+        Workflow.vertical.in_(["CEO", "EXECUTIVE"])
     ).first()
     if not workflow:
         raise HTTPException(status_code=404, detail="CEO Strategy Workflow not found")
     return workflow
+
+@router.delete("/workflows/{workflow_id}")
+def delete_ceo_workflow(
+    workflow_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    from app.services.executive_os.ceo_interactive_orchestrator import CEOInteractiveOrchestrator
+    orchestrator = CEOInteractiveOrchestrator(db, tenant_id)
+    success = orchestrator.delete_workspace(workflow_id)
+    return {"status": "DELETED", "workflow_id": workflow_id, "success": success}
 
 @router.post("/plan", response_model=WorkflowResponse)
 async def generate_ceo_plan(

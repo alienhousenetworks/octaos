@@ -38,6 +38,16 @@ class LLMGateway:
     def _get_api_key(self, provider: str) -> str:
         from app.services.ai_gateway import ai_gateway
         return ai_gateway._get_api_key(self.db, self.tenant_id, provider)
+
+    def has_configured_provider(self) -> bool:
+        from app.services.ai_gateway import ai_gateway
+        configured = ai_gateway._get_configured_providers(self.db, self.tenant_id)
+        if configured:
+            return True
+        for p in ["openrouter", "anthropic", "openai", "groq", "gemini", "together"]:
+            if ai_gateway._get_api_key(self.db, self.tenant_id, p):
+                return True
+        return False
     async def complete(self, prompt: str, model: str = None, provider: str = "anthropic", system_prompt: str = None, **kwargs) -> str:
         from app.services.ai_gateway import ai_gateway
         
@@ -130,7 +140,7 @@ class LLMGateway:
         req_model = model
         
         # If the user passed default model/provider strings from old code, let the gateway route
-        if model in ["claude-3-haiku-20240307", "gpt-4o", "gemini-2.5-flash", "gemini-1.5-flash", "grok-2"]:
+        if model in ["claude-3-haiku-20240307", "claude-sonnet-4-6", "gpt-4o", "gemini-2.5-flash", "gemini-1.5-flash", "grok-2"]:
             req_model = None
             req_provider = None
 
@@ -149,14 +159,24 @@ class LLMGateway:
         )
 
 
-    async def generate_image(self, prompt: str, provider: str = "openai") -> str:
+    async def generate_image(
+        self,
+        prompt: str,
+        provider: str = "together",
+        model: Optional[str] = None,
+        reference_image_url: Optional[str] = None,
+        aspect_ratio: str = "1:1",
+    ) -> str:
         # Normalize provider aliases
-        if provider in ("dalle", "dall-e", "dall-e-3"):
+        p_lower = (provider or "together").lower()
+        if p_lower in ("dalle", "dall-e", "dall-e-3"):
             provider = "openai"
-        elif provider in ("claude"):
+        elif p_lower in ("claude",):
             provider = "anthropic"
-        elif provider in ("stable", "stability", "stable-diffusion", "sdxl"):
+        elif p_lower in ("stable", "stability", "stable-diffusion", "sdxl"):
             provider = "stability"
+        elif p_lower in ("togetherai", "together_ai", "togetherapi"):
+            provider = "together"
 
         api_key = self._get_api_key(provider)
         
@@ -170,6 +190,32 @@ class LLMGateway:
             return error_msg
 
         try:
+            if provider in ("together", "openrouter"):
+                from app.services.ai_gateway.registry import ModelRegistry
+                from app.services.ai_gateway.providers.base import ImageReq
+                reg = ModelRegistry.get_instance()
+                adapter = reg.get_adapter(provider)
+                if not adapter:
+                    raise Exception(f"Adapter for '{provider}' not found.")
+
+                chosen_model = model
+                if not chosen_model:
+                    if provider == "together":
+                        chosen_model = "black-forest-labs/FLUX.1-canny" if reference_image_url else "black-forest-labs/FLUX.1-dev"
+                    else:
+                        chosen_model = "recraft/recraft-v3"
+
+                res = await adapter.generate_image(
+                    ImageReq(
+                        model=chosen_model,
+                        prompt=prompt,
+                        aspect_ratio=aspect_ratio,
+                        reference_image_url=reference_image_url,
+                    ),
+                    api_key=api_key,
+                )
+                return await ensure_public_url(res.image_url, prefix="img") or res.image_url
+
             async with httpx.AsyncClient() as client:
                 if provider == "openai":
                     response = await client.post(
@@ -402,7 +448,18 @@ class LLMGateway:
             await asyncio.sleep(5)
         return fallback
 
-    async def generate_video(self, prompt: str, provider: str = "pika") -> str:
+    async def generate_video(
+        self,
+        prompt: str,
+        provider: str = "together",
+        model: Optional[str] = None,
+        reference_image_url: Optional[str] = None,
+        aspect_ratio: str = "16:9",
+    ) -> str:
+        p_lower = (provider or "together").lower()
+        if p_lower in ("togetherai", "together_ai", "togetherapi"):
+            provider = "together"
+
         api_key = self._get_api_key(provider)
         if not api_key:
             error_msg = (
@@ -428,6 +485,42 @@ class LLMGateway:
             return error_msg
 
         try:
+            if provider in ("together", "openrouter"):
+                from app.services.ai_gateway.registry import ModelRegistry
+                from app.services.ai_gateway.providers.base import VideoReq
+                import asyncio
+                reg = ModelRegistry.get_instance()
+                adapter = reg.get_adapter(provider)
+                if not adapter:
+                    raise Exception(f"Video adapter for '{provider}' not found.")
+
+                chosen_model = model
+                if not chosen_model:
+                    if provider == "together":
+                        chosen_model = "Wan-AI/Wan2.1-I2V-14B" if reference_image_url else "minimax/video-01"
+                    else:
+                        chosen_model = "kling-ai/kling-v1.5"
+
+                handle = await adapter.submit_video(
+                    VideoReq(
+                        model=chosen_model,
+                        prompt=prompt,
+                        reference_image_url=reference_image_url,
+                        aspect_ratio=aspect_ratio,
+                    ),
+                    api_key=api_key,
+                )
+
+                # Poll video job status
+                for _ in range(40):
+                    status = await adapter.poll_video(handle, api_key=api_key)
+                    if status.status == "completed" and status.result_url:
+                        return await ensure_public_url(status.result_url, prefix="vid", default_mime="video/mp4") or status.result_url
+                    elif status.status == "failed":
+                        raise Exception(status.error or f"{provider.title()} video generation failed.")
+                    await asyncio.sleep(5)
+                raise Exception("Video generation timed out while processing.")
+
             async with httpx.AsyncClient() as client:
                 if provider == "pika":
                     response = await client.post(

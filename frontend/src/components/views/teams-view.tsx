@@ -1,5 +1,7 @@
 'use client';
 
+import { notify, confirmAction } from '@/lib/notify';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -152,7 +154,7 @@ export default function TeamsView({
   // Handle Create Custom Agent
   const handleSaveCustomAgent = async () => {
     if (!agentFormName.trim() || !agentFormRole.trim() || !agentFormPrompt.trim()) {
-      alert('Please fill in Agent Name, Role, and System Instructions.');
+      notify('Please fill in Agent Name, Role, and System Instructions.');
       return;
     }
     setAgentFormSaving(true);
@@ -180,7 +182,7 @@ export default function TeamsView({
         fetchAgents();
       } else {
         const err = await res.json();
-        alert(`Error creating agent: ${err.detail || 'Request failed'}`);
+        notify(`Error creating agent: ${err.detail || 'Request failed'}`);
       }
     } catch (e) {
       console.error(e);
@@ -204,7 +206,7 @@ export default function TeamsView({
 
   // Handle Delete Custom Agent
   const handleDeleteAgent = async (agentId: string) => {
-    if (!confirm('Are you sure you want to delete this custom agent?')) return;
+    if (!(await confirmAction('Are you sure you want to delete this custom agent?'))) return;
     try {
       const res = await fetchWithAuth(`${API_URL}/dashboard/agents/${agentId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -295,7 +297,7 @@ export default function TeamsView({
   };
 
   const handleDeleteTeam = async (teamId: string) => {
-    if (!confirm('Are you sure you want to delete this AI Team?')) return;
+    if (!(await confirmAction('Are you sure you want to delete this AI Team?'))) return;
     try {
       const res = await fetchWithAuth(`${API_URL}/dashboard/teams/${teamId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -317,7 +319,7 @@ export default function TeamsView({
       {/* View Switcher Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800/60 pb-6">
         <div>
-          <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-3">
+          <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-3">
             <Users className="text-violet-500 h-9 w-9" /> Autonomous AI Operations
           </h1>
           <p className="text-gray-400 mt-1">
@@ -330,23 +332,23 @@ export default function TeamsView({
           <button
             onClick={() => setActiveTab('teams')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'teams'
-                ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/20'
-                : 'text-gray-400 hover:text-white'
-            }`}
+ activeTab === 'teams'
+ ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/20'
+ : 'text-gray-400 hover:text-white'
+ }`}
           >
             <Layers size={14} /> Multi-Agent Teams
           </button>
           <button
             onClick={() => setActiveTab('studio')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'studio'
-                ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/20'
-                : 'text-gray-400 hover:text-white'
-            }`}
+ activeTab === 'studio'
+ ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/20'
+ : 'text-gray-400 hover:text-white'
+ }`}
           >
             <Bot size={14} /> Custom Agent Studio
-            <span className="text-[10px] bg-violet-500/20 text-violet-300 px-1.5 py-0.5 rounded-full ml-1">
+            <span className="text-xs bg-violet-500/20 text-violet-300 px-1.5 py-0.5 rounded-full ml-1">
               {agents.length}
             </span>
           </button>
@@ -368,7 +370,7 @@ export default function TeamsView({
                 setTeamFormAgents([]);
                 setIsCreateTeamOpen(true);
               }}
-              className="bg-violet-600 hover:bg-violet-500 text-white font-bold h-10 rounded-xl px-5 shadow-lg shadow-violet-500/20 flex items-center gap-2 hover:scale-[1.02] active:scale-95 transition-all"
+              className="bg-violet-600 hover:bg-violet-500 text-white font-bold h-10 rounded-xl px-5 shadow-lg shadow-violet-500/20 flex items-center gap-2 active:scale-95 transition-all"
             >
               <Plus size={16} /> Create Custom Team
             </Button>
@@ -395,13 +397,13 @@ export default function TeamsView({
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-gray-800/60">
                     <div>
                       <div className="flex items-center gap-2.5">
-                        <h2 className="text-2xl font-black text-white">{team.name}</h2>
+                        <h2 className="text-lg font-semibold text-white">{team.name}</h2>
                         {isDefaultTeam ? (
-                          <span className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-bold">
+                          <span className="text-xs bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-bold">
                             Default Cluster
                           </span>
                         ) : (
-                          <span className="text-[10px] bg-violet-500/10 text-violet-400 border border-violet-500/20 px-2 py-0.5 rounded-full font-bold">
+                          <span className="text-xs bg-violet-500/10 text-violet-400 border border-violet-500/20 px-2 py-0.5 rounded-full font-bold">
                             Custom Cluster
                           </span>
                         )}
@@ -441,34 +443,34 @@ export default function TeamsView({
                   {/* Dynamic Runtime Telemetry Cards */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-6 border-b border-gray-800/40">
                     <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
-                      <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">
+                      <span className="text-xs text-gray-500 font-bold uppercase tracking-wider block">
                         Total Flow Runs
                       </span>
-                      <span className="text-2xl font-black text-white mt-1 block">
+                      <span className="text-lg font-semibold text-white mt-1 block">
                         {teamMetrics.active_tasks}
                       </span>
                     </div>
                     <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
-                      <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">
+                      <span className="text-xs text-gray-500 font-bold uppercase tracking-wider block">
                         Task Success Rate
                       </span>
-                      <span className="text-2xl font-black text-emerald-400 mt-1 block">
+                      <span className="text-lg font-semibold text-emerald-400 mt-1 block">
                         {teamMetrics.success_rate}
                       </span>
                     </div>
                     <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
-                      <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">
+                      <span className="text-xs text-gray-500 font-bold uppercase tracking-wider block">
                         Tokens Processed
                       </span>
-                      <span className="text-2xl font-black text-violet-400 mt-1 block">
+                      <span className="text-lg font-semibold text-violet-400 mt-1 block">
                         {Number(teamMetrics.total_tokens).toLocaleString()}
                       </span>
                     </div>
                     <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
-                      <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">
+                      <span className="text-xs text-gray-500 font-bold uppercase tracking-wider block">
                         Runtime Uptime
                       </span>
-                      <span className="text-2xl font-black text-white mt-1 block">
+                      <span className="text-lg font-semibold text-white mt-1 block">
                         {teamMetrics.uptime}
                       </span>
                     </div>
@@ -498,12 +500,12 @@ export default function TeamsView({
                                 </div>
                                 <div>
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <h4 className="font-extrabold text-white text-sm">{agentName}</h4>
-                                    <span className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full text-[9px] font-bold">
+                                    <h4 className="font-semibold text-white text-sm">{agentName}</h4>
+                                    <span className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full text-xs font-bold">
                                       <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse" /> Running / Ready
                                     </span>
                                     {matchingAgent?.department && (
-                                      <span className="text-[9px] bg-gray-800/80 text-gray-300 px-2 py-0.5 rounded-md font-bold uppercase">
+                                      <span className="text-xs bg-gray-800/80 text-gray-300 px-2 py-0.5 rounded-md font-bold uppercase">
                                         {matchingAgent.department}
                                       </span>
                                     )}
@@ -513,10 +515,10 @@ export default function TeamsView({
                                   </p>
 
                                   <div className="flex gap-2 mt-2">
-                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-gray-900 border border-gray-800 text-gray-400 uppercase">
+                                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-md bg-gray-900 border border-gray-800 text-gray-400 uppercase">
                                       Provider: {matchingAgent?.provider || 'anthropic'}
                                     </span>
-                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-gray-900 border border-gray-800 text-gray-400">
+                                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-md bg-gray-900 border border-gray-800 text-gray-400">
                                       Model: {matchingAgent?.model || 'claude-sonnet-4-6'}
                                     </span>
                                   </div>
@@ -539,11 +541,11 @@ export default function TeamsView({
                                       setTestToolCalls([]);
                                     }
                                   }}
-                                  className={`h-8 text-[11px] font-bold rounded-xl px-3 flex items-center gap-1.5 transition-all ${
-                                    isTesting
-                                      ? 'bg-violet-600 text-white hover:bg-violet-500 border-transparent shadow-lg shadow-violet-500/20'
-                                      : 'bg-transparent border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900'
-                                  }`}
+                                  className={`h-8 text-xs font-bold rounded-xl px-3 flex items-center gap-1.5 transition-all ${
+ isTesting
+ ? 'bg-violet-600 text-white hover:bg-violet-500 border-transparent shadow-lg shadow-violet-500/20'
+ : 'bg-transparent border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900'
+ }`}
                                 >
                                   <Send size={11} /> Test Chat
                                 </Button>
@@ -554,7 +556,7 @@ export default function TeamsView({
                             {isTesting && (
                               <div className="mt-4 pt-4 border-t border-gray-900/60 flex flex-col gap-4 animate-in slide-in-from-top-2 duration-200">
                                 <div className="space-y-1">
-                                  <label className="text-[10px] font-bold text-gray-500 uppercase block">
+                                  <label className="text-xs font-bold text-gray-500 uppercase block">
                                     Test Prompt for {agentName}
                                   </label>
                                   <div className="flex gap-2 items-end">
@@ -575,7 +577,7 @@ export default function TeamsView({
                                 </div>
                                 {testResponse && (
                                   <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-gray-500 uppercase block">
+                                    <label className="text-xs font-bold text-gray-500 uppercase block">
                                       Agent Response
                                     </label>
                                     <div className="bg-gray-900/80 border border-gray-800 text-gray-200 p-4 rounded-2xl text-xs font-mono whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto">
@@ -583,11 +585,11 @@ export default function TeamsView({
                                     </div>
                                     {testToolCalls.length > 0 && (
                                       <div className="p-3 bg-violet-950/20 border border-violet-500/20 rounded-xl space-y-1">
-                                        <span className="text-[10px] font-bold uppercase text-violet-400 block">
+                                        <span className="text-xs font-bold uppercase text-violet-400 block">
                                           Executed Tool Invocations:
                                         </span>
                                         {testToolCalls.map((tc, idx) => (
-                                          <div key={idx} className="text-[11px] text-gray-300 font-mono">
+                                          <div key={idx} className="text-xs text-gray-300 font-mono">
                                             ✓ {tc.tool} with args {JSON.stringify(tc.args)}
                                           </div>
                                         ))}
@@ -623,10 +625,10 @@ export default function TeamsView({
                   key={dept}
                   onClick={() => setSelectedDeptFilter(dept)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
-                    selectedDeptFilter === dept
-                      ? 'bg-violet-600 text-white'
-                      : 'text-gray-400 hover:text-white'
-                  }`}
+ selectedDeptFilter === dept
+ ? 'bg-violet-600 text-white'
+ : 'text-gray-400 hover:text-white'
+ }`}
                 >
                   {dept}
                 </button>
@@ -638,7 +640,7 @@ export default function TeamsView({
                 resetAgentForm();
                 setIsCreateAgentOpen(true);
               }}
-              className="bg-violet-600 hover:bg-violet-500 text-white font-bold h-10 rounded-xl px-4 shadow-lg shadow-violet-500/20 flex items-center gap-2 hover:scale-[1.02] active:scale-95 transition-all"
+              className="bg-violet-600 hover:bg-violet-500 text-white font-bold h-10 rounded-xl px-4 shadow-lg shadow-violet-500/20 flex items-center gap-2 active:scale-95 transition-all"
             >
               <Plus size={16} /> Create Custom Agent
             </Button>
@@ -657,16 +659,16 @@ export default function TeamsView({
                   <div className="space-y-4">
                     {/* Header Badges */}
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] uppercase font-black tracking-widest text-violet-400 bg-violet-500/10 px-2.5 py-1 rounded-full border border-violet-500/20">
+                      <span className="text-xs uppercase font-semibold tracking-widest text-violet-400 bg-violet-500/10 px-2.5 py-1 rounded-full border border-violet-500/20">
                         {agent.department}
                       </span>
                       <div className="flex items-center gap-1.5">
                         {agent.is_system ? (
-                          <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
+                          <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
                             System
                           </span>
                         ) : (
-                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                          <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
                             Custom v{agent.version}
                           </span>
                         )}
@@ -688,7 +690,7 @@ export default function TeamsView({
                         <Bot size={22} className="text-violet-400" />
                       </div>
                       <div>
-                        <CardTitle className="text-base text-white font-extrabold">{agent.name}</CardTitle>
+                        <CardTitle className="text-base text-white font-semibold">{agent.name}</CardTitle>
                         <span className="text-xs text-violet-300/80 font-medium block mt-0.5">{agent.role}</span>
                       </div>
                     </div>
@@ -698,7 +700,7 @@ export default function TeamsView({
                     </CardDescription>
 
                     {/* Model & Provider */}
-                    <div className="flex gap-2 pt-2 border-t border-gray-800/40 text-[10px]">
+                    <div className="flex gap-2 pt-2 border-t border-gray-800/40 text-xs">
                       <span className="bg-gray-900 border border-gray-800 text-gray-400 px-2 py-0.5 rounded-md font-bold uppercase">
                         {agent.provider}
                       </span>
@@ -709,7 +711,7 @@ export default function TeamsView({
 
                     {/* Tools Granted Chips */}
                     <div className="space-y-1.5 pt-1">
-                      <span className="text-[10px] font-bold uppercase text-gray-500 tracking-wider">
+                      <span className="text-xs font-bold uppercase text-gray-500 tracking-wider">
                         Authorized Capabilities:
                       </span>
                       <div className="flex flex-wrap gap-1.5">
@@ -717,13 +719,13 @@ export default function TeamsView({
                           agent.tools.map((t) => (
                             <span
                               key={t}
-                              className="text-[9px] font-semibold bg-gray-900/80 border border-gray-800 text-gray-300 px-2 py-0.5 rounded-md flex items-center gap-1"
+                              className="text-xs font-semibold bg-gray-900/80 border border-gray-800 text-gray-300 px-2 py-0.5 rounded-md flex items-center gap-1"
                             >
                               <Wrench size={9} className="text-violet-400" /> {t}
                             </span>
                           ))
                         ) : (
-                          <span className="text-[10px] text-gray-500 italic">Conversational (No write tools)</span>
+                          <span className="text-xs text-gray-500 italic">Conversational (No write tools)</span>
                         )}
                       </div>
                     </div>
@@ -746,10 +748,10 @@ export default function TeamsView({
                         }
                       }}
                       className={`w-full font-bold h-9 rounded-xl transition-all ${
-                        isTesting
-                          ? 'bg-violet-600 text-white'
-                          : 'bg-gray-900 hover:bg-gray-800 text-white border border-gray-800'
-                      }`}
+ isTesting
+ ? 'bg-violet-600 text-white'
+ : 'bg-gray-900 hover:bg-gray-800 text-white border border-gray-800'
+ }`}
                     >
                       <Send size={12} className="mr-1.5" /> {isTesting ? 'Close Test Console' : 'Interactive Test Bench'}
                     </Button>
@@ -757,7 +759,7 @@ export default function TeamsView({
                     {/* Live Test Drawer inside Card */}
                     {isTesting && (
                       <div className="pt-3 border-t border-gray-800/80 space-y-2 animate-in slide-in-from-top-2 duration-200">
-                        <div className="flex items-center justify-between text-[10px]">
+                        <div className="flex items-center justify-between text-xs">
                           <span className="text-gray-400 font-bold uppercase">Prompt Agent</span>
                           <label className="flex items-center gap-1.5 text-gray-400 cursor-pointer">
                             <input
@@ -804,7 +806,7 @@ export default function TeamsView({
       <Dialog open={isCreateAgentOpen} onOpenChange={setIsCreateAgentOpen}>
         <DialogContent className="glass-panel border-violet-500/20 text-white rounded-3xl max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-white font-extrabold text-xl flex items-center gap-2">
+            <DialogTitle className="text-white font-semibold text-xl flex items-center gap-2">
               <Bot className="text-violet-400" /> Create Custom Autonomous Agent
             </DialogTitle>
           </DialogHeader>
@@ -931,16 +933,16 @@ export default function TeamsView({
                         }
                       }}
                       className={`flex items-center justify-between p-2.5 rounded-xl border text-left transition-all ${
-                        isSelected
-                          ? 'bg-violet-600/20 border-violet-500 text-white'
-                          : 'bg-gray-900/40 border-gray-800 text-gray-400 hover:border-gray-700'
-                      }`}
+ isSelected
+ ? 'bg-violet-600/20 border-violet-500 text-white'
+ : 'bg-gray-900/40 border-gray-800 text-gray-400 hover:border-gray-700'
+ }`}
                     >
                       <div className="flex items-center gap-2">
                         <t.icon size={14} className={isSelected ? 'text-violet-400' : 'text-gray-500'} />
                         <div>
                           <span className="text-xs font-bold block">{t.label}</span>
-                          <span className="text-[9px] text-gray-500">
+                          <span className="text-xs text-gray-500">
                             {t.sideEffect} • Risk: {t.risk} {t.approval ? '• Sign-off Req' : ''}
                           </span>
                         </div>
@@ -970,7 +972,7 @@ export default function TeamsView({
       <Dialog open={isCreateTeamOpen} onOpenChange={setIsCreateTeamOpen}>
         <DialogContent className="glass-panel border-violet-500/20 text-white rounded-3xl max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-white font-extrabold text-xl">Create Multi-Agent Team</DialogTitle>
+            <DialogTitle className="text-white font-semibold text-xl">Create Multi-Agent Team</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-4">
             <div className="space-y-1">
@@ -1001,10 +1003,10 @@ export default function TeamsView({
                         }
                       }}
                       className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${
-                        isSelected
-                          ? 'bg-violet-600/20 border-violet-500 text-violet-300'
-                          : 'bg-gray-900/40 border-gray-800 text-gray-400 hover:border-gray-700'
-                      }`}
+ isSelected
+ ? 'bg-violet-600/20 border-violet-500 text-violet-300'
+ : 'bg-gray-900/40 border-gray-800 text-gray-400 hover:border-gray-700'
+ }`}
                     >
                       <span className="truncate">{ag.name}</span>
                       {isSelected && <Check size={12} className="text-violet-400 flex-shrink-0" />}
@@ -1030,7 +1032,7 @@ export default function TeamsView({
       <Dialog open={isEditTeamOpen} onOpenChange={setIsEditTeamOpen}>
         <DialogContent className="glass-panel border-violet-500/20 text-white rounded-3xl max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-white font-extrabold text-xl">Modify AI Team</DialogTitle>
+            <DialogTitle className="text-white font-semibold text-xl">Modify AI Team</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-4">
             <div className="space-y-1">
@@ -1059,10 +1061,10 @@ export default function TeamsView({
                         }
                       }}
                       className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${
-                        isSelected
-                          ? 'bg-violet-600/20 border-violet-500 text-violet-300'
-                          : 'bg-gray-900/40 border-gray-800 text-gray-400 hover:border-gray-700'
-                      }`}
+ isSelected
+ ? 'bg-violet-600/20 border-violet-500 text-violet-300'
+ : 'bg-gray-900/40 border-gray-800 text-gray-400 hover:border-gray-700'
+ }`}
                     >
                       <span className="truncate">{ag.name}</span>
                       {isSelected && <Check size={12} className="text-violet-400 flex-shrink-0" />}

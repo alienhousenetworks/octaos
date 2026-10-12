@@ -1,5 +1,7 @@
 'use client';
 
+import { notify } from '@/lib/notify';
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   MessageSquare, 
@@ -249,7 +251,7 @@ export default function SupportWidget({
   const handleRaiseTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ticketForm.problem || !ticketForm.name || !ticketForm.email || !ticketForm.phone) {
-      alert('Please fill out all fields.');
+      notify('Please fill out all fields.');
       return;
     }
 
@@ -284,10 +286,10 @@ export default function SupportWidget({
         }, 1800);
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.detail || 'Failed to submit ticket');
+        notify(err.detail || 'Failed to submit ticket');
       }
     } catch (e) {
-      alert('Network error while submitting ticket.');
+      notify('Network error while submitting ticket.');
     } finally {
       setTicketSubmitting(false);
     }
@@ -312,17 +314,17 @@ export default function SupportWidget({
               <div>
                 <h4 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
                   {config.title}
-                  <span className="text-[10px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.2 rounded-full">
+                  <span className="text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.2 rounded-full">
                     AI + Live
                   </span>
                 </h4>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className={`w-2 h-2 rounded-full ${
-                    ticketStatus === 'human_handling' ? 'bg-emerald-400 animate-ping' :
-                    ticketStatus === 'pending_human' ? 'bg-amber-400 animate-pulse' :
-                    config.live_chat_available ? 'bg-emerald-500' : 'bg-blue-400'
-                  }`} />
-                  <span className="text-[11px] text-gray-400 font-medium">
+ ticketStatus === 'human_handling' ? 'bg-emerald-400 animate-ping' :
+ ticketStatus === 'pending_human' ? 'bg-amber-400 animate-pulse' :
+ config.live_chat_available ? 'bg-emerald-500' : 'bg-blue-400'
+ }`} />
+                  <span className="text-xs text-gray-400 font-medium">
                     {ticketStatus === 'human_handling'
                       ? (agentName ? `Live with ${agentName}` : 'Live Agent Active')
                       : ticketStatus === 'pending_human'
@@ -349,20 +351,20 @@ export default function SupportWidget({
             <button
               onClick={() => setActiveTab('chat')}
               className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-                activeTab === 'chat'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-              }`}
+ activeTab === 'chat'
+ ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+ : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+ }`}
             >
               <MessageSquare size={13} /> Live Assistant
             </button>
             <button
               onClick={() => setActiveTab('ticket')}
               className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-                activeTab === 'ticket'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-              }`}
+ activeTab === 'ticket'
+ ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+ : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+ }`}
             >
               <FileText size={13} /> Raise Ticket
             </button>
@@ -379,7 +381,7 @@ export default function SupportWidget({
                   if (isSys) {
                     return (
                       <div key={idx} className="flex justify-center my-1.5">
-                        <span className="bg-gray-900/80 border border-gray-800 text-gray-400 text-[10px] px-3 py-1 rounded-full text-center max-w-[90%] leading-relaxed">
+                        <span className="bg-gray-900/80 border border-gray-800 text-gray-400 text-xs px-3 py-1 rounded-full text-center max-w-[90%] leading-relaxed">
                           {m.content}
                         </span>
                       </div>
@@ -393,21 +395,21 @@ export default function SupportWidget({
                     >
                       <div
                         className={`max-w-[85%] rounded-2xl p-3 leading-relaxed shadow-sm ${
-                          isUser
-                            ? 'bg-blue-600 text-white rounded-tr-none shadow-blue-500/10'
-                            : 'bg-gray-900 border border-white/10 text-gray-200 rounded-tl-none'
-                        }`}
+ isUser
+ ? 'bg-blue-600 text-white rounded-tr-none shadow-blue-500/10'
+ : 'bg-gray-900 border border-white/10 text-gray-200 rounded-tl-none'
+ }`}
                       >
                         <p className="whitespace-pre-wrap">{m.content}</p>
 
                         {/* Knowledge Base Citations */}
                         {m.citations && m.citations.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-white/10 text-[10px] text-gray-400 flex flex-wrap gap-1 items-center">
+                          <div className="mt-2 pt-2 border-t border-white/10 text-xs text-gray-400 flex flex-wrap gap-1 items-center">
                             <span className="font-semibold text-blue-400">Sources:</span>
                             {m.citations.map((c, cIdx) => (
                               <span
                                 key={cIdx}
-                                className="bg-gray-800 border border-gray-700 px-1.5 py-0.5 rounded text-[9px]"
+                                className="bg-gray-800 border border-gray-700 px-1.5 py-0.5 rounded text-xs"
                               >
                                 {c}
                               </span>
@@ -422,7 +424,7 @@ export default function SupportWidget({
                 {/* Suggest Live Chat Banner */}
                 {suggestLiveChat.suggested && (
                   <div className="p-3 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 text-indigo-200 space-y-2 animate-in fade-in">
-                    <p className="text-[11px] leading-relaxed">
+                    <p className="text-xs leading-relaxed">
                       {suggestLiveChat.reason === 'loop_detected'
                         ? "It looks like we're having trouble resolving this. Would you like to connect with a live support agent?"
                         : "I don't have enough details in our knowledge base for this question. Would you like to speak to a specialist?"}
@@ -437,7 +439,7 @@ export default function SupportWidget({
                             setActiveTab('ticket');
                           }
                         }}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] h-7 px-3 rounded-lg flex items-center gap-1 shadow-md shadow-indigo-600/20"
+                        className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs h-7 px-3 rounded-lg flex items-center gap-1 shadow-md shadow-indigo-600/20"
                       >
                         <Headphones size={12} />
                         {suggestLiveChat.available ? 'Connect to Live Chat' : 'Raise Support Ticket'}
@@ -461,21 +463,21 @@ export default function SupportWidget({
                 <button
                   type="button"
                   onClick={() => handleSendMessage('I would like to speak with a human support agent.', 'request_handoff')}
-                  className="px-2.5 py-1 rounded-full bg-blue-600/10 border border-blue-500/20 text-blue-300 hover:bg-blue-600/20 text-[10px] font-medium whitespace-nowrap transition-colors flex items-center gap-1"
+                  className="px-2.5 py-1 rounded-full bg-blue-600/10 border border-blue-500/20 text-blue-300 hover:bg-blue-600/20 text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1"
                 >
                   <Headphones size={10} /> Talk to Human
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSendMessage('Can you explain pricing and plan features?')}
-                  className="px-2.5 py-1 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 text-[10px] whitespace-nowrap transition-colors"
+                  className="px-2.5 py-1 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs whitespace-nowrap transition-colors"
                 >
                   Pricing
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSendMessage('What are your company refund and cancellation policies?')}
-                  className="px-2.5 py-1 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 text-[10px] whitespace-nowrap transition-colors"
+                  className="px-2.5 py-1 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs whitespace-nowrap transition-colors"
                 >
                   Policies
                 </button>
@@ -512,13 +514,13 @@ export default function SupportWidget({
                 <h5 className="font-bold text-white text-xs flex items-center gap-1.5">
                   <FileText size={13} className="text-blue-400" /> Need Human Follow-up?
                 </h5>
-                <p className="text-[11px] text-gray-400 leading-relaxed">
+                <p className="text-xs text-gray-400 leading-relaxed">
                   Submit your problem description and contact information. A specialist will review and respond directly.
                 </p>
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                <label className="block text-xs font-semibold text-gray-300 mb-1">
                   Problem Description *
                 </label>
                 <Textarea
@@ -531,7 +533,7 @@ export default function SupportWidget({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-gray-300 mb-1 flex items-center gap-1">
+                <label className="block text-xs font-semibold text-gray-300 mb-1 flex items-center gap-1">
                   <User size={11} className="text-gray-400" /> Full Name *
                 </label>
                 <Input
@@ -545,7 +547,7 @@ export default function SupportWidget({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-gray-300 mb-1 flex items-center gap-1">
+                <label className="block text-xs font-semibold text-gray-300 mb-1 flex items-center gap-1">
                   <Mail size={11} className="text-gray-400" /> Email Address *
                 </label>
                 <Input
@@ -559,7 +561,7 @@ export default function SupportWidget({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-gray-300 mb-1 flex items-center gap-1">
+                <label className="block text-xs font-semibold text-gray-300 mb-1 flex items-center gap-1">
                   <Phone size={11} className="text-gray-400" /> Mobile Number *
                 </label>
                 <Input
@@ -597,9 +599,9 @@ export default function SupportWidget({
         title="Support & Live Chat"
       >
         <span className={`absolute top-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-gray-950 ${
-          ticketStatus === 'human_handling' ? 'bg-emerald-400 animate-ping' :
-          config.live_chat_available ? 'bg-emerald-500' : 'bg-blue-400'
-        }`} />
+ ticketStatus === 'human_handling' ? 'bg-emerald-400 animate-ping' :
+ config.live_chat_available ? 'bg-emerald-500' : 'bg-blue-400'
+ }`} />
         {isOpen ? (
           <X size={24} className="transition-transform group-hover:rotate-90 duration-200" />
         ) : (

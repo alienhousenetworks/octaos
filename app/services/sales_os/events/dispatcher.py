@@ -14,6 +14,8 @@ from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 
 from app.models.deal_room import DealRoom, AccountSignal, BuyingCommitteeMember, DealActivity
+from app.services.sales_os.signals.decay import age_in_days, effective_strength
+from app.services.sales_os.signals.taxonomy import half_life_for
 
 
 class SalesEventDispatcher:
@@ -85,22 +87,42 @@ class SalesEventDispatcher:
         if not deal_room:
             return {"status": "error", "message": "DealRoom not found"}
 
+        signal_type = payload.get("signal_type") or "hiring"
+        observed_at = payload.get("observed_at")
+        confidence = payload.get("confidence")
         signal = AccountSignal(
             deal_room_id=deal_room_id,
             tenant_id=self.tenant_id,
-            signal_type=payload.get("signal_type", "hiring"),
-            headline=payload.get("headline", "New market signal detected"),
+            signal_type=signal_type,
+            headline=payload.get("headline") or signal_type,
             details=payload.get("details"),
             evidence_url=payload.get("evidence_url"),
-            confidence=float(payload.get("confidence", 0.9)),
-            decay_half_life_days=int(payload.get("decay_days", 14)),
+            confidence=float(confidence) if confidence is not None else None,
+            decay_half_life_days=int(payload.get("decay_days") or half_life_for(signal_type) or 14),
+            observed_at=observed_at,
         )
         self.db.add(signal)
+        self.db.flush()
 
-        # Recompute timing score
-        deal_room.timing_score = min(1.0, deal_room.timing_score + 0.35)
-        deal_room.priority_index = round(deal_room.icp_fit_score * deal_room.timing_score, 3)
-        deal_room.last_activity_at = datetime.now(timezone.utc)
+        strengths = []
+        now = datetime.now(timezone.utc)
+        rows = self.db.query(AccountSignal).filter(
+            AccountSignal.deal_room_id == deal_room_id,
+            AccountSignal.tenant_id == self.tenant_id,
+        ).all()
+        for row in rows:
+            strength = effective_strength(
+                1.0,
+                row.confidence,
+                age_in_days(row.observed_at, now),
+                row.decay_half_life_days,
+            )
+            if strength is not None:
+                strengths.append(strength)
+        if strengths:
+            deal_room.timing_score = round(min(1.0, max(strengths)), 3)
+            deal_room.priority_index = round((deal_room.icp_fit_score or 0) * deal_room.timing_score, 3)
+        deal_room.last_activity_at = now
         
         self.db.commit()
         return {"status": "success", "signal_id": signal.id, "new_timing_score": deal_room.timing_score}

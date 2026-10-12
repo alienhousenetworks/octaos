@@ -1,0 +1,172 @@
+{
+  "schema_version": "1.0",
+  "mode": "analytics",
+  "job_id": "job-struggling-002",
+  "data_freshness": "live",
+  "empty_state": false,
+  "briefing_text": "Executive Critical Advisory: Severe operational bottlenecks detected across lead response velocity and customer support ticket queues. Lead conversion has declined by -8.4% WoW down to 4.2%, primarily driven by 84 unassigned leads lingering beyond 48 hours without sales cadence outreach. Furthermore, Support SLA breach rate has spiked to 38.0% with 29 tickets stalled. Immediate executive intervention recommended across three automated recovery phases.",
+  "metrics": {
+    "tenant_id": "tenant-struggling-org",
+    "harvested_at": "2026-10-04T12:00:00Z",
+    "data_freshness": "live",
+    "empty_state": false,
+    "items": {
+      "leads.total": {
+        "metric_id": "leads.total",
+        "name": "Total Active Leads",
+        "value": 210.0,
+        "formatted": "210",
+        "unit": "count",
+        "change_pct_wow": -4.1,
+        "direction": "down",
+        "category": "sales"
+      },
+      "leads.conversion_rate": {
+        "metric_id": "leads.conversion_rate",
+        "name": "Lead-to-Qualified Rate",
+        "value": 4.2,
+        "formatted": "4.2%",
+        "unit": "%",
+        "change_pct_wow": -8.4,
+        "direction": "down",
+        "category": "sales"
+      },
+      "deals.pipeline_value": {
+        "metric_id": "deals.pipeline_value",
+        "name": "Total Pipeline Value",
+        "value": 110000.0,
+        "formatted": "$110,000",
+        "unit": "USD",
+        "change_pct_wow": -15.2,
+        "direction": "down",
+        "category": "finance"
+      },
+      "tickets.sla_breach_rate": {
+        "metric_id": "tickets.sla_breach_rate",
+        "name": "Support SLA Breach Rate",
+        "value": 38.0,
+        "formatted": "38.0%",
+        "unit": "%",
+        "change_pct_wow": 14.5,
+        "direction": "down",
+        "category": "support"
+      }
+    },
+    "raw_funnel": {
+      "captured": 210,
+      "contacted": 62,
+      "qualified": 15,
+      "proposal": 6,
+      "converted": 2
+    },
+    "raw_deal_stages": {
+      "discovered": {"count": 45, "value": 65000},
+      "qualified": {"count": 8, "value": 45000}
+    },
+    "raw_ticket_distribution": {
+      "open": 42,
+      "pending_human": 29,
+      "resolved": 18
+    },
+    "raw_channel_performance": [
+      {"platform": "linkedin", "impressions": 4200, "engagement_rate": 0.9}
+    ],
+    "raw_agent_activity": {
+      "Sales AI Agent": 12,
+      "Support AI Agent": 8
+    }
+  },
+  "charts": [
+    {
+      "chart_id": "funnel_chart",
+      "title": "Severe Funnel Leakage Breakdown",
+      "description": "Noticeable drop-off: 71% of captured leads stall prior to initial contact.",
+      "category": "funnel",
+      "spec": {
+        "data": [
+          {
+            "type": "funnel",
+            "y": ["Captured", "Contacted", "Qualified", "Proposal", "Converted"],
+            "x": [210, 62, 15, 6, 2],
+            "textinfo": "value+percent initial",
+            "marker": {"color": ["#ef4444", "#f97316", "#f59e0b", "#64748b", "#334155"]}
+          }
+        ],
+        "layout": {
+          "title": {"text": "Lead Funnel Leakage"},
+          "paper_bgcolor": "rgba(0,0,0,0)",
+          "plot_bgcolor": "rgba(0,0,0,0)",
+          "font": {"color": "#e2e8f0"}
+        }
+      }
+    }
+  ],
+  "findings": [
+    {
+      "id": "W-LEADS-02",
+      "title": "Critical Lead Stagnation in Captured State",
+      "severity": "CRITICAL",
+      "category": "revenue_leak",
+      "metric_citations": ["leads.total", "leads.conversion_rate"],
+      "evidence": "84 unassigned leads uncontacted for >48h. Conversion rate degraded to 4.2%.",
+      "root_cause": "SMTP outgoing mail service credentials missing or invalid, causing outreach agent pause.",
+      "impact": "Estimated revenue leakage of $45,000 in uncontacted pipeline opportunities."
+    },
+    {
+      "id": "W-TICKETS-01",
+      "title": "Support Queue SLA Breach Surge",
+      "severity": "CRITICAL",
+      "category": "sla_breach",
+      "metric_citations": ["tickets.sla_breach_rate"],
+      "evidence": "38.0% of tickets breached 2-hour SLA window with 29 tickets stalled in pending_human.",
+      "root_cause": "Human escalations lack automated AI first-response deflection fallback.",
+      "impact": "Elevated churn risk across 14 high-tier enterprise clients."
+    }
+  ],
+  "improvement_plan": [
+    {
+      "id": "ACT-7D-01",
+      "phase": "7d",
+      "title": "Configure Primary SMTP Relay and Auto-Dispatch Stalled Leads",
+      "description": "Establish verified SMTP channel and launch AI outreach re-engagement to all 84 stalled leads.",
+      "department": "Sales",
+      "action_type": "sales_outreach",
+      "parameters": {"batch_size": 84, "channel": "smtp"},
+      "estimated_roi": "Immediate recovery of ~15 qualified meetings within 5 business days.",
+      "requires_approval": true,
+      "status": "pending_approval"
+    },
+    {
+      "id": "ACT-30D-01",
+      "phase": "30d",
+      "title": "Deploy Support AI Auto-Deflection for Level 1 Inquiries",
+      "description": "Activate Knowledge Base RAG auto-responder for incoming support tickets before human triage.",
+      "department": "Support",
+      "action_type": "activate_kb_deflection",
+      "parameters": {"mode": "auto_deflect_tier1"},
+      "estimated_roi": "Cuts ticket SLA breach rate from 38.0% down to under 5.0%.",
+      "requires_approval": true,
+      "status": "pending_approval"
+    }
+  ],
+  "trace": [
+    {
+      "agent_id": 1,
+      "name": "Executive Intent Classifier",
+      "role": "Intent Routing & Orchestration",
+      "execution_type": "rule_based",
+      "latency_ms": 3,
+      "status": "success",
+      "summary": "Identified diagnostic weakness query."
+    },
+    {
+      "agent_id": 7,
+      "name": "Strategic Weakness Auditor",
+      "role": "Revenue Leakage & SLA Audit",
+      "execution_type": "rule_based",
+      "latency_ms": 12,
+      "status": "warning",
+      "summary": "Flagged 2 CRITICAL operational vulnerabilities."
+    }
+  ]
+}

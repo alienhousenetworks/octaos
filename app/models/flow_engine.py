@@ -181,7 +181,7 @@ class FlowRun(Base):
     flow = relationship("FlowDefinition", back_populates="runs")
     flow_version = relationship("FlowVersion", back_populates="runs")
     step_runs = relationship("StepRun", back_populates="flow_run", cascade="all, delete-orphan", order_by="StepRun.created_at")
-    approval_requests = relationship("ApprovalRequest", back_populates="flow_run", cascade="all, delete-orphan")
+    approval_requests = relationship("FlowApprovalRequest", back_populates="flow_run", cascade="all, delete-orphan")
 
 
 class StepRun(Base):
@@ -204,11 +204,12 @@ class StepRun(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     flow_run = relationship("FlowRun", back_populates="step_runs")
-    approval_requests = relationship("ApprovalRequest", back_populates="step_run", cascade="all, delete-orphan")
+    approval_requests = relationship("FlowApprovalRequest", back_populates="step_run", cascade="all, delete-orphan")
 
 
-class ApprovalRequest(Base):
-    __tablename__ = "approval_requests"
+class FlowApprovalRequest(Base):
+    """Flow-run review queue. Separate from the enterprise HITL table approval_requests."""
+    __tablename__ = "flow_approval_requests"
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)

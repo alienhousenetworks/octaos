@@ -12,7 +12,20 @@ class OrchestratorAgent(BaseAgent):
     def __init__(self, db, tenant_id):
         super().__init__(db, tenant_id, "Orchestrator AI")
 
-    async def handle_prompt(self, prompt: str, provider: str = "anthropic", model: str = None) -> dict:
+    async def handle_prompt(self, prompt: str, provider: str = None, model: str = None) -> dict:
+        from app.core.config import settings
+        from app.services.ai_gateway import ai_gateway
+
+        configured_provs = ai_gateway._get_configured_providers(self.db, self.tenant_id)
+        if not provider or provider.lower() in ("auto", "none"):
+            pref = getattr(settings, "DEFAULT_AI_PROVIDER", None) or ""
+            if pref and (pref in configured_provs or ai_gateway._get_api_key(self.db, self.tenant_id, pref)):
+                provider = pref
+            elif configured_provs:
+                provider = configured_provs[0]
+            else:
+                provider = pref or "openrouter"
+
         # Check if the user is providing a key manually
         # e.g., "Here is my linkedin key: 12345"
         import re
@@ -28,11 +41,45 @@ class OrchestratorAgent(BaseAgent):
             self.log_activity("Configuration", f"Saved {provider} API key.")
             return {"plan": {}, "results": [{"status": "success", "message": f"I've saved your {provider} configuration. What task should I execute next?"}]}
 
+        # Intent routing: branch into analytics/hybrid vs execution
+        from app.services.agents.intent_router import IntentRouter
+        mode, confidence = IntentRouter.classify(prompt)
+
+        if mode in ["analytics", "hybrid"]:
+            from app.services.agents.executive_swarm import ExecutiveSwarmCoordinator
+            coordinator = ExecutiveSwarmCoordinator(self.db, self.tenant_id)
+            briefing = await coordinator.execute_report(
+                prompt=prompt,
+                mode=mode,
+                confidence=confidence,
+                provider=provider,
+                model=model,
+            )
+            self.log_activity("Executive Briefing", f"Generated C-Suite {mode.capitalize()} Briefing for '{prompt}'")
+            return {
+                "mode": mode,
+                "briefing": briefing.model_dump(),
+                "plan": briefing.draft_execution_plan or {},
+                "results": [
+                    {
+                        "status": "success",
+                        "message": briefing.briefing_text,
+                    }
+                ],
+            }
+
         # Get existing keys to inform the LLM
         creds = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id).all()
         configured_providers = [c.provider for c in creds]
 
-        system_prompt = f"""You are the Orchestrator AI. Break down the user's high-level goal into tasks for specialized department agents.
+        # Inject company-dedicated knowledge base context (directives, brand rules, RAG)
+        company_knowledge = self.get_knowledge_context("orchestrator", "General")
+
+        system_prompt = f"""You are the Orchestrator AI, the central coordination brain of OctaOS.
+Your job is to assist company leadership, answer questions about operations, and coordinate specialized department agents (Marketing, Sales, Support, HR, Finance).
+
+{company_knowledge}
+
 Currently configured API keys/credentials: {configured_providers}.
 
 Available Agents & Actions:
@@ -46,32 +93,25 @@ Available Agents & Actions:
       - For local brick-and-mortar business searches (e.g. "gyms in Boston", "plumbers in Texas"), prefer "google_places" (if key configured).
       - For corporate B2B profiles (e.g. "software companies", "marketing agencies", "founders"), prefer "apollo" or "hunter" (if key configured).
   - "sales_outreach": parameters: {{"channel": "smtp" | "gmail" | "whatsapp", "subject": str, "body_template": str}}
-    * Outreach Channel Decision Rules:
-      - If the user wants to email or contact, check if "smtp" or "gmail" key is configured. If "smtp" is configured, choose "smtp". If "gmail" is configured, choose "gmail".
-      - If neither is configured but they asked to email, choose "smtp" as preferred, but if the key is missing, schedule "request_key" for "smtp".
-      - If the user requests "whatsapp", check if "whatsapp" is configured. If not, schedule "request_key" for "whatsapp".
   - "schedule_meeting": parameters: {{"tool": "google_calendar", "count": int}}
-    * Scheduling Tool Decision Rules:
-      - If "google_calendar" key is configured, choose "google_calendar". If not, schedule "request_key" for "google_calendar".
 - HR:
   - "source_candidates": parameters: {{"role": str, "requirements": str, "salary": str, "count": int}}
   - "candidate_outreach": parameters: {{"channel": "smtp" | "gmail", "subject": str, "body_template": str, "candidate_id": str | None}}
-    * Candidate Outreach Decision Rules:
-      - If SMTP or gmail credentials aren't present in configured keys, schedule "request_key" for "smtp".
   - "schedule_interview": parameters: {{"tool": "google_calendar", "candidate_id": str | None}}
-    * Interview Decision Rules:
-      - If "google_calendar" key is configured, choose "google_calendar". If not, schedule "request_key" for "google_calendar".
-
 - System:
-  - "request_key": parameters: {{"provider": str}} - use this to ask the user for a missing key (e.g. "smtp", "apollo", "google_places", "whatsapp", etc.).
+  - "request_key": parameters: {{"provider": str}} - use this to ask the user for a missing key.
 
-If a task requires an external platform that is NOT in the configured keys list, and the task has no free fallback, or the user specifically demanded that paid platform, DO NOT schedule that task. Instead, return a single task with department 'System', action 'request_key', and parameters {{"provider": "missing_provider_name"}}.
+Guidelines:
+1. If the user asks a conversational question, operational inquiry, or asks for advice, provide a clear, helpful response in the "message" field.
+2. If the user request requires executing tasks, include them in the "tasks" array. If no execution tasks are needed, leave "tasks" as an empty list [].
+3. Adhere strictly to the company knowledge base and guidelines above.
 
 Output MUST be valid JSON only.
 Format:
 {{
+    "message": "Direct conversational response, guidance, or operational explanation.",
     "tasks": [
-        {{"department": "Marketing" | "Sales" | "Support" | "Finance" | "HR" | "System", "action": "create_posts" | "generate_leads" | "sales_outreach" | "schedule_meeting" | "source_candidates" | "candidate_outreach" | "schedule_interview" | "request_key", "parameters": {{}}}}
+        {{"department": "Marketing" | "Sales" | "Support" | "Finance" | "HR" | "System", "action": "...", "parameters": {{}}}}
     ]
 }}"""
         from app.services.ai_gateway.ai_parser import AIRetryManager, OrchestratorPlan
@@ -79,6 +119,7 @@ Format:
         async def gateway_call(prompt, system_prompt, provider, model):
             return await self.llm.complete(prompt=prompt, system_prompt=system_prompt, provider=provider, model=model)
 
+        plan = {}
         try:
             plan_model = await AIRetryManager.call_with_retry(
                 gateway_call_fn=gateway_call,
@@ -90,12 +131,26 @@ Format:
             )
             plan = plan_model.model_dump()
         except Exception as e:
-            logger.error(f"[Orchestrator] Failed to parse plan: {e}")
-            raise Exception(f"Failed to parse orchestrator plan: {str(e)}")
+            logger.info(f"[Orchestrator] Direct plan parsing fallback: {e}; generating conversational response.")
+            try:
+                conv_resp = await self.llm.complete(
+                    prompt=prompt,
+                    system_prompt=f"You are the Orchestrator AI for OctaOS. Assist the user with their request.\n\n{company_knowledge}",
+                    provider=provider,
+                    model=model
+                )
+                if conv_resp:
+                    plan = {"message": conv_resp.strip(), "tasks": []}
+            except Exception as ce:
+                logger.error(f"[Orchestrator] Conversational fallback error: {ce}")
+                plan = {"message": "I processed your request, but could not reach the language model provider. Please check your API key in Settings.", "tasks": []}
 
         self.log_activity("Delegate Tasks", f"Delegated goal: '{prompt}'")
         
         results = []
+        if plan.get("message"):
+            results.append({"status": "success", "message": plan["message"]})
+
         for task in plan.get("tasks", []):
             dept = task.get("department")
             try:
@@ -146,7 +201,7 @@ Format:
                     results.append({"status": "action_required", "message": msg})
                 else:
                     raise ve
-        return {"plan": plan, "results": results}
+        return {"mode": "execution", "plan": plan, "results": results}
 
     async def run_daily_ops(self):
         self.log_activity("Daily Autonomous Ops", "Initiating morning routines for all agents.")

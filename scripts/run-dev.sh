@@ -134,8 +134,13 @@ if [[ "$WITH_API" -eq 1 ]]; then
 fi
 
 if [[ "$WITH_WORKER" -eq 1 ]]; then
-  start_job celery-worker "$APP_DIR" \
-    "$VENV_DIR/bin/celery" -A app.worker.tasks worker --loglevel=info
+  if [[ -x "$VENV_DIR/bin/watchfiles" ]]; then
+    start_job celery-worker "$APP_DIR" \
+      "$VENV_DIR/bin/watchfiles" --target-type command "$VENV_DIR/bin/celery -A app.worker.tasks worker --loglevel=info -P solo" app
+  else
+    start_job celery-worker "$APP_DIR" \
+      "$VENV_DIR/bin/celery" -A app.worker.tasks worker --loglevel=info -P solo
+  fi
 fi
 
 if [[ "$WITH_BEAT" -eq 1 ]]; then

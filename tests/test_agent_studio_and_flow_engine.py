@@ -10,7 +10,7 @@ from app.models.flow_engine import (
     FlowVersion,
     FlowRun,
     StepRun,
-    ApprovalRequest,
+    FlowApprovalRequest,
 )
 
 

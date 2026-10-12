@@ -12,7 +12,16 @@ from app.main import app
 from app.api.deps import get_db, get_current_tenant_id
 from app.models.base import Base
 from app.models.verticals import Ticket, Lead, AgentMeeting
-from app.models.boardroom_events import MeetingEvent, MeetingEvidence, MeetingAction
+from app.models.boardroom_events import (
+    MeetingEvent,
+    MeetingEvidence,
+    MeetingAction,
+    DecisionCharter,
+    MeetingOption,
+    MeetingPosition,
+    DissentRecord,
+    DecisionOutcome,
+)
 from app.services.agents.boardroom import BoardroomService
 from app.services.agents.boardroom_state import classify_action
 
@@ -354,3 +363,118 @@ def test_coordination_api_endpoints(client, db):
     res_ana = client.get("/api/v1/coordination/analytics")
     assert res_ana.status_code == 200
     assert res_ana.json()["total_meetings"] >= 1
+
+
+def test_institutional_governance_api_endpoints(client, db):
+    tenant_id = "test-tenant-id"
+    meeting = AgentMeeting(
+        tenant_id=tenant_id,
+        title="Institutional Governance Review",
+        status="active",
+        current_phase="debate",
+        trigger_type="manual",
+        participants=["CEO AI", "CFO AI", "Red Team AI"]
+    )
+    db.add(meeting)
+    db.commit()
+
+    charter = DecisionCharter(
+        id="charter-api-1",
+        meeting_id=meeting.id,
+        decision_type="type_1",
+        question="Should we expand datacenter capacity?",
+        decision_owner="CEO AI",
+        cost_of_delay_per_week=25000.0,
+        criteria_weights=[{"name": "roi", "weight": 0.5}, {"name": "latency", "weight": 0.3}, {"name": "security", "weight": 0.2}]
+    )
+    db.add(charter)
+
+    opt_a = MeetingOption(
+        id="opt-api-1",
+        meeting_id=meeting.id,
+        option_code="A",
+        title="Status Quo",
+        description="Maintain current capacity",
+        is_do_nothing=True,
+        financial_model={"ev": 10000.0, "downside_p10": -5000.0},
+        weighted_score=0.45
+    )
+    opt_b = MeetingOption(
+        id="opt-api-2",
+        meeting_id=meeting.id,
+        option_code="B",
+        title="Targeted Pilot",
+        description="Pilot hybrid expansion in us-east",
+        is_pilot=True,
+        financial_model={"ev": 85000.0, "downside_p10": -10000.0},
+        weighted_score=0.82
+    )
+    db.add_all([opt_a, opt_b])
+
+    pos_1 = MeetingPosition(
+        id="pos-api-1",
+        meeting_id=meeting.id,
+        agent="CFO AI",
+        round=1,
+        preferred_option="B",
+        position_statement="Pilot manages downside risk while validating demand.",
+        confidence=85,
+        assumptions=["Server prices remain stable"],
+        evidence_ids=["ev-1"],
+        what_would_change_mind="Hardware prices spike >30%"
+    )
+    db.add(pos_1)
+
+    dissent = DissentRecord(
+        id="dis-api-1",
+        meeting_id=meeting.id,
+        agent="Red Team AI",
+        preferred_option="A",
+        dissent_position="Supply chain risk is elevated in Q4.",
+        addressed=True
+    )
+    db.add(dissent)
+    db.commit()
+
+    # 1. GET charter
+    res_charter = client.get(f"/api/v1/coordination/meetings/{meeting.id}/charter")
+    assert res_charter.status_code == 200
+    assert res_charter.json()["decision_type"] == "type_1"
+    assert res_charter.json()["decision_owner"] == "CEO AI"
+
+    # 2. GET options
+    res_options = client.get(f"/api/v1/coordination/meetings/{meeting.id}/options")
+    assert res_options.status_code == 200
+    assert len(res_options.json()) == 2
+    assert res_options.json()[1]["title"] == "Targeted Pilot"
+
+    # 3. GET positions
+    res_pos = client.get(f"/api/v1/coordination/meetings/{meeting.id}/positions?round=1")
+    assert res_pos.status_code == 200
+    assert len(res_pos.json()) == 1
+    assert res_pos.json()[0]["agent"] == "CFO AI"
+
+    # 4. GET dissents
+    res_dis = client.get(f"/api/v1/coordination/meetings/{meeting.id}/dissents")
+    assert res_dis.status_code == 200
+    assert len(res_dis.json()) == 1
+    assert res_dis.json()[0]["agent"] == "Red Team AI"
+
+    # 5. POST intervene as Chairman
+    res_intervene = client.post(
+        f"/api/v1/coordination/meetings/{meeting.id}/intervene",
+        json={"directive": "Ensure capital expense does not exceed $20,000"}
+    )
+    assert res_intervene.status_code == 200
+    assert res_intervene.json()["event_type"] == "chairman.directive"
+    assert "capital expense" in res_intervene.json()["payload"]["directive"]
+
+    # 6. GET export includes Charter & Dissents
+    res_export = client.get(f"/api/v1/coordination/meetings/{meeting.id}/export?format=json")
+    assert res_export.status_code == 200
+    data = res_export.json()
+    assert data["charter"] is not None
+    assert len(data["options"]) == 2
+    assert len(data["dissents"]) == 1
+
+

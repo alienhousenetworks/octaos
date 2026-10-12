@@ -13,7 +13,7 @@ from app.models.base import Tenant
 from app.models.agents import KnowledgeDocument, KnowledgeSource
 from app.models.enterprise import KnowledgeChunk
 from app.services.document_processing.pipeline import DocumentProcessingPipeline
-from app.services.web_ingestion.firecrawl_client import FirecrawlClient
+from app.services.web_ingestion.firecrawl_client import FirecrawlClient, crawl_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -222,7 +222,7 @@ class WebsiteSyncService:
         except Exception as e:
             logger.error(f"Sync failed for source '{source_id}': {e}")
             source.last_status = "failed"
-            source.last_error = str(e)
+            source.last_error = crawl_error_message(str(e))
             self.db.commit()
             raise
 
@@ -234,9 +234,9 @@ class WebsiteSyncService:
                 "Company website is not configured. Please add your website URL under Settings → Company Profile."
             )
 
-        website_url = tenant.company_website.strip()
-        if not website_url.startswith(("http://", "https://")):
-            website_url = f"https://{website_url}"
+        from app.services.web_ingestion.firecrawl_client import validate_target_url
+
+        website_url = validate_target_url(tenant.company_website)
 
         # Find or create company_site KnowledgeSource
         source = (

@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 import json
 import logging
@@ -544,41 +545,56 @@ class OpenRouterAdapter(BaseProviderAdapter):
             "X-Title": "OctaOS",
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=45.0
-            )
-            if response.status_code != 200:
-                try:
-                    err_json = response.json()
-                    err_msg = err_json.get("error", {}).get("message") or err_json.get("message") or response.text
-                except Exception:
-                    err_msg = response.text
-                raise Exception(f"OpenRouter API error (status {response.status_code}): {err_msg}")
+        max_attempts = 3
+        last_exception = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                limits = httpx.Limits(max_keepalive_connections=5, keepalive_expiry=10.0)
+                async with httpx.AsyncClient(timeout=60.0, limits=limits) as client:
+                    response = await client.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers=headers,
+                        json=payload
+                    )
+                if response.status_code != 200:
+                    try:
+                        err_json = response.json()
+                        err_msg = err_json.get("error", {}).get("message") or err_json.get("message") or response.text
+                    except Exception:
+                        err_msg = response.text
+                    if response.status_code in (429, 502, 503, 504) and attempt < max_attempts:
+                        logger.warning(f"OpenRouter returned status {response.status_code}. Retrying attempt {attempt + 1}/{max_attempts}...")
+                        await asyncio.sleep(1.0 * attempt)
+                        continue
+                    raise Exception(f"OpenRouter API error (status {response.status_code}): {err_msg}")
 
-            data = response.json()
-            choices = data.get("choices", [])
-            if not choices:
-                raise Exception(f"OpenRouter API returned no choices: {data}")
-            content = choices[0].get("message", {}).get("content", "")
-            usage = data.get("usage", {})
-            input_tokens = usage.get("prompt_tokens", 0)
-            output_tokens = usage.get("completion_tokens", 0)
-            cached_tokens = (
-                usage.get("prompt_tokens_details", {}).get("cached_tokens", 0)
-                or usage.get("cache_discount", 0)
-            )
+                data = response.json()
+                choices = data.get("choices", [])
+                if not choices:
+                    raise Exception(f"OpenRouter API returned no choices: {data}")
+                content = choices[0].get("message", {}).get("content", "")
+                usage = data.get("usage", {})
+                input_tokens = usage.get("prompt_tokens", 0)
+                output_tokens = usage.get("completion_tokens", 0)
+                cached_tokens = (
+                    usage.get("prompt_tokens_details", {}).get("cached_tokens", 0)
+                    or usage.get("cache_discount", 0)
+                )
 
-            return {
-                "content": content,
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-                "cached_tokens": cached_tokens,
-                "raw_response": data
-            }
+                return {
+                    "content": content,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "cached_tokens": cached_tokens,
+                    "raw_response": data
+                }
+            except (httpx.TransportError, httpx.TimeoutException) as exc:
+                last_exception = exc
+                logger.warning(f"OpenRouter attempt {attempt}/{max_attempts} failed with transport error: {exc}")
+                if attempt < max_attempts:
+                    await asyncio.sleep(1.0 * attempt)
+                else:
+                    raise last_exception
 
 
 class TogetherAdapter(BaseProviderAdapter):

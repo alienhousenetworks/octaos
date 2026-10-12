@@ -72,6 +72,10 @@ def get_current_user(
     return user
 
 
+def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
+    return current_user
+
+
 def get_current_tenant_id(current_user: User = Depends(get_current_user)) -> str:
     return current_user.tenant_id
 

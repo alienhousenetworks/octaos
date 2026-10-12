@@ -1,0 +1,162 @@
+{
+  "schema_version": "1.0",
+  "mode": "analytics",
+  "job_id": "job-healthy-001",
+  "data_freshness": "live",
+  "empty_state": false,
+  "briefing_text": "Executive Briefing: Operations are exhibiting robust upward velocity across all operational verticals. Lead conversion rate expanded by +3.2% WoW to 24.5%, with the deal pipeline standing at $425,000 across 18 qualified accounts. Customer support SLA adherence remains pristine at 97.4% with an average first response latency of 14 minutes. Two minor operational optimizations identified: lead enrichment latency on cold outreach and weekend ticket staffing.",
+  "metrics": {
+    "tenant_id": "tenant-healthy-org",
+    "harvested_at": "2026-10-04T12:00:00Z",
+    "data_freshness": "live",
+    "empty_state": false,
+    "items": {
+      "leads.total": {
+        "metric_id": "leads.total",
+        "name": "Total Active Leads",
+        "value": 142.0,
+        "formatted": "142",
+        "unit": "count",
+        "change_pct_wow": 12.5,
+        "direction": "up",
+        "category": "sales"
+      },
+      "leads.conversion_rate": {
+        "metric_id": "leads.conversion_rate",
+        "name": "Lead-to-Qualified Rate",
+        "value": 24.5,
+        "formatted": "24.5%",
+        "unit": "%",
+        "change_pct_wow": 3.2,
+        "direction": "up",
+        "category": "sales"
+      },
+      "deals.pipeline_value": {
+        "metric_id": "deals.pipeline_value",
+        "name": "Total Pipeline Value",
+        "value": 425000.0,
+        "formatted": "$425,000",
+        "unit": "USD",
+        "change_pct_wow": 8.4,
+        "direction": "up",
+        "category": "finance"
+      },
+      "tickets.sla_compliance": {
+        "metric_id": "tickets.sla_compliance",
+        "name": "Support SLA Compliance",
+        "value": 97.4,
+        "formatted": "97.4%",
+        "unit": "%",
+        "change_pct_wow": 1.1,
+        "direction": "up",
+        "category": "support"
+      }
+    },
+    "raw_funnel": {
+      "captured": 142,
+      "contacted": 98,
+      "qualified": 54,
+      "proposal": 28,
+      "converted": 19
+    },
+    "raw_deal_stages": {
+      "discovered": {"count": 12, "value": 85000},
+      "qualified": {"count": 18, "value": 160000},
+      "proposal": {"count": 8, "value": 180000}
+    },
+    "raw_ticket_distribution": {
+      "resolved": 112,
+      "open": 8,
+      "pending_human": 3
+    },
+    "raw_channel_performance": [
+      {"platform": "linkedin", "impressions": 14200, "engagement_rate": 4.8},
+      {"platform": "meta", "impressions": 28500, "engagement_rate": 3.2}
+    ],
+    "raw_agent_activity": {
+      "Sales AI Agent": 42,
+      "Marketing AI Agent": 28,
+      "Support AI Agent": 115
+    }
+  },
+  "charts": [
+    {
+      "chart_id": "funnel_chart",
+      "title": "Lead Acquisition & Conversion Funnel",
+      "description": "Funnel conversion efficiency showing healthy step-through progression from Captured to Converted.",
+      "category": "funnel",
+      "spec": {
+        "data": [
+          {
+            "type": "funnel",
+            "y": ["Captured", "Contacted", "Qualified", "Proposal", "Converted"],
+            "x": [142, 98, 54, 28, 19],
+            "textinfo": "value+percent initial",
+            "marker": {"color": ["#8b5cf6", "#6366f1", "#3b82f6", "#10b981", "#059669"]}
+          }
+        ],
+        "layout": {
+          "title": {"text": "Lead Funnel Velocity"},
+          "paper_bgcolor": "rgba(0,0,0,0)",
+          "plot_bgcolor": "rgba(0,0,0,0)",
+          "font": {"color": "#e2e8f0"}
+        }
+      }
+    }
+  ],
+  "findings": [
+    {
+      "id": "W-LEADS-01",
+      "title": "Outreach Lead Enrichment Delay",
+      "severity": "ADVISORY",
+      "category": "operational_drag",
+      "metric_citations": ["leads.total", "leads.conversion_rate"],
+      "evidence": "44 captured leads awaiting secondary phone/enrichment verification for over 24 hours.",
+      "root_cause": "Apollo API batch enrichment throttle set to hourly execution rather than real-time trigger.",
+      "impact": "Slows cadence outreach by approximately 18 hours per batch."
+    }
+  ],
+  "improvement_plan": [
+    {
+      "id": "ACT-7D-01",
+      "phase": "7d",
+      "title": "Enable Webhook-Triggered Apollo Lead Enrichment",
+      "description": "Switch Apollo lead sync from hourly polling to instant webhook trigger upon capture.",
+      "department": "Sales",
+      "action_type": "optimize_enrichment",
+      "parameters": {"provider": "apollo", "mode": "instant_webhook"},
+      "estimated_roi": "Reduces lead response latency from 18h to <5m, boosting response rate by +14%",
+      "requires_approval": true,
+      "status": "pending_approval"
+    }
+  ],
+  "trace": [
+    {
+      "agent_id": 1,
+      "name": "Executive Intent Classifier",
+      "role": "Intent Routing & Orchestration",
+      "execution_type": "rule_based",
+      "latency_ms": 4,
+      "status": "success",
+      "summary": "Detected C-Level Operational Report intent with 0.98 confidence."
+    },
+    {
+      "agent_id": 2,
+      "name": "Database Context Harvester",
+      "role": "SQL Multi-Vertical Aggregator",
+      "execution_type": "deterministic",
+      "latency_ms": 42,
+      "status": "success",
+      "summary": "Extracted 142 leads, 38 deal rooms, 123 support tickets, and 45 social posts."
+    },
+    {
+      "agent_id": 10,
+      "name": "CEO Executive Synthesizer",
+      "role": "Strategic Synthesis & Briefing",
+      "execution_type": "llm",
+      "latency_ms": 1150,
+      "status": "success",
+      "summary": "Compiled executive briefing with 0 ungrounded numeric discrepancies."
+    }
+  ]
+}

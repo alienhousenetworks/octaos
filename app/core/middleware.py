@@ -2,6 +2,7 @@ import logging
 from jose import jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
+from starlette.responses import JSONResponse
 from app.core.config import settings
 from app.models.base import tenant_context, org_context
 
@@ -30,7 +31,14 @@ class TenantMiddleware(BaseHTTPMiddleware):
         o_token = org_context.set(org_id)
         
         try:
-            response = await call_next(request)
+            try:
+                response = await call_next(request)
+            except Exception:
+                # Return a normal response so the outer CORS middleware can add
+                # Access-Control-Allow-Origin. A bare 500 is reported by the
+                # browser as "Failed to fetch" and the workspace stays blank.
+                logger.exception("Unhandled error on %s", request.url.path)
+                response = JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
             return response
         finally:
             tenant_context.reset(t_token)

@@ -417,19 +417,139 @@ class RunWorkflowRequest(BaseModel):
     model: Optional[str] = None
     review_plan: Optional[bool] = False
     count: Optional[int] = 50
+    freshness: Optional[str] = "30_days"
+
+class RunPromptAgentRequest(BaseModel):
+    prompt: str
+    count: Optional[int] = 50
+    freshness: Optional[str] = "30_days"
+    provider: Optional[str] = "auto"
+    model: Optional[str] = None
+
+@router.post("/run-prompt-agent")
+async def run_prompt_agent(
+    req: RunPromptAgentRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """
+    Launch Prompt-Based Sales Agent using natural language prompt directive without altering structured BusinessProfile.
+    """
+    import asyncio
+    import logging
+    from datetime import datetime
+    lead_logger = logging.getLogger(__name__)
+
+    profile = db.query(models.BusinessProfile).filter(models.BusinessProfile.tenant_id == tenant_id).first()
+    if not profile:
+        profile = models.BusinessProfile(
+            tenant_id=tenant_id,
+            company_name="Organization",
+            industry="B2B"
+        )
+        db.add(profile)
+        db.commit()
+
+    prompt_text = (req.prompt or "").strip()
+    if not prompt_text:
+        raise HTTPException(status_code=400, detail="Prompt instructions cannot be empty.")
+
+    # Initialize workflow status tagged as prompt_agent
+    profile.v3_workflow_status = {
+        "workflow_type": "prompt_agent",
+        "workflow_name": "Prompt-Based Sales Agent",
+        "instructions": prompt_text,
+        "status": "executing",
+        "current_step": 1,
+        "steps": {
+            "1": { "name": "Understand Directive & Synthesize Criteria", "status": "executing", "result": "Analyzing prompt directive..." },
+            "2": { "name": "Market Discovery", "status": "pending", "result": "" },
+            "3": { "name": "Lead Qualification", "status": "pending", "result": "" },
+            "4": { "name": "Pain Point Discovery", "status": "pending", "result": "" },
+            "5": { "name": "Decision Maker Discovery", "status": "pending", "result": "" },
+            "6": { "name": "Lead Scoring", "status": "pending", "result": "" },
+            "7": { "name": "Outreach Generation", "status": "pending", "result": "" },
+            "8": { "name": "Multi-Channel Outreach", "status": "pending", "result": "" },
+            "9": { "name": "Conversation AI", "status": "pending", "result": "" },
+            "10": { "name": "Meeting Conversion", "status": "pending", "result": "" }
+        },
+        "logs": [
+            "Initializing OCTAOS Prompt-Based Sales Agent...",
+            f"Research prompt: {prompt_text[:80]}..."
+        ]
+    }
+    db.commit()
+
+    actual_provider = req.provider
+    actual_model = req.model
+    if not actual_provider or actual_provider.lower() in ("auto", "none"):
+        from app.services.ai_gateway import ai_gateway
+        configured_providers = ai_gateway._get_configured_providers(db, tenant_id)
+        if configured_providers:
+            try:
+                actual_provider, actual_model = ai_gateway.selectProvider(
+                    configured_providers, complexity="high"
+                )
+            except Exception:
+                actual_provider = None
+                actual_model = None
+
+    actual_freshness = req.freshness or "30_days"
+
+    async def _execute_prompt_background():
+        from app.db.session import SessionLocal
+        from app.services.agents.sales import SalesAgent
+        bg_db = SessionLocal()
+        try:
+            agent = SalesAgent(bg_db, tenant_id)
+            await agent.run_sales_ai_v3_workflow(
+                provider=actual_provider,
+                model=actual_model,
+                count=req.count or 50,
+                freshness=actual_freshness,
+                mode="prompt_agent",
+                prompt_instructions=prompt_text,
+            )
+        except Exception as e:
+            lead_logger.error(f"Error in background Prompt Agent execution: {e}", exc_info=True)
+            p = bg_db.query(models.BusinessProfile).filter_by(tenant_id=tenant_id).first()
+            if p and p.v3_workflow_status:
+                st = dict(p.v3_workflow_status)
+                st["status"] = "failed"
+                logs_list = list(st.get("logs", []))
+                logs_list.append(f"[{datetime.now().strftime('%H:%M:%S')}] Workflow execution error: {str(e)}")
+                st["logs"] = logs_list
+                p.v3_workflow_status = st
+                bg_db.commit()
+        finally:
+            bg_db.close()
+
+    asyncio.create_task(_execute_prompt_background())
+
+    return {"message": "⚡ Prompt-Based Sales Agent launched successfully!"}
 
 @router.post("/run-v3-workflow")
-def run_v3_workflow(
+async def run_v3_workflow(
     req: RunWorkflowRequest,
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id)
 ) -> Any:
+    """
+    Launch Configured Sales Engine using structured BusinessProfile ICP parameters.
+    """
+    import asyncio
+    import logging
+    from datetime import datetime
+    lead_logger = logging.getLogger(__name__)
+
     profile = db.query(models.BusinessProfile).filter(models.BusinessProfile.tenant_id == tenant_id).first()
     if not profile:
         raise HTTPException(status_code=400, detail="Please configure your Business Profile first.")
         
-    # Reset workflow status to starting state
+    # Reset workflow status to starting state tagged as configured_engine
     profile.v3_workflow_status = {
+        "workflow_type": "configured_engine",
+        "workflow_name": "Configured Sales Engine",
         "status": "executing",
         "current_step": 1,
         "steps": {
@@ -445,8 +565,8 @@ def run_v3_workflow(
             "10": { "name": "Meeting Conversion", "status": "pending", "result": "" }
         },
         "logs": [
-            "Initializing OCTAOS Sales AI V3...",
-            "Sourcing settings & launch guidelines."
+            "Initializing OCTAOS Configured Sales Engine...",
+            "Loading structured business profile & ICP parameters."
         ]
     }
     db.commit()
@@ -454,25 +574,52 @@ def run_v3_workflow(
     # Check if provider is auto
     actual_provider = req.provider
     actual_model = req.model
-    if not actual_provider or actual_provider == "auto":
-        from app.services.ai_gateway.routing import AIRoutingEngine
-        from app.models.base import APICredential
-        creds = db.query(APICredential).filter(APICredential.tenant_id == tenant_id).all()
-        configured_providers = [c.provider for c in creds]
+    if not actual_provider or actual_provider.lower() in ("auto", "none"):
+        from app.services.ai_gateway import ai_gateway
+        configured_providers = ai_gateway._get_configured_providers(db, tenant_id)
         if configured_providers:
             try:
-                # Use complex routing logic (e.g. high complexity for V3 Sales Workflow)
-                actual_provider, actual_model = AIRoutingEngine.selectProvider(
+                actual_provider, actual_model = ai_gateway.selectProvider(
                     configured_providers, complexity="high"
                 )
-            except Exception as e:
-                pass # fallback
+            except Exception:
+                actual_provider = None
+                actual_model = None
     
-    # Import and trigger Celery task
-    from app.worker.tasks import run_sales_v3_task
-    run_sales_v3_task.delay(tenant_id, actual_provider, actual_model, req.count)
+    actual_freshness = req.freshness or getattr(profile, "lead_freshness", "30_days") or "30_days"
     
-    return {"message": f"Autonomous Sales AI V3 workflow launched successfully using {actual_provider}/{actual_model}!"}
+    # Execute directly in background event loop to avoid prefork worker deadlocks
+    async def _execute_v3_background():
+        from app.db.session import SessionLocal
+        from app.services.agents.sales import SalesAgent
+        bg_db = SessionLocal()
+        try:
+            agent = SalesAgent(bg_db, tenant_id)
+            await agent.run_sales_ai_v3_workflow(
+                provider=actual_provider,
+                model=actual_model,
+                count=req.count,
+                freshness=actual_freshness,
+                mode="configured_engine",
+            )
+        except Exception as e:
+            lead_logger.error(f"Error in background Sales V3 execution: {e}", exc_info=True)
+            p = bg_db.query(models.BusinessProfile).filter_by(tenant_id=tenant_id).first()
+            if p and p.v3_workflow_status:
+                st = dict(p.v3_workflow_status)
+                st["status"] = "failed"
+                logs_list = list(st.get("logs", []))
+                logs_list.append(f"[{datetime.now().strftime('%H:%M:%S')}] Workflow execution error: {str(e)}")
+                st["logs"] = logs_list
+                p.v3_workflow_status = st
+                bg_db.commit()
+        finally:
+            bg_db.close()
+
+    asyncio.create_task(_execute_v3_background())
+    
+    return {"message": f"Autonomous Configured Sales Engine launched successfully using {actual_provider or 'default'}/{actual_model or 'default'} (Freshness: {actual_freshness})!"}
+
 
 
 @router.get("/v3-workflow-status")
@@ -580,7 +727,7 @@ def save_sales_settings(
         cred = APICredential(
             tenant_id=tenant_id,
             provider="sales",
-            encrypted_key="sales_settings",
+            encrypted_key="",
             settings=settings,
         )
         db.add(cred)
@@ -752,3 +899,57 @@ async def send_outreach_smart(
             "company": lead.company,
         },
     }
+
+
+class ClarifyReplyRequest(BaseModel):
+    answer: str
+    channel: Optional[str] = "email"
+    add_to_kb: bool = True
+    kb_title: Optional[str] = None
+
+
+@router.get("/clarifications/pending")
+def get_pending_clarifications(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> Any:
+    """Return all leads awaiting human clarification for unanswered prospect questions."""
+    leads = db.query(models.Lead).filter(models.Lead.tenant_id == tenant_id).all()
+    pending = []
+    for l in leads:
+        d = l.data or {}
+        if d.get("awaiting_user_clarification"):
+            pending.append({
+                "lead_id": l.id,
+                "name": l.name,
+                "company": l.company,
+                "email": l.email,
+                "phone": l.phone,
+                "pending_question": d.get("pending_question"),
+                "clarification_requested_at": d.get("clarification_requested_at"),
+                "conversation": d.get("conversation", []),
+            })
+    return pending
+
+
+@router.post("/{lead_id}/clarify-reply")
+async def clarify_and_reply(
+    lead_id: str,
+    payload: ClarifyReplyRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> Any:
+    """Submit human answer to prospect question, dispatch reply, and index into Knowledge Base."""
+    from app.services.sales.reply_handler import SalesReplyHandler
+    handler = SalesReplyHandler(db, tenant_id)
+    result = await handler.submit_human_clarification(
+        lead_id=lead_id,
+        answer=payload.answer,
+        channel=payload.channel or "email",
+        add_to_kb=payload.add_to_kb,
+        kb_title=payload.kb_title,
+    )
+    if result.get("status") == "error":
+        raise HTTPException(status_code=404, detail=result.get("message", "Error submitting clarification"))
+    return result
+

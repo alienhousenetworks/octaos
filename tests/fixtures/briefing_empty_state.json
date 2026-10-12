@@ -1,0 +1,127 @@
+{
+  "schema_version": "1.0",
+  "mode": "analytics",
+  "job_id": "job-empty-003",
+  "data_freshness": "live",
+  "empty_state": true,
+  "briefing_text": "Welcome to OctaOS Executive Briefings. Your workspace is currently in an unseeded, clean operational state. No active leads, social campaigns, or tickets have been recorded yet. Below is your 3-step launch roadmap to generate your first inbound pipeline and start tracking live C-suite analytics.",
+  "metrics": {
+    "tenant_id": "tenant-new-workspace",
+    "harvested_at": "2026-10-04T12:00:00Z",
+    "data_freshness": "live",
+    "empty_state": true,
+    "items": {
+      "leads.total": {
+        "metric_id": "leads.total",
+        "name": "Total Active Leads",
+        "value": 0.0,
+        "formatted": "0",
+        "unit": "count",
+        "direction": "neutral",
+        "category": "sales"
+      },
+      "deals.pipeline_value": {
+        "metric_id": "deals.pipeline_value",
+        "name": "Total Pipeline Value",
+        "value": 0.0,
+        "formatted": "$0",
+        "unit": "USD",
+        "direction": "neutral",
+        "category": "finance"
+      }
+    },
+    "raw_funnel": {
+      "captured": 0,
+      "contacted": 0,
+      "qualified": 0,
+      "proposal": 0,
+      "converted": 0
+    },
+    "raw_deal_stages": {},
+    "raw_ticket_distribution": {},
+    "raw_channel_performance": [],
+    "raw_agent_activity": {}
+  },
+  "charts": [
+    {
+      "chart_id": "onboarding_timeline",
+      "title": "Setup & Activation Milestones",
+      "description": "Recommended startup progression to activate your AI workforce.",
+      "category": "overview",
+      "spec": {
+        "data": [
+          {
+            "type": "bar",
+            "x": ["Connect API Key", "Sync Brand KB", "Launch First Campaign", "Source First Leads"],
+            "y": [100, 100, 0, 0],
+            "marker": {"color": ["#10b981", "#10b981", "#64748b", "#64748b"]}
+          }
+        ],
+        "layout": {
+          "title": {"text": "AI Workspace Readiness (%)"},
+          "paper_bgcolor": "rgba(0,0,0,0)",
+          "plot_bgcolor": "rgba(0,0,0,0)",
+          "font": {"color": "#e2e8f0"}
+        }
+      }
+    }
+  ],
+  "findings": [
+    {
+      "id": "W-INIT-01",
+      "title": "Workspace Uninitialized: Zero Inbound Pipeline",
+      "severity": "ADVISORY",
+      "category": "operational_drag",
+      "metric_citations": ["leads.total"],
+      "evidence": "No leads captured or content campaigns published in this workspace.",
+      "root_cause": "Brand new tenant onboarding state.",
+      "impact": "Workspace analytics are in cold-start mode."
+    }
+  ],
+  "improvement_plan": [
+    {
+      "id": "ACT-7D-01",
+      "phase": "7d",
+      "title": "Launch Initial 7-Day Multi-Channel Content Campaign",
+      "description": "Instruct Marketing AI to draft 7 days of authoritative brand content across LinkedIn and Meta.",
+      "department": "Marketing",
+      "action_type": "generate_campaign",
+      "parameters": {"topic": "AI Automation & Operational Scale", "days": 7, "platforms": ["linkedin", "meta"]},
+      "estimated_roi": "Immediate organic reach and lead capture baseline.",
+      "requires_approval": true,
+      "status": "pending_approval"
+    },
+    {
+      "id": "ACT-7D-02",
+      "phase": "7d",
+      "title": "Source Initial 20 Qualified B2B Prospect Accounts",
+      "description": "Deploy Sales AI to identify and enrich 20 target accounts fitting your Ideal Customer Profile.",
+      "department": "Sales",
+      "action_type": "generate_leads",
+      "parameters": {"count": 20, "query": "SaaS and E-commerce Founders"},
+      "estimated_roi": "Initial outbound sales cadence pipeline.",
+      "requires_approval": true,
+      "status": "pending_approval"
+    }
+  ],
+  "trace": [
+    {
+      "agent_id": 1,
+      "name": "Executive Intent Classifier",
+      "role": "Intent Routing & Orchestration",
+      "execution_type": "rule_based",
+      "latency_ms": 2,
+      "status": "success",
+      "summary": "Handled query for fresh tenant workspace."
+    },
+    {
+      "agent_id": 2,
+      "name": "Database Context Harvester",
+      "role": "SQL Multi-Vertical Aggregator",
+      "execution_type": "deterministic",
+      "latency_ms": 15,
+      "status": "success",
+      "summary": "Detected clean empty tenant state (empty_state=true)."
+    }
+  ]
+}

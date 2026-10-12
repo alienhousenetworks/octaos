@@ -32,7 +32,10 @@ def extract_resume_text(filename: str, file_bytes: bytes) -> str:
     # 1. PDF via PyMuPDF (fitz) with fallback to pypdf
     if lower_name.endswith(".pdf") or file_bytes.startswith(b"%PDF"):
         try:
-            import fitz
+            try:
+                import pymupdf as fitz
+            except ImportError:
+                import fitz
             doc = fitz.open(stream=file_bytes, filetype="pdf")
             extracted = []
             for page in doc:

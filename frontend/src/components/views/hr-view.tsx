@@ -1,5 +1,7 @@
 'use client';
 
+import { notify, confirmAction } from '@/lib/notify';
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -207,11 +209,11 @@ export default function HRView({
   const handleProcessBatchUpload = async () => {
     const selected = stagedFiles.filter(item => item.selected);
     if (selected.length === 0) {
-      alert("Please select at least one resume from the staging queue.");
+      notify("Please select at least one resume from the staging queue.");
       return;
     }
     if (!hrRole || !hrRequirements) {
-      alert("Please specify the target Role Title and Requirements.");
+      notify("Please specify the target Role Title and Requirements.");
       return;
     }
 
@@ -238,18 +240,18 @@ export default function HRView({
 
       const data = await res.json();
       if (res.ok) {
-        alert(`Success! Processed and ranked ${data.processed_count} candidates with zero token waste.`);
+        notify(`Success! Processed and ranked ${data.processed_count} candidates with zero token waste.`);
         // Remove processed files from staging
         setStagedFiles(prev => prev.filter(item => !item.selected));
         fetchCandidates();
         fetchData();
         setActiveTab('leaderboard');
       } else {
-        alert(`Upload error: ${data.detail || 'Failed to process resumes'}`);
+        notify(`Upload error: ${data.detail || 'Failed to process resumes'}`);
       }
     } catch (e) {
       console.error(e);
-      alert("Network error during batch resume upload.");
+      notify("Network error during batch resume upload.");
     } finally {
       setUploadLoading(false);
       setUploadProgress('');
@@ -269,7 +271,7 @@ export default function HRView({
         fetchData();
       } else {
         const data = await res.json();
-        alert(`Error: ${data.detail || 'Failed to update candidate status'}`);
+        notify(`Error: ${data.detail || 'Failed to update candidate status'}`);
       }
     } catch (e) {
       console.error(e);
@@ -278,7 +280,7 @@ export default function HRView({
 
   // Delete candidate
   const handleDeleteCandidate = async (candidateId: string) => {
-    if (!confirm("Are you sure you want to delete this candidate?")) return;
+    if (!(await confirmAction("Are you sure you want to delete this candidate?"))) return;
     try {
       const res = await fetchWithAuth(`${API_URL}/hr/${candidateId}`, {
         method: 'DELETE'
@@ -309,7 +311,7 @@ export default function HRView({
   // Dispatch Interview invitation email
   const handleSendInterviewEmail = async () => {
     if (!interviewCandidate || !interviewDate) {
-      alert("Please provide the interview date.");
+      notify("Please provide the interview date.");
       return;
     }
     setInterviewSending(true);
@@ -329,16 +331,16 @@ export default function HRView({
       });
       const data = await res.json();
       if (res.ok) {
-        alert(`Interview invitation email successfully dispatched to ${interviewCandidate.name}!`);
+        notify(`Interview invitation email successfully dispatched to ${interviewCandidate.name}!`);
         setInterviewCandidate(null);
         fetchCandidates();
         fetchData();
       } else {
-        alert(`Error: ${data.detail || 'Failed to send interview invitation'}`);
+        notify(`Error: ${data.detail || 'Failed to send interview invitation'}`);
       }
     } catch (e) {
       console.error(e);
-      alert("Network error sending interview email.");
+      notify("Network error sending interview email.");
     } finally {
       setInterviewSending(false);
     }
@@ -413,16 +415,16 @@ export default function HRView({
       });
       const data = await res.json();
       if (res.ok) {
-        alert(`Offer letter and employment contract successfully delivered to ${offerCandidate.name}!`);
+        notify(`Offer letter and employment contract successfully delivered to ${offerCandidate.name}!`);
         setOfferCandidate(null);
         fetchCandidates();
         fetchData();
       } else {
-        alert(`Error: ${data.detail || 'Failed to dispatch offer'}`);
+        notify(`Error: ${data.detail || 'Failed to dispatch offer'}`);
       }
     } catch (e) {
       console.error(e);
-      alert("Network error sending offer email.");
+      notify("Network error sending offer email.");
     } finally {
       setOfferSending(false);
     }
@@ -431,7 +433,7 @@ export default function HRView({
   // Add Manual Candidate
   const handleAddManualCandidate = async () => {
     if (!manualName || !manualEmail || !manualRole) {
-      alert("Please fill in Name, Email, and Role.");
+      notify("Please fill in Name, Email, and Role.");
       return;
     }
     setManualAdding(true);
@@ -474,7 +476,7 @@ export default function HRView({
         setManualExtra('');
         fetchCandidates();
         fetchData();
-        alert("Candidate added successfully!");
+        notify("Candidate added successfully!");
       }
     } catch (e) {
       console.error(e);
@@ -508,7 +510,7 @@ export default function HRView({
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-6">
         <div>
-          <h1 className="text-3xl font-black text-white tracking-tight flex items-center gap-3">
+          <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-3">
             <span className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
               <Briefcase className="h-7 w-7" />
             </span>
@@ -525,8 +527,8 @@ export default function HRView({
             variant={activeTab === 'upload' ? 'default' : 'outline'}
             onClick={() => setActiveTab('upload')}
             className={`rounded-xl h-10 px-4 font-semibold text-xs flex items-center gap-2 ${
-              activeTab === 'upload' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold' : 'border-gray-800 text-gray-300 hover:bg-gray-900'
-            }`}
+ activeTab === 'upload' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold' : 'border-gray-800 text-gray-300 hover:bg-gray-900'
+ }`}
           >
             <Upload className="h-4 w-4" />
             Resume Ingestion ({stagedFiles.length})
@@ -536,8 +538,8 @@ export default function HRView({
             variant={activeTab === 'leaderboard' ? 'default' : 'outline'}
             onClick={() => setActiveTab('leaderboard')}
             className={`rounded-xl h-10 px-4 font-semibold text-xs flex items-center gap-2 ${
-              activeTab === 'leaderboard' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold' : 'border-gray-800 text-gray-300 hover:bg-gray-900'
-            }`}
+ activeTab === 'leaderboard' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold' : 'border-gray-800 text-gray-300 hover:bg-gray-900'
+ }`}
           >
             <Award className="h-4 w-4" />
             Ranked Leaderboard ({candidates.length})
@@ -630,7 +632,7 @@ export default function HRView({
                     placeholder="e.g. Python, FastAPI, React, TypeScript, Docker, PostgreSQL, 3+ years experience"
                     className="bg-gray-900/80 border-gray-800 text-white rounded-xl text-xs min-h-[110px]"
                   />
-                  <p className="text-[10px] text-gray-500">Skills are parsed with zero token waste via local deterministic keywords.</p>
+                  <p className="text-xs text-gray-500">Skills are parsed with zero token waste via local deterministic keywords.</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -671,7 +673,7 @@ export default function HRView({
                 <Button
                   onClick={handleProcessBatchUpload}
                   disabled={uploadLoading || selectedCount === 0}
-                  className="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold rounded-xl h-11 shadow-lg shadow-amber-500/20 text-xs transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100"
+                  className="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-semibold rounded-xl h-11 shadow-lg shadow-amber-500/20 text-xs transition-all active:scale-95 disabled:opacity-50 disabled:scale-100"
                 >
                   {uploadLoading ? (
                     <span className="flex items-center gap-2">
@@ -789,8 +791,8 @@ export default function HRView({
                       <div
                         key={item.id}
                         className={`p-3.5 flex items-center justify-between gap-3 transition-colors ${
-                          item.selected ? 'bg-gray-900/30' : 'bg-transparent opacity-60'
-                        }`}
+ item.selected ? 'bg-gray-900/30' : 'bg-transparent opacity-60'
+ }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <input
@@ -799,11 +801,11 @@ export default function HRView({
                             onChange={() => toggleFileSelection(item.id)}
                             className="h-4 w-4 rounded border-gray-700 bg-gray-900 text-amber-500 focus:ring-amber-500/20 cursor-pointer"
                           />
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border ${
-                            item.type === 'PDF' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                            item.type === 'DOCX' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                            'bg-gray-500/10 text-gray-400 border-gray-500/20'
-                          }`}>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg border ${
+ item.type === 'PDF' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+ item.type === 'DOCX' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+ 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+ }`}>
                             {item.type}
                           </span>
                           <span className="text-xs font-semibold text-white truncate max-w-[280px] sm:max-w-md">
@@ -812,7 +814,7 @@ export default function HRView({
                         </div>
 
                         <div className="flex items-center gap-3">
-                          <span className="text-[11px] text-gray-500 font-mono">{item.sizeFormatted}</span>
+                          <span className="text-xs text-gray-500 font-mono">{item.sizeFormatted}</span>
                           <button
                             onClick={() => removeStagedFile(item.id)}
                             className="text-gray-500 hover:text-rose-400 transition-colors p-1"
@@ -889,30 +891,30 @@ export default function HRView({
           {/* Quick Metrics Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
             <div className="p-3.5 rounded-2xl bg-gray-900/40 border border-gray-800">
-              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Ranked</div>
-              <div className="text-xl font-black text-white mt-1">{candidates.length}</div>
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Ranked</div>
+              <div className="text-xl font-semibold text-white mt-1">{candidates.length}</div>
             </div>
             <div className="p-3.5 rounded-2xl bg-blue-500/5 border border-blue-500/20">
-              <div className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Sourced (New)</div>
-              <div className="text-xl font-black text-blue-300 mt-1">{candidates.filter(c => c.status === 'sourced').length}</div>
+              <div className="text-xs font-bold text-blue-400 uppercase tracking-wider">Sourced (New)</div>
+              <div className="text-xl font-semibold text-blue-300 mt-1">{candidates.filter(c => c.status === 'sourced').length}</div>
             </div>
             <div className="p-3.5 rounded-2xl bg-emerald-500/5 border border-emerald-500/20">
-              <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Accepted / Screened</div>
-              <div className="text-xl font-black text-emerald-300 mt-1">
+              <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Accepted / Screened</div>
+              <div className="text-xl font-semibold text-emerald-300 mt-1">
                 {candidates.filter(c => ['accepted', 'screened'].includes(c.status)).length}
               </div>
             </div>
             <div className="p-3.5 rounded-2xl bg-purple-500/5 border border-purple-500/20">
-              <div className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">Interviewed</div>
-              <div className="text-xl font-black text-purple-300 mt-1">{candidates.filter(c => c.status === 'interviewed').length}</div>
+              <div className="text-xs font-bold text-purple-400 uppercase tracking-wider">Interviewed</div>
+              <div className="text-xl font-semibold text-purple-300 mt-1">{candidates.filter(c => c.status === 'interviewed').length}</div>
             </div>
             <div className="p-3.5 rounded-2xl bg-indigo-500/5 border border-indigo-500/20">
-              <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Offered</div>
-              <div className="text-xl font-black text-indigo-300 mt-1">{candidates.filter(c => c.status === 'offered').length}</div>
+              <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Offered</div>
+              <div className="text-xl font-semibold text-indigo-300 mt-1">{candidates.filter(c => c.status === 'offered').length}</div>
             </div>
             <div className="p-3.5 rounded-2xl bg-teal-500/5 border border-teal-500/20">
-              <div className="text-[10px] font-bold text-teal-400 uppercase tracking-wider">Hired</div>
-              <div className="text-xl font-black text-teal-300 mt-1">{candidates.filter(c => c.status === 'hired').length}</div>
+              <div className="text-xs font-bold text-teal-400 uppercase tracking-wider">Hired</div>
+              <div className="text-xl font-semibold text-teal-300 mt-1">{candidates.filter(c => c.status === 'hired').length}</div>
             </div>
           </div>
 
@@ -960,38 +962,38 @@ export default function HRView({
                 // Rank badge design
                 const isTopThree = rank <= 3;
                 const rankBadgeClass =
-                  rank === 1 ? 'bg-gradient-to-br from-amber-400 to-yellow-600 text-black shadow-lg shadow-amber-500/30 font-black' :
-                  rank === 2 ? 'bg-gradient-to-br from-slate-200 to-slate-400 text-black shadow-lg shadow-slate-400/20 font-black' :
-                  rank === 3 ? 'bg-gradient-to-br from-amber-700 to-amber-900 text-amber-100 shadow-lg shadow-amber-800/20 font-black' :
+                  rank === 1 ? 'bg-gradient-to-br from-amber-400 to-yellow-600 text-black shadow-lg shadow-amber-500/30 font-semibold' :
+                  rank === 2 ? 'bg-gradient-to-br from-slate-200 to-slate-400 text-black shadow-lg shadow-slate-400/20 font-semibold' :
+                  rank === 3 ? 'bg-gradient-to-br from-amber-700 to-amber-900 text-amber-100 shadow-lg shadow-amber-800/20 font-semibold' :
                   'bg-gray-900 text-gray-400 border border-gray-800 font-bold';
 
                 return (
                   <Card
                     key={candidate.id}
                     className={`glass-panel border-gray-800/80 hover:border-amber-500/40 transition-all rounded-3xl overflow-hidden shadow-xl ${
-                      isSelected ? 'ring-2 ring-amber-500' : ''
-                    }`}
+ isSelected ? 'ring-2 ring-amber-500' : ''
+ }`}
                   >
                     {/* Header Row */}
                     <div className="p-5 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-gray-950/40 border-b border-gray-800">
                       <div className="flex items-center gap-4">
                         {/* Rank Badge */}
                         <div className={`h-11 w-11 rounded-2xl flex flex-col items-center justify-center flex-shrink-0 text-xs ${rankBadgeClass}`}>
-                          <span className="text-[10px] leading-tight opacity-75">RANK</span>
-                          <span className="text-sm font-black leading-tight">#{rank}</span>
+                          <span className="text-xs leading-tight opacity-75">RANK</span>
+                          <span className="text-sm font-semibold leading-tight">#{rank}</span>
                         </div>
 
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="text-lg font-bold text-white tracking-tight">{candidate.name}</h3>
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${statusBadgeColor}`}>
+                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase border ${statusBadgeColor}`}>
                               {candidate.status}
                             </span>
-                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                              recommendation === 'Strong Hire' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                              recommendation === 'Recommended' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                              'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                            }`}>
+                            <span className={`px-2 py-0.5 rounded-md text-xs font-bold border ${
+ recommendation === 'Strong Hire' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+ recommendation === 'Recommended' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+ 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+ }`}>
                               ★ {recommendation}
                             </span>
                           </div>
@@ -1010,11 +1012,11 @@ export default function HRView({
                         {/* Dual Score Breakdown */}
                         <div className="hidden sm:flex items-center gap-4 text-right pr-2">
                           <div>
-                            <div className="text-[10px] text-gray-500 font-bold uppercase">ATS Keyword</div>
+                            <div className="text-xs text-gray-500 font-bold uppercase">ATS Keyword</div>
                             <div className="text-xs font-bold text-gray-300">{atsScore}% match</div>
                           </div>
                           <div>
-                            <div className="text-[10px] text-gray-500 font-bold uppercase">Semantic Fit</div>
+                            <div className="text-xs text-gray-500 font-bold uppercase">Semantic Fit</div>
                             <div className="text-xs font-bold text-amber-400">{semanticScore}% align</div>
                           </div>
                         </div>
@@ -1036,7 +1038,7 @@ export default function HRView({
                               className="transition-all duration-700"
                             />
                           </svg>
-                          <span className="absolute text-[11px] font-black text-white">{compositeScore}%</span>
+                          <span className="absolute text-xs font-semibold text-white">{compositeScore}%</span>
                         </div>
 
                         <Button
@@ -1052,19 +1054,19 @@ export default function HRView({
 
                     {/* Matched vs Missing Skills Preview Row */}
                     <div className="p-4 bg-gray-950/20 border-b border-gray-800/60 flex flex-wrap items-center gap-2 text-xs">
-                      <span className="text-[10px] font-bold uppercase text-gray-500 mr-1">Skills Overlap:</span>
+                      <span className="text-xs font-bold uppercase text-gray-500 mr-1">Skills Overlap:</span>
                       {matchedSkills.slice(0, 6).map((skill: string) => (
-                        <span key={skill} className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-medium flex items-center gap-1">
+                        <span key={skill} className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-medium flex items-center gap-1">
                           <Check className="h-3 w-3" /> {skill}
                         </span>
                       ))}
                       {missingSkills.slice(0, 3).map((skill: string) => (
-                        <span key={skill} className="px-2 py-0.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[11px] font-medium flex items-center gap-1">
+                        <span key={skill} className="px-2 py-0.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-medium flex items-center gap-1">
                           <X className="h-3 w-3" /> {skill}
                         </span>
                       ))}
                       {matchedSkills.length === 0 && missingSkills.length === 0 && skills.slice(0, 5).map((skill: string) => (
-                        <span key={skill} className="px-2 py-0.5 rounded-lg bg-gray-900 text-gray-300 border border-gray-800 text-[11px]">
+                        <span key={skill} className="px-2 py-0.5 rounded-lg bg-gray-900 text-gray-300 border border-gray-800 text-xs">
                           {skill}
                         </span>
                       ))}
@@ -1076,7 +1078,7 @@ export default function HRView({
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                           {/* Experience Summary */}
                           <div className="md:col-span-2 space-y-2">
-                            <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Candidate Executive Summary</h4>
+                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Candidate Executive Summary</h4>
                             <p className="text-xs text-gray-300 leading-relaxed bg-gray-900/60 border border-gray-800/80 p-3.5 rounded-2xl">
                               {summary || scorecard.requirements_match || 'Candidate profile evaluated via dual ATS & semantic analyzer.'}
                             </p>
@@ -1085,16 +1087,16 @@ export default function HRView({
                           {/* Compensation & Education */}
                           <div className="space-y-3 bg-gray-900/40 border border-gray-800/80 p-4 rounded-2xl">
                             <div>
-                              <div className="text-[10px] font-bold text-gray-500 uppercase">Education</div>
+                              <div className="text-xs font-bold text-gray-500 uppercase">Education</div>
                               <div className="text-xs font-semibold text-white mt-0.5">{scorecard.education || 'Not explicitly specified'}</div>
                             </div>
                             <div>
-                              <div className="text-[10px] font-bold text-gray-500 uppercase">Salary Expectation</div>
+                              <div className="text-xs font-bold text-gray-500 uppercase">Salary Expectation</div>
                               <div className="text-xs font-semibold text-white mt-0.5">{scorecard.salary_expectation || '$120,000/year'}</div>
                             </div>
                             {scorecard.linkedin && (
                               <div>
-                                <div className="text-[10px] font-bold text-gray-500 uppercase">Social Profile</div>
+                                <div className="text-xs font-bold text-gray-500 uppercase">Social Profile</div>
                                 <a href={scorecard.linkedin} target="_blank" rel="noreferrer" className="text-xs text-amber-400 hover:underline flex items-center gap-1 mt-0.5">
                                   LinkedIn Profile <ExternalLink className="h-3 w-3" />
                                 </a>
@@ -1106,7 +1108,7 @@ export default function HRView({
                         {/* Strengths and Gaps */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="p-3.5 rounded-2xl bg-emerald-950/20 border border-emerald-900/30 space-y-2">
-                            <h5 className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <h5 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
                               <CheckCircle2 className="h-3.5 w-3.5" /> Key Strengths
                             </h5>
                             <ul className="text-xs text-gray-300 space-y-1 list-disc list-inside">
@@ -1117,7 +1119,7 @@ export default function HRView({
                           </div>
 
                           <div className="p-3.5 rounded-2xl bg-rose-950/20 border border-rose-900/30 space-y-2">
-                            <h5 className="text-[10px] font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <h5 className="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
                               <AlertTriangle className="h-3.5 w-3.5" /> Potential Gaps / Red Flags
                             </h5>
                             <ul className="text-xs text-gray-300 space-y-1 list-disc list-inside">
@@ -1131,7 +1133,7 @@ export default function HRView({
                         {/* Interview Details if available */}
                         {scorecard.meeting_time && (
                           <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-900/30 space-y-2">
-                            <h5 className="text-[10px] font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <h5 className="text-xs font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
                               <Calendar className="h-3.5 w-3.5" /> Scheduled Interview
                             </h5>
                             <div className="text-xs text-gray-300 flex flex-wrap gap-4">
@@ -1152,12 +1154,12 @@ export default function HRView({
                         {/* Offer Details if available */}
                         {scorecard.offer_details && (
                           <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-900/30 space-y-2">
-                            <h5 className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <h5 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
                               <FileCheck className="h-3.5 w-3.5" /> Formal Offer Contract
                             </h5>
                             <div className="text-xs text-gray-300">
                               <p>Template: <strong>{scorecard.offer_details.template_name}</strong> • Dispatched: <strong>{scorecard.offer_details.offered_at?.slice(0, 10)}</strong></p>
-                              <p className="text-[11px] text-gray-400 mt-1">{scorecard.offer_details.delivery_note}</p>
+                              <p className="text-xs text-gray-400 mt-1">{scorecard.offer_details.delivery_note}</p>
                             </div>
                           </div>
                         )}
@@ -1220,7 +1222,7 @@ export default function HRView({
                             <Button
                               size="sm"
                               onClick={() => openOfferModal(candidate)}
-                              className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold h-9 px-4 rounded-xl text-xs shadow-md shadow-amber-500/20 flex items-center gap-1.5"
+                              className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-semibold h-9 px-4 rounded-xl text-xs shadow-md shadow-amber-500/20 flex items-center gap-1.5"
                             >
                               <Sparkles className="h-3.5 w-3.5" /> Generate Offer Letter & Contract
                             </Button>
@@ -1377,7 +1379,7 @@ export default function HRView({
         <Dialog open={!!offerCandidate} onOpenChange={open => !open && setOfferCandidate(null)}>
           <DialogContent className="bg-gray-950 border-gray-800 text-white sm:max-w-[950px] max-h-[92vh] overflow-y-auto rounded-3xl p-6">
             <DialogHeader className="border-b border-gray-800 pb-4">
-              <DialogTitle className="text-xl font-black flex items-center justify-between">
+              <DialogTitle className="text-xl font-semibold flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-amber-400" />
                   Offer Letter & Employment Contract Studio
@@ -1640,7 +1642,7 @@ export default function HRView({
                   <Button
                     onClick={handleSendOfferEmail}
                     disabled={offerSending}
-                    className="flex-1 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold h-11 rounded-xl shadow-lg shadow-amber-500/20 text-xs flex items-center justify-center gap-2"
+                    className="flex-1 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-semibold h-11 rounded-xl shadow-lg shadow-amber-500/20 text-xs flex items-center justify-center gap-2"
                   >
                     {offerSending ? (
                       <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Dispatching Offer...</span>

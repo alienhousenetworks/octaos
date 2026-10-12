@@ -108,7 +108,10 @@ def extract_ocr_pdf_pages(file_bytes: bytes, target_pages: Optional[List[int]] =
     all_runs = []
 
     try:
-        import fitz
+        try:
+            import pymupdf as fitz
+        except ImportError:
+            import fitz
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         total_doc_pages = len(doc)
         pages_to_process = set(target_pages) if target_pages else set(range(1, total_doc_pages + 1))

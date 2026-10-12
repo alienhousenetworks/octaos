@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import random
 from datetime import datetime, timezone
@@ -12,6 +13,8 @@ from app.services.agents.base import BaseAgent
 from app.models.verticals import Lead
 from app.models.base import APICredential
 from app.core.http_utils import with_retry
+
+logger = logging.getLogger(__name__)
 
 def extract_json(text: str):
     import json
@@ -53,9 +56,18 @@ class SalesAgent(BaseAgent):
             return await self.run_sales_ai_v3_workflow()
         return {"status": f"Unknown action: {action}"}
 
-    async def run_sales_ai_v3_workflow(self, provider="gemini", model=None, count=50) -> dict:
+    async def run_sales_ai_v3_workflow(
+        self,
+        provider=None,
+        model=None,
+        count=50,
+        freshness=None,
+        mode: str = "configured_engine",
+        prompt_instructions: Optional[str] = None,
+    ) -> dict:
         from app.models.verticals import BusinessProfile, Lead
         from app.models.teams import AgentMetric
+        from app.services.sales_os.discovery.web_discovery import classify_archetype
         import json
         import random
         import re
@@ -63,18 +75,41 @@ class SalesAgent(BaseAgent):
 
         # Get business profile
         profile = self.db.query(BusinessProfile).filter_by(tenant_id=self.tenant_id).first()
-        if not profile:
+        if not profile and mode == "configured_engine":
             self.log_activity("V3 Workflow Error", "No Business Profile configured.", "failed")
             return {"status": "error", "message": "Business Profile not found."}
 
-        def update_status(step_num: int, step_status: str, result_msg: str, status_msg: str, final_status: str = "executing"):
-            # Fetch fresh record
+        engine_name = "Prompt-Based Sales Agent" if mode == "prompt_agent" else "Configured Sales Engine"
+        log_prefix = f"[{'Prompt Sales Agent' if mode == 'prompt_agent' else 'Configured Sales Engine'}]"
+
+        freshness_window = freshness or (getattr(profile, "lead_freshness", "30_days") if profile else "30_days") or "30_days"
+
+        def emit_activity(step_num: int, activity_str: str, log_entry: Optional[str] = None):
             p = self.db.query(BusinessProfile).filter_by(tenant_id=self.tenant_id).first()
             if not p:
                 return
             status = dict(p.v3_workflow_status or {})
+            status["workflow_type"] = mode
+            status["workflow_name"] = engine_name
+            status["current_step"] = step_num
+            status["current_activity"] = activity_str
+            if log_entry:
+                logs = list(status.get("logs", []))
+                logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] {log_entry}")
+                status["logs"] = logs[-150:]
+            p.v3_workflow_status = status
+            self.db.commit()
+
+        def update_status(step_num: int, step_status: str, result_msg: str, status_msg: str, final_status: str = "executing"):
+            p = self.db.query(BusinessProfile).filter_by(tenant_id=self.tenant_id).first()
+            if not p:
+                return
+            status = dict(p.v3_workflow_status or {})
+            status["workflow_type"] = mode
+            status["workflow_name"] = engine_name
             status["current_step"] = step_num
             status["status"] = final_status
+            status["current_activity"] = status_msg
             if "steps" not in status:
                 status["steps"] = {}
             status["steps"][str(step_num)] = {
@@ -85,62 +120,110 @@ class SalesAgent(BaseAgent):
             if step_status == "completed" and str(step_num + 1) in status["steps"]:
                 status["steps"][str(step_num + 1)]["status"] = "executing"
             
-            # Recreate the logs list to ensure SQLAlchemy detects the JSON mutation
             logs = list(status.get("logs", []))
             logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] {status_msg}")
-            status["logs"] = logs
+            status["logs"] = logs[-150:]
             
             p.v3_workflow_status = status
             self.db.commit()
 
-        # Step 1: Understand Service
-        update_status(1, "executing", "Analyzing service parameters...", "Starting Step 1: Understand Service...")
+        # Step 1: Understand Service & Materialize Sales Context
+        update_status(1, "executing", f"Materializing criteria for {engine_name}...", f"Starting Step 1 for {engine_name}...")
         try:
-            prompt = f"""Analyze the following business configuration:
-Company Name: {profile.company_name}
-Website: {profile.website}
-Industry: {profile.industry}
-Description: {profile.service_description}
-Target countries: {profile.target_countries}
-Target industries: {profile.target_industries}
-Target budget: {profile.target_budget_range}
-USP: {profile.usp}
-Extra Context: {profile.extra_context or 'None'}
+            if mode == "prompt_agent":
+                effective_context = (prompt_instructions or "").strip()
+                domain_archetype = "Prompt-Directed Prospecting"
+                emit_activity(1, "Synthesizing criteria from prompt directive...", f"{log_prefix} Analyzing prompt directive: {effective_context[:80]}...")
+                prompt = f"""You are an Autonomous B2B Sales Prospecting Agent.
+We are executing a direct prompt-driven prospecting search.
 
-Generate a clear, high-performing Ideal Customer Profile (ICP) for our outbound campaign. Format as a single paragraph under 100 words. No formatting or preamble."""
-            icp = await self.llm.complete(prompt, provider=provider, model=model)
-            icp = icp.strip()
-            update_status(1, "completed", icp, f"Generated Ideal Customer Profile (ICP): {icp}")
+PROMPT DIRECTIVE / INSTRUCTIONS:
+{effective_context or 'Find high-intent B2B target accounts fitting current market opportunities.'}
+
+Freshness Window: {freshness_window}
+
+Based on this prompt directive, generate a clear, high-performing Ideal Customer Profile (ICP), target criteria, and exclusions. Format as a single paragraph under 100 words. No formatting or preamble."""
+                icp = await self.llm.complete(prompt, provider=provider, model=model)
+                icp = icp.strip()
+                emit_activity(1, "ICP synthesized from prompt directive", f"{log_prefix} Generated criteria from prompt: {icp[:90]}...")
+                update_status(1, "completed", f"[Prompt Directive] {icp}", f"Generated ICP from prompt directive: {icp}")
+            else:
+                effective_context = profile.extra_context if profile else ""
+                from app.services.sales_os.context_materializer import SalesContextMaterializer
+                materializer = SalesContextMaterializer(self.db, self.tenant_id)
+                sales_ctx = materializer.get_active_context()
+                if not sales_ctx:
+                    sales_ctx = await materializer.materialize_context()
+
+                domain_archetype = classify_archetype(
+                    brief=(profile.service_description if profile else "") or "",
+                    query=(profile.industry if profile else "") or "",
+                    offer=(profile.offer_details if profile else "") or ""
+                )
+
+                company_name = profile.company_name if profile and profile.company_name else "Enterprise"
+                emit_activity(1, f"Synthesizing Ideal Customer Profile for {company_name}...", f"{log_prefix} Classifying domain archetype and target criteria...")
+                prompt = f"""Analyze the following business configuration:
+Company Name: {profile.company_name if profile else 'Enterprise'}
+Website: {profile.website if profile else 'N/A'}
+Industry: {profile.industry if profile else 'B2B'}
+Domain Archetype: {domain_archetype}
+Description: {profile.service_description if profile else ''}
+Target countries: {profile.target_countries if profile else []}
+Target industries: {profile.target_industries if profile else []}
+Target budget: {profile.target_budget_range if profile else 'N/A'}
+USP: {profile.usp if profile else ''}
+Extra Context: {effective_context or 'None'}
+Freshness Window: {freshness_window}
+
+Generate a clear, high-performing Ideal Customer Profile (ICP) and Negative ICP exclusions for our outbound campaign. Format as a single paragraph under 100 words. No formatting or preamble."""
+                icp = await self.llm.complete(prompt, provider=provider, model=model)
+                icp = icp.strip()
+                emit_activity(1, f"ICP Synthesized for {company_name}", f"{log_prefix} Generated target criteria and negative exclusions: {icp[:90]}...")
+                update_status(1, "completed", f"[{domain_archetype}] {icp}", f"Classified Archetype '{domain_archetype}'. Generated ICP & exclusions: {icp}")
         except Exception as e:
             update_status(1, "failed", str(e), f"Error in Step 1: {str(e)}", "failed")
             return {"status": "error", "message": str(e)}
 
         # Step 2: Market Discovery
-        update_status(2, "executing", "Sourcing target company directory...", "Starting Step 2: Intelligent Routing & Sourcing...")
+        update_status(2, "executing", f"Sourcing targets for {engine_name}...", f"Starting Step 2: Intelligent Routing & Sourcing ({engine_name})...")
         try:
             available_providers = {}
             creds = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id).all()
             for c in creds:
+                if c.provider in ("sales", "ai_mode"):
+                    continue
                 if c.encrypted_key and "your_api_key" not in c.encrypted_key:
-                    available_providers[c.provider] = decrypt_api_key(c.encrypted_key)
+                    try:
+                        decrypted = decrypt_api_key(c.encrypted_key)
+                        if decrypted:
+                            available_providers[c.provider] = decrypted
+                    except Exception:
+                        pass
             
-            if not available_providers:
-                raise Exception("No API credentials configured. Please configure Apollo, Hunter, or Google Places API keys to extract real leads.")
+            if mode == "prompt_agent":
+                lines = [line.strip() for line in effective_context.split("\n") if line.strip() and not line.strip().upper().startswith(("ROLE", "WHAT WE SELL"))]
+                query = lines[0][:100] if lines else "high-intent B2B target accounts"
+            else:
+                query = profile.target_industries[0] if (profile and profile.target_industries) else "target clients"
             
-            query = profile.target_industries[0] if profile.target_industries else "target clients"
-            
-            # Filter to only actual discovery providers
-            valid_discovery = ["apollo", "hunter", "google_places", "zoominfo", "apify"]
+            # Filter to all registered discovery and signal sources (60+ channels)
+            from app.services.sales_os.discovery.source_registry import get_all_source_ids
+            valid_discovery = get_all_source_ids()
             discovery_providers = {k: v for k, v in available_providers.items() if k in valid_discovery}
             
-            if not discovery_providers:
-                raise Exception("No valid primary discovery providers configured. Please add an API key for Apollo, Hunter, Google Places, or Apify.")
+            # Keyless open-web discovery is always available as the final fallback.
+            available_providers["web_search"] = ""
             
-            # 1. Ask LLM for Routing Strategy
+            if not discovery_providers:
+                routing_choice = "web_search"
+                update_status(2, "executing", "No paid provider keys configured; using open-web discovery.", f"{log_prefix} Routing to web_search.")
+
+            # 1. Ask LLM for Routing Strategy (paid providers only)
             routing_prompt = f"""We are building an Enterprise Lead Sourcing Engine.
 Available API Providers: {list(discovery_providers.keys())}
 Target Industry/Query: {query}
-Extra Context: {profile.extra_context or 'None'}
+Directive/Context: {effective_context or 'None'}
 
 First, check if the user explicitly requested a specific provider in their query or context (e.g., "use apollo", "from hunter", "via zoominfo"). If they did, you MUST select that provider.
 Otherwise, decide the best primary discovery provider to find companies.
@@ -149,15 +232,15 @@ Otherwise, decide the best primary discovery provider to find companies.
 
 Return a JSON with exactly one key: 'primary_source' (string) containing your choice from the available list."""
             
-            try:
-                routing_response = await self.llm.complete(routing_prompt, provider=provider, model=model)
-                routing_choice = extract_json(routing_response).get("primary_source")
-                if routing_choice not in discovery_providers:
+            if discovery_providers:
+                try:
+                    routing_response = await self.llm.complete(routing_prompt, provider=provider, model=model)
+                    routing_choice = extract_json(routing_response).get("primary_source")
+                    if routing_choice not in discovery_providers:
+                        routing_choice = list(discovery_providers.keys())[0]
+                except Exception:
                     routing_choice = list(discovery_providers.keys())[0]
-            except Exception:
-                routing_choice = list(discovery_providers.keys())[0]
-                
-            update_status(2, "executing", f"Selected {routing_choice} as primary source.", f"Routing strategy defined for {query}.")
+                update_status(2, "executing", f"Selected {routing_choice} as primary source.", f"{log_prefix} Routing strategy defined for {query}.")
 
             # 2. Fetch Companies with Fallback
             companies_data = []
@@ -169,15 +252,49 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                 raise Exception("No valid primary discovery providers configured.")
                 
             providers_to_try = [routing_choice] + [p for p in discovery_providers if p != routing_choice]
+            if "web_search" not in providers_to_try:
+                providers_to_try.append("web_search")
             error_log = []
             
             for fallback_provider in providers_to_try:
                 try:
-                    update_status(2, "executing", f"Attempting discovery via {fallback_provider}...", f"Trying {fallback_provider}.")
-                    companies_data = await self._fetch_real_leads(fallback_provider, available_providers[fallback_provider], query, count=count)
+                    update_status(2, "executing", f"Attempting discovery via {fallback_provider}...", f"{log_prefix} Trying {fallback_provider}.")
+                    search_query = query
+                    fetch_extra = {}
+                    if fallback_provider == "web_search":
+                        from app.services.sales_os.discovery.web_discovery import analyst_instructions, research_brief
+                        if mode == "prompt_agent":
+                            search_query = query
+                        else:
+                            search_query = research_brief(
+                                query,
+                                industries=profile.target_industries if profile else None,
+                                countries=profile.target_countries if profile else None,
+                                buyers=getattr(profile, "target_decision_makers", None) if profile else None,
+                                budget=profile.target_budget_range if profile else None,
+                                offer=profile.service_description if profile else None,
+                            )
+                        fetch_extra["analyst_prompt"] = analyst_instructions(effective_context)
+                        fetch_extra["on_progress"] = lambda msg: emit_activity(2, msg.split("]")[-1].strip() if "]" in msg else msg, f"{log_prefix} {msg}")
+                        fetch_extra["freshness_window"] = freshness_window
+                    companies_data = await self._fetch_real_leads(
+                        fallback_provider,
+                        available_providers[fallback_provider],
+                        search_query,
+                        count=count,
+                        freshness=freshness_window,
+                        **fetch_extra,
+                    )
                     if companies_data:
                         routing_choice = fallback_provider
                         break
+                    error_log.append(f"{fallback_provider}: returned no leads")
+                    update_status(
+                        2,
+                        "executing",
+                        f"{fallback_provider} returned no leads. Trying the next source.",
+                        f"{fallback_provider} returned no leads.",
+                    )
                 except Exception as e:
                     error_msg = str(e)
                     error_log.append(f"{fallback_provider}: {error_msg}")
@@ -228,7 +345,8 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                                     real_name = enrichment_data[0].get("name", "")
                                     if real_email and "@" in real_email:
                                         c["email"] = real_email
-                                        c["name"] = real_name if real_name else "Contact"
+                                        if real_name:
+                                            c["name"] = real_name
                                         enriched_count += 1
                             else:
                                 update_status(2, "executing", f"Enrichment skipped for {c.get('company')} - no valid domain.", f"No domain available to enrich {c.get('company')}.")
@@ -236,10 +354,16 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                             pass
                 
                 # Final Strict Validation and Suppression Check
-                has_name = bool(c.get("name") and c["name"].strip() not in ["Unknown Contact", "Manager", "General Inquiry"])
-                has_contact = bool(c.get("email") and "@" in c["email"] and not c["email"].startswith("contact@") and not c["email"].startswith("info@"))
+                has_name = bool(c.get("name") and c["name"].strip() not in ["Unknown Contact", "General Inquiry"])
+                # For open-web discovery, allow verified domain emails (sales@, contact@, info@) unless paid waterfall enrichment (Apollo/Hunter) is active
+                has_contact = bool(c.get("email") and "@" in c["email"])
+                if available_providers.get("hunter") or available_providers.get("apollo"):
+                    has_contact = has_contact and not c["email"].startswith("contact@") and not c["email"].startswith("info@")
                 
                 from app.services.sales_os.governance.suppression import SuppressionService
+                from app.services.sales_os.providers.honesty import is_fabricated_contact
+                if is_fabricated_contact(c):
+                    continue
                 suppression_service = SuppressionService(self.db, self.tenant_id)
                 domain_val = c.get("website", "").replace("https://", "").replace("http://", "").split("/")[0]
                 is_suppressed, supp_reason = suppression_service.is_suppressed(email=c.get("email"), domain=domain_val, phone=c.get("phone"))
@@ -256,12 +380,14 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                         "estimated_revenue": "Unknown",
                         "location": "Unknown",
                         "source": f"{routing_choice} (Enriched)" if enriched_count else routing_choice,
+                        "evidence_url": c.get("evidence_url") or "",
+                        "freshness": c.get("freshness") or {},
                         "contact": {
                             "name": c.get("name", ""),
-                            "title": "Contact",
+                            "title": c.get("title") or "Contact",
                             "email": c.get("email", ""),
                             "phone": c.get("phone", ""),
-                            "linkedin_url": ""
+                            "linkedin_url": c.get("linkedin_url") or ""
                         }
                     })
                     
@@ -282,6 +408,7 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
         qualified_companies = []
         try:
             for i, c in enumerate(companies):
+                emit_activity(3, f"Evaluating budget fit for {c['company_name']} ({i+1}/{len(companies)})...")
                 prompt = f"""Qualify this target company:
 Company Name: {c['company_name']}
 Industry: {c['industry']}
@@ -289,8 +416,8 @@ Estimated Revenue: {c['estimated_revenue']}
 Estimated Employees: {c['estimated_employees']}
 Our Target Budget Range: {profile.target_budget_range}
 
-Assess their purchasing capacity based on their estimated revenue and employee count. Choose one of: "20K–1L", "1L–3L", "3L–7L", "7L–15L", "15L+".
-Determine if they genuinely qualify for our target offer and budget range. Do NOT fabricate qualification if there is an explicit mismatch or insufficient evidence.
+Assess their purchasing capacity based on their profile, industry, estimated revenue and employee count. Choose one of: "20K–1L", "1L–3L", "3L–7L", "7L–15L", "15L+".
+Determine if they fit our target offer and budget range. If revenue or employee count is not explicitly known, evaluate if their industry and business scale typically aligns with our target budget range.
 Output a JSON object with:
 - capacity: string (one of the options above)
 - qualified: boolean (true if budget, industry and size align with ICP, false otherwise)
@@ -307,6 +434,46 @@ Only return JSON, no other text."""
                 c["qualification_reason"] = qual.get("reason", "Qualification evaluated against target budget and ICP parameters.")
                 if c["qualified"]:
                     qualified_companies.append(c)
+
+                verdict = "QUALIFIED" if c["qualified"] else "DISQUALIFIED"
+                emit_activity(
+                    3,
+                    f"Evaluated {i+1}/{len(companies)} companies ({len(qualified_companies)} qualified)...",
+                    f"[QUALIFY] {c['company_name']}: Capacity {c['purchasing_capacity']} -> {verdict} ({c['qualification_reason'][:65]})"
+                )
+
+            # Persist qualified leads to database immediately so they appear in the pipeline board in real time
+            for c in qualified_companies:
+                email_val = c.get("contact", {}).get("email") or ""
+                if not email_val:
+                    continue
+                exists = self.db.query(Lead).filter_by(tenant_id=self.tenant_id, email=email_val).first()
+                if not exists:
+                    lead = Lead(
+                        tenant_id=self.tenant_id,
+                        name=c["contact"]["name"],
+                        email=email_val,
+                        phone=c["contact"].get("phone", ""),
+                        company=c["company_name"],
+                        source=f"{c['source']}: V3 Workflow",
+                        status="qualified",
+                        score=50,
+                        priority="medium",
+                        assigned_to="Sales AI Agent",
+                        personal_email=email_val,
+                        company_email=email_val,
+                        mobile_no=c["contact"].get("phone", ""),
+                        need_of_what=profile.offer_details,
+                        why=c.get("why_now") or c["qualification_reason"],
+                        target_context=f"Archetype: {domain_archetype} | Capacity: {c.get('purchasing_capacity', 'Unknown')}"
+                    )
+                    self.db.add(lead)
+            try:
+                self.db.commit()
+            except Exception as dbe:
+                logger.warning(f"Failed to pre-commit qualified leads to DB: {dbe}")
+                self.db.rollback()
+
             update_status(3, "completed", f"Qualified {len(qualified_companies)} / {len(companies)} companies.", f"Lead qualification complete. Rejected {len(companies) - len(qualified_companies)} companies outside budget.")
         except Exception as e:
             update_status(3, "failed", str(e), f"Error in Step 3: {str(e)}", "failed")
@@ -316,7 +483,8 @@ Only return JSON, no other text."""
         update_status(4, "executing", "Analyzing digital pain points and recent events...", "Starting Step 4: Pulling deep context (news, jobs) and scanning for pain points...")
         try:
             apollo_key = available_providers.get("apollo")
-            for c in qualified_companies:
+            for i, c in enumerate(qualified_companies):
+                emit_activity(4, f"Auditing digital operations and pain points for {c['company_name']} ({i+1}/{len(qualified_companies)})...")
                 c["news"] = []
                 c["jobs"] = []
                 
@@ -347,7 +515,13 @@ Our USP: {profile.usp}
 
 Output a JSON array of strings containing exactly 2 specific pain points. No other text."""
                 pain_str = await self.llm.complete(prompt, provider=provider, model=model)
-                c["pain_points"] = extract_json(pain_str)
+                p_list = extract_json(pain_str)
+                c["pain_points"] = p_list if isinstance(p_list, list) else ["operations bottlenecks", "scaling challenges"]
+                emit_activity(
+                    4,
+                    f"Audited {i+1}/{len(qualified_companies)} companies...",
+                    f"[AUDIT] {c['company_name']}: Discovered pain points: {'; '.join(c['pain_points'][:2])}"
+                )
             update_status(4, "completed", f"Identified custom pain points for {len(qualified_companies)} qualified leads.", "Deep context enrichment complete. Discovered pain points using recent news and job openings.")
         except Exception as e:
             update_status(4, "failed", str(e), f"Error in Step 4: {str(e)}", "failed")
@@ -365,7 +539,8 @@ Output a JSON array of strings containing exactly 2 specific pain points. No oth
         update_status(6, "executing", "Applying multi-factor lead scoring formula...", "Starting Step 6: Calculating weighted quality score (Budget, Pain Point, Intent, etc.)...")
         scored_leads = []
         try:
-            for c in qualified_companies:
+            for i, c in enumerate(qualified_companies):
+                emit_activity(6, f"Calculating weighted quality score for {c['company_name']} ({i+1}/{len(qualified_companies)})...")
                 prompt = f"""Analyze the following company profile and our offer to generate a lead score:
 Company: {c['company_name']}
 Industry: {c['industry']}
@@ -399,6 +574,12 @@ No other text, just the JSON."""
                 growth_score = scores.get("growth_score", 50)
                 contact_score = 95
                 
+                fresh_info = c.get("freshness") or {}
+                fresh_lbl = fresh_info.get("freshness_label") or "Active Web"
+                first_pain = (c.get("pain_points") or ["workflow scaling bottleneck"])[0]
+                why_now = f"Fresh signal ({fresh_lbl}) + Budget capacity ({c.get('purchasing_capacity', 'Aligned')}) + ICP fit ({c['industry']}). Addressing {first_pain}."
+                c["why_now"] = why_now
+
                 weighted_score = int(budget_score*0.25 + pain_score*0.25 + intent_score*0.20 + industry_score*0.15 + growth_score*0.10 + contact_score*0.05)
                 category = "Ignore"
                 if weighted_score >= 85:
@@ -419,6 +600,11 @@ No other text, just the JSON."""
                     "category": category
                 }
                 scored_leads.append(c)
+                emit_activity(
+                    6,
+                    f"Scored {i+1}/{len(qualified_companies)} leads...",
+                    f"[SCORE] {c['company_name']}: Score {weighted_score}/100 [{category}] (Pain: {pain_score}, Intent: {intent_score})"
+                )
                 
             update_status(6, "completed", f"Scored lead pool: {len(scored_leads)} leads classified.", "Lead scoring matrix processed successfully.")
         except Exception as e:
@@ -428,20 +614,37 @@ No other text, just the JSON."""
         # Step 7: Outreach Generation
         update_status(7, "executing", "Generating personalized outreach messages...", "Starting Step 7: Writing hyper-targeted outreaches without templates...")
         try:
-            for c in scored_leads:
-                news_context = ", ".join([n["title"] for n in c.get("news", [])]) if c.get("news") else "None recent"
-                jobs_context = ", ".join([j["title"] for j in c.get("jobs", [])]) if c.get("jobs") else "None recent"
+                from app.services.sales_os.context_materializer import SalesContextMaterializer
+                sales_ctx = SalesContextMaterializer(self.db, self.tenant_id).get_active_context()
+                proofs = (sales_ctx.proof_points if sales_ctx else [])[:3]
+                proof_text = f"\nVerified Proof Points: {', '.join(proofs)}" if proofs else ""
 
-                prompt = f"""Write a highly personalized outbound sales email from {profile.company_name} to {c['contact']['name']} ({c['contact']['title']}) at {c['company_name']}.
+                for i, c in enumerate(scored_leads):
+                    emit_activity(7, f"Drafting tailored outreach email for {c['contact']['name']} at {c['company_name']} ({i+1}/{len(scored_leads)})...")
+                    news_context = ", ".join([n["title"] for n in c.get("news", [])]) if c.get("news") else "None recent"
+                    jobs_context = ", ".join([j["title"] for j in c.get("jobs", [])]) if c.get("jobs") else "None recent"
+
+                    prompt = f"""Write a highly personalized outbound sales email from {profile.company_name} to {c['contact']['name']} ({c['contact']['title']}) at {c['company_name']}.
 Tailor it to their specific pain points: {c['pain_points']}.
 Recent Company News to reference (if relevant): {news_context}
 Recent Job Openings to reference (if relevant): {jobs_context}
 Use our USP: {profile.usp}
-Offer: {profile.offer_details}
-Keep it short, clear, professional and under 150 words. No subject line, no placeholders, no comments. Output the email body only."""
-                outreach_text = await self.llm.complete(prompt, provider=provider, model=model)
-                c["outreach_message"] = outreach_text.strip()
-            update_status(7, "completed", "Generated unique personalized emails for all candidates.", "Outreach generation complete. All outreaches customized to target business pain points.")
+Offer: {profile.offer_details}{proof_text}
+
+Strict Tone & Quality Rules:
+- Direct, consultative, value-first tone.
+- Zero buzzwords or hype ('game-changer', 'revolutionary', '10x overnight').
+- Soft, low-friction Call to Action.
+- Under 120 words. No subject line, no placeholders, no brackets. Output the email body only."""
+                    outreach_text = await self.llm.complete(prompt, provider=provider, model=model)
+                    c["outreach_message"] = outreach_text.strip()
+                    first_p = (c.get("pain_points") or ["operational bottlenecks"])[0]
+                    emit_activity(
+                        7,
+                        f"Personalized outreach drafted for {c['company_name']}...",
+                        f"[OUTREACH] {c['company_name']}: Drafted pitch tailored to '{first_p[:45]}'"
+                    )
+                update_status(7, "completed", "Generated unique personalized emails for all candidates.", "Outreach generation complete. All outreaches customized to target business pain points.")
         except Exception as e:
             update_status(7, "failed", str(e), f"Error in Step 7: {str(e)}", "failed")
             return {"status": "error", "message": str(e)}
@@ -450,10 +653,16 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
         update_status(8, "executing", "Sequencing outreach touchpoints...", "Starting Step 8: Creating timeline schedules for Email, LinkedIn, WhatsApp...")
         try:
             for idx, c in enumerate(scored_leads):
+                emit_activity(8, f"Sequencing multi-channel touchpoints for {c['company_name']} ({idx+1}/{len(scored_leads)})...")
                 # Save lead in DB
                 exists = self.db.query(Lead).filter_by(tenant_id=self.tenant_id, email=c["contact"]["email"]).first()
                 if exists:
                     lead = exists
+                    lead.score = c["scoring"]["total"]
+                    lead.status = "scored"
+                    lead.priority = "high" if c["scoring"]["category"] == "Hot Lead" else "medium"
+                    lead.why = c.get("why_now") or c["qualification_reason"]
+                    lead.target_context = f"Archetype: {domain_archetype} | Pain points: {', '.join(c.get('pain_points', []))}"
                 else:
                     lead = Lead(
                         tenant_id=self.tenant_id,
@@ -470,11 +679,17 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                         company_email=c["contact"]["email"],
                         mobile_no=c["contact"]["phone"],
                         need_of_what=profile.offer_details,
-                        why=c["qualification_reason"],
-                        target_context=f"Pain points: {', '.join(c['pain_points'])}"
+                        why=c.get("why_now") or c["qualification_reason"],
+                        target_context=f"Archetype: {domain_archetype} | Pain points: {', '.join(c.get('pain_points', []))}"
                     )
                     self.db.add(lead)
                     self.db.flush()
+                
+                emit_activity(
+                    8,
+                    f"Saved and sequenced {idx+1}/{len(scored_leads)} leads into CRM...",
+                    f"[SEQUENCE] {c['company_name']}: Day 1 Email, Day 3 LinkedIn, Day 8 WhatsApp sequence mapped. CRM lead saved."
+                )
                 
                 # Multi-channel schedule
                 channel_schedule = [
@@ -541,6 +756,12 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                     lead.status = "contacted"
                     lead.data = {
                         **(lead.data or {}),
+                        "freshness": c.get("freshness") or {},
+                        "evidence_url": c.get("evidence_url") or "",
+                        "why_now": c.get("why_now") or "",
+                        "domain_archetype": domain_archetype,
+                        "committee_role": "economic_buyer",
+                        "freshness_window": freshness_window,
                         "outreach_channel": channel_used,
                         "outbound_subject": subject,
                         "outbound_body": body,
@@ -556,6 +777,12 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
                     lead.status = "scored" # Keeps it from saying contacted
                     lead.data = {
                         **(lead.data or {}),
+                        "freshness": c.get("freshness") or {},
+                        "evidence_url": c.get("evidence_url") or "",
+                        "why_now": c.get("why_now") or "",
+                        "domain_archetype": domain_archetype,
+                        "committee_role": "economic_buyer",
+                        "freshness_window": freshness_window,
                         "outreach_schedule": channel_schedule,
                         "purchasing_capacity": c["purchasing_capacity"],
                         "pain_points": c["pain_points"],
@@ -619,7 +846,9 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
         return {"status": "success"}
 
     async def _generate_leads(self, params: dict):
-        provider = params.get("provider", "free_search")
+        provider = params.get("provider", "web_search")
+        if provider == "free_search":
+            provider = "web_search"
         query = params.get("query", "target clients")
         count = params.get("count", 5)
         
@@ -628,15 +857,32 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
         leads_data = []
 
         # Check for API credentials
-        cred = self.db.query(APICredential).filter_by(
+        cred = None if provider == "web_search" else self.db.query(APICredential).filter_by(
             tenant_id=self.tenant_id, provider=provider
         ).first()
         
-        if not cred or "your_api_key" in (cred.encrypted_key or "") or not cred.encrypted_key.strip():
+        if provider != "web_search" and (not cred or "your_api_key" in (cred.encrypted_key or "") or not cred.encrypted_key.strip()):
             raise ValueError(f"No API credentials found for {provider}. Please configure your API credentials under Platform Setup -> API Settings.")
         
         try:
-            leads_data = await self._fetch_real_leads(provider, decrypt_api_key(cred.encrypted_key), query, count)
+            fetch_extra = {}
+            if provider == "web_search":
+                from app.models.verticals import BusinessProfile
+                from app.services.sales_os.discovery.web_discovery import analyst_instructions
+                profile_row = self.db.query(BusinessProfile).filter_by(tenant_id=self.tenant_id).first()
+                if profile_row:
+                    fetch_extra["analyst_prompt"] = analyst_instructions(profile_row.extra_context)
+            leads_data = await self._fetch_real_leads(
+                provider,
+                decrypt_api_key(cred.encrypted_key) if cred else "",
+                query,
+                count,
+                **fetch_extra,
+            )
+            if provider == "web_search" and not leads_data:
+                message = "Open-web discovery found no verifiable contacts after multiple search rounds."
+                self.log_activity("API Error", message, "failed")
+                return {"status": "error", "message": message}
         except Exception as e:
             self.log_activity("API Error", f"Failed fetching from {provider}: {str(e)}.", "failed")
             return {"status": "error", "message": str(e)}
@@ -683,11 +929,38 @@ Keep it short, clear, professional and under 150 words. No subject line, no plac
         return {"status": "success", "generated_leads": created_count, "provider": provider}
 
     @with_retry
-    async def _fetch_real_leads(self, provider: str, api_key: str, query: str, count: int) -> list:
+    async def _fetch_real_leads(
+        self,
+        provider: str,
+        api_key: str,
+        query: str,
+        count: int = 5,
+        analyst_prompt: str | None = None,
+        on_progress=None,
+        freshness: str = "30_days",
+        freshness_window: str = "30_days",
+    ) -> list:
         # Implementation placeholders for actual external APIs
         leads = []
         async with httpx.AsyncClient() as client:
-            if provider == "apollo":
+            if provider == "web_search":
+                from app.services.sales_os.discovery.web_discovery import discover_leads_from_web
+                try:
+                    leads = await discover_leads_from_web(
+                        self.llm.complete,
+                        extract_json,
+                        query,
+                        count,
+                        analyst_prompt=analyst_prompt,
+                        on_progress=on_progress,
+                        freshness_window=freshness_window or freshness,
+                    )
+                except RuntimeError as exc:
+                    logger.warning("Open-web discovery ended without a contact: %s", exc)
+                    if on_progress:
+                        on_progress(str(exc))
+                    return []
+            elif provider == "apollo":
                 # Call Apollo search
                 headers = {"Content-Type": "application/json", "Cache-Control": "no-cache", "X-Api-Key": api_key}
                 # Human-like AI parsing of the raw query into HIGH-QUALITY Apollo params
@@ -704,7 +977,7 @@ Output a JSON object with any of these keys that apply to maximize lead quality:
 
 Only output valid JSON. No other text."""
                 try:
-                    parsed_query = extract_json(await self.llm.complete(prompt, provider="anthropic"))
+                    parsed_query = extract_json(await self.llm.complete(prompt, provider=provider, model=model))
                 except Exception:
                     parsed_query = {"q_keywords": query}
                     
@@ -781,7 +1054,7 @@ Format 2 (Fallback to natural language):
 
 Only output valid JSON. No other text."""
                     try:
-                        parsed_query = extract_json(await self.llm.complete(prompt, provider="anthropic"))
+                        parsed_query = extract_json(await self.llm.complete(prompt, provider=provider, model=model))
                     except Exception:
                         parsed_query = {"query": query}
                         
@@ -867,7 +1140,7 @@ Output a JSON object exactly like this:
 }}
 Only output valid JSON. No other text."""
                     try:
-                        parsed_config = extract_json(await self.llm.complete(prompt, provider="anthropic"))
+                        parsed_config = extract_json(await self.llm.complete(prompt, provider=provider, model=model))
                         actor_id = parsed_config.get("actor_id", "compass/crawler-google-places")
                         run_payload = parsed_config.get("run_payload", {
                             "searchStringsArray": [query],
@@ -894,7 +1167,7 @@ Only output valid JSON. No other text."""
                             emails = p.get("emails", [])
                             email = emails[0] if emails else p.get("email", "")
                             leads.append({
-                                "name": "Manager",
+                                "name": "",
                                 "email": email,
                                 "company": p.get("title", p.get("name", "Local Business")),
                                 "phone": p.get("phone", "") or p.get("phoneUnformatted", "")
@@ -939,7 +1212,7 @@ Only output valid JSON. No other text."""
                     for res in results[:count]:
                         name = res.get("name", "Local Business")
                         leads.append({
-                            "name": "Manager",
+                            "name": "",
                             "email": "",
                             "company": name,
                             "phone": ""
@@ -1007,7 +1280,7 @@ Only output valid JSON. No other text."""
                         raise Exception(f"Clearbit returned 0 results. Full response: {response.text}")
                     for c in cb_results[:count]:
                         leads.append({
-                            "name": "General Inquiry",
+                            "name": "",
                             "email": "",
                             "company": c.get("name", "Target Corp"),
                             "phone": ""
@@ -1021,11 +1294,15 @@ Only output valid JSON. No other text."""
                     for ent in data.get("entities", [])[:count]:
                         props = ent.get("properties", {})
                         leads.append({
-                            "name": "Founders",
+                            "name": "",
                             "email": props.get("contact_email", ""),
                             "company": props.get("identifier", {}).get("value", "Startup"),
                             "phone": props.get("phone_number", "")
                         })
+            else:
+                # Delegate to unified connector suite supporting all 60+ sources
+                from app.services.sales_os.discovery.connectors import fetch_leads_from_source
+                leads = await fetch_leads_from_source(provider, api_key, query, count=count, llm_gateway=self.llm, freshness=freshness_window or freshness)
         if not leads:
             raise Exception(f"The {provider} API returned data, but no valid leads were extracted. This often happens if the API rate-limits you, requires credits, or returns obfuscated/paywalled names (e.g., Apollo's '***' names).")
         return leads
@@ -1138,7 +1415,7 @@ Base Template: {body_template}
 Subject: {subject}
 Output a JSON object with keys 'subject' and 'body'. No other text."""
             
-            response = await self.llm.complete(prompt, provider="anthropic")
+            response = await self.llm.complete(prompt, provider=provider, model=model)
             try:
                 parsed = extract_json(response)
                 outbound_subject = parsed.get("subject", subject)

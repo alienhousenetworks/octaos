@@ -13,6 +13,7 @@ from app.services.agents.executive.strategist import StrategistAgent
 from app.services.agents.executive.quant_analyst import QuantAnalystEngine
 from app.services.agents.executive.red_team import RedTeamCriticAgent
 from app.services.agents.executive.compliance_sentinel import ComplianceSentinelAgent
+from app.services.executive_os.agent_council import AgentCouncilService
 from app.core.event_ledger import EventLedger
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ class StrategyCompiler:
 
     Enforces:
     - Evidence admission gate (only claims with confidence >= 0.70 admitted)
+    - Executive Agent Council Deliberation & ROI optimization
     - Kahn's Algorithm topological acyclicity validation
     - Deterministic seeded Monte Carlo quantitative forecasting
     - Adversarial Red Team pre-mortem inspection
@@ -41,6 +43,8 @@ class StrategyCompiler:
         self.quant_engine = QuantAnalystEngine(db, tenant_id)
         self.red_team = RedTeamCriticAgent(db, tenant_id)
         self.compliance_sentinel = ComplianceSentinelAgent(db, tenant_id)
+        self.council_service = AgentCouncilService(db, tenant_id)
+
 
     @staticmethod
     def validate_acyclicity(nodes: List[Dict[str, Any]]) -> List[str]:
@@ -108,16 +112,40 @@ class StrategyCompiler:
 
     def compile_plans(
         self,
-        workflow_id: str,
+        workflow_id: Optional[str],
         prompt: str,
         budget_override: Optional[float] = None
     ) -> List[PlanVersion]:
         """
         Executes the authoritative 8-step compiler pipeline.
         """
-        wf = self.db.query(Workflow).filter_by(id=workflow_id, tenant_id=self.tenant_id).first()
-        if not wf:
-            raise ValueError(f"Workflow '{workflow_id}' not found.")
+        if not workflow_id:
+            wf = Workflow(
+                tenant_id=self.tenant_id,
+                name=prompt[:60].strip() or "Executive Strategy Initiative",
+                vertical="CEO",
+                department="CEO",
+                status="COMPILED"
+            )
+            self.db.add(wf)
+            self.db.flush()
+            workflow_id = wf.id
+        else:
+            wf = self.db.query(Workflow).filter_by(id=workflow_id, tenant_id=self.tenant_id).first()
+            if not wf:
+                wf = Workflow(
+                    id=workflow_id,
+                    tenant_id=self.tenant_id,
+                    name=prompt[:60].strip() or "Executive Strategy Initiative",
+                    vertical="CEO",
+                    department="CEO",
+                    status="COMPILED"
+                )
+                self.db.add(wf)
+                self.db.flush()
+            else:
+                wf.status = "COMPILED"
+                self.db.flush()
 
         # Step 1: Parse Intent AST
         parsed = self.chief_of_staff.parse_intent(prompt, budget_override)
@@ -141,11 +169,20 @@ class StrategyCompiler:
             for c in eligible_claims
         ]
 
+        # Step 2.5: Summon Agent Council Meeting & Deliberate for ROI Optimization
+        deliberation_data = self.council_service.deliberate_strategy_sync(
+            prompt=prompt,
+            strategic_pillar=intent_ast.get("strategic_pillar", "REVENUE"),
+            budget_cap=budget_cap,
+            timeline_days=intent_ast.get("timeline_days", 30)
+        )
+
         # Step 3: Strategist synthesizes 3 candidate DAG variants
         variants_dict = self.strategist.compile_candidate_dags(
             intent_ast=intent_ast,
             verified_evidence=evidence_factors,
-            budget_cap=budget_cap
+            budget_cap=budget_cap,
+            deliberation_data=deliberation_data
         )
 
         # Determine next version number
@@ -170,12 +207,22 @@ class StrategyCompiler:
                 evidence_factors=evidence_factors
             )
 
+            # Embed council deliberation, ROI scorecard, and meeting metadata into quant_forecast
+            if deliberation_data:
+                quant_forecast["meeting_id"] = deliberation_data.get("meeting_id")
+                quant_forecast["meeting_title"] = deliberation_data.get("meeting_title")
+                quant_forecast["council_participants"] = deliberation_data.get("summoned_agents", [])
+                quant_forecast["agent_deliberations"] = deliberation_data.get("deliberations", [])
+                quant_forecast["roi_scorecard"] = deliberation_data.get("roi_scorecard", {})
+                quant_forecast["consensus_summary"] = deliberation_data.get("consensus_summary", "")
+
             # Step 6: Red Team Adversarial Critique
             red_team_critique = self.red_team.critique_plan(
                 strategy_variant=variant_key,
                 nodes=nodes,
                 intent_constraints=intent_ast.get("explicit_constraints", [])
             )
+
 
             # Step 7: Pre-flight Compliance Sentinel Inspection
             compliance_scorecard = self.compliance_sentinel.inspect_dag_compliance(nodes)

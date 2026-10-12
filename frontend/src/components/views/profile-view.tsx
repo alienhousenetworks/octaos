@@ -1,5 +1,7 @@
 'use client';
 
+import { notify } from '@/lib/notify';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   User, Mail, Phone, Shield, Building2, Globe, MapPin,
@@ -109,7 +111,7 @@ export default function ProfileView({
         }, 800);
       } else {
         const err = await res.json();
-        alert(err.detail || 'Failed to switch organization');
+        notify(err.detail || 'Failed to switch organization');
       }
     } catch (e) {
       console.error(e);
@@ -172,10 +174,10 @@ export default function ProfileView({
         setTimeout(() => setOrgSaved(false), 3000);
       } else {
         const err = await res.json();
-        alert(err.detail || 'Failed to save organization');
+        notify(err.detail || 'Failed to save organization');
       }
     } catch {
-      alert('Network error while saving organization');
+      notify('Network error while saving organization');
     } finally {
       setSavingOrg(false);
     }
@@ -205,7 +207,7 @@ export default function ProfileView({
           <User size={32} className="text-white drop-shadow-md" />
         </div>
         <div>
-          <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-violet-300 tracking-tight">
+          <h1 className="text-xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-white to-violet-300 tracking-tight">
             My Profile
           </h1>
           <p className="text-base text-violet-200/70 mt-1 font-medium">Manage your personal details and switch between organizations.</p>
@@ -219,7 +221,7 @@ export default function ProfileView({
 
           {/* Avatar + identity */}
           <div
-            className="rounded-3xl p-6 relative overflow-hidden group transition-all duration-500 hover:-translate-y-1"
+            className="rounded-3xl p-6 relative overflow-hidden group transition-all duration-500"
             style={{
               background: 'linear-gradient(145deg, rgba(20,15,40,0.7) 0%, rgba(8,6,22,0.85) 100%)',
               backdropFilter: 'blur(24px)',
@@ -235,7 +237,7 @@ export default function ProfileView({
               {/* Avatar */}
               <div className="relative flex-shrink-0">
                 <div
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-xl font-black select-none"
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-xl font-semibold select-none"
                   style={{ background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', boxShadow: '0 8px 20px rgba(139,92,246,0.45)' }}
                 >
                   {initials}
@@ -255,14 +257,14 @@ export default function ProfileView({
                 <div className="text-sm text-gray-400 truncate">{userProfile?.email}</div>
                 <div className="mt-2 flex items-center gap-1.5">
                   <span
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold"
                     style={{ background: roleBadge.bg, border: `1px solid ${roleBadge.border}`, color: roleBadge.color }}
                   >
                     {roleBadge.icon}
                     {roleBadge.label}
                   </span>
                   {userProfile?.is_verified && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold"
                       style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399' }}>
                       <CheckCircle2 size={9} /> Verified
                     </span>
@@ -291,7 +293,7 @@ export default function ProfileView({
             ) : (
               <form onSubmit={handleSaveProfile} className="mt-5 space-y-3">
                 <div>
-                  <label className="text-[11px] font-semibold text-gray-400 mb-1 block">Full Name</label>
+                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Full Name</label>
                   <Input
                     value={editName}
                     onChange={e => setEditName(e.target.value)}
@@ -301,7 +303,7 @@ export default function ProfileView({
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-semibold text-gray-400 mb-1 block">Phone</label>
+                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Phone</label>
                   <Input
                     value={editPhone}
                     onChange={e => setEditPhone(e.target.value)}
@@ -341,7 +343,7 @@ export default function ProfileView({
 
           {/* Current Organization card */}
           <div
-            className="rounded-3xl p-6 relative overflow-hidden group transition-all duration-500 hover:-translate-y-1"
+            className="rounded-3xl p-6 relative overflow-hidden group transition-all duration-500"
             style={{
               background: 'linear-gradient(145deg, rgba(20,15,40,0.7) 0%, rgba(8,6,22,0.85) 100%)',
               backdropFilter: 'blur(24px)',
@@ -360,7 +362,7 @@ export default function ProfileView({
                 </div>
                 <h2 className="text-sm font-bold text-white">Current Organization</h2>
               </div>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold"
                 style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: '#34d399' }}>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"
                   style={{ boxShadow: '0 0 6px #10b981', animation: 'pulseGlow 2s infinite ease-in-out' }} />
@@ -371,7 +373,7 @@ export default function ProfileView({
             {currentOrg ? (
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-base font-black flex-shrink-0"
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-base font-semibold flex-shrink-0"
                     style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', boxShadow: '0 4px 12px rgba(99,102,241,0.35)' }}>
                     {(currentOrg.tenant_name || 'O')[0].toUpperCase()}
                   </div>
@@ -380,7 +382,7 @@ export default function ProfileView({
                     {currentOrg.company_email && (
                       <div className="text-xs text-gray-400">{currentOrg.company_email}</div>
                     )}
-                    <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                    <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-xs font-semibold"
                       style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)', color: '#a78bfa' }}>
                       <Star size={8} /> {currentOrg.role === 'admin' ? 'Admin' : 'Member'}
                     </span>
@@ -450,7 +452,7 @@ export default function ProfileView({
 
           {/* ─── Organization Switcher ─────────────────────────────── */}
           <div
-            className="rounded-3xl p-6 relative overflow-hidden group transition-all duration-500 hover:-translate-y-1"
+            className="rounded-3xl p-6 relative overflow-hidden group transition-all duration-500"
             style={{
               background: 'linear-gradient(145deg, rgba(20,15,40,0.7) 0%, rgba(8,6,22,0.85) 100%)',
               backdropFilter: 'blur(24px)',
@@ -466,7 +468,7 @@ export default function ProfileView({
                 </div>
                 <div>
                   <h2 className="text-sm font-bold text-white">My Organizations</h2>
-                  <p className="text-[10px] text-gray-500">Switch between organizations linked to your email</p>
+                  <p className="text-xs text-gray-500">Switch between organizations linked to your email</p>
                 </div>
               </div>
               <button
@@ -499,7 +501,7 @@ export default function ProfileView({
                   return (
                     <div
                       key={org.tenant_id}
-                      className="flex items-center gap-3 p-3 rounded-2xl transition-all duration-300 hover:scale-[1.02]"
+                      className="flex items-center gap-3 p-3 rounded-2xl transition-all duration-300"
                       style={{
                         background: isCurrent ? 'linear-gradient(90deg, rgba(139,92,246,0.15) 0%, rgba(79,70,229,0.05) 100%)' : 'rgba(255,255,255,0.03)',
                         border: isCurrent ? '1px solid rgba(139,92,246,0.4)' : '1px solid rgba(255,255,255,0.08)',
@@ -509,7 +511,7 @@ export default function ProfileView({
                     >
                       {/* Org avatar */}
                       <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black text-white flex-shrink-0"
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-semibold text-white flex-shrink-0"
                         style={{
                           background: isCurrent
                             ? 'linear-gradient(135deg,#7c3aed,#4f46e5)'
@@ -526,7 +528,7 @@ export default function ProfileView({
                         <div className="flex items-center gap-1.5">
                           <span className="text-sm font-semibold text-white truncate">{org.tenant_name}</span>
                           {isCurrent && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold flex-shrink-0"
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold flex-shrink-0"
                               style={{ background: 'rgba(139,92,246,0.15)', color: '#c4b5fd' }}>
                               Current
                             </span>
@@ -534,9 +536,9 @@ export default function ProfileView({
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           {org.company_email && (
-                            <span className="text-[10px] text-gray-500 truncate">{org.company_email}</span>
+                            <span className="text-xs text-gray-500 truncate">{org.company_email}</span>
                           )}
-                          <span className="text-[10px] font-semibold"
+                          <span className="text-xs font-semibold"
                             style={{ color: org.role === 'admin' ? '#a78bfa' : '#64748b' }}>
                             {org.role === 'admin' ? '· Admin' : '· Member'}
                           </span>
@@ -579,7 +581,7 @@ export default function ProfileView({
             )}
 
             {organizations.length > 1 && (
-              <p className="text-[10px] text-gray-600 mt-4 flex items-center gap-1.5">
+              <p className="text-xs text-gray-600 mt-4 flex items-center gap-1.5">
                 <AlertCircle size={10} />
                 Switching organization reloads your session to that workspace. Your email stays the same.
               </p>
@@ -597,7 +599,7 @@ function InfoRow({ icon, label, value, highlight }: { icon: React.ReactNode; lab
   return (
     <div className="flex items-center gap-2.5">
       <span style={{ color: '#64748b' }}>{icon}</span>
-      <span className="text-[11px] text-gray-500 w-14 flex-shrink-0">{label}</span>
+      <span className="text-xs text-gray-500 w-14 flex-shrink-0">{label}</span>
       <span className="text-xs font-medium truncate" style={{ color: highlight || '#e2e8f0' }}>
         {value || '—'}
       </span>
@@ -610,7 +612,7 @@ function OrgDetail({ icon, label, value, isLink }: { icon: React.ReactNode; labe
     <div className="flex items-start gap-2.5">
       <span className="mt-0.5 flex-shrink-0" style={{ color: '#64748b' }}>{icon}</span>
       <div className="min-w-0">
-        <div className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold">{label}</div>
+        <div className="text-xs text-gray-600 uppercase tracking-wider font-semibold">{label}</div>
         {isLink ? (
           <a
             href={value.startsWith('http') ? value : `https://${value}`}

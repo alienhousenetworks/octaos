@@ -1,18 +1,20 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Zap, Loader2 } from 'lucide-react';
 import { saveSession } from '@/lib/auth-session';
+import { notify } from '@/lib/notify';
 
 interface AuthFormsProps {
   appState: 'login' | 'signup';
-  setAppState: (state: 'landing' | 'login' | 'signup' | 'app') => void;
+  setAppState?: (state: 'landing' | 'login' | 'signup' | 'app') => void;
   API_URL: string;
-  setToken: (token: string | null) => void;
-  setTenantId: (tenantId: string | null) => void;
+  setToken?: (token: string | null) => void;
+  setTenantId?: (tenantId: string | null) => void;
   inviteToken?: string | null;
   setInviteToken?: (token: string | null) => void;
   logoUrl?: string | null;
@@ -28,6 +30,16 @@ export default function AuthForms({
   setInviteToken,
   logoUrl,
 }: AuthFormsProps) {
+  const router = useRouter();
+  const [formError, setFormError] = useState<string | null>(null);
+  const setAppStateSafe = (state: 'landing' | 'login' | 'signup' | 'app') => {
+    setFormError(null);
+    setAppState?.(state);
+    if (state === 'app') router.push('/app/home');
+    else if (state === 'login') router.push('/login');
+    else if (state === 'signup') router.push('/signup');
+    else router.push('/');
+  };
   // Form input states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -99,16 +111,16 @@ export default function AuthForms({
           refresh_token: data.refresh_token,
           tenant_id: data.tenant_id,
         });
-        setToken(data.access_token);
-        if (data.tenant_id) setTenantId(data.tenant_id);
+        setToken?.(data.access_token);
+        if (data.tenant_id) setTenantId?.(data.tenant_id);
         setInviteToken?.(null);
-        setAppState('app');
+        setAppStateSafe('app');
       } else {
-        alert(data.detail || "Failed to accept invitation");
+        setFormError(data.detail || "Failed to accept invitation");
       }
     } catch (e) {
       console.error(e);
-      alert("Error accepting invitation");
+      setFormError("Error accepting invitation");
     }
   };
 
@@ -145,11 +157,11 @@ export default function AuthForms({
         setOtpTimer(60);
         setOtp('');
       } else {
-        alert(data.detail || "Signup failed");
+        setFormError(data.detail || "Signup failed");
       }
     } catch (e) {
       console.error(e);
-      alert("Failed to connect to the backend server. Please verify that the backend is running at " + API_URL);
+      setFormError("Failed to connect to the backend server. Please verify that the backend is running at " + API_URL);
     }
   };
 
@@ -159,7 +171,7 @@ export default function AuthForms({
       const payload: any = { email };
       if (loginMode === 'password') {
         if (!password) {
-          alert("Please enter your password");
+          setFormError("Please enter your password");
           return;
         }
         payload.password = password;
@@ -181,8 +193,8 @@ export default function AuthForms({
             refresh_token: data.refresh_token,
             tenant_id: data.tenant_id,
           });
-          setToken(data.access_token);
-          if (data.tenant_id) setTenantId(data.tenant_id);
+          setToken?.(data.access_token);
+          if (data.tenant_id) setTenantId?.(data.tenant_id);
           // Reset states
           setOtpSent(false);
           setOtp('');
@@ -190,7 +202,7 @@ export default function AuthForms({
           setEmail('');
           setPassword('');
           setTenantSelection(null);
-          setAppState('app');
+          setAppStateSafe('app');
         } else {
           setTempEmail(email);
           setOtpSent(true);
@@ -199,11 +211,11 @@ export default function AuthForms({
           setOtp('');
         }
       } else {
-        alert(data.detail || "Login failed");
+        setFormError(data.detail || "Login failed");
       }
     } catch (e) {
       console.error(e);
-      alert("Failed to connect to the backend server. Please verify that the backend is running at " + API_URL);
+      setFormError("Failed to connect to the backend server. Please verify that the backend is running at " + API_URL);
     }
   };
 
@@ -227,8 +239,8 @@ export default function AuthForms({
             refresh_token: data.refresh_token,
             tenant_id: data.tenant_id,
           });
-          setToken(data.access_token);
-          if (data.tenant_id) setTenantId(data.tenant_id);
+          setToken?.(data.access_token);
+          if (data.tenant_id) setTenantId?.(data.tenant_id);
           // Reset states
           setOtpSent(false);
           setOtp('');
@@ -242,14 +254,14 @@ export default function AuthForms({
           setEmail('');
           setPassword('');
           setTenantSelection(null);
-          setAppState('app');
+          setAppStateSafe('app');
         }
       } else {
-        alert(data.detail || "OTP verification failed");
+        setFormError(data.detail || "OTP verification failed");
       }
     } catch (e) {
       console.error(e);
-      alert("Error during OTP verification");
+      setFormError("Error during OTP verification");
     }
   };
 
@@ -276,8 +288,8 @@ export default function AuthForms({
           refresh_token: data.refresh_token,
           tenant_id: data.tenant_id,
         });
-        setToken(data.access_token);
-        if (data.tenant_id) setTenantId(data.tenant_id);
+        setToken?.(data.access_token);
+        if (data.tenant_id) setTenantId?.(data.tenant_id);
         // Reset states
         setOtpSent(false);
         setOtp('');
@@ -285,13 +297,13 @@ export default function AuthForms({
         setEmail('');
         setPassword('');
         setTenantSelection(null);
-        setAppState('app');
+        setAppStateSafe('app');
       } else {
-        alert(data.detail || "Failed to switch company");
+        setFormError(data.detail || "Failed to switch company");
       }
     } catch (e) {
       console.error(e);
-      alert("Error selecting company");
+      setFormError("Error selecting company");
     }
   };
 
@@ -306,14 +318,14 @@ export default function AuthForms({
       });
       const data = await res.json();
       if (res.ok) {
-        alert("A new OTP code has been sent to " + tempEmail);
+        notify("A new OTP code has been sent to " + tempEmail);
         setOtpTimer(60);
       } else {
-        alert(data.detail || "Failed to resend OTP");
+        setFormError(data.detail || "Failed to resend OTP");
       }
     } catch (e) {
       console.error(e);
-      alert('Network error resending OTP.');
+      setFormError('Network error resending OTP.');
     }
   };
 
@@ -321,9 +333,6 @@ export default function AuthForms({
     return (
       <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
         {/* Ambient background glows */}
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[rgba(139,92,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[rgba(59,130,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
 
         <Card className="w-full max-w-md glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl animate-in fade-in zoom-in-95 duration-300">
           <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
@@ -332,8 +341,8 @@ export default function AuthForms({
               {logoUrl ? (
                 <img src={logoUrl} alt="OctaOS Logo" className="h-12 w-auto max-w-[160px] object-contain" />
               ) : (
-                <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-2.5 rounded-xl shadow-lg shadow-violet-500/20">
-                  <Zap className="text-white fill-white h-5 w-5 animate-pulse" />
+                <div className="bg-primary p-2.5 rounded-lg">
+                  <Zap className="text-white h-5 w-5" />
                 </div>
               )}
               <span className="text-white font-extrabold text-2xl tracking-tight">OctaOs</span>
@@ -350,13 +359,14 @@ export default function AuthForms({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 pb-8">
+            {formError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-red-300">{formError}</p>}
             {invitationError ? (
               <Button 
                 onClick={() => {
                   setInviteToken?.(null);
-                  setAppState('login');
+                  setAppStateSafe('login');
                 }}
-                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold h-11 rounded-xl shadow-lg shadow-violet-500/20 transition-all text-xs"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium h-11 rounded-xl text-xs"
               >
                 Go to Login
               </Button>
@@ -401,7 +411,7 @@ export default function AuthForms({
 
                 <div className="pt-2">
                   <button 
-                    className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all hover:scale-[1.01] active:scale-95 cursor-pointer flex justify-center items-center text-sm" 
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-3.5 rounded-xl cursor-pointer flex justify-center items-center text-sm" 
                     type="submit"
                   >
                     Accept Invite & Sign Up
@@ -411,7 +421,7 @@ export default function AuthForms({
                 <div className="text-center text-xs text-gray-400">
                   Already have an account? <span className="text-violet-400 hover:text-violet-300 cursor-pointer font-bold transition-colors" onClick={() => {
                     setInviteToken?.(null);
-                    setAppState('login');
+                    setAppStateSafe('login');
                   }}>Log in</span>
                 </div>
               </form>
@@ -426,9 +436,6 @@ export default function AuthForms({
     return (
       <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
         {/* Ambient background glows */}
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[rgba(139,92,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[rgba(59,130,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
 
         <Card className="w-full max-w-md glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl animate-in fade-in zoom-in-95 duration-300">
           <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
@@ -437,8 +444,8 @@ export default function AuthForms({
               {logoUrl ? (
                 <img src={logoUrl} alt="OctaOS Logo" className="h-12 w-auto max-w-[160px] object-contain" />
               ) : (
-                <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-2.5 rounded-xl shadow-lg shadow-violet-500/20">
-                  <Zap className="text-white fill-white h-5 w-5 animate-pulse" />
+                <div className="bg-primary p-2.5 rounded-lg">
+                  <Zap className="text-white h-5 w-5" />
                 </div>
               )}
               <span className="text-white font-extrabold text-2xl tracking-tight">OctaOs</span>
@@ -449,6 +456,7 @@ export default function AuthForms({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pb-8">
+            {formError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-red-300">{formError}</p>}
             <div className="space-y-3">
               {tenantSelection.map((tenant) => (
                 <button
@@ -474,9 +482,6 @@ export default function AuthForms({
     return (
       <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
         {/* Ambient background glows */}
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[rgba(139,92,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[rgba(59,130,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
 
         <Card className="w-full max-w-md glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl">
           <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
@@ -485,8 +490,8 @@ export default function AuthForms({
               {logoUrl ? (
                 <img src={logoUrl} alt="OctaOS Logo" className="h-12 w-auto max-w-[160px] object-contain" />
               ) : (
-                <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-2.5 rounded-xl shadow-lg shadow-violet-500/20">
-                  <Zap className="text-white fill-white h-5 w-5 animate-pulse" />
+                <div className="bg-primary p-2.5 rounded-lg">
+                  <Zap className="text-white h-5 w-5" />
                 </div>
               )}
               <span className="text-white font-extrabold text-2xl tracking-tight">OctaOs</span>
@@ -499,6 +504,7 @@ export default function AuthForms({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 pb-8">
+            {formError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-red-300">{formError}</p>}
             <form onSubmit={handleOtpVerify} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-400">Verification OTP Code</label>
@@ -514,7 +520,7 @@ export default function AuthForms({
               <div className="flex gap-4">
                 <Button 
                   type="submit" 
-                  className="flex-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold h-11 rounded-xl shadow-lg shadow-violet-500/20 transition-all hover:scale-[1.01] active:scale-95 text-xs"
+                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-medium h-11 rounded-xl hover:scale-[1.01] active:scale-95 text-xs"
                 >
                   Verify & {otpMethod === 'signup' ? "Create Account" : "Access"}
                 </Button>
@@ -543,9 +549,6 @@ export default function AuthForms({
     return (
       <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
         {/* Ambient background glows */}
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[rgba(139,92,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[rgba(59,130,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
 
         <Card className="w-full max-w-md glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl animate-in fade-in zoom-in-95 duration-300">
           <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
@@ -554,8 +557,8 @@ export default function AuthForms({
               {logoUrl ? (
                 <img src={logoUrl} alt="OctaOS Logo" className="h-12 w-auto max-w-[160px] object-contain" />
               ) : (
-                <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-2.5 rounded-xl shadow-lg shadow-violet-500/20">
-                  <Zap className="text-white fill-white h-5 w-5 animate-pulse" />
+                <div className="bg-primary p-2.5 rounded-lg">
+                  <Zap className="text-white h-5 w-5" />
                 </div>
               )}
               <span className="text-white font-extrabold text-2xl tracking-tight">OctaOs</span>
@@ -568,6 +571,7 @@ export default function AuthForms({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 pb-8">
+            {formError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-red-300">{formError}</p>}
             {/* Tabs Toggle */}
             <div className="flex bg-gray-950/60 p-1 rounded-xl border border-gray-800">
               <button
@@ -622,7 +626,7 @@ export default function AuthForms({
 
               <div className="pt-2">
                 <button 
-                  className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all hover:scale-[1.01] active:scale-95 cursor-pointer flex justify-center items-center text-sm" 
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-3.5 rounded-xl cursor-pointer flex justify-center items-center text-sm" 
                   type="submit"
                 >
                   {loginMode === 'password' ? "Log In" : "Send Login OTP"}
@@ -630,7 +634,7 @@ export default function AuthForms({
               </div>
 
               <div className="text-center text-xs text-gray-400">
-                Don't have an account? <span className="text-violet-400 hover:text-violet-300 cursor-pointer font-bold transition-colors" onClick={() => setAppState('signup')}>Sign up</span>
+                Don't have an account? <span className="text-violet-400 hover:text-violet-300 cursor-pointer font-bold transition-colors" onClick={() => setAppStateSafe('signup')}>Sign up</span>
               </div>
             </form>
           </CardContent>
@@ -643,9 +647,6 @@ export default function AuthForms({
   return (
     <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans flex flex-col justify-center items-center px-4 py-12">
       {/* Ambient background glows */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[rgba(139,92,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[rgba(59,130,246,0.12)] rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
 
       <Card className="w-full max-w-2xl glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl animate-in fade-in zoom-in-95 duration-300">
         <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
@@ -654,8 +655,8 @@ export default function AuthForms({
               {logoUrl ? (
                 <img src={logoUrl} alt="OctaOS Logo" className="h-12 w-auto max-w-[160px] object-contain" />
               ) : (
-                <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-2.5 rounded-xl shadow-lg shadow-violet-500/20">
-                  <Zap className="text-white fill-white h-5 w-5 animate-pulse" />
+                <div className="bg-primary p-2.5 rounded-lg">
+                  <Zap className="text-white h-5 w-5" />
                 </div>
               )}
               <span className="text-white font-extrabold text-2xl tracking-tight">OctaOs</span>
@@ -664,6 +665,7 @@ export default function AuthForms({
           <CardDescription className="text-center text-gray-400 text-xs">Create your admin profile and company details. Setup takes 30 seconds.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pb-8">
+            {formError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-red-300">{formError}</p>}
           <form onSubmit={handleSignup} className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
@@ -762,7 +764,7 @@ export default function AuthForms({
 
             <div className="pt-2">
               <button 
-                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all hover:scale-[1.01] active:scale-95 cursor-pointer flex justify-center items-center text-sm" 
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-3.5 rounded-xl cursor-pointer flex justify-center items-center text-sm" 
                 type="submit"
               >
                 Send Verification OTP
@@ -770,7 +772,7 @@ export default function AuthForms({
             </div>
 
             <div className="text-center text-xs text-gray-400">
-              Already have an account? <span className="text-violet-400 hover:text-violet-300 cursor-pointer font-bold transition-colors" onClick={() => setAppState('login')}>Log in</span>
+              Already have an account? <span className="text-violet-400 hover:text-violet-300 cursor-pointer font-bold transition-colors" onClick={() => setAppStateSafe('login')}>Log in</span>
             </div>
           </form>
         </CardContent>

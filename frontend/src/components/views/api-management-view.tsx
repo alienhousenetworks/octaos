@@ -69,20 +69,103 @@ const PROVIDER_GROUPS = [
     ],
   },
   {
-    group: '🎯 Lead Generation',
+    group: '🎯 Lead Generation & Waterfall Enrichment',
     color: 'indigo',
-    description: 'B2B data enrichment & local business discovery',
+    description: 'B2B waterfall contact enrichment & domain discovery',
     providers: [
       { id: 'apollo', label: 'Apollo.io', hint: 'API Key', url: 'https://app.apollo.io/#/settings/integrations/api', placeholder: 'API_KEY...' },
       { id: 'hunter', label: 'Hunter.io', hint: 'API Key', url: 'https://hunter.io/api-keys', placeholder: 'abc123...' },
-      { id: 'google_places', label: 'Google Places API', hint: 'GCP API Key', url: 'https://console.cloud.google.com/', placeholder: 'AIzaSy...' },
-      { id: 'apify', label: 'Apify', hint: 'API Token', url: 'https://console.apify.com/account/integrations', placeholder: 'apify_api_...' },
-      { id: 'firecrawl', label: 'Firecrawl (Web Crawler)', hint: 'API Key', url: 'https://www.firecrawl.dev/app/api-keys', placeholder: 'fc-...' },
       { id: 'zoominfo', label: 'ZoomInfo', hint: 'API Key', url: 'https://www.zoominfo.com/', placeholder: 'API_KEY...' },
       { id: 'cognism', label: 'Cognism', hint: 'API Key', url: 'https://www.cognism.com/', placeholder: 'API_KEY...' },
       { id: 'people_data_labs', label: 'People Data Labs', hint: 'API Key', url: 'https://www.peopledatalabs.com/', placeholder: 'API_KEY...' },
       { id: 'clearbit', label: 'Clearbit', hint: 'API Key', url: 'https://clearbit.com/', placeholder: 'sk_...' },
+      { id: 'lusha', label: 'Lusha', hint: 'API Key', url: 'https://www.lusha.com/', placeholder: 'API_KEY...' },
+      { id: 'rocketreach', label: 'RocketReach', hint: 'API Key', url: 'https://rocketreach.co/', placeholder: 'API_KEY...' },
+      { id: 'snov', label: 'Snov.io', hint: 'User ID & Secret', url: 'https://snov.io/', placeholder: 'user_id:secret...' },
+      { id: 'prospeo', label: 'Prospeo', hint: 'API Key', url: 'https://prospeo.io/', placeholder: 'API_KEY...' },
+      { id: 'findymail', label: 'Findymail', hint: 'API Key', url: 'https://findymail.com/', placeholder: 'API_KEY...' },
+      { id: 'dropcontact', label: 'Dropcontact', hint: 'API Key', url: 'https://www.dropcontact.com/', placeholder: 'API_KEY...' },
+      { id: 'fullenrich', label: 'FullEnrich', hint: 'API Key', url: 'https://www.fullenrich.com/', placeholder: 'API_KEY...' },
+    ],
+  },
+  {
+    group: '👔 Hiring & Workforce Intent',
+    color: 'teal',
+    description: 'ATS job openings, SDR/RevOps expansions, headcount growth',
+    providers: [
+      { id: 'greenhouse', label: 'Greenhouse Job Board', hint: 'Harvest API / Board Token', url: 'https://www.greenhouse.io/', placeholder: 'board_token...' },
+      { id: 'lever', label: 'Lever ATS Postings', hint: 'Site Name / API Key', url: 'https://www.lever.co/', placeholder: 'site_slug...' },
+      { id: 'ashby', label: 'Ashby Postings', hint: 'API Key', url: 'https://www.ashbyhq.com/', placeholder: 'ashby_api_...' },
+      { id: 'workable', label: 'Workable API', hint: 'API Token', url: 'https://www.workable.com/', placeholder: 'token...' },
+      { id: 'indeed', label: 'Indeed Job Feeds', hint: 'Publisher ID / Key', url: 'https://www.indeed.com/', placeholder: 'publisher_id...' },
+      { id: 'linkedin_jobs', label: 'LinkedIn Jobs Monitor', hint: 'API Key / Token', url: 'https://www.linkedin.com/', placeholder: 'li_token...' },
+      { id: 'naukri', label: 'Naukri Jobs (India)', hint: 'Recruiter API Key', url: 'https://www.naukri.com/', placeholder: 'api_key...' },
+      { id: 'wellfound', label: 'Wellfound (AngelList)', hint: 'API Key', url: 'https://wellfound.com/', placeholder: 'wellfound_key...' },
+    ],
+  },
+  {
+    group: '💰 Funding, Venture & Financial Signals',
+    color: 'amber',
+    description: 'Capital rounds, SEC filings, venture capital intelligence',
+    providers: [
       { id: 'crunchbase', label: 'Crunchbase', hint: 'API Key', url: 'https://data.crunchbase.com/', placeholder: 'API_KEY...' },
+      { id: 'pitchbook', label: 'PitchBook', hint: 'Enterprise API Key', url: 'https://pitchbook.com/', placeholder: 'API_KEY...' },
+      { id: 'dealroom', label: 'Dealroom.co', hint: 'API Key', url: 'https://dealroom.co/', placeholder: 'dealroom_key...' },
+      { id: 'tracxn', label: 'Tracxn', hint: 'API Token', url: 'https://tracxn.com/', placeholder: 'tracxn_token...' },
+      { id: 'sec_edgar', label: 'SEC EDGAR (Form D)', hint: 'User-Agent Header', url: 'https://www.sec.gov/edgar', placeholder: 'Company Admin <admin@domain.com>' },
+      { id: 'product_hunt', label: 'Product Hunt API', hint: 'Developer Token', url: 'https://api.producthunt.com/v2/docs', placeholder: 'Bearer ...' },
+      { id: 'pr_newswire', label: 'PR Newswire / Business Wire', hint: 'News API Key', url: 'https://www.prnewswire.com/', placeholder: 'API_KEY...' },
+    ],
+  },
+  {
+    group: '💻 Technographics & Web Intelligence',
+    color: 'cyan',
+    description: 'Software stack changes, competitor installations, headless crawling',
+    providers: [
+      { id: 'builtwith', label: 'BuiltWith Technographics', hint: 'API Key', url: 'https://builtwith.com/', placeholder: 'API_KEY...' },
+      { id: 'wappalyzer', label: 'Wappalyzer', hint: 'API Key', url: 'https://www.wappalyzer.com/', placeholder: 'API_KEY...' },
+      { id: 'storeleads', label: 'StoreLeads (Ecommerce)', hint: 'API Token', url: 'https://storeleads.app/', placeholder: 'API_KEY...' },
+      { id: 'hg_insights', label: 'HG Insights (Enterprise IT)', hint: 'API Key', url: 'https://hginsights.com/', placeholder: 'API_KEY...' },
+      { id: 'firecrawl', label: 'Firecrawl (Web Crawler)', hint: 'API Key', url: 'https://www.firecrawl.dev/app/api-keys', placeholder: 'fc-...' },
+      { id: 'apify', label: 'Apify Automation', hint: 'API Token', url: 'https://console.apify.com/account/integrations', placeholder: 'apify_api_...' },
+    ],
+  },
+  {
+    group: '🏢 Registries, Tenders & Procurement',
+    color: 'rose',
+    description: 'Government RFPs, public tenders, corporate registries',
+    providers: [
+      { id: 'gem_portal', label: 'GeM (Govt e-Marketplace India)', hint: 'Portal Key / Auth', url: 'https://gem.gov.in/', placeholder: 'gem_api_key...' },
+      { id: 'cppp_portal', label: 'CPPP Central Public Procurement', hint: 'Auth Token', url: 'https://eprocure.gov.in/', placeholder: 'cppp_token...' },
+      { id: 'sam_gov', label: 'SAM.gov Federal Tenders (USA)', hint: 'SAM API Key', url: 'https://sam.gov/', placeholder: 'sam_api_key...' },
+      { id: 'companies_house', label: 'Companies House (UK)', hint: 'API Key', url: 'https://developer.company-information.service.gov.uk/', placeholder: 'api_key...' },
+      { id: 'opencorporates', label: 'OpenCorporates', hint: 'API Token', url: 'https://opencorporates.com/', placeholder: 'token...' },
+      { id: 'mca_roc', label: 'MCA / ROC India Registry', hint: 'API Key', url: 'https://www.mca.gov.in/', placeholder: 'mca_key...' },
+    ],
+  },
+  {
+    group: '⭐ Review Sentiment & Buyer Intent',
+    color: 'violet',
+    description: 'Buyer intent research, competitor dissatisfaction, review sentiment',
+    providers: [
+      { id: 'g2', label: 'G2 Buyer Intent', hint: 'G2 Intent API Key', url: 'https://data.g2.com/', placeholder: 'API_KEY...' },
+      { id: 'capterra', label: 'Capterra Review Monitor', hint: 'API Key', url: 'https://www.capterra.com/', placeholder: 'capterra_key...' },
+      { id: 'trustpilot', label: 'Trustpilot Reviews', hint: 'API Key', url: 'https://business.trustpilot.com/', placeholder: 'API_KEY...' },
+      { id: 'reddit_intent', label: 'Reddit Intent Monitor', hint: 'OAuth App ID:Secret', url: 'https://www.reddit.com/dev/api/', placeholder: 'app_id:secret...' },
+      { id: 'twitter_intent', label: 'X / Twitter B2B Intent', hint: 'Bearer Token', url: 'https://developer.x.com/', placeholder: 'Bearer ...' },
+    ],
+  },
+  {
+    group: '🌐 Local Business & Regional Directories',
+    color: 'emerald',
+    description: 'Local business discovery, regional B2B portals, agency directories',
+    providers: [
+      { id: 'google_places', label: 'Google Places API', hint: 'GCP API Key', url: 'https://console.cloud.google.com/', placeholder: 'AIzaSy...' },
+      { id: 'indiamart', label: 'IndiaMART B2B Directory', hint: 'CRM Key', url: 'https://www.indiamart.com/', placeholder: 'API_KEY...' },
+      { id: 'tradeindia', label: 'TradeIndia Marketplace', hint: 'API Key', url: 'https://www.tradeindia.com/', placeholder: 'API_KEY...' },
+      { id: 'justdial', label: 'JustDial Directory', hint: 'API Key', url: 'https://www.justdial.com/', placeholder: 'API_KEY...' },
+      { id: 'clutch', label: 'Clutch.co Agencies', hint: 'API Key', url: 'https://clutch.co/', placeholder: 'API_KEY...' },
+      { id: 'goodfirms', label: 'GoodFirms Directory', hint: 'API Key', url: 'https://www.goodfirms.co/', placeholder: 'API_KEY...' },
     ],
   },
 ];
@@ -93,6 +176,10 @@ const COLOR_MAP: Record<string, string> = {
   emerald: 'from-emerald-600/15 to-emerald-600/5 border-emerald-500/20',
   orange: 'from-orange-600/15 to-orange-600/5 border-orange-500/20',
   indigo: 'from-indigo-600/15 to-indigo-600/5 border-indigo-500/20',
+  teal: 'from-teal-600/15 to-teal-600/5 border-teal-500/20',
+  amber: 'from-amber-600/15 to-amber-600/5 border-amber-500/20',
+  cyan: 'from-cyan-600/15 to-cyan-600/5 border-cyan-500/20',
+  rose: 'from-rose-600/15 to-rose-600/5 border-rose-500/20',
 };
 
 const DOT_COLOR: Record<string, string> = {
@@ -101,6 +188,10 @@ const DOT_COLOR: Record<string, string> = {
   emerald: 'bg-emerald-400',
   orange: 'bg-orange-400',
   indigo: 'bg-indigo-400',
+  teal: 'bg-teal-400',
+  amber: 'bg-amber-400',
+  cyan: 'bg-cyan-400',
+  rose: 'bg-rose-400',
 };
 
 export default function ApiManagementView({
@@ -151,9 +242,12 @@ export default function ApiManagementView({
 
       if (modeRes.status === 'fulfilled' && modeRes.value.ok) {
         const modeData = await modeRes.value.json();
-        if (modeData.mode) setAiMode(modeData.mode);
-        if (modeData.inbuilt_available !== undefined) setInbuiltAvailable(modeData.inbuilt_available);
-        if (modeData.default_provider) setDefaultProvider(modeData.default_provider);
+        const mode = modeData.current_mode || modeData.mode || 'inbuilt';
+        setAiMode(mode);
+        const inbuiltAvail = modeData.inbuilt_enabled ?? modeData.inbuilt_available ?? true;
+        setInbuiltAvailable(inbuiltAvail);
+        const defProv = modeData.primary_provider || modeData.default_provider || 'openrouter';
+        setDefaultProvider(defProv);
       }
     } finally {
       setRefreshing(false);
@@ -175,9 +269,10 @@ export default function ApiManagementView({
       });
       if (res.ok) {
         const data = await res.json();
-        setAiMode(data.mode);
+        const updatedMode = data.current_mode || data.mode || newMode || 'inbuilt';
+        setAiMode(updatedMode);
         showToast(
-          data.mode === 'inbuilt'
+          updatedMode === 'inbuilt'
             ? '✨ Switched to Inbuilt Platform AI mode (Server-managed failover).'
             : '🔐 Switched to BYOK mode (Bring Your Own Key).'
         );
@@ -267,9 +362,9 @@ export default function ApiManagementView({
       {/* Toast */}
       {toast && (
         <div className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-2xl shadow-2xl text-sm font-semibold border transition-all animate-in slide-in-from-top-4 duration-300 ${toast.type === 'ok'
-            ? 'bg-emerald-950/90 border-emerald-500/30 text-emerald-300'
-            : 'bg-rose-950/90 border-rose-500/30 text-rose-300'
-          }`}>
+ ? 'bg-emerald-950/90 border-emerald-500/30 text-emerald-300'
+ : 'bg-rose-950/90 border-rose-500/30 text-rose-300'
+ }`}>
           {toast.msg}
         </div>
       )}
@@ -277,7 +372,7 @@ export default function ApiManagementView({
       {/* Page Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-center gap-3">
+          <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-3">
             <div className="p-2.5 rounded-2xl bg-gradient-to-br from-violet-600/30 to-indigo-600/20 border border-violet-500/20">
               <Key className="text-violet-400 h-8 w-8" />
             </div>
@@ -286,6 +381,7 @@ export default function ApiManagementView({
           <p className="text-gray-400 mt-2 text-sm">
             Toggle between server-managed Inbuilt AI and BYOK (Bring Your Own Key), or configure custom integration tokens.
           </p>
+          <a href="/app/settings/guide" className="mt-2 inline-flex text-sm text-primary hover:underline">Open setup guide</a>
         </div>
         <Button
           onClick={refresh}
@@ -303,9 +399,9 @@ export default function ApiManagementView({
           <div>
             <div className="flex items-center gap-2.5">
               <Sparkles className="text-violet-400 h-5 w-5" />
-              <h2 className="text-white font-extrabold text-lg">AI Execution Architecture</h2>
-              <span className="text-[10px] font-bold uppercase tracking-wider bg-violet-500/15 text-violet-300 border border-violet-500/30 px-2.5 py-0.5 rounded-full">
-                Mode: {aiMode.toUpperCase()}
+              <h2 className="text-white font-semibold text-lg">AI Execution Architecture</h2>
+              <span className="text-xs font-bold uppercase tracking-wider bg-violet-500/15 text-violet-300 border border-violet-500/30 px-2.5 py-0.5 rounded-full">
+                Mode: {(aiMode || 'inbuilt').toUpperCase()}
               </span>
             </div>
             <p className="text-gray-400 text-xs mt-1">
@@ -317,10 +413,10 @@ export default function ApiManagementView({
               onClick={() => handleModeChange('inbuilt')}
               disabled={modeLoading}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                aiMode === 'inbuilt'
-                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/25'
-                  : 'text-gray-400 hover:text-white'
-              }`}
+ aiMode === 'inbuilt'
+ ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/25'
+ : 'text-gray-400 hover:text-white'
+ }`}
             >
               <Server size={13} />
               Inbuilt Platform AI
@@ -329,10 +425,10 @@ export default function ApiManagementView({
               onClick={() => handleModeChange('byok')}
               disabled={modeLoading}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                aiMode === 'byok'
-                  ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25'
-                  : 'text-gray-400 hover:text-white'
-              }`}
+ aiMode === 'byok'
+ ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25'
+ : 'text-gray-400 hover:text-white'
+ }`}
             >
               <ShieldCheck size={13} />
               BYOK (Your Keys)
@@ -346,10 +442,10 @@ export default function ApiManagementView({
           <div
             onClick={() => handleModeChange('inbuilt')}
             className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-              aiMode === 'inbuilt'
-                ? 'bg-violet-950/40 border-violet-500/50 shadow-inner'
-                : 'bg-gray-950/40 border-gray-850 hover:border-gray-700'
-            }`}
+ aiMode === 'inbuilt'
+ ? 'bg-violet-950/40 border-violet-500/50 shadow-inner'
+ : 'bg-gray-950/40 border-gray-850 hover:border-gray-700'
+ }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -361,21 +457,21 @@ export default function ApiManagementView({
                     Inbuilt Platform AI
                     {aiMode === 'inbuilt' && <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />}
                   </h3>
-                  <span className="text-[10px] text-gray-400">Zero Setup • Server-Configured Multi-Vendor</span>
+                  <span className="text-xs text-gray-400">Zero Setup • Server-Configured Multi-Vendor</span>
                 </div>
               </div>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                inbuiltAvailable
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                  : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-              }`}>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+ inbuiltAvailable
+ ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+ : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+ }`}>
                 {inbuiltAvailable ? 'Online' : 'Unconfigured'}
               </span>
             </div>
             <p className="text-gray-400 text-xs mt-3 leading-relaxed">
               Leverages server environment keys for <strong className="text-gray-200">OpenRouter</strong>, <strong className="text-gray-200">Together AI</strong>, and <strong className="text-gray-200">Groq</strong> with automatic multi-vendor failover safety. No personal keys required to run agents.
             </p>
-            <div className="mt-3 flex items-center gap-2 text-[11px] text-violet-300/80 font-mono">
+            <div className="mt-3 flex items-center gap-2 text-xs text-violet-300/80 font-mono">
               <Zap size={11} className="text-amber-400" />
               Default Hub: <span className="text-white font-bold">{defaultProvider.toUpperCase()}</span>
             </div>
@@ -385,10 +481,10 @@ export default function ApiManagementView({
           <div
             onClick={() => handleModeChange('byok')}
             className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-              aiMode === 'byok'
-                ? 'bg-indigo-950/40 border-indigo-500/50 shadow-inner'
-                : 'bg-gray-950/40 border-gray-850 hover:border-gray-700'
-            }`}
+ aiMode === 'byok'
+ ? 'bg-indigo-950/40 border-indigo-500/50 shadow-inner'
+ : 'bg-gray-950/40 border-gray-850 hover:border-gray-700'
+ }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -400,17 +496,17 @@ export default function ApiManagementView({
                     BYOK (Bring Your Own Key)
                     {aiMode === 'byok' && <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />}
                   </h3>
-                  <span className="text-[10px] text-gray-400">Strict Isolation • Custom Quotas</span>
+                  <span className="text-xs text-gray-400">Strict Isolation • Custom Quotas</span>
                 </div>
               </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-gray-800 text-gray-400 border-gray-700">
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full border bg-gray-800 text-gray-400 border-gray-700">
                 {configured.length} Keys Configured
               </span>
             </div>
             <p className="text-gray-400 text-xs mt-3 leading-relaxed">
               Agents use your own encrypted workspace credentials. Complete isolation with direct billing from Anthropic, OpenAI, OpenRouter, or Together AI.
             </p>
-            <div className="mt-3 flex items-center gap-2 text-[11px] text-indigo-300/80 font-mono">
+            <div className="mt-3 flex items-center gap-2 text-xs text-indigo-300/80 font-mono">
               <Key size={11} className="text-indigo-400" />
               Keys Stored: <span className="text-white font-bold">{configured.length > 0 ? configured.join(', ') : 'None yet'}</span>
             </div>
@@ -422,7 +518,7 @@ export default function ApiManagementView({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="glass-panel border-transparent rounded-2xl p-5 relative overflow-hidden">
           <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
-          <div className="text-3xl font-black text-white">{totalConfigured}</div>
+          <div className="text-xl font-semibold text-white">{totalConfigured}</div>
           <div className="text-xs text-gray-400 mt-1 font-medium">of {totalProviders} providers configured in BYOK</div>
           <div className="mt-3 w-full bg-gray-800 rounded-full h-1.5">
             <div
@@ -433,7 +529,7 @@ export default function ApiManagementView({
         </div>
 
         <div className={`glass-panel border rounded-2xl p-5 relative overflow-hidden ${hasPrimaryAI ? 'border-emerald-500/20' : 'border-rose-500/30'
-          }`}>
+ }`}>
           <div className={`flex items-center gap-2 text-sm font-bold ${hasPrimaryAI ? 'text-emerald-400' : 'text-rose-400 animate-pulse'}`}>
             {hasPrimaryAI ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
             {hasPrimaryAI ? (aiMode === 'inbuilt' ? 'AI Brain: Ready (Inbuilt)' : 'AI Brain: Active (BYOK)') : 'AI Brain: Missing!'}
@@ -484,10 +580,10 @@ export default function ApiManagementView({
               {/* Group Header */}
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="text-white font-extrabold text-lg flex items-center gap-2">
+                  <h2 className="text-white font-semibold text-lg flex items-center gap-2">
                     {group.group}
                     {group.required && (
-                      <span className="text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-full">
+                      <span className="text-xs font-bold bg-rose-500/15 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-full">
                         REQUIRED
                       </span>
                     )}
@@ -508,39 +604,39 @@ export default function ApiManagementView({
                     <div
                       key={provider.id}
                       className={`rounded-2xl border p-4 flex items-center justify-between gap-4 transition-all duration-200 ${isConfigured
-                          ? 'bg-gray-900/70 border-gray-700/40 hover:border-gray-600/60'
-                          : 'bg-gray-950/40 border-gray-800/50 hover:border-gray-700/50'
-                        }`}
+ ? 'bg-gray-900/70 border-gray-700/40 hover:border-gray-600/60'
+ : 'bg-gray-950/40 border-gray-800/50 hover:border-gray-700/50'
+ }`}
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         {/* Status dot */}
                         <div className="flex-shrink-0 relative">
                           <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isConfigured ? 'bg-emerald-500/15 border border-emerald-500/30' : 'bg-gray-800/60 border border-gray-700/40'
-                            }`}>
+ }`}>
                             <Key size={13} className={isConfigured ? 'text-emerald-400' : 'text-gray-500'} />
                           </div>
                           <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-gray-900 ${isConfigured ? 'bg-emerald-400' : 'bg-gray-600'
-                            }`} />
+ }`} />
                         </div>
 
                         <div className="min-w-0">
                           <div className="text-white font-bold text-sm truncate flex items-center gap-2">
                             {provider.label}
                             {isConfigured && mainProvider === provider.id && (
-                              <span className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                              <span className="text-xs bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded-md flex items-center gap-1">
                                 ⭐ Main AI
                               </span>
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${isConfigured
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                : 'bg-gray-800 text-gray-500 border-gray-700/50'
-                              }`}>
+                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full border ${isConfigured
+ ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+ : 'bg-gray-800 text-gray-500 border-gray-700/50'
+ }`}>
                               {isConfigured ? '● Connected' : '○ Not set'}
                             </span>
                             {provider.hint && (
-                              <span className="text-[10px] text-gray-500 font-mono truncate">{provider.hint}</span>
+                              <span className="text-xs text-gray-500 font-mono truncate">{provider.hint}</span>
                             )}
                           </div>
                         </div>
@@ -554,13 +650,13 @@ export default function ApiManagementView({
                             <button
                               onClick={() => handleDelete(provider.id)}
                               disabled={deleting}
-                              className="text-[11px] font-bold text-white bg-rose-600 hover:bg-rose-500 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50"
+                              className="text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50"
                             >
                               {deleting ? '...' : 'Yes'}
                             </button>
                             <button
                               onClick={() => setDeleteConfirm(null)}
-                              className="text-[11px] font-bold text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded-lg transition-colors"
+                              className="text-xs font-bold text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded-lg transition-colors"
                             >
                               No
                             </button>
@@ -569,10 +665,10 @@ export default function ApiManagementView({
                           <>
                             <button
                               onClick={() => openAddDialog(provider)}
-                              className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${isConfigured
-                                  ? 'bg-gray-800 hover:bg-gray-700 text-gray-300 border-gray-700/50'
-                                  : 'bg-violet-600 hover:bg-violet-500 text-white border-transparent shadow-lg shadow-violet-500/20'
-                                }`}
+                              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all ${isConfigured
+ ? 'bg-gray-800 hover:bg-gray-700 text-gray-300 border-gray-700/50'
+ : 'bg-violet-600 hover:bg-violet-500 text-white border-transparent shadow-lg shadow-violet-500/20'
+ }`}
                             >
                               <Plus size={11} />
                               {isConfigured ? 'Replace' : 'Add Key'}
@@ -580,7 +676,7 @@ export default function ApiManagementView({
                             {isConfigured && ['anthropic', 'openai', 'gemini', 'grok', 'openrouter', 'together', 'groq'].includes(provider.id) && mainProvider !== provider.id && (
                               <button
                                 onClick={() => handleSetMain(provider.id)}
-                                className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-amber-500/20 hover:text-amber-400 border border-gray-700/50 text-gray-400 transition-all"
+                                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-amber-500/20 hover:text-amber-400 border border-gray-700/50 text-gray-400 transition-all"
                               >
                                 Set as Main
                               </button>
@@ -610,7 +706,7 @@ export default function ApiManagementView({
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="glass-panel border-violet-500/20 text-white rounded-3xl max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-white font-extrabold text-xl flex items-center gap-2">
+            <DialogTitle className="text-white font-semibold text-xl flex items-center gap-2">
               <Key size={18} className="text-violet-400" />
               {dialogProvider ? `${configured.includes(dialogProvider.id) ? 'Replace' : 'Add'} ${dialogProvider.label}` : ''}
             </DialogTitle>
@@ -624,7 +720,7 @@ export default function ApiManagementView({
             )}
 
             <div className="space-y-2">
-              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
                 API Key / Token
               </label>
               <div className="relative">
@@ -645,7 +741,7 @@ export default function ApiManagementView({
                 </button>
               </div>
               {dialogProvider?.id.startsWith('smtp') && (
-                <p className="text-[11px] text-gray-500 font-mono leading-relaxed">
+                <p className="text-xs text-gray-500 font-mono leading-relaxed">
                   Format: <span className="text-gray-400">smtp://email@host.com:password@smtp.host.com:587</span>
                 </p>
               )}

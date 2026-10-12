@@ -46,6 +46,24 @@ class SupportChatService:
                 return True
         return False
 
+    def detect_greeting_or_pleasantry(self, message: str) -> bool:
+        """Detect greetings, farewells, or polite inquiries that shouldn't be blocked by RAG."""
+        if not message:
+            return False
+        clean = message.lower().strip()
+        clean_no_punct = re.sub(r"[^\w\s]", "", clean)
+        greetings = {
+            "hi", "hello", "hey", "hola", "greetings", "good morning",
+            "good afternoon", "good evening", "how are you", "who are you",
+            "what can you do", "help me", "can you help me", "support", "yo"
+        }
+        if clean in greetings or clean_no_punct in greetings:
+            return True
+        words = clean_no_punct.split()
+        if words and words[0] in {"hi", "hello", "hey", "hola"} and len(words) <= 4:
+            return True
+        return False
+
     def detect_loop(self, recent_messages: List[TicketMessage], current_message: str) -> bool:
         """Detect if conversation is looping, repeating, or user is expressing frustration."""
         clean = current_message.lower().strip()
@@ -231,11 +249,40 @@ class SupportChatService:
                 "live_chat_available": True
             }
 
+        # 4b. Handle simple greetings warmly without strict RAG refusal
+        if self.detect_greeting_or_pleasantry(message):
+            reply_text = (
+                "Hello! 👋 Welcome to OctaOS Support. How can I help you today? "
+                "Feel free to ask a question, or let me know if you'd like to connect with a live support agent."
+            )
+            ai_msg = TicketMessage(
+                ticket_id=ticket.id,
+                sender="agent",
+                content=reply_text,
+            )
+            self.db.add(ai_msg)
+            self.db.commit()
+            self.db.refresh(ai_msg)
+            return {
+                "status": "success",
+                "reply": reply_text,
+                "citations": [],
+                "ticket_id": ticket.id,
+                "ticket_status": ticket.status,
+                "mode": "ai"
+            }
+
         # 5. Check if user requested human handoff (action == 'request_handoff' or explicit text)
         is_handoff_req = (action == "request_handoff") or self.detect_human_handoff_intent(message)
         if is_handoff_req:
-            avail = self.check_agent_availability()
-            if avail["available"]:
+            cred = self.db.query(APICredential).filter(
+                APICredential.tenant_id == self.tenant_id,
+                APICredential.provider == "support"
+            ).first()
+            support_settings = (cred.settings or {}) if cred else {}
+            live_chat_enabled = support_settings.get("live_chat_enabled", True)
+
+            if live_chat_enabled:
                 ticket.status = "pending_human"
                 ticket.mode = "human"
                 sys_msg = TicketMessage(
@@ -252,22 +299,28 @@ class SupportChatService:
                 try:
                     loop = asyncio.get_running_loop()
                     loop.create_task(send_telegram_notification(self.db, self.tenant_id, msg_alert))
-                except RuntimeError:
+                except (RuntimeError, Exception):
                     pass
+
+                avail = self.check_agent_availability()
+                if avail.get("available"):
+                    reply_msg = "Connecting you with our live support team now! A human agent will claim your chat momentarily."
+                else:
+                    reply_msg = "Connecting you to our live support queue! Our support team has been notified and an agent will claim your chat shortly."
 
                 return {
                     "status": "handoff_queued",
-                    "reply": "Connecting you with our live support team now! A human agent will claim your chat momentarily.",
+                    "reply": reply_msg,
                     "ticket_id": ticket.id,
                     "ticket_status": "pending_human",
                     "mode": "human",
                     "live_chat_available": True
                 }
             else:
-                # No human agent available -> instruct to raise ticket
+                # Live chat explicitly disabled by admin setting -> offer ticket
                 return {
                     "status": "handoff_unavailable",
-                    "reply": "Our live support agents are currently offline. Please provide your details below and we will raise a priority support ticket for you.",
+                    "reply": "Live support chat is currently offline. Please provide your details below and we will raise a priority support ticket for you.",
                     "action_required": "raise_ticket",
                     "prefill": {
                         "problem": message or ticket.description,
@@ -295,7 +348,7 @@ class SupportChatService:
                 "reply": "It looks like I'm having trouble understanding or resolving this for you. Would you like to connect with a live support agent?",
                 "suggest_live_chat": True,
                 "reason": "loop_detected",
-                "live_chat_available": avail["available"],
+                "live_chat_available": avail.get("available", False),
                 "ticket_id": ticket.id,
                 "ticket_status": ticket.status,
                 "mode": "ai"
@@ -305,54 +358,60 @@ class SupportChatService:
         rag = KnowledgeRAGService(self.db, self.tenant_id)
         kb_result = rag.answer_context(message, department="Support")
 
-        if not kb_result.get("answer_allowed") or kb_result.get("mode") == "refuse":
-            # Out of context / not in KB
-            avail = self.check_agent_availability()
-            reply_text = (
-                "I don't have this specific information in my knowledge base. "
-                "Would you like to connect with a live support agent?"
-            )
-            return {
-                "status": "out_of_context",
-                "reply": reply_text,
-                "suggest_live_chat": True,
-                "reason": "not_in_kb",
-                "live_chat_available": avail["available"],
-                "ticket_id": ticket.id,
-                "ticket_status": ticket.status,
-                "mode": "ai"
-            }
+        citations = []
+        knowledge_context = ""
+        if kb_result.get("answer_allowed") and kb_result.get("mode") == "grounded":
+            knowledge_context = kb_result.get("context", "")
+            citations = kb_result.get("citations", [])
+        elif kb_result.get("mode") == "refuse":
+            from app.models.enterprise import TenantPolicy
+            policy = self.db.query(TenantPolicy).filter(TenantPolicy.tenant_id == self.tenant_id).first()
+            if policy and policy.support_refuse_if_not_in_kb:
+                avail = self.check_agent_availability()
+                reply_text = (
+                    "I don't have this specific information in my knowledge base. "
+                    "Would you like to connect with a live support agent?"
+                )
+                return {
+                    "status": "out_of_context",
+                    "reply": reply_text,
+                    "suggest_live_chat": True,
+                    "reason": "not_in_kb",
+                    "live_chat_available": avail.get("available", False),
+                    "ticket_id": ticket.id,
+                    "ticket_status": ticket.status,
+                    "mode": "ai"
+                }
 
-        # 9. Generate AI Response grounded in KB context
-        knowledge_context = kb_result.get("context", "")
-        citations = kb_result.get("citations", [])
-
-        # Build prompt
+        # 9. Generate AI Response grounded in KB context or helpful support fallback
         history_str = ""
         for m in history_msgs[-6:]:
             history_str += f"{m.sender.upper()}: {m.content}\n"
 
         system_prompt = (
             "You are a helpful, professional, and empathetic customer support agent. "
-            "Rely strictly on the provided Company Knowledge Base. "
+            "Rely strictly on the provided Company Knowledge Base when available. "
             "Your replies should be clear, concise, and helpful. "
-            "Never make up facts not present in the Knowledge Base. "
             "If the information is incomplete, advise the user that they can connect with a live agent."
         )
 
         prompt = (
             f"Conversation History:\n{history_str}\n\n"
-            f"Knowledge Base Context:\n{knowledge_context}\n\n"
+            f"Knowledge Base Context:\n{knowledge_context or 'No specific knowledge base entry matched. Provide courteous, general customer support.'}\n\n"
             f"User Question: {message}\n"
             "Draft a concise and polite response to the customer."
         )
 
-        ai_reply = await self.llm.complete(
-            prompt=prompt,
-            model=None,
-            provider="gemini",
-            system_prompt=system_prompt,
-        )
+        ai_reply = None
+        try:
+            ai_reply = await self.llm.complete(
+                prompt=prompt,
+                model=None,
+                provider=None,
+                system_prompt=system_prompt,
+            )
+        except Exception:
+            ai_reply = "Thank you for reaching out! We received your message. If you need immediate assistance, feel free to click 'Talk to Human' to connect with our live team."
 
         if not ai_reply or not ai_reply.strip():
             ai_reply = "I'm looking into this for you. If you need immediate assistance, feel free to connect with our live support."

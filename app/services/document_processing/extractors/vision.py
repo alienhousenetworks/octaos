@@ -37,7 +37,10 @@ async def extract_vision_document(
     final_mime = mime_type
     if mime_type == "application/pdf" or file_bytes.startswith(b"%PDF"):
         try:
-            import fitz
+            try:
+                import pymupdf as fitz
+            except ImportError:
+                import fitz
             doc = fitz.open(stream=file_bytes, filetype="pdf")
             if len(doc) > 0:
                 pix = doc[0].get_pixmap(dpi=200)

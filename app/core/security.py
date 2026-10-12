@@ -94,19 +94,31 @@ def get_password_hash(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
-# Fernet key: prefer ENCRYPTION_KEY, else derive from SECRET_KEY
-def _fernet() -> Fernet:
+# Fernet key: prefer ENCRYPTION_KEY, else derive from SECRET_KEY.
+# Supports MultiFernet with default dev key fallback for seamless key rotation.
+def _fernet() -> Any:
+    from cryptography.fernet import MultiFernet
+    keys = []
+
     enc = getattr(settings, "ENCRYPTION_KEY", None)
     if enc:
-        # Accept raw url-safe base64 32-byte key or derive
         try:
-            return Fernet(enc.encode("utf-8") if isinstance(enc, str) else enc)
+            keys.append(Fernet(enc.encode("utf-8") if isinstance(enc, str) else enc))
         except Exception:
             key = base64.urlsafe_b64encode(hashlib.sha256(enc.encode("utf-8")).digest())
-            return Fernet(key)
+            keys.append(Fernet(key))
+
     key_material = _require_secret().encode("utf-8")
     fernet_key = base64.urlsafe_b64encode(hashlib.sha256(key_material).digest())
-    return Fernet(fernet_key)
+    keys.append(Fernet(fernet_key))
+
+    # Add default dev key fallback if distinct (handles records created before custom SECRET_KEY set)
+    dev_material = b"dev-only-insecure-secret-key-change-me"
+    if key_material != dev_material:
+        dev_fernet_key = base64.urlsafe_b64encode(hashlib.sha256(dev_material).digest())
+        keys.append(Fernet(dev_fernet_key))
+
+    return MultiFernet(keys) if len(keys) > 1 else keys[0]
 
 
 def encrypt_api_key(key: str) -> str:
@@ -116,8 +128,11 @@ def encrypt_api_key(key: str) -> str:
 
 
 def decrypt_api_key(encrypted_key: str) -> str:
-    if not encrypted_key:
+    if not encrypted_key or encrypted_key in ("sales_settings", "ai_mode", "none"):
         return ""
+    # Passthrough if already plaintext key
+    if any(encrypted_key.startswith(prefix) for prefix in ("sk-", "gsk_", "xai-", "fc-", "AIza", "hf_")):
+        return encrypted_key
     try:
         return _fernet().decrypt(encrypted_key.encode("utf-8")).decode("utf-8")
     except Exception as e:

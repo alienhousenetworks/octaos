@@ -7,7 +7,7 @@ from app.models.base import APICredential, ProviderUsage, AIBatchJob
 from app.core.config import settings
 from app.core.security import decrypt_api_key
 import pybreaker
-from app.core.resilience import llm_breaker
+from app.core.resilience import llm_breaker, get_llm_breaker
 from app.core.observability import metrics_registry
 
 from app.services.ai_gateway.adapters import (
@@ -22,10 +22,47 @@ from app.services.ai_gateway.batching import BatchExecutionEngine
 
 logger = logging.getLogger(__name__)
 
+SUPPORTED_AI_PROVIDERS = {
+    "openrouter",
+    "together",
+    "groq",
+    "grok",
+    "anthropic",
+    "openai",
+    "gemini",
+    "mistral",
+    "cohere",
+    "local",
+}
+
+def normalize_ai_provider(provider: Optional[str]) -> Optional[str]:
+    if not provider:
+        return None
+    p = provider.lower().strip()
+    if p in ("togetherapi", "together_ai"):
+        return "together"
+    elif p in ("xai",):
+        return "grok"
+    if p in SUPPORTED_AI_PROVIDERS:
+        return p
+    return None
+
+
 class AIProviderGateway:
     def __init__(self):
         self.adapters: Dict[str, BaseProviderAdapter] = {}
         self._initialize_adapters()
+
+    def _record_usage_safe(self, db: Session, usage: ProviderUsage) -> None:
+        try:
+            db.add(usage)
+            db.commit()
+        except Exception as e:
+            logger.warning(f"Failed to record provider usage to database: {e}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
 
     def _initialize_adapters(self):
         # We will dynamically instantiate adapters with keys in executeRequest
@@ -160,11 +197,17 @@ class AIProviderGateway:
         return ""
 
     def _get_api_key(self, db: Session, tenant_id: str, provider: str) -> str:
+        """
+        Retrieves the appropriate API key based on the tenant's AI mode:
+        - If 'byok': strictly look up key configured by the tenant in APICredential.
+          If not found or decryption fails, fallback to server environment settings.
+        - If 'inbuilt': use server environment settings.
+        """
         provider_lower = (provider or "").lower().strip()
-        if provider_lower in ("togetherapi", "together_ai"):
-            provider_lower = "together"
-        elif provider_lower in ("xai",):
-            provider_lower = "grok"
+        norm_p = normalize_ai_provider(provider_lower)
+        if not norm_p:
+            return ""
+        provider_lower = norm_p
 
         # Check tenant's configured mode
         mode = self.get_tenant_ai_mode(db, tenant_id)
@@ -173,10 +216,19 @@ class AIProviderGateway:
         if mode == "byok" and tenant_id:
             cred = db.query(APICredential).filter(
                 APICredential.tenant_id == tenant_id,
-                APICredential.provider == provider_lower
+                APICredential.provider.in_([provider_lower, (provider or "").lower().strip()])
             ).first()
             if cred and cred.encrypted_key:
-                return decrypt_api_key(cred.encrypted_key)
+                try:
+                    decrypted = decrypt_api_key(cred.encrypted_key)
+                    if decrypted:
+                        return decrypted
+                except Exception as e:
+                    logger.warning(f"Failed to decrypt tenant {tenant_id} API key for {provider_lower}: {e}")
+            # If tenant's BYOK key failed to decrypt or is empty, fallback to system environment settings
+            system_key = self._get_system_env_key(provider_lower)
+            if system_key:
+                return system_key
             return ""
 
         # 2. If in Inbuilt mode or tenant_id is empty: use server environment settings
@@ -188,10 +240,13 @@ class AIProviderGateway:
         if tenant_id:
             cred = db.query(APICredential).filter(
                 APICredential.tenant_id == tenant_id,
-                APICredential.provider == provider_lower
+                APICredential.provider.in_([provider_lower, (provider or "").lower().strip()])
             ).first()
             if cred and cred.encrypted_key:
-                return decrypt_api_key(cred.encrypted_key)
+                try:
+                    return decrypt_api_key(cred.encrypted_key)
+                except Exception as e:
+                    logger.warning(f"Failed to decrypt fallback tenant API key for {provider_lower}: {e}")
 
         return ""
 
@@ -203,13 +258,10 @@ class AIProviderGateway:
         if mode == "byok" and tenant_id:
             creds = db.query(APICredential).filter(APICredential.tenant_id == tenant_id).all()
             for c in creds:
-                if c.encrypted_key and c.provider not in ("ai_mode",):
-                    p = c.provider.lower()
-                    if p in ("togetherapi", "together_ai"):
-                        p = "together"
-                    elif p in ("xai",):
-                        p = "grok"
-                    configured.add(p)
+                if c.encrypted_key:
+                    norm_p = normalize_ai_provider(c.provider)
+                    if norm_p:
+                        configured.add(norm_p)
 
         # In Inbuilt mode (or if no BYOK keys found): include server environment keys
         for p in ["openrouter", "together", "groq", "grok", "anthropic", "openai", "gemini", "mistral", "cohere"]:
@@ -220,13 +272,10 @@ class AIProviderGateway:
         if tenant_id:
             creds = db.query(APICredential).filter(APICredential.tenant_id == tenant_id).all()
             for c in creds:
-                if c.encrypted_key and c.provider not in ("ai_mode",):
-                    p = c.provider.lower()
-                    if p in ("togetherapi", "together_ai"):
-                        p = "together"
-                    elif p in ("xai",):
-                        p = "grok"
-                    configured.add(p)
+                if c.encrypted_key:
+                    norm_p = normalize_ai_provider(c.provider)
+                    if norm_p:
+                        configured.add(norm_p)
 
         return list(configured)
 
@@ -254,11 +303,12 @@ class AIProviderGateway:
             raise ValueError(f"No API key configured for provider '{req_prov}'. Please configure your API key under Platform Setup -> API Settings.")
         
         # 1. Routing Decision
-        if not provider or not model:
+        if not provider or (isinstance(provider, str) and provider.lower() in ("auto", "none", "default")) or not model:
             provider, model = self.selectProvider(configured, complexity, realtime, bulk)
             
-        # Keep track of tried providers for failover chain
+        # Keep track of tried providers and their errors for failover chain
         tried_providers = []
+        provider_errors = {}
         current_provider = provider
         current_model = model
         
@@ -278,7 +328,7 @@ class AIProviderGateway:
             elif prov_lower in ("together", "togetherapi"):
                 return "meta-llama/Llama-3.3-70B-Instruct-Turbo"
             elif prov_lower == "groq":
-                return "llama-3.3-70b-versatile"
+                return "openai/gpt-oss-120b"
             elif prov_lower in ("grok", "xai"):
                 return "grok-2"
             elif prov_lower == "openai":
@@ -299,6 +349,7 @@ class AIProviderGateway:
             # If no API key, trigger failover to next configured provider or raise error
             if not api_key:
                 logger.warning(f"Provider {current_provider} API key missing. Failover triggered.")
+                provider_errors[current_provider] = "API key missing"
                 
                 # Log failed attempt
                 usage_failed = ProviderUsage(
@@ -314,8 +365,7 @@ class AIProviderGateway:
                     error_message="API key missing",
                     failover_from=failover_from
                 )
-                db.add(usage_failed)
-                db.commit()
+                self._record_usage_safe(db, usage_failed)
                 
                 # Record metrics
                 metrics_registry.record_ai_call(
@@ -343,7 +393,8 @@ class AIProviderGateway:
                 adapter = self._get_adapter(current_provider, api_key)
                 
                 logger.info(f"Executing request via provider={current_provider}, model={current_model}")
-                with llm_breaker.calling():
+                breaker = get_llm_breaker(current_provider)
+                with breaker.calling():
                     response_data = await adapter.execute_request(
                         prompt=prompt,
                         model=current_model,
@@ -383,8 +434,7 @@ class AIProviderGateway:
                     is_batch=bulk,
                     failover_from=failover_from
                 )
-                db.add(usage)
-                db.commit()
+                self._record_usage_safe(db, usage)
                 
                 # Record metrics
                 metrics_registry.record_ai_call(
@@ -425,8 +475,7 @@ class AIProviderGateway:
                     error_message=str(e),
                     failover_from=failover_from
                 )
-                db.add(usage_failed)
-                db.commit()
+                self._record_usage_safe(db, usage_failed)
                 
                 # Record metrics
                 metrics_registry.record_ai_call(
@@ -436,11 +485,15 @@ class AIProviderGateway:
                     duration=latency
                 )
                 
+                provider_errors[current_provider] = str(e)
+                
                 # Find other configured providers not tried yet
                 configured_remaining = [p for p in configured if p not in tried_providers]
                 if not configured_remaining:
+                    error_details = "; ".join([f"{p}: {err}" for p, err in provider_errors.items()])
+                    initial_note = f"Primary requested provider '{tried_providers[0]}' failed ({provider_errors.get(tried_providers[0], 'unknown')}). " if len(tried_providers) > 1 else ""
                     raise ValueError(
-                        f"All configured providers failed. Last provider '{current_provider}' failed with: {e}. "
+                        f"All configured providers failed. {initial_note}All attempted providers: [{error_details}]. "
                         f"Please check your API keys under Platform Setup → API Settings."
                     )
                 
@@ -461,7 +514,7 @@ class AIProviderGateway:
                 elif p in ("together", "togetherapi"):
                     return "together", "meta-llama/Llama-3.3-70B-Instruct-Turbo"
                 elif p == "groq":
-                    return "groq", "llama-3.3-70b-versatile"
+                    return "groq", "openai/gpt-oss-120b"
                 elif p in ("grok", "xai"):
                     return "grok", "grok-2"
                 elif p == "openai":
@@ -516,8 +569,7 @@ class AIProviderGateway:
                 cached_tokens=cached_result["input_tokens"],
                 is_batch=bulk
             )
-            db.add(usage)
-            db.commit()
+            self._record_usage_safe(db, usage)
             
             # Record metrics
             metrics_registry.record_ai_call(

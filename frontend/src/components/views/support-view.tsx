@@ -1,5 +1,7 @@
 'use client';
 
+import { notify } from '@/lib/notify';
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -230,7 +232,7 @@ export default function SupportView({
         await fetchMessages(ticketId);
       } else {
         const err = await res.json();
-        alert(err.detail || 'Could not claim ticket.');
+        notify(err.detail || 'Could not claim ticket.');
       }
     } catch (e) {
       console.error(e);
@@ -251,7 +253,7 @@ export default function SupportView({
         await fetchMessages(ticketId);
       } else {
         const err = await res.json();
-        alert(err.detail || 'Could not resolve ticket.');
+        notify(err.detail || 'Could not resolve ticket.');
       }
     } catch (e) {
       console.error(e);
@@ -275,7 +277,7 @@ export default function SupportView({
         fetchTickets();
       } else {
         const data = await res.json();
-        alert(`Failed to send reply: ${data.detail || 'Unknown error'}`);
+        notify(`Failed to send reply: ${data.detail || 'Unknown error'}`);
       }
     } catch (e) {
       console.error(e);
@@ -316,7 +318,7 @@ export default function SupportView({
       {/* Header Panel with Live Presence, Mode & Navigation */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
+          <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2.5">
             <MessageSquare className="text-blue-400 h-8 w-8" /> Customer Support Center
             {pendingHandoffCount > 0 && (
               <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse">
@@ -335,10 +337,10 @@ export default function SupportView({
           <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-gray-900/60 border border-gray-800 shadow-sm">
             <span className={`w-2.5 h-2.5 rounded-full ${isAgentOnline ? 'bg-emerald-400 animate-ping' : 'bg-gray-500'}`} />
             <div className="flex flex-col">
-              <span className="text-[11px] font-bold text-white">
+              <span className="text-xs font-bold text-white">
                 {isAgentOnline ? 'Online for Live Chat' : 'Away / Offline'}
               </span>
-              <span className="text-[9px] text-gray-400">
+              <span className="text-xs text-gray-400">
                 {isAgentOnline ? 'Receiving handoffs' : 'Tickets auto-escalate'}
               </span>
             </div>
@@ -346,13 +348,13 @@ export default function SupportView({
               onClick={toggleAgentPresence}
               disabled={presenceSaving}
               className={`relative ml-1 inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                isAgentOnline ? 'bg-emerald-600' : 'bg-gray-800'
-              }`}
+ isAgentOnline ? 'bg-emerald-600' : 'bg-gray-800'
+ }`}
             >
               <span
                 className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                  isAgentOnline ? 'translate-x-4' : 'translate-x-1'
-                }`}
+ isAgentOnline ? 'translate-x-4' : 'translate-x-1'
+ }`}
               />
             </button>
           </div>
@@ -362,20 +364,20 @@ export default function SupportView({
             <button
               onClick={() => setActiveMainTab('tickets')}
               className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 ${
-                activeMainTab === 'tickets'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                  : 'text-gray-400 hover:text-white'
-              }`}
+ activeMainTab === 'tickets'
+ ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+ : 'text-gray-400 hover:text-white'
+ }`}
             >
               <MessageSquare size={13} /> Tickets & Queue
             </button>
             <button
               onClick={() => setActiveMainTab('widget')}
               className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 ${
-                activeMainTab === 'widget'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                  : 'text-gray-400 hover:text-white'
-              }`}
+ activeMainTab === 'widget'
+ ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+ : 'text-gray-400 hover:text-white'
+ }`}
             >
               <Code size={13} /> Embed Widget
             </button>
@@ -393,37 +395,37 @@ export default function SupportView({
             <div className="p-2 border-b border-gray-800/80 flex flex-wrap gap-1.5">
               <button
                 onClick={() => setTicketFilter('all')}
-                className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors ${
-                  ticketFilter === 'all' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-gray-200'
-                }`}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+ ticketFilter === 'all' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-gray-200'
+ }`}
               >
                 All ({tickets.length})
               </button>
               <button
                 onClick={() => setTicketFilter('pending_human')}
-                className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors flex items-center gap-1 ${
-                  ticketFilter === 'pending_human'
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                    : pendingHandoffCount > 0
-                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse'
-                    : 'text-gray-400 hover:text-gray-200'
-                }`}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 ${
+ ticketFilter === 'pending_human'
+ ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+ : pendingHandoffCount > 0
+ ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse'
+ : 'text-gray-400 hover:text-gray-200'
+ }`}
               >
                 <Headphones size={11} /> Live Requests ({pendingHandoffCount})
               </button>
               <button
                 onClick={() => setTicketFilter('human_handling')}
-                className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors ${
-                  ticketFilter === 'human_handling' ? 'bg-blue-600/20 text-blue-300 border border-blue-500/40' : 'text-gray-400 hover:text-gray-200'
-                }`}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+ ticketFilter === 'human_handling' ? 'bg-blue-600/20 text-blue-300 border border-blue-500/40' : 'text-gray-400 hover:text-gray-200'
+ }`}
               >
                 Claimed ({activeHumanCount})
               </button>
               <button
                 onClick={() => setTicketFilter('resolved')}
-                className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors ${
-                  ticketFilter === 'resolved' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'text-gray-400 hover:text-gray-200'
-                }`}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+ ticketFilter === 'resolved' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'text-gray-400 hover:text-gray-200'
+ }`}
               >
                 Resolved
               </button>
@@ -452,29 +454,29 @@ export default function SupportView({
                     key={t.id}
                     onClick={() => setSelectedTicketId(t.id)}
                     className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all ${
-                      isSelected 
-                        ? 'bg-blue-600/10 border-blue-500/50 shadow-lg glow-support' 
-                        : isPendingHuman
-                        ? 'bg-amber-500/10 hover:bg-amber-500/15 border-amber-500/30'
-                        : 'bg-gray-900/30 hover:bg-gray-800/40 border-gray-800/80 text-gray-300'
-                    }`}
+ isSelected 
+ ? 'bg-blue-600/10 border-blue-500/50 shadow-lg glow-support' 
+ : isPendingHuman
+ ? 'bg-amber-500/10 hover:bg-amber-500/15 border-amber-500/30'
+ : 'bg-gray-900/30 hover:bg-gray-800/40 border-gray-800/80 text-gray-300'
+ }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[11px] font-bold text-gray-400 flex items-center gap-1">
+                      <span className="text-xs font-bold text-gray-400 flex items-center gap-1">
                         {channelIcon} {(t.channel || 'widget').toUpperCase()}
                       </span>
                       {isPendingHuman ? (
-                        <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500 text-black animate-pulse flex items-center gap-1">
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500 text-black animate-pulse flex items-center gap-1">
                           <Headphones size={9} /> CLAIM WAITING
                         </span>
                       ) : isHumanHandling ? (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                        <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
                           LIVE CHAT
                         </span>
                       ) : (
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
-                          t.priority === 'high' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-gray-800 text-gray-400'
-                        }`}>
+                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded uppercase ${
+ t.priority === 'high' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-gray-800 text-gray-400'
+ }`}>
                           {t.priority}
                         </span>
                       )}
@@ -483,19 +485,19 @@ export default function SupportView({
                     <h4 className="font-bold text-xs text-white truncate mb-1">{t.subject}</h4>
                     
                     {/* Customer Info Snippet */}
-                    <div className="text-[11px] text-gray-400 truncate mb-2">
+                    <div className="text-xs text-gray-400 truncate mb-2">
                       {t.customer_name ? `${t.customer_name} · ` : ''}{t.customer_contact || t.customer_email || 'Visitor'}
                     </div>
 
                     <div className="flex items-center justify-between pt-1 border-t border-white/5">
-                      <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${
-                        t.status === 'open' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                        t.status === 'resolved' ? 'bg-gray-500/20 text-gray-400' :
-                        'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                      }`}>
+                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${
+ t.status === 'open' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+ t.status === 'resolved' ? 'bg-gray-500/20 text-gray-400' :
+ 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+ }`}>
                         {t.status.toUpperCase()}
                       </span>
-                      <span className="text-[9px] text-gray-500">
+                      <span className="text-xs text-gray-500">
                         {new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
@@ -516,11 +518,11 @@ export default function SupportView({
                       <h3 className="font-bold text-white text-sm truncate">
                         {selectedTicket.subject}
                       </h3>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase">
                         {selectedTicket.channel}
                       </span>
                     </div>
-                    <div className="text-[11px] text-gray-400 mt-1 flex flex-wrap gap-3">
+                    <div className="text-xs text-gray-400 mt-1 flex flex-wrap gap-3">
                       {selectedTicket.customer_name && (
                         <span>👤 <strong className="text-gray-300">{selectedTicket.customer_name}</strong></span>
                       )}
@@ -540,7 +542,7 @@ export default function SupportView({
                         size="sm"
                         disabled={actionInProgress}
                         onClick={() => handleClaimTicket(selectedTicket.id)}
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-8 px-3.5 rounded-xl shadow-lg shadow-emerald-600/20 flex items-center gap-1.5 transition-all hover:scale-[1.02]"
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-8 px-3.5 rounded-xl shadow-lg shadow-emerald-600/20 flex items-center gap-1.5 transition-all"
                       >
                         <UserCheck size={14} /> Claim & Join Live Chat
                       </Button>
@@ -551,7 +553,7 @@ export default function SupportView({
                         size="sm"
                         disabled={actionInProgress}
                         onClick={() => handleResolveTicket(selectedTicket.id)}
-                        className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs h-8 px-3.5 rounded-xl shadow-lg shadow-blue-600/20 flex items-center gap-1.5 transition-all hover:scale-[1.02]"
+                        className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs h-8 px-3.5 rounded-xl shadow-lg shadow-blue-600/20 flex items-center gap-1.5 transition-all"
                       >
                         <CheckCircle2 size={14} /> Resolve & Return to AI
                       </Button>
@@ -577,7 +579,7 @@ export default function SupportView({
                     if (isSys) {
                       return (
                         <div key={m.id} className="flex justify-center my-2">
-                          <span className="bg-gray-900/90 border border-gray-800 text-gray-400 text-[10px] px-3.5 py-1 rounded-full text-center max-w-[85%] leading-relaxed">
+                          <span className="bg-gray-900/90 border border-gray-800 text-gray-400 text-xs px-3.5 py-1 rounded-full text-center max-w-[85%] leading-relaxed">
                             {m.content}
                           </span>
                         </div>
@@ -591,16 +593,16 @@ export default function SupportView({
                       >
                         <div
                           className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed shadow-sm ${
-                            isAgent
-                              ? 'bg-blue-600 text-white rounded-tr-none shadow-lg shadow-blue-500/15'
-                              : 'bg-gray-900 border border-gray-800 text-gray-100 rounded-tl-none'
-                            }`}
+ isAgent
+ ? 'bg-blue-600 text-white rounded-tr-none shadow-lg shadow-blue-500/15'
+ : 'bg-gray-900 border border-gray-800 text-gray-100 rounded-tl-none'
+ }`}
                         >
                           <p className="whitespace-pre-wrap">{m.content}</p>
                           <span
-                            className={`text-[8px] mt-1 block text-right font-medium ${
-                              isAgent ? 'text-blue-200' : 'text-gray-500'
-                            }`}
+                            className={`text-xs mt-1 block text-right font-medium ${
+ isAgent ? 'text-blue-200' : 'text-gray-500'
+ }`}
                           >
                             {m.created_at ? new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                           </span>
@@ -632,10 +634,10 @@ export default function SupportView({
                     <Button
                       onClick={handleSendManualReply}
                       disabled={sendingReply || !replyText.trim()}
-                      className="bg-blue-600 hover:bg-blue-500 text-white rounded-xl h-auto self-stretch px-4 flex flex-col justify-center items-center shadow-lg shadow-blue-500/20 transition-all hover:scale-[1.02] active:scale-95"
+                      className="bg-blue-600 hover:bg-blue-500 text-white rounded-xl h-auto self-stretch px-4 flex flex-col justify-center items-center shadow-lg shadow-blue-500/20 transition-all active:scale-95"
                     >
                       <Send size={15} className="mb-0.5" />
-                      <span className="text-[10px] font-bold">Reply</span>
+                      <span className="text-xs font-bold">Reply</span>
                     </Button>
                   </div>
                 </div>
@@ -740,12 +742,12 @@ export default function SupportView({
                     <button
                       onClick={() => setSupportSettings({ ...supportSettings, live_chat_enabled: !supportSettings.live_chat_enabled })}
                       className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                        supportSettings.live_chat_enabled ? 'bg-emerald-600' : 'bg-gray-800'
-                      }`}
+ supportSettings.live_chat_enabled ? 'bg-emerald-600' : 'bg-gray-800'
+ }`}
                     >
                       <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                        supportSettings.live_chat_enabled ? 'translate-x-4' : 'translate-x-1'
-                      }`} />
+ supportSettings.live_chat_enabled ? 'translate-x-4' : 'translate-x-1'
+ }`} />
                     </button>
                   </div>
 
@@ -768,13 +770,13 @@ export default function SupportView({
                 <span className="text-xs font-bold text-white flex items-center gap-1.5">
                   <Eye size={14} className="text-blue-400" /> Interactive Live Preview
                 </span>
-                <span className="text-[10px] text-gray-500">Click the floating button below</span>
+                <span className="text-xs text-gray-500">Click the floating button below</span>
               </div>
 
               <div className="flex-1 border border-dashed border-gray-800 rounded-2xl relative min-h-[460px] flex items-center justify-center p-6 text-center text-gray-500">
                 <div className="space-y-2 max-w-xs">
                   <p className="text-xs text-gray-400 font-semibold">Your Website Preview Area</p>
-                  <p className="text-[11px] text-gray-500">
+                  <p className="text-xs text-gray-500">
                     The support button floats in the bottom right corner of this sandbox. You can click to open and test the full AI chat, RAG, and ticket escalation experience!
                   </p>
                 </div>

@@ -110,7 +110,7 @@ Output a comprehensive JSON object matching this schema:
 Return only valid JSON."""
 
         try:
-            resp = await self.llm.complete(prompt=prompt, model="claude-3-haiku-20240307", provider="anthropic")
+            resp = await self.llm.complete(prompt=prompt)
             synthesized = extract_json_safe(resp)
         except Exception:
             synthesized = {}

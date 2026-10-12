@@ -105,7 +105,10 @@ def extract_pdf(file_bytes: bytes) -> Dict[str, Any]:
 
     # Step 2: Extract text blocks per page via PyMuPDF (fitz)
     try:
-        import fitz
+        try:
+            import pymupdf as fitz
+        except ImportError:
+            import fitz
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         for idx in range(len(doc)):
             page_num = idx + 1

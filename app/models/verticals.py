@@ -29,6 +29,9 @@ class Lead(Base):
     priority = Column(String, default="medium")
     assigned_to = Column(String, default="Sales AI Agent", nullable=True)
     data = Column(JSON)
+    sales_company_id = Column(String, ForeignKey("sales_companies.id"), nullable=True, index=True)
+    sales_contact_id = Column(String, ForeignKey("sales_account_contacts.id"), nullable=True)
+    sales_opportunity_id = Column(String, ForeignKey("sales_opportunities.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -74,7 +77,50 @@ class ContentPost(Base):
     insights_raw = Column(JSON, default=dict)
     insights_synced_at = Column(DateTime(timezone=True), nullable=True)
     learning_tags = Column(JSON, default=list)  # e.g. ["question_hook", "short_cta"]
+    # Model tracking & fallback provenance
+    used_model = Column(String, nullable=True)  # Concrete model slug used
+    fallback_reason = Column(Text, nullable=True)  # Fallback alert note if applicable
+    cost_usd = Column(Float, default=0.0)  # Estimated or actual cost
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class TenantModelRegistry(Base):
+    """Tenant-specific registry for curated and custom Bring-Your-Own-Model entries."""
+    __tablename__ = "tenant_model_registry"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    provider = Column(String, nullable=False, index=True)  # openrouter, together
+    slug = Column(String, nullable=False, index=True)
+    modality = Column(String, nullable=False)  # text, image, video
+    mode = Column(String, default="text_to_text")  # text_to_text, text_to_image, image_to_image, text_to_video, image_to_video
+    status = Column(String, default="available")  # available | incompatible | not_found | unverified | disabled
+    capabilities = Column(JSON, default=dict)
+    pricing = Column(JSON, default=dict)
+    source = Column(String, default="curated")  # curated | custom
+    last_verified_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class GenerationJob(Base):
+    """Asynchronous media generation jobs (video, image-to-video, heavy render)."""
+    __tablename__ = "generation_jobs"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    post_id = Column(String, ForeignKey("content_posts.id"), nullable=True, index=True)
+    kind = Column(String, default="video")  # video | image | remotion
+    provider = Column(String, nullable=False)  # openrouter | together
+    model = Column(String, nullable=False)
+    request_payload = Column(JSON, default=dict)
+    provider_job_id = Column(String, nullable=True, index=True)
+    status = Column(String, default="queued")  # queued | in_progress | completed | failed
+    attempts = Column(Integer, default=0)
+    result_url = Column(String, nullable=True)
+    error = Column(Text, nullable=True)
+    cost_estimate = Column(Float, default=0.0)
+    cost_actual = Column(Float, default=0.0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class MarketingInsightSnapshot(Base):
@@ -250,6 +296,7 @@ class BusinessProfile(Base):
     v3_workflow_status = Column(JSON, nullable=True)
     sales_emails = Column(JSON, nullable=True)
     support_emails = Column(JSON, nullable=True)
+    lead_freshness = Column(String, default="30_days", nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -314,4 +361,9 @@ class AuditLog(Base):
     details = Column(JSON, nullable=True)
     ip_address = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# Lead foreign keys point at sales_* tables. Importing them here registers those
+# tables on Base.metadata before create_all or Alembic autogenerate runs.
+import app.models.sales_intelligence  # noqa: E402, F401
 

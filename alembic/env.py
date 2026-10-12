@@ -29,8 +29,12 @@ from app.models.deal_room import DealRoom, BuyingCommitteeMember, AccountSignal,
 from app.models.learning import DecisionRecord, StrategyPerformance, NegativePatternMemory, GlobalStrategyRegistry, GlobalFailurePattern, GlobalSkillPackage
 from app.models.memory import GlobalMemory, EpisodicMemory, CrossAgentContext, ManagerFeedback
 from app.models import enterprise  # noqa: F401 — registers enterprise tables on Base.metadata
-from app.models.boardroom_events import MeetingEvent, MeetingEvidence, MeetingAction  # noqa: F401 — boardroom v2
+from app.models.boardroom_events import (  # noqa: F401 — boardroom v2 & v3
+    MeetingEvent, MeetingEvidence, MeetingAction,
+    DecisionCharter, MeetingOption, MeetingPosition, DissentRecord, DecisionOutcome
+)
 from app.models import flow_engine  # noqa: F401 — Agent Studio, Flow Engine, Telemetry & Marketplace
+from app.models import sales_intelligence  # noqa: F401 — canonical sales accounts, evidence, and outcomes
 
 target_metadata = Base.metadata
 
