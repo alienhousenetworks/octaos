@@ -18,6 +18,7 @@ import { CreateLeadModal, UploadLeadsModal } from './sales/sales-modals';
 import {
   SalesSection,
   Lead,
+  FollowUpStep,
   WorkflowStatus,
   SalesSettings,
   BusinessProfileData,
@@ -516,6 +517,72 @@ export default function SalesView({
     }
   };
 
+  const mergeSelectedLeadData = (leadId: string, patch: Record<string, any>) =>
+    setSelectedLead((prev) =>
+      prev && prev.id === leadId ? { ...prev, data: { ...(prev.data || {}), ...patch } } : prev
+    );
+
+  const handleGenerateDraft = async (leadId: string, instructions: string) => {
+    setSalesActionLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/${leadId}/outreach/draft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instructions }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        mergeSelectedLeadData(leadId, { draft_subject: d.subject, draft_body: d.body });
+        return d as { subject: string; body: string };
+      }
+      notify('Failed to generate draft.');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSalesActionLoading(false);
+    }
+    return null;
+  };
+
+  const handleSendDraft = async (leadId: string, subject: string, body: string) => {
+    setSalesActionLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/${leadId}/send-outreach-smart`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject, body }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        notify(d.sent ? 'Outreach sent.' : (d.send_message || 'Outreach staged (email not sent).'));
+        fetchLeads();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSalesActionLoading(false);
+    }
+  };
+
+  const handleSaveSchedule = async (leadId: string, schedule: FollowUpStep[]) => {
+    setSalesActionLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/${leadId}/follow-up-schedule`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schedule }),
+      });
+      if (res.ok) {
+        mergeSelectedLeadData(leadId, { outreach_schedule: schedule });
+        notify('Follow-up schedule saved.');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSalesActionLoading(false);
+    }
+  };
+
   const handleBookSalesMeeting = async (leadId: string) => {
     setSalesActionLoading(true);
     try {
@@ -619,106 +686,79 @@ export default function SalesView({
   const isExecuting = workflowStatus.status === 'executing';
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Top Header & Executive KPI Ribbon */}
-      <SalesHeader
-        activeTab={activeSalesTab}
-        onSelectTab={selectSalesSection}
-        leadsCount={salesLeads.length}
-        activePipelineValue={activePipelineValue}
-        closedRevenue={closedRevenue}
-        winRate={winRate}
-        wonCount={wonCount}
-        lostCount={lostCount}
-        isExecuting={isExecuting}
-        onOpenCreateLead={() => setIsCreateLeadModalOpen(true)}
-        onOpenUploadLeads={() => setIsUploadModalOpen(true)}
-        onExportCSV={exportLeadsToCSV}
-      />
-
-      {/* ── TAB 1 & 2: PROSPECTING AGENT & CONFIGURED SALES ENGINE ── */}
-      {(activeSalesTab === 'prospecting' ||
-        activeSalesTab === 'prompt_agent' ||
-        activeSalesTab === 'configured_engine') && (
-        <SalesProspectingPanel
-          workflowStatus={workflowStatus}
-          profile={profile}
-          setProfile={setProfile}
-          onSaveProfile={handleSaveProfile}
-          profileSaving={profileSaving}
-          promptDirective={promptDirective}
-          setPromptDirective={setPromptDirective}
-          promptLeadCount={promptLeadCount}
-          setPromptLeadCount={setPromptLeadCount}
-          promptFreshness={promptFreshness}
-          setPromptFreshness={setPromptFreshness}
-          promptRunning={promptRunning}
-          onRunPromptAgent={handleRunPromptAgent}
-          onRunConfiguredEngine={handleLaunchV3Workflow}
-          onSwitchToStepper={() => selectSalesSection('stepper')}
-          selectedProvider={selectedProvider}
-          setSelectedProvider={setSelectedProvider}
-          selectedModel={selectedModel}
-          setSelectedModel={setSelectedModel}
-          initialMode={activeSalesTab === 'configured_engine' ? 'configured' : 'prompt'}
+    <div className="sales-white-theme -m-4 md:-m-6 p-4 md:p-8 min-h-[calc(100vh-3rem)]">
+      <div className="space-y-6 max-w-7xl mx-auto pb-12">
+        {/* Top Header & Executive KPI Ribbon */}
+        <SalesHeader
+          activeTab={activeSalesTab}
+          onSelectTab={selectSalesSection}
+          leadsCount={salesLeads.length}
+          activePipelineValue={activePipelineValue}
+          closedRevenue={closedRevenue}
+          winRate={winRate}
+          wonCount={wonCount}
+          lostCount={lostCount}
+          isExecuting={isExecuting}
+          onOpenCreateLead={() => setIsCreateLeadModalOpen(true)}
+          onOpenUploadLeads={() => setIsUploadModalOpen(true)}
+          onExportCSV={exportLeadsToCSV}
         />
-      )}
 
-      {/* ── TAB 2: PIPELINE & LEADS CRM ── */}
-      {activeSalesTab === 'pipeline' && (
-        <div className="space-y-4">
-          {/* View Mode Switcher Strip */}
-          <div className="flex items-center justify-between pb-1">
-            <span className="text-xs font-semibold text-muted-foreground">
-              Total Accounts in CRM: <strong className="text-foreground">{salesLeads.length}</strong>
-            </span>
+        {/* ── TAB 1 & 2: PROSPECTING AGENT & CONFIGURED SALES ENGINE ── */}
+        {(activeSalesTab === 'prospecting' ||
+          activeSalesTab === 'prompt_agent' ||
+          activeSalesTab === 'configured_engine') && (
+          <SalesProspectingPanel
+            workflowStatus={workflowStatus}
+            profile={profile}
+            setProfile={setProfile}
+            onSaveProfile={handleSaveProfile}
+            profileSaving={profileSaving}
+            promptDirective={promptDirective}
+            setPromptDirective={setPromptDirective}
+            promptLeadCount={promptLeadCount}
+            setPromptLeadCount={setPromptLeadCount}
+            promptFreshness={promptFreshness}
+            setPromptFreshness={setPromptFreshness}
+            promptRunning={promptRunning}
+            onRunPromptAgent={handleRunPromptAgent}
+            onRunConfiguredEngine={handleLaunchV3Workflow}
+            onSwitchToStepper={() => selectSalesSection('stepper')}
+            selectedProvider={selectedProvider}
+            setSelectedProvider={setSelectedProvider}
+            selectedModel={selectedModel}
+            setSelectedModel={setSelectedModel}
+            initialMode={activeSalesTab === 'configured_engine' ? 'configured' : 'prompt'}
+          />
+        )}
 
-            <div className="flex items-center gap-1 bg-card/60 border border-border/60 p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setPipelineViewMode('table')}
-                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
-                  pipelineViewMode === 'table'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <TableProperties size={13} /> Table View
-              </button>
-              <button
-                type="button"
-                onClick={() => setPipelineViewMode('kanban')}
-                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
-                  pipelineViewMode === 'kanban'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <LayoutGrid size={13} /> Kanban Board
-              </button>
-            </div>
+        {/* ── TAB 2: PIPELINE & LEADS CRM ── */}
+        {activeSalesTab === 'pipeline' && (
+          <div className="space-y-4">
+            {pipelineViewMode === 'table' ? (
+              <SalesTableView
+                leads={salesLeads}
+                onSelectLead={(l) => setSelectedLead(l)}
+                selectedLeadId={selectedLead?.id}
+                onDeleteLead={handleDeleteLead}
+                onUpdateStatus={handleUpdateStatus}
+                onOpenCreateLead={() => setIsCreateLeadModalOpen(true)}
+                onOpenProspecting={() => selectSalesSection('prospecting')}
+                viewMode={pipelineViewMode}
+                onViewModeChange={setPipelineViewMode}
+              />
+            ) : (
+              <SalesKanbanView
+                leads={salesLeads}
+                onSelectLead={(l) => setSelectedLead(l)}
+                onUpdateStatus={handleUpdateStatus}
+                onOpenCreateLead={() => setIsCreateLeadModalOpen(true)}
+                viewMode={pipelineViewMode}
+                onViewModeChange={setPipelineViewMode}
+              />
+            )}
           </div>
-
-          {pipelineViewMode === 'table' ? (
-            <SalesTableView
-              leads={salesLeads}
-              onSelectLead={(l) => setSelectedLead(l)}
-              selectedLeadId={selectedLead?.id}
-              onDeleteLead={handleDeleteLead}
-              onUpdateStatus={handleUpdateStatus}
-              onOpenCreateLead={() => setIsCreateLeadModalOpen(true)}
-              onOpenProspecting={() => selectSalesSection('prospecting')}
-            />
-          ) : (
-            <SalesKanbanView
-              leads={salesLeads}
-              onSelectLead={(l) => setSelectedLead(l)}
-              onUpdateStatus={handleUpdateStatus}
-              onOpenCreateLead={() => setIsCreateLeadModalOpen(true)}
-            />
-          )}
-        </div>
-      )}
+        )}
 
       {/* ── TAB 3: AGENT OPERATIONS & LIVE STEPPER ── */}
       {activeSalesTab === 'stepper' && (
@@ -769,6 +809,9 @@ export default function SalesView({
         onUpdateStatus={handleUpdateStatus}
         onSendOutreach={handleSendSalesOutreach}
         onSendSmartOutreach={handleSendOutreachSmart}
+        onGenerateDraft={handleGenerateDraft}
+        onSendDraft={handleSendDraft}
+        onSaveSchedule={handleSaveSchedule}
         onBookMeeting={handleBookSalesMeeting}
         onDeleteLead={handleDeleteLead}
         onLogNote={handleLogHumanUpdate}
@@ -790,6 +833,7 @@ export default function SalesView({
         onUpload={handleUploadLeads}
         loading={uploadingLeads}
       />
+      </div>
     </div>
   );
 }

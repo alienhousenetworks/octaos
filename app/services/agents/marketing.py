@@ -9,6 +9,7 @@ Equipped with:
 """
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
@@ -26,6 +27,13 @@ from app.services.marketing.context_radar.trend_synthesizer import TrendSynthesi
 from app.services.media.storage import ensure_public_url
 
 logger = logging.getLogger(__name__)
+
+
+def _prompt_text(value: Any) -> Optional[str]:
+    """Prompt columns are Text; LLM briefs may return structured dicts."""
+    if value is None or isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False)
 
 
 def _compute_optimal_schedule_time(platform: str, offset_days: int = 0) -> datetime:
@@ -93,7 +101,7 @@ class MarketingAgent(BaseAgent):
         Useful for UI dashboards and human marketer inspection before firing campaigns.
         """
         params = params or {}
-        days_ahead = int(params.get("days_ahead", 7))
+        days_ahead = int(params.get("days_ahead", 365))
         news_limit = int(params.get("news_limit", 5))
         refresh_regional = bool(params.get("refresh_regional", False))
 
@@ -101,13 +109,20 @@ class MarketingAgent(BaseAgent):
         brand_knowledge = brand_service.synthesize()
 
         cal_engine = CalendarEngine(self.db, self.tenant_id)
-        target_regions = cal_engine.get_target_regions()
+        param_country = params.get("country")
+        param_state = params.get("state")
+        param_scope = params.get("scope")
+
+        target_regions = [param_country] if param_country else cal_engine.get_target_regions()
+        target_states = [param_state] if param_state else cal_engine.get_target_states()
 
         # Autonomous Agentic Live Context Search:
         # Trigger discovery if on-demand refresh requested or if target regions exist without fresh 30-day cache
         if refresh_regional or (target_regions and not cal_engine.has_recent_agentic_events(max_age_days=30)):
             try:
                 await cal_engine.discover_agentic_regional_events(
+                    target_region=target_regions[0] if target_regions else None,
+                    target_state=target_states[0] if target_states else None,
                     days_ahead=max(30, days_ahead),
                     force_refresh=refresh_regional,
                     brand_context=brand_knowledge,
@@ -118,6 +133,9 @@ class MarketingAgent(BaseAgent):
         upcoming_events = cal_engine.get_upcoming_events(
             days_ahead=days_ahead,
             industry=brand_knowledge.get("industry"),
+            target_regions=target_regions,
+            target_states=target_states,
+            scope=param_scope,
         )
 
         news_engine = NewsRadar(self.db, self.tenant_id)
@@ -131,6 +149,7 @@ class MarketingAgent(BaseAgent):
             "company_name": brand_knowledge.get("company_name"),
             "industry": brand_knowledge.get("industry"),
             "target_regions": target_regions,
+            "target_states": target_states,
             "products_count": len(brand_knowledge.get("products_catalog", [])),
             "upcoming_events": upcoming_events,
             "news_signals": news_signals,
@@ -278,11 +297,13 @@ class MarketingAgent(BaseAgent):
                     content=post_copy,
                     image_url=image_url,
                     video_url=video_url,
-                    image_prompt=brief.image_prompt,
+                    image_prompt=_prompt_text(brief.image_prompt),
                     image_prompt_enabled=bool(image_url),
-                    video_prompt=brief.video_prompt,
+                    video_prompt=_prompt_text(brief.video_prompt),
                     video_prompt_enabled=bool(video_url),
-                    media_prompt=brief.video_prompt if active_media_type == "video" else brief.image_prompt,
+                    media_prompt=_prompt_text(
+                        brief.video_prompt if active_media_type == "video" else brief.image_prompt
+                    ),
                     status="scheduled" if (auto_schedule and is_approved) else "draft",
                     approval_status="approved" if is_approved else "pending",
                     scheduled_at=scheduled_time,
@@ -334,6 +355,7 @@ class MarketingAgent(BaseAgent):
                 })
 
             except Exception as platform_err:
+                self.db.rollback()
                 logger.error(
                     f"[AutoPulse] Failed generating post for {platform}: {platform_err}",
                     exc_info=True,

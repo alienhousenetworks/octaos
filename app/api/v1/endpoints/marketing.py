@@ -50,6 +50,26 @@ async def generate_content(
     return post
 
 
+class GenerateTextRequest(BaseModel):
+    topic: str
+    platform: Optional[str] = "linkedin"
+
+
+@router.post("/generate-text")
+async def generate_text(
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.EXECUTE)),
+    req: GenerateTextRequest,
+) -> Any:
+    from app.services.verticals.marketing import MarketingService
+
+    service = MarketingService(db, tenant_id)
+    text = await service.write_post_text(req.topic, req.platform or "linkedin")
+    return {"content": text}
+
+
 @router.get("/", response_model=List[schemas.ContentPost])
 def read_posts(
     db: Session = Depends(deps.get_db),
@@ -1227,9 +1247,12 @@ def get_post_insights(
 
 @router.get("/radar")
 async def get_marketing_context_radar(
-    days_ahead: int = 7,
+    days_ahead: int = 365,
     news_limit: int = 5,
     refresh_regional: bool = False,
+    country: Optional[str] = None,
+    state: Optional[str] = None,
+    scope: Optional[str] = None,
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
     _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.READ)),
@@ -1241,6 +1264,9 @@ async def get_marketing_context_radar(
         "days_ahead": days_ahead,
         "news_limit": news_limit,
         "refresh_regional": refresh_regional,
+        "country": country,
+        "state": state,
+        "scope": scope,
     })
 
 

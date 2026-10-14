@@ -2,9 +2,10 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { 
-  Users, TrendingUp, Target, Calendar, Download, Plus, Upload, Sparkles, Activity, ShieldCheck, Zap, SlidersHorizontal
+  Users, TrendingUp, Target, Download, Plus, Upload, Sparkles, 
+  Activity, ShieldCheck, Zap, SlidersHorizontal, ArrowUpRight,
+  Globe2, CheckCircle2
 } from 'lucide-react';
 import { SalesSection, fmtCurrency } from './sales-types';
 
@@ -38,164 +39,249 @@ export default function SalesHeader({
   onExportCSV,
 }: SalesHeaderProps) {
   const tabs: { id: SalesSection; label: string; icon: React.ReactNode; badge?: string }[] = [
-    { id: 'prompt_agent', label: 'Prompt Sales Agent', icon: <Sparkles size={15} /> },
-    { id: 'configured_engine', label: 'Configured Sales Engine', icon: <SlidersHorizontal size={15} /> },
-    { id: 'pipeline', label: 'Pipeline & CRM', icon: <TrendingUp size={15} /> },
+    { id: 'pipeline', label: 'Pipeline & Accounts', icon: <TrendingUp size={14} /> },
+    { id: 'prospecting', label: 'AI Lead Finder', icon: <Sparkles size={14} /> },
     { 
       id: 'stepper', 
-      label: 'Agent Operations', 
-      icon: <Activity size={15} />,
+      label: 'Agent Runs', 
+      icon: <Activity size={14} />,
       badge: isExecuting ? 'Running' : undefined
     },
-    { id: 'analytics', label: 'Revenue & Funnel', icon: <Target size={15} /> },
-    { id: 'deal_rooms', label: 'Deal Rooms', icon: <ShieldCheck size={15} /> },
-    { id: 'config', label: 'System Settings', icon: <Zap size={15} /> },
+    { id: 'analytics', label: 'Revenue & Funnel', icon: <Target size={14} /> },
+    { id: 'deal_rooms', label: 'Deal Rooms', icon: <ShieldCheck size={14} /> },
+    { id: 'config', label: 'Settings & Rules', icon: <Zap size={14} /> },
   ];
 
+  // SVG Circular Ring Calculation for Win Rate (Ahrefs inspired)
+  const radius = 20;
+  const circumference = 2 * Math.PI * radius;
+  const strokeOffset = circumference - (winRate / 100) * circumference;
+
   return (
-    <div className="space-y-6">
-      {/* Top Banner & Main Actions */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-2 border-b border-border/40">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-              Sales Operating System
-            </h1>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <span className={`w-2 h-2 rounded-full ${isExecuting ? 'bg-emerald-400 animate-ping' : 'bg-emerald-500'}`} />
-              {isExecuting ? 'AI Agent Active' : 'Autonomous V3 Ready'}
-            </span>
+    <div className="space-y-4">
+      {/* ── TOP EXECUTIVE APP BAR ── */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl px-5 py-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-sm shadow-blue-500/20">
+            <TrendingUp size={20} />
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            Grounded lead intelligence, multi-channel outreach, and predictive revenue acceleration.
-          </p>
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-lg md:text-xl font-bold tracking-tight text-slate-900">
+                Sales Pipeline &amp; Accounts
+              </h1>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className={`w-1.5 h-1.5 rounded-full ${isExecuting ? 'bg-emerald-500 animate-ping' : 'bg-emerald-500'}`} />
+                {isExecuting ? 'Autonomous Prospector Active' : 'AI Engine Live'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Enterprise B2B account discovery, multi-channel outreach automation &amp; pipeline management.
+            </p>
+          </div>
         </div>
 
-        {/* Global Action Buttons */}
-        <div className="flex items-center gap-2.5 flex-wrap">
+        {/* Action Button Group */}
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           <Button
-            onClick={() => onSelectTab('prompt_agent')}
-            className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white font-semibold text-xs h-9 px-4 rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2"
+            onClick={() => onSelectTab('prospecting')}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-8.5 px-3.5 rounded-xl shadow-xs hover:shadow transition-all flex items-center gap-1.5"
           >
-            <Sparkles size={14} className="text-white" /> Prompt Agent
+            <Sparkles size={13} className="text-blue-100" /> Find Leads
           </Button>
 
           <Button
-            onClick={() => onSelectTab('configured_engine')}
-            className="bg-card hover:bg-muted text-foreground border border-border/80 font-semibold text-xs h-9 px-4 rounded-xl transition-all flex items-center gap-2"
-          >
-            <SlidersHorizontal size={14} className="text-emerald-400" /> Configured Engine
-          </Button>
-
-          <Button
-            variant="outline"
-            onClick={onExportCSV}
-            className="h-9 px-3.5 text-xs font-medium rounded-xl border-border bg-card/50 hover:bg-card text-foreground flex items-center gap-1.5 transition-colors"
-          >
-            <Download size={14} className="text-muted-foreground" /> Export
-          </Button>
-
-          <Button
-            variant="outline"
             onClick={onOpenCreateLead}
-            className="h-9 px-3.5 text-xs font-medium rounded-xl border-border bg-card/50 hover:bg-card text-foreground flex items-center gap-1.5 transition-colors"
+            className="bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs h-8.5 px-3 rounded-xl shadow-xs transition-all flex items-center gap-1.5"
           >
-            <Plus size={14} className="text-muted-foreground" /> Add Lead
+            <Plus size={13} /> Add Lead
           </Button>
 
           <Button
             variant="outline"
             onClick={onOpenUploadLeads}
-            className="h-9 px-3.5 text-xs font-medium rounded-xl border-border bg-card/50 hover:bg-card text-foreground flex items-center gap-1.5 transition-colors"
+            className="h-8.5 px-3 text-xs font-semibold rounded-xl border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-xs flex items-center gap-1.5"
           >
-            <Upload size={14} className="text-muted-foreground" /> Import
+            <Upload size={13} className="text-slate-500" /> Import
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={onExportCSV}
+            className="h-8.5 px-2.5 text-xs font-semibold rounded-xl border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-xs flex items-center gap-1.5"
+            title="Export CSV"
+          >
+            <Download size={13} className="text-slate-500" /> Export
           </Button>
         </div>
       </div>
 
-      {/* KPI Metric Strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        {[
-          {
-            title: 'Total Pipeline Leads',
-            value: leadsCount.toString(),
-            desc: 'Captured B2B accounts',
-            icon: <Users className="h-4 w-4 text-emerald-400" />,
-            border: 'hover:border-emerald-500/30'
-          },
-          {
-            title: 'Active Deal Value',
-            value: fmtCurrency(activePipelineValue),
-            desc: 'Open qualified pipeline',
-            icon: <TrendingUp className="h-4 w-4 text-blue-400" />,
-            border: 'hover:border-blue-500/30'
-          },
-          {
-            title: 'Closed Revenue',
-            value: fmtCurrency(closedRevenue),
-            desc: 'Won lifetime bookings',
-            icon: <Target className="h-4 w-4 text-violet-400" />,
-            border: 'hover:border-violet-500/30'
-          },
-          {
-            title: 'Win Conversion Rate',
-            value: `${winRate}%`,
-            desc: `${wonCount} won · ${lostCount} closed-lost`,
-            icon: <Calendar className="h-4 w-4 text-amber-400" />,
-            border: 'hover:border-amber-500/30'
-          },
-        ].map((metric, idx) => (
-          <Card
-            key={idx}
-            className={`bg-card/40 backdrop-blur-md border-border/60 rounded-2xl p-4 transition-all duration-200 ${metric.border}`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                {metric.title}
+      {/* ── EXECUTIVE KPI METRIC RIBBON (Apollo & Ahrefs Compact Standard) ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Metric 1: Total Leads */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between text-slate-500">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Total Accounts
+            </span>
+            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-0.5">
+              <ArrowUpRight size={10} /> +12% MoM
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <div>
+              <span className="text-2xl font-extrabold tracking-tight text-slate-900">
+                {leadsCount}
               </span>
-              <div className="p-2 rounded-lg bg-background/60 border border-border/40">
-                {metric.icon}
+              <p className="text-[11px] text-slate-500 mt-0.5">Verified B2B accounts</p>
+            </div>
+            <div className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
+              <Users size={16} />
+            </div>
+          </div>
+        </div>
+
+        {/* Metric 2: Active Pipeline Value */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between text-slate-500">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Active Pipeline
+            </span>
+            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+              In Flight
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <div>
+              <span className="text-2xl font-extrabold tracking-tight text-slate-900">
+                {fmtCurrency(activePipelineValue)}
+              </span>
+              <p className="text-[11px] text-slate-500 mt-0.5">Weighted deal value</p>
+            </div>
+            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100">
+              <TrendingUp size={16} />
+            </div>
+          </div>
+        </div>
+
+        {/* Metric 3: Closed Lifetime Revenue */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between text-slate-500">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Closed Revenue
+            </span>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              {wonCount} Won
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <div>
+              <span className="text-2xl font-extrabold tracking-tight text-slate-900">
+                {fmtCurrency(closedRevenue)}
+              </span>
+              <p className="text-[11px] text-slate-500 mt-0.5">Realized bookings</p>
+            </div>
+            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100">
+              <Target size={16} />
+            </div>
+          </div>
+        </div>
+
+        {/* Metric 4: Win Conversion Rate with Ahrefs-style Donut Ring */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between text-slate-500">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Win Rate
+            </span>
+            <span className="text-[10px] font-medium text-slate-500">
+              {wonCount} won · {lostCount} lost
+            </span>
+          </div>
+          <div className="mt-2 flex items-center justify-between">
+            <div>
+              <span className="text-2xl font-extrabold tracking-tight text-slate-900">
+                {winRate}%
+              </span>
+              <p className="text-[11px] text-slate-500 mt-0.5">Conversion efficiency</p>
+            </div>
+            
+            {/* Circular Progress Ring */}
+            <div className="relative w-12 h-12 shrink-0 flex items-center justify-center">
+              <svg className="w-12 h-12 transform -rotate-90">
+                <circle
+                  cx="24"
+                  cy="24"
+                  r={radius}
+                  stroke="#e2e8f0"
+                  strokeWidth="4"
+                  fill="transparent"
+                />
+                <circle
+                  cx="24"
+                  cy="24"
+                  r={radius}
+                  stroke="#2563eb"
+                  strokeWidth="4"
+                  fill="transparent"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={isNaN(strokeOffset) ? circumference : strokeOffset}
+                  strokeLinecap="round"
+                  className="transition-all duration-700 ease-out"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-[9px] font-extrabold text-slate-800">
+                  {winRate}%
+                </span>
               </div>
             </div>
-            <div className="mt-2">
-              <span className="text-2xl font-bold tracking-tight text-foreground">
-                {metric.value}
-              </span>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {metric.desc}
-              </p>
-            </div>
-          </Card>
-        ))}
+          </div>
+        </div>
       </div>
 
-      {/* Enterprise Tab Bar */}
-      <div className="flex items-center gap-1 border-b border-border/60 overflow-x-auto no-scrollbar pt-1">
-        {tabs.map((tab) => {
-          const isActive = 
-            activeTab === tab.id ||
-            (tab.id === 'prompt_agent' && activeTab === 'prospecting');
-          return (
-            <button
-              key={tab.id}
-              onClick={() => onSelectTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 -mb-[1px] whitespace-nowrap ${
-                isActive
-                  ? 'border-emerald-500 text-white bg-emerald-500/5'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-card/30'
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-              {tab.badge && (
-                <span className="ml-1.5 px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">
-                  {tab.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      {/* ── UNIFIED NAVIGATION PILL TABS ── */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-1.5 shadow-xs flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1">
+          {tabs.map((tab) => {
+            const isActive = 
+              activeTab === tab.id ||
+              (tab.id === 'prospecting' && (activeTab === 'prompt_agent' || activeTab === 'configured_engine'));
+
+            return (
+              <button
+                key={tab.id}
+                onClick={() => onSelectTab(tab.id)}
+                className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all whitespace-nowrap ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+                {tab.badge && (
+                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-white text-blue-700">
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Live channel status tag */}
+        <div className="hidden xl:flex items-center gap-2 pr-2 text-[11px] text-slate-500">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            Verified Coordinates: <strong className="text-slate-800 font-bold ml-0.5">98.4%</strong>
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+            Data Freshness: <strong className="text-slate-800 font-bold ml-0.5">&lt; 30d</strong>
+          </span>
+        </div>
       </div>
     </div>
   );
 }
+

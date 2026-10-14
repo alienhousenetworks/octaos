@@ -722,6 +722,9 @@ def save_sales_settings(
         "reply_mode": mode,
         "auto_book_meetings": bool(payload.get("auto_book_meetings", True)),
     }
+    for key in ("follow_up_cadence_days", "max_ai_touchpoints", "meeting_duration_minutes", "buffer_minutes"):
+        if payload.get(key) is not None:
+            settings[key] = int(payload[key])
     cred = db.query(APICredential).filter_by(tenant_id=tenant_id, provider="sales").first()
     if not cred:
         cred = APICredential(
@@ -813,9 +816,51 @@ def check_replies_for_tenant(
         }
 
 
+@router.post("/{lead_id}/outreach/draft")
+async def generate_outreach_draft(
+    lead_id: str,
+    payload: dict = None,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """Generate an editable outreach draft (not sent). Optional payload.instructions steers tone/angle."""
+    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    instructions = str((payload or {}).get("instructions") or "").strip()
+    try:
+        body = await SalesService(db, tenant_id).generate_outreach(lead_id, instructions=instructions)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    subject = f"Partnership Opportunity - {lead.company or 'Your Company'}"
+    lead.data = {**(lead.data or {}), "draft_subject": subject, "draft_body": body}
+    db.commit()
+    return {"subject": subject, "body": body}
+
+
+@router.patch("/{lead_id}/follow-up-schedule")
+def save_follow_up_schedule(
+    lead_id: str,
+    payload: dict,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE)),
+) -> Any:
+    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    schedule = payload.get("schedule")
+    if not isinstance(schedule, list):
+        raise HTTPException(status_code=400, detail="schedule must be a list")
+    lead.data = {**(lead.data or {}), "outreach_schedule": schedule}
+    db.commit()
+    return {"status": "success", "schedule": schedule}
+
+
 @router.post("/{lead_id}/send-outreach-smart")
 async def send_outreach_smart(
     lead_id: str,
+    payload: dict = None,
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id)
 ) -> Any:
@@ -830,18 +875,22 @@ async def send_outreach_smart(
     gmail_ok = check_gmail_configured(db, tenant_id)
     email_configured = smtp_ok or gmail_ok
     
-    # Generate outreach message via AI
+    # Use the user's edited draft if provided, otherwise generate via AI
+    custom_body = str((payload or {}).get("body") or "").strip()
+    custom_subject = str((payload or {}).get("subject") or "").strip()
     service = SalesService(db, tenant_id)
-    try:
-        message = await service.generate_outreach(lead_id)
-    except Exception as e:
-        message = None
+    message = custom_body or None
+    if not message:
+        try:
+            message = await service.generate_outreach(lead_id)
+        except Exception as e:
+            message = None
     
     if not message:
         # Fallback: use stored outbound body if available
         message = (lead.data or {}).get("outbound_body", "")
     
-    subject = f"Partnership Opportunity - {lead.company or 'Your Company'}"
+    subject = custom_subject or f"Partnership Opportunity - {lead.company or 'Your Company'}"
     
     # Record in conversation regardless of send outcome
     conv = list((lead.data or {}).get("conversation") or [])

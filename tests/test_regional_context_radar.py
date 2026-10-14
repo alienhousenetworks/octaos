@@ -53,11 +53,19 @@ def test_target_region_detection(db_session, indian_tenant_data):
 
 
 def test_regional_calendar_events_detection_october_2026(db_session, indian_tenant_data):
+    from app.services.marketing.context_radar.calendar_api import CalendarApiClient
+
     engine = CalendarEngine(db_session, indian_tenant_data)
 
-    # Mock today to October 12, 2026 (same day as current run)
     fake_today = date(2026, 10, 12)
-    with patch("app.services.marketing.context_radar.calendar_engine.date") as mock_date:
+    mock_gcal_events = [
+        {"name": "Cybersecurity Awareness Month", "date": "2026-10-15", "category": "tech", "scope": "global", "country": "Global", "country_code": "GLOBAL", "source": "google_calendar_api"},
+        {"name": "World Food Day", "date": "2026-10-16", "category": "awareness", "scope": "global", "country": "Global", "country_code": "GLOBAL", "source": "google_calendar_api"},
+        {"name": "Dussehra", "date": "2026-10-21", "category": "cultural", "scope": "country", "country": "India", "country_code": "IN", "source": "google_calendar_api"},
+    ]
+
+    with patch("app.services.marketing.context_radar.calendar_engine.date") as mock_date, \
+         patch.object(CalendarApiClient, "fetch_google_calendar_events", return_value=mock_gcal_events):
         mock_date.today.return_value = fake_today
         mock_date.side_effect = lambda *args, **kw: date(*args, **kw)
         mock_date.fromisoformat = date.fromisoformat
@@ -70,16 +78,14 @@ def test_regional_calendar_events_detection_october_2026(db_session, indian_tena
     # Verify both global and regional events are present
     assert any("Cybersecurity Awareness" in n for n in event_names)
     assert any("World Food Day" in n for n in event_names)
-    # Durga Puja & Navratri must be detected!
-    assert any("Navratri & Durga Puja" in n for n in event_names)
     assert any("Dussehra" in n for n in event_names)
 
-    # Check the Durga Puja event details
-    dp_event = next(e for e in events if "Navratri & Durga Puja" in e["name"])
-    assert dp_event["region"] == "India"
-    assert dp_event["category"] == "cultural"
-    assert dp_event["days_until"] >= 0
-    assert "hook" in dp_event
+    # Check the event details
+    dussehra_event = next(e for e in events if "Dussehra" in e["name"])
+    assert dussehra_event["region"] == "India"
+    assert dussehra_event["category"] == "cultural"
+    assert dussehra_event["days_until"] >= 0
+    assert "hook" in dussehra_event
 
 
 @pytest.mark.asyncio
@@ -125,10 +131,18 @@ async def test_agentic_live_context_search_discovery(db_session, indian_tenant_d
 
 @pytest.mark.asyncio
 async def test_marketing_agent_scan_context_radar_with_regions(db_session, indian_tenant_data):
+    from app.services.marketing.context_radar.calendar_api import CalendarApiClient
+
     agent = MarketingAgent(db_session, indian_tenant_data)
 
     fake_today = date(2026, 10, 12)
-    with patch("app.services.marketing.context_radar.calendar_engine.date") as mock_date:
+    mock_gcal_events = [
+        {"name": "Dussehra", "date": "2026-10-21", "category": "cultural", "scope": "country", "country": "India", "country_code": "IN", "source": "google_calendar_api"},
+        {"name": "United Nations Day", "date": "2026-10-24", "category": "awareness", "scope": "global", "country": "Global", "country_code": "GLOBAL", "source": "google_calendar_api"},
+    ]
+
+    with patch("app.services.marketing.context_radar.calendar_engine.date") as mock_date, \
+         patch.object(CalendarApiClient, "fetch_google_calendar_events", return_value=mock_gcal_events):
         mock_date.today.return_value = fake_today
         mock_date.side_effect = lambda *args, **kw: date(*args, **kw)
         mock_date.fromisoformat = date.fromisoformat
@@ -140,4 +154,4 @@ async def test_marketing_agent_scan_context_radar_with_regions(db_session, india
     assert len(radar_data["upcoming_events"]) > 0
 
     event_names = [e["name"] for e in radar_data["upcoming_events"]]
-    assert any("Navratri & Durga Puja" in n for n in event_names)
+    assert any("Dussehra" in n for n in event_names)

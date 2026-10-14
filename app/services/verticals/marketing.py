@@ -26,7 +26,7 @@ class MarketingService:
         self.tenant_id = tenant_id
         self.llm = LLMGateway(db, tenant_id)
 
-    async def generate_post(self, topic: str, platform: str = "linkedin"):
+    async def write_post_text(self, topic: str, platform: str = "linkedin") -> str:
         if platform == "instagram":
             system_prompt = (
                 "You are a professional Instagram content creator. "
@@ -61,8 +61,10 @@ class MarketingService:
         )
 
         content = await self.llm.complete(prompt, system_prompt=system_prompt)
-        content = _clean_post_content(content)
+        return _clean_post_content(content)
 
+    async def generate_post(self, topic: str, platform: str = "linkedin"):
+        content = await self.write_post_text(topic, platform)
         post = ContentPost(
             tenant_id=self.tenant_id,
             platform=platform,

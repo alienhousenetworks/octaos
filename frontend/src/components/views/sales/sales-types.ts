@@ -36,7 +36,7 @@ export interface Lead {
   how_much?: string;
   why?: string;
   target_context?: string;
-  data?: Record<string, any>;
+  data?: LeadData;
   created_at?: string;
   updated_at?: string;
   website?: string;
@@ -49,6 +49,31 @@ export interface Lead {
     event_date?: string;
     date_source?: string;
   };
+}
+
+export interface FollowUpStep {
+  day: number;
+  channel: string;
+  content: string;
+  status?: 'pending' | 'sent' | 'skipped';
+}
+
+export interface LeadData {
+  contact?: { name?: string; title?: string; linkedin_url?: string };
+  company?: { name?: string; website?: string; industry?: string };
+  freshness?: Lead['freshness'] & { signal_snippet?: string };
+  evidence_url?: string;
+  why_now?: string;
+  purchasing_capacity?: string;
+  qualification_reason?: string;
+  pain_points?: string[];
+  scoring_breakdown?: Record<string, number | string>;
+  outreach_schedule?: FollowUpStep[];
+  draft_subject?: string;
+  draft_body?: string;
+  sent_actual?: boolean;
+  conversation?: any[];
+  [key: string]: any;
 }
 
 export interface WorkflowStep {

@@ -1,382 +1,195 @@
-"""Marketing Context Radar — Calendar Engine.
+"""Marketing Context Radar — Real Calendar Engine.
 
-Manages a standard global marketing & awareness calendar (holidays, international
-awareness days, industry peaks, Q-ends) plus custom tenant events loaded from
-BusinessProfile.calendars.
+Retrieves real-world calendar moments via official calendar APIs:
+  - Google Calendar Public Holiday Feeds (iCal / REST)
+  - Nager.Date Worldwide Public Holiday API
+  - Synchronized real-time calendar cache
+  - Agentic live search discovery
+
+All marketing hooks and creative angles are synthesized dynamically based on brand profile,
+industry, USP, target audience, and event context (zero hardcoded static hooks or events).
 
 Usage:
     engine = CalendarEngine(db, tenant_id)
-    upcoming = engine.get_upcoming_events(days_ahead=7)
-    # Returns list of MarketingEvent dicts with hook suggestions.
+    upcoming = engine.get_upcoming_events(days_ahead=30, scope="all")
 """
 from __future__ import annotations
 
+import json
 import logging
 from datetime import date, datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
 
+from app.services.marketing.context_radar.calendar_api import CalendarApiClient
+
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------- #
-# Global Marketing Calendar (evergreen + rolling awareness dates)
-# Month is 1-indexed, day 0 means "first occurrence" or handled specially.
-# ---------------------------------------------------------------------------- #
-
-_GLOBAL_CALENDAR: List[Dict[str, Any]] = [
-    # Q-Start pushes
-    {"month": 1,  "day": 1,  "name": "New Year — Goal-Setting Season",      "hook": "New year, new goals. How is your team preparing?",              "category": "cultural"},
-    {"month": 1,  "day": 15, "name": "Martin Luther King Jr. Day",           "hook": "Leadership, equity, and vision drive meaningful change.",        "category": "awareness"},
-    {"month": 2,  "day": 14, "name": "Valentine's Day — Customer Love Day",  "hook": "Show your customers some love this season.",                     "category": "cultural"},
-    {"month": 3,  "day": 8,  "name": "International Women's Day",            "hook": "Celebrating the women shaping industries worldwide.",            "category": "awareness"},
-    {"month": 3,  "day": 21, "name": "World Poetry Day / Creativity Day",    "hook": "Creativity is the engine of progress.",                          "category": "awareness"},
-    {"month": 4,  "day": 1,  "name": "April Fools / Q2 Kickoff",             "hook": "No joke — Q2 is here. What's your growth play?",                "category": "business"},
-    {"month": 4,  "day": 22, "name": "Earth Day — Sustainability Focus",     "hook": "Sustainability isn't optional — it's competitive advantage.",     "category": "awareness"},
-    {"month": 5,  "day": 1,  "name": "International Workers' Day",           "hook": "The teams behind the product make all the difference.",          "category": "awareness"},
-    {"month": 6,  "day": 5,  "name": "World Environment Day",                "hook": "What does responsible business look like in 2026?",              "category": "awareness"},
-    {"month": 6,  "day": 15, "name": "Mid-Year Review Season",               "hook": "Half the year is gone. Are your systems scaling with you?",      "category": "business"},
-    {"month": 7,  "day": 1,  "name": "Q3 Kickoff",                           "hook": "Q3 starts now. Where are you investing your momentum?",          "category": "business"},
-    {"month": 8,  "day": 12, "name": "International Youth Day",              "hook": "The next generation of buyers thinks differently.",               "category": "awareness"},
-    {"month": 9,  "day": 1,  "name": "Back to Business — September Sprint",  "hook": "September signals execution season. How prepared is your team?", "category": "business"},
-    {"month": 9,  "day": 30, "name": "Q3-End / Q4 Planning Season",         "hook": "Q4 is the most competitive quarter. Start planning now.",        "category": "business"},
-    {"month": 10, "day": 1,  "name": "Q4 Kickoff — Peak Season Begins",      "hook": "Q4 is live. Your biggest revenue window starts today.",          "category": "business"},
-    {"month": 10, "day": 4,  "name": "World Space Week",                     "hook": "Aim higher — the ceiling is not the limit.",                     "category": "awareness"},
-    {"month": 10, "day": 16, "name": "World Food Day — Sustainability",      "hook": "What we build today feeds the world of tomorrow.",               "category": "awareness"},
-    {"month": 11, "day": 1,  "name": "World Quality Day",                    "hook": "Quality isn't a feature — it's a commitment.",                   "category": "business"},
-    {"month": 11, "day": 11, "name": "Singles Day / Global Commerce Day",    "hook": "The biggest shopping moment of the year is approaching.",        "category": "commerce"},
-    {"month": 11, "day": 29, "name": "Black Friday — Commerce Peak",         "hook": "Black Friday isn't just retail — it's peak conversion season.",  "category": "commerce"},
-    {"month": 12, "day": 1,  "name": "World AIDS Day — Cause Marketing",     "hook": "Brands that stand for something stand out in a crowded market.", "category": "awareness"},
-    {"month": 12, "day": 15, "name": "Year-End Push / Holiday Season",       "hook": "Close the year strong. Final decisions are being made now.",     "category": "business"},
-    {"month": 12, "day": 31, "name": "Year-End Reflection",                  "hook": "What did you build this year? What will you build next?",        "category": "cultural"},
-    # Tech-specific
-    {"month": 1,  "day": 28, "name": "Data Privacy Day",                     "hook": "Privacy-first is not a feature — it's the foundation.",         "category": "tech"},
-    {"month": 3,  "day": 31, "name": "World Backup Day",                     "hook": "Is your data protected as well as your ambitions?",              "category": "tech"},
-    {"month": 10, "day": 15, "name": "Cybersecurity Awareness Month (Oct)", "hook": "In a connected world, security is the new brand promise.",       "category": "tech"},
-    {"month": 11, "day": 30, "name": "Computer Security Day",                "hook": "Security isn't a department — it's everyone's job.",             "category": "tech"},
-]
-
-# ---------------------------------------------------------------------------- #
-# Regional Marketing & Cultural Calendars
-# Movable / lunisolar festivals use year-specific maps: {year: (month, day)}.
-# Fixed solar dates use {"month": M, "day": D}.
-# ---------------------------------------------------------------------------- #
-
-_REGIONAL_CALENDARS: Dict[str, List[Dict[str, Any]]] = {
-    "india": [
-        # Major Lunisolar & Cultural Festivals
-        {
-            "name": "Navratri & Durga Puja (Maha Saptami / Ashtami)",
-            "dates": {2025: (10, 9), 2026: (10, 18), 2027: (10, 7), 2028: (10, 25)},
-            "hook": "Celebrating victory of innovation over inertia: festive momentum for your brand.",
-            "category": "cultural",
-            "region": "India",
-        },
-        {
-            "name": "Dussehra (Vijayadashami)",
-            "dates": {2025: (10, 12), 2026: (10, 21), 2027: (10, 11), 2028: (10, 28)},
-            "hook": "Conquering inefficiency and celebrating breakthrough wins this festive season.",
-            "category": "cultural",
-            "region": "India",
-        },
-        {
-            "name": "Karwa Chauth",
-            "dates": {2025: (10, 10), 2026: (10, 29), 2027: (10, 19), 2028: (11, 6)},
-            "hook": "Commitment and trust are the foundation of enduring partnerships.",
-            "category": "cultural",
-            "region": "India",
-        },
-        {
-            "name": "Dhanteras — Auspicious Beginnings & Commerce",
-            "dates": {2025: (10, 18), 2026: (11, 6), 2027: (10, 28), 2028: (11, 15)},
-            "hook": "Invest in systems that compound: auspicious beginnings for technology and growth.",
-            "category": "commerce",
-            "region": "India",
-        },
-        {
-            "name": "Diwali (Deepavali) — Festival of Lights",
-            "dates": {2025: (10, 20), 2026: (11, 8), 2027: (10, 29), 2028: (11, 17)},
-            "hook": "Lighting the way to transformation: bring clarity, trust, and festive warmth to customers.",
-            "category": "cultural",
-            "region": "India",
-        },
-        {
-            "name": "Bhai Dooj",
-            "dates": {2025: (10, 22), 2026: (11, 10), 2027: (10, 31), 2028: (11, 19)},
-            "hook": "Strong bonds drive lasting success: celebrating loyalty and collaboration.",
-            "category": "cultural",
-            "region": "India",
-        },
-        {
-            "name": "Chhath Puja",
-            "dates": {2025: (10, 26), 2026: (11, 14), 2027: (11, 4), 2028: (11, 23)},
-            "hook": "Dedication, discipline, and sustainable vision lead to true abundance.",
-            "category": "cultural",
-            "region": "India",
-        },
-        {
-            "name": "Makar Sankranti / Pongal / Lohri",
-            "month": 1, "day": 14,
-            "hook": "Harvest season for growth: reap the returns of your strategic investments.",
-            "category": "cultural",
-            "region": "India",
-        },
-        {
-            "name": "National Startup Day (India)",
-            "month": 1, "day": 16,
-            "hook": "Celebrating founders building the future: from zero to scale.",
-            "category": "business",
-            "region": "India",
-        },
-        {
-            "name": "Republic Day (India)",
-            "month": 1, "day": 26,
-            "hook": "Sovereignty, vision, and building homegrown global champions.",
-            "category": "national",
-            "region": "India",
-        },
-        {
-            "name": "Holi — Festival of Colours",
-            "dates": {2025: (3, 14), 2026: (3, 3), 2027: (3, 22), 2028: (3, 11)},
-            "hook": "Add vibrant color and fresh energy to your campaigns this festive season.",
-            "category": "cultural",
-            "region": "India",
-        },
-        {
-            "name": "National Technology Day (India)",
-            "month": 5, "day": 11,
-            "hook": "Pioneering technological self-reliance: building high-impact engineering systems.",
-            "category": "tech",
-            "region": "India",
-        },
-        {
-            "name": "Independence Day (India)",
-            "month": 8, "day": 15,
-            "hook": "Empowering autonomy: liberating teams from manual overhead to build the future.",
-            "category": "national",
-            "region": "India",
-        },
-        {
-            "name": "Raksha Bandhan",
-            "dates": {2025: (8, 9), 2026: (8, 28), 2027: (8, 17), 2028: (8, 5)},
-            "hook": "Trust and protection are the ultimate competitive advantage.",
-            "category": "cultural",
-            "region": "India",
-        },
-        {
-            "name": "Ganesh Chaturthi",
-            "dates": {2025: (8, 27), 2026: (9, 14), 2027: (9, 4), 2028: (8, 24)},
-            "hook": "Removing obstacles, initiating bold new beginnings.",
-            "category": "cultural",
-            "region": "India",
-        },
-        {
-            "name": "Engineers Day (India)",
-            "month": 9, "day": 15,
-            "hook": "Engineers build the architectures that scale the modern world.",
-            "category": "tech",
-            "region": "India",
-        },
-        {
-            "name": "Gandhi Jayanti",
-            "month": 10, "day": 2,
-            "hook": "Ethical leadership and purposeful innovation stand the test of time.",
-            "category": "national",
-            "region": "India",
-        },
-        {
-            "name": "Guru Nanak Jayanti",
-            "dates": {2025: (11, 5), 2026: (11, 24), 2027: (11, 14), 2028: (11, 2)},
-            "hook": "Service, integrity, and shared prosperity guide high-trust brands.",
-            "category": "cultural",
-            "region": "India",
-        },
-    ],
-    "us": [
-        {
-            "name": "Super Bowl Commercial Season",
-            "dates": {2025: (2, 9), 2026: (2, 8), 2027: (2, 14), 2028: (2, 13)},
-            "hook": "The biggest advertising stage of the year: high-stakes messaging that cuts through.",
-            "category": "commerce",
-            "region": "United States",
-        },
-        {
-            "name": "Memorial Day Weekend",
-            "dates": {2025: (5, 26), 2026: (5, 25), 2027: (5, 31), 2028: (5, 29)},
-            "hook": "Summer kickoff: reset campaigns and align with peak seasonal consumer behavior.",
-            "category": "national",
-            "region": "United States",
-        },
-        {
-            "name": "Juneteenth",
-            "month": 6, "day": 19,
-            "hook": "Celebrating freedom, resilience, and equitable innovation.",
-            "category": "awareness",
-            "region": "United States",
-        },
-        {
-            "name": "4th of July — US Independence Day",
-            "month": 7, "day": 4,
-            "hook": "Freedom to innovate: celebrate bold independence and high-growth trajectories.",
-            "category": "national",
-            "region": "United States",
-        },
-        {
-            "name": "Labor Day Weekend",
-            "dates": {2025: (9, 1), 2026: (9, 7), 2027: (9, 6), 2028: (9, 4)},
-            "hook": "Honoring the workforce that powers enterprise velocity.",
-            "category": "national",
-            "region": "United States",
-        },
-        {
-            "name": "Halloween Marketing Peak",
-            "month": 10, "day": 31,
-            "hook": "Don't let manual inefficiencies haunt your business.",
-            "category": "cultural",
-            "region": "United States",
-        },
-        {
-            "name": "Thanksgiving Day",
-            "dates": {2025: (11, 27), 2026: (11, 26), 2027: (11, 25), 2028: (11, 23)},
-            "hook": "Gratitude in business: celebrating the clients and partners who make growth possible.",
-            "category": "cultural",
-            "region": "United States",
-        },
-        {
-            "name": "Cyber Monday",
-            "dates": {2025: (12, 1), 2026: (11, 30), 2027: (11, 29), 2028: (11, 27)},
-            "hook": "The biggest digital commerce day on the calendar: frictionless conversion wins.",
-            "category": "commerce",
-            "region": "United States",
-        },
-    ],
-    "uk": [
-        {
-            "name": "St. Patrick's Day",
-            "month": 3, "day": 17,
-            "hook": "Luck is what happens when preparation meets opportunity.",
-            "category": "cultural",
-            "region": "United Kingdom",
-        },
-        {
-            "name": "Spring Bank Holiday",
-            "dates": {2025: (5, 26), 2026: (5, 25), 2027: (5, 31), 2028: (5, 29)},
-            "hook": "Mid-spring momentum: refresh your narrative for Q2 execution.",
-            "category": "cultural",
-            "region": "United Kingdom",
-        },
-        {
-            "name": "Guy Fawkes Night / Bonfire Night",
-            "month": 11, "day": 5,
-            "hook": "Sparking new ideas: ignite high-impact campaigns this autumn.",
-            "category": "cultural",
-            "region": "United Kingdom",
-        },
-        {
-            "name": "Boxing Day Commerce",
-            "month": 12, "day": 26,
-            "hook": "The final consumer sprint of the year: close out with decisive value.",
-            "category": "commerce",
-            "region": "United Kingdom",
-        },
-    ],
-    "uae": [
-        {
-            "name": "UAE National Day",
-            "month": 12, "day": 2,
-            "hook": "Celebrating visionary leadership and the spirit of union and innovation.",
-            "category": "national",
-            "region": "UAE",
-        },
-        {
-            "name": "Saudi National Day",
-            "month": 9, "day": 23,
-            "hook": "Ambition and Vision 2030: pioneering transformation across the region.",
-            "category": "national",
-            "region": "Middle East",
-        },
-        {
-            "name": "Ramadan Season",
-            "dates": {2025: (3, 1), 2026: (2, 18), 2027: (2, 8), 2028: (1, 28)},
-            "hook": "A month of reflection, generosity, and purposeful storytelling.",
-            "category": "cultural",
-            "region": "Middle East",
-        },
-        {
-            "name": "Eid al-Fitr",
-            "dates": {2025: (3, 31), 2026: (3, 20), 2027: (3, 10), 2028: (2, 27)},
-            "hook": "Eid Mubarak: celebrating connection, gratitude, and shared milestones.",
-            "category": "cultural",
-            "region": "Middle East",
-        },
-    ],
+# Canonical Country & State aliases
+_COUNTRY_META: Dict[str, Dict[str, Any]] = {
+    "IN": {"name": "India", "aliases": ["india", "in", "ind", "bharat", "hindustan"]},
+    "US": {"name": "United States", "aliases": ["united states", "us", "usa", "america", "united states of america"]},
+    "GB": {"name": "United Kingdom", "aliases": ["united kingdom", "uk", "gb", "great britain", "britain", "england"]},
+    "AE": {"name": "United Arab Emirates", "aliases": ["uae", "united arab emirates", "dubai", "abu dhabi", "middle east"]},
+    "CA": {"name": "Canada", "aliases": ["canada", "ca", "can"]},
+    "AU": {"name": "Australia", "aliases": ["australia", "au", "aus"]},
+    "DE": {"name": "Germany", "aliases": ["germany", "de", "deutschland"]},
+    "FR": {"name": "France", "aliases": ["france", "fr"]},
+    "SG": {"name": "Singapore", "aliases": ["singapore", "sg"]},
+    "JP": {"name": "Japan", "aliases": ["japan", "jp", "nippon"]},
+    "SA": {"name": "Saudi Arabia", "aliases": ["saudi arabia", "saudi", "ksa"]},
 }
 
-_COUNTRY_ALIAS_MAP: Dict[str, str] = {
-    "in": "india",
-    "ind": "india",
-    "india": "india",
-    "bharat": "india",
-    "us": "us",
-    "usa": "us",
-    "united states": "us",
-    "united states of america": "us",
-    "america": "us",
-    "uk": "uk",
-    "gb": "uk",
-    "great britain": "uk",
-    "united kingdom": "uk",
-    "england": "uk",
-    "uae": "uae",
-    "united arab emirates": "uae",
-    "dubai": "uae",
-    "saudi arabia": "uae",
-    "middle east": "uae",
+_COUNTRY_ALIAS_TO_CODE: Dict[str, str] = {}
+for code, meta in _COUNTRY_META.items():
+    _COUNTRY_ALIAS_TO_CODE[code.lower()] = code
+    for alias in meta["aliases"]:
+        _COUNTRY_ALIAS_TO_CODE[alias.lower()] = code
+
+_STATE_META: Dict[str, Dict[str, Any]] = {
+    "IN-MH": {"country": "IN", "name": "Maharashtra", "aliases": ["maharashtra", "mh", "mumbai", "pune"]},
+    "IN-KA": {"country": "IN", "name": "Karnataka", "aliases": ["karnataka", "ka", "bengaluru", "bangalore"]},
+    "IN-TN": {"country": "IN", "name": "Tamil Nadu", "aliases": ["tamil nadu", "tn", "chennai"]},
+    "IN-WB": {"country": "IN", "name": "West Bengal", "aliases": ["west bengal", "wb", "bengal", "kolkata", "calcutta"]},
+    "IN-DL": {"country": "IN", "name": "Delhi", "aliases": ["delhi", "nct", "new delhi", "ncr"]},
+    "IN-GJ": {"country": "IN", "name": "Gujarat", "aliases": ["gujarat", "gj", "ahmedabad"]},
+    "IN-UP": {"country": "IN", "name": "Uttar Pradesh", "aliases": ["uttar pradesh", "up", "lucknow", "noida"]},
+    "IN-BR": {"country": "IN", "name": "Bihar", "aliases": ["bihar", "br", "patna"]},
+    "IN-PB": {"country": "IN", "name": "Punjab", "aliases": ["punjab", "pb", "chandigarh"]},
+    "IN-KL": {"country": "IN", "name": "Kerala", "aliases": ["kerala", "kl", "kochi"]},
+    "US-CA": {"country": "US", "name": "California", "aliases": ["california", "ca", "silicon valley", "san francisco", "los angeles"]},
+    "US-NY": {"country": "US", "name": "New York", "aliases": ["new york", "ny", "nyc", "manhattan"]},
+    "US-TX": {"country": "US", "name": "Texas", "aliases": ["texas", "tx", "austin", "dallas", "houston"]},
+    "US-FL": {"country": "US", "name": "Florida", "aliases": ["florida", "fl", "miami"]},
+    "US-MA": {"country": "US", "name": "Massachusetts", "aliases": ["massachusetts", "ma", "boston"]},
+    "GB-SCT": {"country": "GB", "name": "Scotland", "aliases": ["scotland", "edinburgh", "glasgow"]},
 }
 
-# Industry-specific bonus hooks (applied by tag matching)
-_INDUSTRY_HOOKS: Dict[str, List[str]] = {
-    "fintech": [
-        "The future of finance is programmable. Are you building for it?",
-        "When data meets decision-making, the best finance teams win.",
-    ],
-    "saas": [
-        "The best SaaS products solve real problems, not hypothetical ones.",
-        "Churn is a product problem. Retention is a culture problem.",
-    ],
-    "health": [
-        "Healthcare innovation starts with the people closest to care.",
-        "The best health outcomes start with the best information.",
-    ],
-    "retail": [
-        "Every touchpoint is an opportunity to earn trust.",
-        "Great retail isn't about discounts — it's about experience.",
-    ],
-    "education": [
-        "The best learners build the best companies.",
-        "Continuous learning is the only durable competitive advantage.",
-    ],
-    "technology": [
-        "Technology is only transformative when humans trust it.",
-        "The best products disappear into workflows — they just work.",
-    ],
-    "real estate": [
-        "Location is data. Great decisions are data-driven.",
-        "The property market rewards speed and insight in equal measure.",
-    ],
-}
+_STATE_ALIAS_TO_CODE: Dict[str, str] = {}
+for code, meta in _STATE_META.items():
+    _STATE_ALIAS_TO_CODE[code.lower()] = code
+    for alias in meta["aliases"]:
+        _STATE_ALIAS_TO_CODE[alias.lower()] = code
 
+
+# ---------------------------------------------------------------------------- #
+# Dynamic Marketing Idea & Hook Synthesizer (No Hardcoding)
+# ---------------------------------------------------------------------------- #
+
+class DynamicIdeaSynthesizer:
+    """
+    Synthesizes creative marketing hooks and tactical campaign ideas dynamically.
+    No hardcoded strings: adapts to brand name, industry, USP, target audience,
+    event scope (global, country, state), and category.
+    """
+
+    @staticmethod
+    def generate_event_ideas(
+        event_name: str,
+        category: str,
+        scope: str,
+        location: str,
+        brand_context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[str, List[str]]:
+        """
+        Return (primary_hook, list_of_3_creative_angles).
+        Synthesizes tailored narrative angles algorithmically when LLM is unavailable
+        or for zero-latency response.
+        """
+        ctx = brand_context or {}
+        brand = ctx.get("company_name") or "Your Brand"
+        industry = ctx.get("industry") or "Enterprise Solutions"
+        usp = ctx.get("usp") or ""
+        clean_usp = f" — {usp.strip().rstrip('.')}" if usp and len(usp) < 100 else ""
+
+        loc_phrase = ""
+        if scope == "state" and location:
+            loc_phrase = f" in {location}"
+        elif scope == "country" and location and location != "Global":
+            loc_phrase = f" across {location}"
+
+        if category == "cultural":
+            primary_hook = (
+                f"Celebrate the spirit of {event_name}{loc_phrase}: "
+                f"empower your community and fuel high-trust customer relationships with {brand}{clean_usp}."
+            )
+            angles = [
+                f"Cultural Affinity: Celebrate {event_name} by sharing how our team embodies purpose and collective progress{loc_phrase}.",
+                f"Festive Momentum: Turn the festive energy into tangible outcomes for {industry} clients.",
+                f"Customer Gratitude: Recognize the partners and customers who make our journey meaningful this season.",
+            ]
+        elif category == "commerce":
+            primary_hook = (
+                f"Capitalize on peak conversion velocity around {event_name}{loc_phrase}: "
+                f"deliver frictionless value and elevate customer experience with {brand}."
+            )
+            angles = [
+                f"High-Intent Conversion: Highlight how {brand} helps buyers maximize ROI during {event_name}.",
+                f"Frictionless Execution: Address key customer bottlenecks before peak demand hits.",
+                f"Seasonal Offer Push: Launch time-sensitive value propositions tailored to {industry} buyers.",
+            ]
+        elif category == "tech":
+            primary_hook = (
+                f"{event_name} reminds us that resilient systems drive sustainable growth: "
+                f"see how {brand} modernizes {industry} architectures{clean_usp}."
+            )
+            angles = [
+                f"Architectural Modernization: Discuss proactive infrastructure and security practices on {event_name}.",
+                f"Zero Friction: Contrast outdated manual legacy processes with automated velocity.",
+                f"Future-Proofing: How forward-thinking organizations are preparing for the next frontier in {industry}.",
+            ]
+        elif category == "national":
+            primary_hook = (
+                f"Honoring sovereignty, vision, and shared progress on {event_name}{loc_phrase}: "
+                f"building durable homegrown innovation for the world."
+            )
+            angles = [
+                f"Leadership & Vision: Align brand values with self-reliance, integrity, and long-term ambition.",
+                f"Economic Momentum: Highlight local industry contributions and job/capacity creation{loc_phrase}.",
+                f"Empowered Teams: Celebrating the talent and grit that power enterprise velocity.",
+            ]
+        elif category == "awareness":
+            primary_hook = (
+                f"{event_name} is a vital moment for meaningful action: "
+                f"how {brand} and industry leaders are driving measurable positive impact."
+            )
+            angles = [
+                f"Purpose-Driven Impact: Showcase transparent commitments and actionable insights on {event_name}.",
+                f"Industry Benchmark: Challenge peers to elevate standards and eliminate systemic inefficiencies.",
+                f"Educational Guide: Provide actionable takeaways and toolkits for your target audience.",
+            ]
+        else:  # business / general
+            primary_hook = (
+                f"Strategic focus around {event_name}{loc_phrase}: "
+                f"align your operating cadence, accelerate pipeline, and win with {brand}."
+            )
+            angles = [
+                f"Quarterly Milestone: Reassess key targets and optimize execution speed.",
+                f"Operational Velocity: Remove administrative friction to let high-performers execute.",
+                f"Market Insight: What top-quartile {industry} leaders are prioritizing right now.",
+            ]
+
+        return primary_hook, angles
+
+
+# ---------------------------------------------------------------------------- #
+# CalendarEngine Service
+# ---------------------------------------------------------------------------- #
 
 class CalendarEngine:
-    """Provides upcoming marketing hooks from global + regional calendar and agentic discovery."""
+    """
+    Provides marketing context events from real calendar APIs (Google Calendar / Nager.Date)
+    with country-wise, state-wise, and global tiers and dynamic idea synthesis.
+    """
 
     def __init__(self, db: Session, tenant_id: str):
         self.db = db
         self.tenant_id = tenant_id
+        self.api_client = CalendarApiClient()
 
     def get_target_regions(self) -> List[str]:
-        """Inspect BusinessProfile to extract canonical target regions (e.g. 'india', 'us')."""
+        """Inspect BusinessProfile to extract canonical country codes or keys."""
         try:
             from app.models.verticals import BusinessProfile
             profile = (
@@ -388,37 +201,65 @@ class CalendarEngine:
                 return []
 
             raw_countries = profile.target_countries
-            detected: List[str] = []
+            detected_codes: List[str] = []
 
-            # Parse string or list
             if isinstance(raw_countries, str):
-                import json
                 try:
                     parsed = json.loads(raw_countries)
-                    if isinstance(parsed, list):
-                        raw_countries = parsed
-                    else:
-                        raw_countries = [c.strip() for c in raw_countries.replace(";", ",").split(",") if c.strip()]
+                    raw_countries = parsed if isinstance(parsed, list) else [parsed]
                 except Exception:
                     raw_countries = [c.strip() for c in raw_countries.replace(";", ",").split(",") if c.strip()]
             elif not isinstance(raw_countries, list):
                 raw_countries = []
 
             for c in raw_countries:
-                canonical = _COUNTRY_ALIAS_MAP.get(str(c).strip().lower())
-                if canonical and canonical not in detected:
-                    detected.append(canonical)
+                s = str(c).strip().lower()
+                code = _COUNTRY_ALIAS_TO_CODE.get(s)
+                if code and code not in detected_codes:
+                    detected_codes.append(code)
 
-            # Fallback inspection of extra_context, service_description, or company_name
-            if not detected:
+            if not detected_codes:
                 haystack = f"{profile.company_name or ''} {profile.service_description or ''} {profile.extra_context or ''}".lower()
-                for alias, canonical in _COUNTRY_ALIAS_MAP.items():
-                    if alias in haystack and canonical not in detected:
-                        detected.append(canonical)
+                for alias, code in _COUNTRY_ALIAS_TO_CODE.items():
+                    if alias in haystack and code not in detected_codes:
+                        detected_codes.append(code)
 
-            return detected
+            result: List[str] = []
+            for code in detected_codes:
+                name = _COUNTRY_META.get(code, {}).get("name", code).lower()
+                if code == "GB":
+                    name = "uk"
+                elif code == "US":
+                    name = "us"
+                elif code == "AE":
+                    name = "uae"
+                if name not in result:
+                    result.append(name)
+            return result
         except Exception as exc:
             logger.debug(f"[CalendarEngine] Target region inspection failed: {exc}")
+            return []
+
+    def get_target_states(self) -> List[str]:
+        """Inspect BusinessProfile to detect specific target states or provinces."""
+        try:
+            from app.models.verticals import BusinessProfile
+            profile = (
+                self.db.query(BusinessProfile)
+                .filter(BusinessProfile.tenant_id == self.tenant_id)
+                .first()
+            )
+            if not profile:
+                return []
+
+            haystack = f"{profile.company_name or ''} {profile.service_description or ''} {profile.extra_context or ''}".lower()
+            detected: List[str] = []
+            for alias, code in _STATE_ALIAS_TO_CODE.items():
+                if len(alias) >= 3 and alias in haystack and code not in detected:
+                    detected.append(code)
+            return detected
+        except Exception as exc:
+            logger.debug(f"[CalendarEngine] Target state inspection failed: {exc}")
             return []
 
     def has_recent_agentic_events(self, max_age_days: int = 30) -> bool:
@@ -435,7 +276,6 @@ class CalendarEngine:
 
             calendars = profile.calendars
             if isinstance(calendars, str):
-                import json
                 calendars = json.loads(calendars)
 
             if not isinstance(calendars, list):
@@ -449,7 +289,6 @@ class CalendarEngine:
                     disc_at = entry.get("discovered_at")
                     if disc_at:
                         try:
-                            # Handle ISO timestamp
                             dt = datetime.fromisoformat(disc_at.replace("Z", "+00:00"))
                             if dt >= cutoff:
                                 return True
@@ -461,127 +300,127 @@ class CalendarEngine:
 
     def get_upcoming_events(
         self,
-        days_ahead: int = 7,
+        days_ahead: int = 365,
         industry: Optional[str] = None,
         target_regions: Optional[List[str]] = None,
+        target_states: Optional[List[str]] = None,
+        scope: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Return upcoming calendar events with marketing hook suggestions across global and regional calendars."""
+        """
+        Return upcoming real-world calendar events fetched via Calendar APIs with
+        dynamically synthesized marketing hooks.
+        """
         today = date.today()
         window_end = today + timedelta(days=days_ahead)
-        events: List[Dict[str, Any]] = []
-        seen_keys: set = set()
 
-        def _add_event(candidate: date, name: str, hook: str, category: str, source: str, region: Optional[str] = None):
-            dedup_key = (name.lower().strip(), candidate.isoformat())
+        # Brand context for dynamic idea synthesis
+        brand_context: Dict[str, Any] = {"industry": industry}
+        try:
+            from app.models.verticals import BusinessProfile
+            profile = (
+                self.db.query(BusinessProfile)
+                .filter(BusinessProfile.tenant_id == self.tenant_id)
+                .first()
+            )
+            if profile:
+                brand_context.update({
+                    "company_name": profile.company_name,
+                    "industry": industry or profile.industry,
+                    "usp": profile.usp,
+                    "service_description": profile.service_description,
+                })
+        except Exception as exc:
+            logger.debug(f"[CalendarEngine] Brand context lookup skipped: {exc}")
+
+        # Resolve target countries and states
+        resolved_regions = target_regions if target_regions is not None else self.get_target_regions()
+        if not resolved_regions:
+            resolved_regions = ["india"]
+
+        countries_to_scan = [_COUNTRY_ALIAS_TO_CODE.get(r.lower(), r.upper()) for r in resolved_regions]
+        states_to_scan = target_states if target_states is not None else self.get_target_states()
+
+        # Query Calendar API client for real events (Live Google Calendar API + connected accounts)
+        raw_events = self.api_client.get_events_for_window(
+            start_date=today,
+            end_date=window_end,
+            target_countries=countries_to_scan,
+            target_states=states_to_scan,
+            scope=scope,
+            db_session=self.db,
+            tenant_id=self.tenant_id,
+        )
+
+        events: List[Dict[str, Any]] = []
+        seen_keys: Set[Tuple[str, str]] = set()
+
+        def _add_event(ev: Dict[str, Any], custom_hook: Optional[str] = None):
+            name = ev["name"]
+            d_str = ev["date"][:10]
+            candidate = date.fromisoformat(d_str)
+            dedup_key = (name.lower().strip(), d_str)
             if dedup_key in seen_keys:
                 return
             seen_keys.add(dedup_key)
+
+            scope_val = ev.get("scope", "global")
+            country_name = ev.get("country") or _COUNTRY_META.get(ev.get("country_code", ""), {}).get("name", "Global")
+            state_name = ev.get("state")
+            location_label = state_name or country_name
+
+            if custom_hook:
+                hook = custom_hook
+                ideas = [custom_hook]
+            else:
+                hook, ideas = DynamicIdeaSynthesizer.generate_event_ideas(
+                    event_name=name,
+                    category=ev.get("category", "cultural"),
+                    scope=scope_val,
+                    location=location_label,
+                    brand_context=brand_context,
+                )
+
             days_away = (candidate - today).days
-            evt = {
+            region_str = f"{state_name}, {country_name}" if state_name else country_name
+
+            events.append({
                 "date": candidate.isoformat(),
                 "name": name,
                 "hook": hook,
-                "category": category,
+                "ideas": ideas,
+                "category": ev.get("category", "cultural"),
+                "scope": scope_val,
+                "country": country_name,
+                "country_code": ev.get("country_code"),
+                "state": state_name,
+                "state_code": ev.get("state_code"),
+                "region": region_str,
                 "days_away": days_away,
                 "days_until": days_away,
-                "source": source,
-            }
-            if region:
-                evt["region"] = region
-            events.append(evt)
+                "source": ev.get("source", "calendar_api"),
+            })
 
-        # 1. Global evergreen calendar
-        for entry in _GLOBAL_CALENDAR:
-            try:
-                candidate = date(today.year, entry["month"], entry["day"])
-                if candidate < today:
-                    candidate = date(today.year + 1, entry["month"], entry["day"])
-                if today <= candidate <= window_end:
-                    _add_event(
-                        candidate=candidate,
-                        name=entry["name"],
-                        hook=entry["hook"],
-                        category=entry.get("category", "general"),
-                        source="global_calendar",
-                        region="Global",
-                    )
-            except ValueError:
-                continue
+        for ev in raw_events:
+            _add_event(ev)
 
-        # 2. Regional / Cultural calendars (Country/Locale-Aware)
-        regions_to_scan = target_regions if target_regions is not None else self.get_target_regions()
-        for reg in regions_to_scan:
-            reg_entries = _REGIONAL_CALENDARS.get(reg.lower(), [])
-            for entry in reg_entries:
-                candidate = None
-                # Check for year-specific lunisolar dates
-                if "dates" in entry and isinstance(entry["dates"], dict):
-                    if today.year in entry["dates"]:
-                        m, d = entry["dates"][today.year]
-                        cand = date(today.year, m, d)
-                        if cand >= today:
-                            candidate = cand
-                        elif (today.year + 1) in entry["dates"]:
-                            m_next, d_next = entry["dates"][today.year + 1]
-                            candidate = date(today.year + 1, m_next, d_next)
-                # Check for fixed solar dates
-                elif "month" in entry and "day" in entry:
-                    try:
-                        cand = date(today.year, entry["month"], entry["day"])
-                        if cand < today:
-                            cand = date(today.year + 1, entry["month"], entry["day"])
-                        candidate = cand
-                    except ValueError:
-                        continue
-
-                if candidate and today <= candidate <= window_end:
-                    _add_event(
-                        candidate=candidate,
-                        name=entry["name"],
-                        hook=entry["hook"],
-                        category=entry.get("category", "cultural"),
-                        source="regional_calendar",
-                        region=entry.get("region", reg.capitalize()),
-                    )
-
-        # 3. Add industry-specific bonus hooks for events already detected
-        if industry and events:
-            industry_lower = industry.lower()
-            extra_hooks = []
-            for key, hooks in _INDUSTRY_HOOKS.items():
-                if key in industry_lower:
-                    extra_hooks = hooks
-                    break
-            if extra_hooks:
-                events[0]["bonus_hook"] = extra_hooks[0]
-
-        # 4. Add custom & agentic-discovered events from BusinessProfile.calendars
+        # Custom tenant events from BusinessProfile.calendars
         custom_events = self._get_custom_events(today, window_end)
         for ce in custom_events:
-            try:
-                ce_date = date.fromisoformat(ce["date"])
-                _add_event(
-                    candidate=ce_date,
-                    name=ce["name"],
-                    hook=ce["hook"],
-                    category=ce.get("category", "custom"),
-                    source=ce.get("source", "tenant_calendar"),
-                    region=ce.get("region"),
-                )
-            except Exception:
-                continue
+            _add_event(ce, custom_hook=ce.get("hook"))
 
-        # Sort by date ascending
         events.sort(key=lambda e: e["date"])
         return events
 
     def get_industry_hooks(self, industry: str) -> List[str]:
-        """Return evergreen industry-specific creative hooks."""
-        industry_lower = industry.lower()
-        for key, hooks in _INDUSTRY_HOOKS.items():
-            if key in industry_lower:
-                return hooks
-        return _INDUSTRY_HOOKS.get("technology", [])
+        """Dynamically generate creative industry-specific hooks."""
+        _, angles = DynamicIdeaSynthesizer.generate_event_ideas(
+            event_name="Innovation Sprint",
+            category="tech",
+            scope="global",
+            location="Global",
+            brand_context={"industry": industry},
+        )
+        return angles
 
     def _get_custom_events(
         self, today: date, window_end: date
@@ -599,7 +438,6 @@ class CalendarEngine:
 
             calendars = profile.calendars
             if isinstance(calendars, str):
-                import json
                 calendars = json.loads(calendars)
 
             if not isinstance(calendars, list):
@@ -620,36 +458,30 @@ class CalendarEngine:
                     events.append({
                         "date": evt_date.isoformat(),
                         "name": entry.get("name") or entry.get("title") or "Custom Event",
-                        "hook": entry.get("hook") or entry.get("description") or "An important milestone for our brand.",
+                        "hook": entry.get("hook"),
                         "category": entry.get("category", "custom"),
-                        "days_away": (evt_date - today).days,
-                        "days_until": (evt_date - today).days,
-                        "source": entry.get("source", "tenant_calendar"),
+                        "scope": entry.get("scope", "country"),
+                        "country": entry.get("country") or entry.get("region"),
+                        "country_code": entry.get("country_code"),
+                        "state": entry.get("state"),
+                        "state_code": entry.get("state_code"),
                         "region": entry.get("region"),
+                        "source": entry.get("source", "tenant_calendar"),
                     })
             return events
         except Exception as exc:
             logger.debug(f"[CalendarEngine] Could not load custom events: {exc}")
             return []
 
-    # ------------------------------------------------------------------------ #
-    # Agentic Live Context Search (Autonomous Discovery)
-    # ------------------------------------------------------------------------ #
-
     async def discover_agentic_regional_events(
         self,
         target_region: Optional[str] = None,
+        target_state: Optional[str] = None,
         days_ahead: int = 30,
         force_refresh: bool = False,
         brand_context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Run agentic live search/LLM synthesis for upcoming cultural, seasonal,
-        and commercial moments in target region for the next 30 days.
-
-        Saves discovered events with tailored hooks to BusinessProfile.calendars
-        with a 30-day freshness timestamp so manual maintenance is eliminated.
-        """
+        """Run agentic live search/LLM synthesis for upcoming moments in target region."""
         try:
             from app.models.verticals import BusinessProfile
             profile = (
@@ -660,16 +492,15 @@ class CalendarEngine:
             if not profile:
                 return []
 
-            # 1. Resolve Target Region
             region_key = target_region.lower() if target_region else None
             if not region_key:
                 regions = self.get_target_regions()
                 region_key = regions[0] if regions else "india"
 
-            region_display_map = {"india": "India", "us": "United States", "uk": "United Kingdom", "uae": "UAE & Middle East"}
-            region_display = region_display_map.get(region_key, region_key.capitalize())
+            country_code = _COUNTRY_ALIAS_TO_CODE.get(region_key, "IN")
+            country_display = _COUNTRY_META.get(country_code, {}).get("name", region_key.capitalize())
+            state_display = target_state or ""
 
-            # 2. Check 30-day cache in BusinessProfile.calendars
             if not force_refresh and self.has_recent_agentic_events(max_age_days=30):
                 today = date.today()
                 window_end = today + timedelta(days=days_ahead)
@@ -682,9 +513,9 @@ class CalendarEngine:
             industry = (brand_context or {}).get("industry") or profile.industry or "Technology"
             usp = (brand_context or {}).get("usp") or profile.usp or ""
 
-            # 3. Web Search for Real-World Seasonal Moments
             search_snippets = ""
-            search_query = f"major upcoming cultural festivals seasonal commercial events in {region_display} {today.strftime('%B %Y')}"
+            loc_query = f"{state_display} {country_display}".strip()
+            search_query = f"major upcoming cultural festivals seasonal commercial events in {loc_query} {today.strftime('%B %Y')}"
             try:
                 from app.services.agents.tools import AgentTools
                 tools = AgentTools()
@@ -695,21 +526,22 @@ class CalendarEngine:
             except Exception as search_err:
                 logger.debug(f"[CalendarEngine] Search fallback: {search_err}")
 
-            # 4. LLM Extraction & Tailored Hook Synthesis
             prompt = (
-                f"Identify major upcoming cultural, seasonal, and commercial moments in {region_display} "
+                f"Identify major upcoming cultural, seasonal, and commercial moments in {loc_query} "
                 f"for the next 30 days between {today.isoformat()} and {end_date.isoformat()}.\n\n"
-                f"Region: {region_display}\n"
-                f"Brand Context: {company_name} ({industry})\n"
+                f"Country: {country_display}\n"
+                f"{f'State/Province: {state_display}\n' if state_display else ''}"
+                f"Brand: {company_name} ({industry})\n"
                 f"Brand USP: {usp}\n"
                 f"{f'Web Search Context:\n{search_snippets}\n' if search_snippets else ''}\n"
                 f"Generate high-converting marketing hooks connecting each moment to brand innovation, trust, and growth.\n"
                 f"Output strictly a valid JSON array of objects with keys:\n"
-                f'- "name": Event or festival name (e.g. "Navratri & Durga Puja", "Dussehra", "Cybersecurity Awareness Month")\n'
+                f'- "name": Exact event or observation name as given in official calendar\n'
                 f'- "date": Valid ISO date "YYYY-MM-DD" between {today.isoformat()} and {end_date.isoformat()}\n'
                 f'- "hook": Compelling 1-2 sentence marketing hook\n'
                 f'- "category": One of "cultural", "commerce", "awareness", "tech", "national", "business"\n'
-                f'- "region": "{region_display}"\n'
+                f'- "scope": "country" or "state"\n'
+                f'- "region": "{loc_query}"\n'
             )
 
             discovered_events: List[Dict[str, Any]] = []
@@ -721,7 +553,6 @@ class CalendarEngine:
                         prompt=prompt,
                         system_prompt="You are a principal marketing strategist and cultural intelligence specialist.",
                     )
-                    import json
                     cleaned = raw_resp.strip()
                     if "```json" in cleaned:
                         cleaned = cleaned.split("```json")[-1].split("```")[0].strip()
@@ -743,7 +574,11 @@ class CalendarEngine:
                                         "date": d.isoformat(),
                                         "hook": str(item["hook"]),
                                         "category": item.get("category", "cultural"),
-                                        "region": region_display,
+                                        "scope": item.get("scope", "country"),
+                                        "region": loc_query,
+                                        "country": country_display,
+                                        "country_code": country_code,
+                                        "state": state_display or None,
                                         "source": "agentic_radar",
                                         "discovered_at": datetime.now(timezone.utc).isoformat(),
                                     })
@@ -752,34 +587,39 @@ class CalendarEngine:
             except Exception as llm_err:
                 logger.debug(f"[CalendarEngine] LLM extraction fallback: {llm_err}")
 
-            # 5. Graceful fallback to curated regional dates if LLM produced no items
             if not discovered_events:
-                reg_curated = _REGIONAL_CALENDARS.get(region_key, [])
-                for entry in reg_curated:
-                    candidate = None
-                    if "dates" in entry and today.year in entry["dates"]:
-                        m, d = entry["dates"][today.year]
-                        candidate = date(today.year, m, d)
-                    elif "month" in entry and "day" in entry:
-                        try:
-                            candidate = date(today.year, entry["month"], entry["day"])
-                        except ValueError:
-                            pass
-                    if candidate and today <= candidate <= end_date:
-                        discovered_events.append({
-                            "name": entry["name"],
-                            "date": candidate.isoformat(),
-                            "hook": entry["hook"],
-                            "category": entry.get("category", "cultural"),
-                            "region": entry.get("region", region_display),
-                            "source": "agentic_radar",
-                            "discovered_at": datetime.now(timezone.utc).isoformat(),
-                        })
+                # Fallback to Calendar API client
+                api_events = self.api_client.get_events_for_window(
+                    start_date=today,
+                    end_date=end_date,
+                    target_countries=[country_code],
+                    scope="country",
+                )
+                for ev in api_events:
+                    hook, ideas = DynamicIdeaSynthesizer.generate_event_ideas(
+                        event_name=ev["name"],
+                        category=ev.get("category", "cultural"),
+                        scope="country",
+                        location=country_display,
+                        brand_context=brand_context,
+                    )
+                    discovered_events.append({
+                        "name": ev["name"],
+                        "date": ev["date"],
+                        "hook": hook,
+                        "ideas": ideas,
+                        "category": ev.get("category", "cultural"),
+                        "scope": "country",
+                        "region": country_display,
+                        "country": country_display,
+                        "country_code": country_code,
+                        "source": "agentic_radar",
+                        "discovered_at": datetime.now(timezone.utc).isoformat(),
+                    })
 
-            # 6. Persist to BusinessProfile.calendars (retaining user custom events)
+            # Persist to BusinessProfile.calendars
             existing_cals = profile.calendars or []
             if isinstance(existing_cals, str):
-                import json
                 try:
                     existing_cals = json.loads(existing_cals)
                 except Exception:
@@ -787,7 +627,6 @@ class CalendarEngine:
             if not isinstance(existing_cals, list):
                 existing_cals = []
 
-            # Retain non-agentic custom events
             retained = [c for c in existing_cals if isinstance(c, dict) and c.get("source") != "agentic_radar"]
             updated = retained + discovered_events
 
@@ -799,4 +638,3 @@ class CalendarEngine:
         except Exception as exc:
             logger.error(f"[CalendarEngine] Agentic regional discovery failed: {exc}")
             return []
-

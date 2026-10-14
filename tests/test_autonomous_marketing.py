@@ -79,8 +79,15 @@ def test_brand_knowledge_synthesizer(db_session, sample_tenant_data):
 
 
 def test_calendar_engine(db_session, sample_tenant_data):
-    engine = CalendarEngine(db_session, sample_tenant_data)
-    events = engine.get_upcoming_events(days_ahead=30)
+    from datetime import date
+    from app.services.marketing.context_radar.calendar_api import CalendarApiClient
+
+    sample_events = [
+        {"name": "Innovation Summit", "date": date.today().isoformat(), "category": "tech", "scope": "country", "country": "United States", "country_code": "US", "source": "google_calendar_api"},
+    ]
+    with patch.object(CalendarApiClient, "fetch_google_calendar_events", return_value=sample_events):
+        engine = CalendarEngine(db_session, sample_tenant_data)
+        events = engine.get_upcoming_events(days_ahead=30)
 
     assert isinstance(events, list)
     assert len(events) > 0

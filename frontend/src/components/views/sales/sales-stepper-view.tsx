@@ -53,27 +53,28 @@ export default function SalesStepperView({
   return (
     <div className="space-y-6">
       {/* Run Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-card/40 backdrop-blur-md border border-border/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
         <div>
           <div className="flex items-center gap-2.5">
-            <h2 className="text-base font-bold text-foreground">
+            <span className="w-1.5 h-4 bg-blue-600 rounded-full inline-block" />
+            <h2 className="text-base font-bold text-slate-900">
               {workflowStatus.workflow_name || 'Autonomous Sales AI Pipeline'}
             </h2>
             <span
               className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
                 isExecuting
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 animate-pulse'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 animate-pulse'
                   : workflowStatus.status === 'completed'
-                  ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                  ? 'bg-blue-50 text-blue-700 border-blue-200'
                   : workflowStatus.status === 'failed'
-                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                  : 'bg-muted text-muted-foreground border-border'
+                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                  : 'bg-slate-100 text-slate-600 border-slate-200'
               }`}
             >
               {isExecuting ? 'Running Step ' + (workflowStatus.current_step || 1) : workflowStatus.status.toUpperCase()}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             {workflowStatus.current_activity || '10-step end-to-end prospecting and revenue conversion workflow.'}
           </p>
         </div>
@@ -83,15 +84,15 @@ export default function SalesStepperView({
             size="sm"
             variant="outline"
             onClick={onOpenProspecting}
-            className="text-xs font-semibold rounded-xl border-border hover:bg-card"
+            className="text-xs font-semibold rounded-xl border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-sm"
           >
-            <Sparkles size={13} className="mr-1.5 text-emerald-400" /> New Run
+            <Sparkles size={13} className="mr-1.5 text-blue-600" /> New Run
           </Button>
           <Button
             size="sm"
             onClick={onRerun}
             disabled={isExecuting}
-            className="text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white"
+            className="text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
           >
             {isExecuting ? <Loader2 size={13} className="animate-spin mr-1.5" /> : <RotateCcw size={13} className="mr-1.5" />}
             Re-run Pipeline
@@ -103,7 +104,8 @@ export default function SalesStepperView({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left: 10 Steps */}
         <div className="lg:col-span-5 space-y-2.5">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 px-1">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 px-1 flex items-center gap-1.5">
+            <span className="w-1.5 h-3 bg-blue-600 rounded-full" />
             Pipeline Execution Ladder
           </h3>
 
@@ -126,24 +128,24 @@ export default function SalesStepperView({
                   key={def.step}
                   className={`p-3.5 rounded-2xl border transition-all ${
                     stepState === 'executing'
-                      ? 'bg-emerald-500/10 border-emerald-500/40 shadow-lg shadow-emerald-500/5'
+                      ? 'bg-blue-50/80 border-blue-300 shadow-sm'
                       : stepState === 'completed'
-                      ? 'bg-card/40 border-border/50'
+                      ? 'bg-white border-slate-200 shadow-2xs'
                       : stepState === 'failed'
-                      ? 'bg-rose-500/10 border-rose-500/30'
-                      : 'bg-card/20 border-border/30 opacity-70'
+                      ? 'bg-rose-50 border-rose-200'
+                      : 'bg-slate-50/60 border-slate-200/60 opacity-80'
                   }`}
                 >
                   <div className="flex items-start gap-3">
                     <div className="mt-0.5 shrink-0">
                       {stepState === 'executing' ? (
-                        <Loader2 size={16} className="text-emerald-400 animate-spin" />
+                        <Loader2 size={16} className="text-blue-600 animate-spin" />
                       ) : stepState === 'completed' ? (
-                        <CheckCircle2 size={16} className="text-emerald-400" />
+                        <CheckCircle2 size={16} className="text-emerald-600" />
                       ) : stepState === 'failed' ? (
-                        <AlertCircle size={16} className="text-rose-400" />
+                        <AlertCircle size={16} className="text-rose-600" />
                       ) : (
-                        <div className="w-4 h-4 rounded-full border border-border/60 flex items-center justify-center text-[9px] font-bold text-muted-foreground">
+                        <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[9px] font-bold text-slate-500">
                           {def.step}
                         </div>
                       )}
@@ -152,16 +154,16 @@ export default function SalesStepperView({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <span className={`text-xs font-bold truncate ${
-                          stepState === 'executing' ? 'text-emerald-300' : 'text-foreground'
+                          stepState === 'executing' ? 'text-blue-700' : 'text-slate-800'
                         }`}>
                           {def.step}. {def.name}
                         </span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
+                      <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
                         {def.desc}
                       </p>
                       {stepData?.result && (
-                        <p className="text-[11px] font-mono text-emerald-400/90 mt-1.5 p-1.5 rounded-lg bg-background/50 border border-border/30 line-clamp-2">
+                        <p className="text-[11px] font-mono text-emerald-700 mt-1.5 p-1.5 rounded-lg bg-emerald-50 border border-emerald-100 line-clamp-2">
                           {stepData.result}
                         </p>
                       )}
@@ -175,9 +177,9 @@ export default function SalesStepperView({
 
         {/* Right: Live Terminal Logs */}
         <div className="lg:col-span-7">
-          <Card className="bg-black/90 border-border/80 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[650px]">
+          <Card className="bg-slate-950 border-slate-800 rounded-2xl overflow-hidden shadow-xl flex flex-col h-[650px]">
             {/* Terminal Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 bg-muted/20">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900/60">
               <div className="flex items-center gap-2">
                 <Terminal size={14} className="text-emerald-400" />
                 <span className="text-xs font-mono font-semibold text-foreground">

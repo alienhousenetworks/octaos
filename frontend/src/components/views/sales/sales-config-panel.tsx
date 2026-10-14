@@ -55,29 +55,30 @@ export default function SalesConfigPanel({
       />
 
       {/* Prospect Reply & Automation Governance */}
-      <Card className="bg-card/40 backdrop-blur-md border-border/60 rounded-3xl p-6 shadow-xl space-y-4">
+      <Card className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm space-y-4">
         <div>
-          <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-            <ShieldCheck size={16} className="text-emerald-400" />
-            Prospect Reply & Autonomous Meeting Governance
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <span className="w-1.5 h-4 bg-blue-600 rounded-full inline-block" />
+            <ShieldCheck size={16} className="text-blue-600" />
+            Prospect Reply &amp; Autonomous Meeting Governance
           </h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             Configure how your AI agent handles prospect responses and meeting invitations.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
           {/* Reply Mode */}
-          <div className="p-4 rounded-2xl border border-border/60 bg-background/50 space-y-2.5">
-            <span className="text-xs font-semibold text-foreground block">
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2.5">
+            <span className="text-xs font-bold text-slate-800 block">
               Inbound Reply Mode {salesSettingsSaving ? '· saving…' : ''}
             </span>
-            <p className="text-xs text-muted-foreground leading-relaxed">
+            <p className="text-xs text-slate-500 leading-relaxed">
               {salesSettings.reply_mode === 'review_first'
                 ? 'AI drafts replies to prospect emails → requires human approval in the Approvals queue before dispatch.'
                 : 'AI autonomously crafts and dispatches grounded responses after a brief review delay.'}
             </p>
-            <div className="flex rounded-xl overflow-hidden border border-border/80">
+            <div className="flex rounded-xl overflow-hidden border border-slate-200 bg-white">
               <button
                 type="button"
                 onClick={() =>
@@ -89,8 +90,8 @@ export default function SalesConfigPanel({
                 }
                 className={`flex-1 py-2 text-xs font-bold transition-colors ${
                   salesSettings.reply_mode === 'review_first'
-                    ? 'bg-amber-500 text-black'
-                    : 'bg-background text-muted-foreground hover:text-foreground'
+                    ? 'bg-amber-100 text-amber-900 border-r border-amber-200'
+                    : 'bg-white text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Review First (HITL)
@@ -104,10 +105,10 @@ export default function SalesConfigPanel({
                     sales_auto_reply: true,
                   })
                 }
-                className={`flex-1 py-2 text-xs font-bold transition-colors border-l border-border/80 ${
+                className={`flex-1 py-2 text-xs font-bold transition-colors border-l border-slate-200 ${
                   salesSettings.reply_mode === 'auto_send'
-                    ? 'bg-emerald-500 text-black'
-                    : 'bg-background text-muted-foreground hover:text-foreground'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Autonomous Auto-Send
@@ -116,14 +117,14 @@ export default function SalesConfigPanel({
           </div>
 
           {/* Auto Book Meetings */}
-          <div className="p-4 rounded-2xl border border-border/60 bg-background/50 space-y-2.5">
-            <span className="text-xs font-semibold text-foreground block">
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2.5">
+            <span className="text-xs font-bold text-slate-800 block">
               Auto-Booking Meetings
             </span>
-            <p className="text-xs text-muted-foreground leading-relaxed">
+            <p className="text-xs text-slate-500 leading-relaxed">
               When an interested prospect agrees to a call, automatically generate Google Meet link and send pre-meeting brief.
             </p>
-            <label className="flex items-center gap-2.5 text-xs text-foreground cursor-pointer pt-2">
+            <label className="flex items-center gap-2.5 text-xs text-slate-800 cursor-pointer pt-2 font-medium">
               <input
                 type="checkbox"
                 checked={salesSettings.auto_book_meetings}
@@ -133,30 +134,78 @@ export default function SalesConfigPanel({
                     auto_book_meetings: e.target.checked,
                   })
                 }
-                className="rounded border-border text-emerald-600 focus:ring-emerald-500"
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="font-medium">Enable Instant Autonomous Meeting Scheduling</span>
+              <span>Enable Instant Autonomous Meeting Scheduling</span>
             </label>
+          </div>
+        </div>
+
+        {/* Follow-up Cadence & Sequence Settings */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
+            <span className="text-xs font-bold text-slate-800 block">
+              Follow-Up Cadence Interval (Days)
+            </span>
+            <p className="text-[11px] text-slate-500">
+              Spacing between automated outbound follow-up touches across channels.
+            </p>
+            <Input
+              type="number"
+              min={1}
+              max={30}
+              value={salesSettings.follow_up_cadence_days || 3}
+              onChange={(e) =>
+                onSaveSalesSettings({
+                  ...salesSettings,
+                  follow_up_cadence_days: Math.max(1, parseInt(e.target.value) || 3),
+                })
+              }
+              className="text-xs bg-white border-slate-200 text-slate-900 w-32"
+            />
+          </div>
+
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
+            <span className="text-xs font-bold text-slate-800 block">
+              Max Sequence Touchpoints
+            </span>
+            <p className="text-[11px] text-slate-500">
+              Maximum total outreach touches per qualified prospect before marking as unresponsive.
+            </p>
+            <Input
+              type="number"
+              min={1}
+              max={15}
+              value={salesSettings.max_ai_touchpoints || 5}
+              onChange={(e) =>
+                onSaveSalesSettings({
+                  ...salesSettings,
+                  max_ai_touchpoints: Math.max(1, parseInt(e.target.value) || 5),
+                })
+              }
+              className="text-xs bg-white border-slate-200 text-slate-900 w-32"
+            />
           </div>
         </div>
       </Card>
 
       {/* Business Profile & ICP Editor */}
-      <Card className="bg-card/40 backdrop-blur-md border-border/60 rounded-3xl p-6 shadow-xl space-y-5">
+      <Card className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm space-y-5">
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-              <SlidersHorizontal size={16} className="text-emerald-400" />
-              Organization Business Profile & Playbook Parameters
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <span className="w-1.5 h-4 bg-blue-600 rounded-full inline-block" />
+              <SlidersHorizontal size={16} className="text-blue-600" />
+              Organization Business Profile &amp; Playbook Parameters
             </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5">
               These parameters guide autonomous domain archetype classification, target ICP scoring, and negative exclusions.
             </p>
           </div>
           <Button
             onClick={onSaveProfile}
             disabled={profileSaving}
-            className="text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl px-5 h-9"
+            className="text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-5 h-9 shadow-sm"
           >
             {profileSaving ? (
               <>
@@ -172,63 +221,63 @@ export default function SalesConfigPanel({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-semibold text-muted-foreground block mb-1">Company / Product Name</label>
+            <label className="text-xs font-bold text-slate-600 block mb-1">Company / Product Name</label>
             <Input
               value={profile.company_name}
               onChange={(e) => updateField('company_name', e.target.value)}
               placeholder="e.g. Acme Cloud"
-              className="text-xs bg-background"
+              className="text-xs bg-slate-50 border-slate-200 text-slate-900"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-muted-foreground block mb-1">Website URL</label>
+            <label className="text-xs font-bold text-slate-600 block mb-1">Website URL</label>
             <Input
               value={profile.website}
               onChange={(e) => updateField('website', e.target.value)}
               placeholder="https://acme.com"
-              className="text-xs bg-background"
+              className="text-xs bg-slate-50 border-slate-200 text-slate-900"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-muted-foreground block mb-1">Industry Sector</label>
+            <label className="text-xs font-bold text-slate-600 block mb-1">Industry Sector</label>
             <Input
               value={profile.industry}
               onChange={(e) => updateField('industry', e.target.value)}
               placeholder="B2B SaaS, Manufacturing, Healthcare..."
-              className="text-xs bg-background"
+              className="text-xs bg-slate-50 border-slate-200 text-slate-900"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-muted-foreground block mb-1">Target Decision Makers</label>
+            <label className="text-xs font-bold text-slate-600 block mb-1">Target Decision Makers</label>
             <Input
               value={profile.target_decision_makers}
               onChange={(e) => updateField('target_decision_makers', e.target.value)}
               placeholder="Founder, CEO, VP of Sales, CTO..."
-              className="text-xs bg-background"
+              className="text-xs bg-slate-50 border-slate-200 text-slate-900"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-muted-foreground block mb-1">Target Geographies / Countries</label>
+            <label className="text-xs font-bold text-slate-600 block mb-1">Target Geographies / Countries</label>
             <Input
               value={profile.target_countries}
               onChange={(e) => updateField('target_countries', e.target.value)}
               placeholder="United States, United Kingdom, UAE..."
-              className="text-xs bg-background"
+              className="text-xs bg-slate-50 border-slate-200 text-slate-900"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-muted-foreground block mb-1">Target Budget Range</label>
+            <label className="text-xs font-bold text-slate-600 block mb-1">Target Budget Range</label>
             <Input
               value={profile.target_budget_range}
               onChange={(e) => updateField('target_budget_range', e.target.value)}
               placeholder="e.g. $1,000 - $10,000"
-              className="text-xs bg-background"
+              className="text-xs bg-slate-50 border-slate-200 text-slate-900"
             />
           </div>
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-muted-foreground block mb-1">
+          <label className="text-xs font-bold text-slate-600 block mb-1">
             Product / Service Offering Description
           </label>
           <Textarea
@@ -236,33 +285,33 @@ export default function SalesConfigPanel({
             value={profile.service_description}
             onChange={(e) => updateField('service_description', e.target.value)}
             placeholder="Describe what your product does, core features, and the primary pain it solves..."
-            className="text-xs bg-background"
+            className="text-xs bg-slate-50 border-slate-200 text-slate-900"
           />
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-muted-foreground block mb-1">
-            Unique Selling Proposition (USP) & Differentiators
+          <label className="text-xs font-bold text-slate-600 block mb-1">
+            Unique Selling Proposition (USP) &amp; Differentiators
           </label>
           <Textarea
             rows={2}
             value={profile.usp}
             onChange={(e) => updateField('usp', e.target.value)}
             placeholder="Why should customers choose you over competitors? Key ROI drivers..."
-            className="text-xs bg-background"
+            className="text-xs bg-slate-50 border-slate-200 text-slate-900"
           />
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-muted-foreground block mb-1">
-            Extra Research Directives & Negative ICP Exclusions
+          <label className="text-xs font-bold text-slate-600 block mb-1">
+            Extra Research Directives &amp; Negative ICP Exclusions
           </label>
           <Textarea
             rows={2}
             value={profile.extra_context}
             onChange={(e) => updateField('extra_context', e.target.value)}
             placeholder="Do not target agencies, only look for businesses with verifiable email domains..."
-            className="text-xs bg-background"
+            className="text-xs bg-slate-50 border-slate-200 text-slate-900"
           />
         </div>
 
@@ -270,7 +319,7 @@ export default function SalesConfigPanel({
           <Button
             onClick={onSaveProfile}
             disabled={profileSaving}
-            className="text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl px-6 h-10 shadow-lg shadow-emerald-500/20"
+            className="text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 h-10 shadow-sm"
           >
             {profileSaving ? (
               <>

@@ -25,11 +25,22 @@ class SalesService:
         self.db.commit()
         return lead.score
 
-    async def generate_outreach(self, lead_id: str):
+    async def generate_outreach(self, lead_id: str, instructions: str = ""):
         lead = self.db.query(Lead).filter(Lead.id == lead_id, Lead.tenant_id == self.tenant_id).first()
         if not lead:
             return
         
-        prompt = f"Write a personalized short outreach email for {lead.name} from {lead.company}. They were found via {lead.source}."
+        data = lead.data or {}
+        title = (data.get("contact") or {}).get("title") or ""
+        prompt = (
+            f"Write a personalized short outreach email (under 120 words, body only, no placeholders) "
+            f"for {lead.name} {f'({title}) ' if title else ''}at {lead.company}. Found via {lead.source}.\n"
+            f"Why now: {lead.why or data.get('why_now') or 'n/a'}\n"
+            f"Pain points: {data.get('pain_points') or 'n/a'}\n"
+            f"Our offer: {lead.need_of_what or 'n/a'}\n"
+            f"Use only the facts above; do not invent any."
+        )
+        if instructions:
+            prompt += f"\nUser instructions to follow: {instructions}"
         message = await self.llm.complete(prompt, model="claude-3-sonnet-20240229")
         return message

@@ -38,6 +38,33 @@ def extract_json(text: str):
             except: pass
         raise ValueError(f"JSON extraction failed. Raw output: {text}")
 
+def _build_lead_data(c: dict) -> dict:
+    """Structured, real-only dossier data derived from a discovered company dict."""
+    contact = c.get("contact") or {}
+    data = {
+        "contact": {
+            "name": contact.get("name") or "",
+            "title": contact.get("title") or "",
+            "linkedin_url": contact.get("linkedin_url") or "",
+        },
+        "company": {
+            "name": c.get("company_name") or "",
+            "website": c.get("website") or "",
+            "industry": c.get("industry") or "",
+        },
+        "freshness": c.get("freshness") or {},
+        "evidence_url": c.get("evidence_url") or "",
+        "why_now": c.get("why_now") or "",
+        "purchasing_capacity": c.get("purchasing_capacity") or "",
+        "qualification_reason": c.get("qualification_reason") or "",
+    }
+    if c.get("pain_points"):
+        data["pain_points"] = c["pain_points"]
+    if c.get("scoring"):
+        data["scoring_breakdown"] = c["scoring"]
+    return data
+
+
 class SalesAgent(BaseAgent):
     def __init__(self, db, tenant_id):
         super().__init__(db, tenant_id, "Sales AI")
@@ -465,6 +492,7 @@ Only return JSON, no other text."""
                         mobile_no=c["contact"].get("phone", ""),
                         need_of_what=profile.offer_details,
                         why=c.get("why_now") or c["qualification_reason"],
+                        data=_build_lead_data(c),
                         target_context=f"Archetype: {domain_archetype} | Capacity: {c.get('purchasing_capacity', 'Unknown')}"
                     )
                     self.db.add(lead)
@@ -575,9 +603,22 @@ No other text, just the JSON."""
                 contact_score = 95
                 
                 fresh_info = c.get("freshness") or {}
-                fresh_lbl = fresh_info.get("freshness_label") or "Active Web"
-                first_pain = (c.get("pain_points") or ["workflow scaling bottleneck"])[0]
-                why_now = f"Fresh signal ({fresh_lbl}) + Budget capacity ({c.get('purchasing_capacity', 'Aligned')}) + ICP fit ({c['industry']}). Addressing {first_pain}."
+                snippet = fresh_info.get("signal_snippet") or ""
+                why_now = ""
+                if snippet or c.get("news") or c.get("jobs"):
+                    try:
+                        why_now = (await self.llm.complete(
+                            f"In 2 sentences, explain why {c['company_name']} is worth contacting NOW for our offer "
+                            f"({profile.offer_details}). Use ONLY these facts, invent nothing.\n"
+                            f"Signal ({fresh_info.get('freshness_label') or 'unknown age'}): {snippet}\n"
+                            f"News: {[n.get('title') for n in c.get('news', [])]}\n"
+                            f"Jobs: {[j.get('title') for j in c.get('jobs', [])]}\n"
+                            f"Pain points: {c.get('pain_points')}\nBudget fit: {c.get('purchasing_capacity')}\n"
+                            f"Output plain text only.",
+                            provider=provider, model=model,
+                        )).strip()
+                    except Exception:
+                        why_now = ""
                 c["why_now"] = why_now
 
                 weighted_score = int(budget_score*0.25 + pain_score*0.25 + intent_score*0.20 + industry_score*0.15 + growth_score*0.10 + contact_score*0.05)
@@ -691,13 +732,18 @@ Strict Tone & Quality Rules:
                     f"[SEQUENCE] {c['company_name']}: Day 1 Email, Day 3 LinkedIn, Day 8 WhatsApp sequence mapped. CRM lead saved."
                 )
                 
-                # Multi-channel schedule
+                # Multi-channel schedule with dynamic cadence and pending status
+                cadence = 3
+                sales_cred = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id, provider="sales").first()
+                if sales_cred and sales_cred.settings and sales_cred.settings.get("follow_up_cadence_days"):
+                    cadence = max(1, int(sales_cred.settings["follow_up_cadence_days"]))
+
                 channel_schedule = [
-                    {"day": 1, "channel": "Email", "content": c["outreach_message"]},
-                    {"day": 3, "channel": "LinkedIn", "content": f"Hi {c['contact']['name']}, noticed your work at {c['company_name']}. I sent over an email regarding {profile.company_name}'s {profile.offer_details} to tackle your {c['pain_points'][0]}. Let's connect!"},
-                    {"day": 5, "channel": "Email", "content": f"Hi {c['contact']['name']}, following up on my previous message. We help {c['company_name']} automate {c['pain_points'][1]} to optimize your revenue. Let me know if you are free for a quick call."},
-                    {"day": 8, "channel": "WhatsApp", "content": f"Hello {c['contact']['name']}, this is {profile.company_name} following up. Are you available for a brief chat this week?"},
-                    {"day": 12, "channel": "Follow-Up Call", "content": "Scheduled follow-up phone call."}
+                    {"day": 1, "channel": "Email", "content": c["outreach_message"], "status": "pending"},
+                    {"day": 1 + cadence, "channel": "LinkedIn", "content": f"Hi {c['contact']['name']}, noticed your work at {c['company_name']}. I sent over an email regarding {profile.company_name}'s {profile.offer_details} to tackle your {c['pain_points'][0]}. Let's connect!", "status": "pending"},
+                    {"day": 1 + 2 * cadence, "channel": "Email", "content": f"Hi {c['contact']['name']}, following up on my previous message. We help {c['company_name']} automate {c['pain_points'][1]} to optimize your revenue. Let me know if you are free for a quick call.", "status": "pending"},
+                    {"day": 1 + 3 * cadence, "channel": "WhatsApp", "content": f"Hello {c['contact']['name']}, this is {profile.company_name} following up. Are you available for a brief chat this week?", "status": "pending"},
+                    {"day": 1 + 4 * cadence, "channel": "Follow-Up Call", "content": "Scheduled follow-up phone call.", "status": "pending"}
                 ]
                 
                 conv = [
@@ -756,9 +802,7 @@ Strict Tone & Quality Rules:
                     lead.status = "contacted"
                     lead.data = {
                         **(lead.data or {}),
-                        "freshness": c.get("freshness") or {},
-                        "evidence_url": c.get("evidence_url") or "",
-                        "why_now": c.get("why_now") or "",
+                        **_build_lead_data(c),
                         "domain_archetype": domain_archetype,
                         "committee_role": "economic_buyer",
                         "freshness_window": freshness_window,
@@ -768,25 +812,19 @@ Strict Tone & Quality Rules:
                         "outreach_sent_at": datetime.now(timezone.utc).isoformat(),
                         "conversation": conv,
                         "outreach_schedule": channel_schedule,
-                        "purchasing_capacity": c["purchasing_capacity"],
-                        "pain_points": c["pain_points"],
-                        "scoring_breakdown": c["scoring"],
                         "sent_actual": True
                     }
                 else:
                     lead.status = "scored" # Keeps it from saying contacted
                     lead.data = {
                         **(lead.data or {}),
-                        "freshness": c.get("freshness") or {},
-                        "evidence_url": c.get("evidence_url") or "",
-                        "why_now": c.get("why_now") or "",
+                        **_build_lead_data(c),
                         "domain_archetype": domain_archetype,
                         "committee_role": "economic_buyer",
                         "freshness_window": freshness_window,
                         "outreach_schedule": channel_schedule,
-                        "purchasing_capacity": c["purchasing_capacity"],
-                        "pain_points": c["pain_points"],
-                        "scoring_breakdown": c["scoring"],
+                        "draft_subject": subject,
+                        "draft_body": body,
                         "sent_actual": False
                     }
                 
