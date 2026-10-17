@@ -477,4 +477,49 @@ def test_institutional_governance_api_endpoints(client, db):
     assert len(data["options"]) == 2
     assert len(data["dissents"]) == 1
 
+def test_stop_meeting_endpoint_halts_deliberation(client, db):
+    tenant_id = "test-tenant-id"
+    meeting = AgentMeeting(
+        id="m-stop-test",
+        tenant_id=tenant_id,
+        title="Stop Flow Test Meeting",
+        status="active",
+        current_phase="debate",
+        trigger_type="manual",
+        participants=["CEO AI", "Sales Intelligence Expert", "Finance Expert"]
+    )
+    db.add(meeting)
+    db.commit()
+
+    # Call stop endpoint
+    res = client.post(f"/api/v1/coordination/meetings/{meeting.id}/stop")
+    assert res.status_code == 200
+    assert res.json()["status"] == "cancelled"
+    assert "halt" in (res.json()["failure_reason"] or "").lower()
+
+    # Verify BoardroomService memory flag is set
+    assert BoardroomService.is_halted(meeting.id) is True
+
+@pytest.mark.asyncio
+async def test_boardroom_web_evidence_and_debate_turns(db):
+    tenant_id = "test-tenant-id"
+    service = BoardroomService(db, tenant_id)
+    meeting = AgentMeeting(
+        id="m-web-test",
+        tenant_id=tenant_id,
+        title="Accelerate B2B Outbound Sales Pipeline",
+        status="active",
+        trigger_type="manual",
+        participants=["CEO AI", "Sales Intelligence Expert", "Finance Expert"]
+    )
+    db.add(meeting)
+    db.commit()
+
+    # 1. Test web evidence gathering
+    web_sources = await service._gather_web_evidence(meeting)
+    assert len(web_sources) > 0
+    assert any("web:" in src["id"] for src in web_sources)
+    assert any("outbound" in src["summary"].lower() or "cac" in src["summary"].lower() for src in web_sources)
+
+
 

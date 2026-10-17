@@ -36,7 +36,15 @@ import {
   ChevronDown,
   Trash2,
   Phone,
-  FileCheck
+  FileCheck,
+  Table,
+  Download,
+  FileSpreadsheet,
+  ArrowUpDown,
+  Copy,
+  MapPin,
+  Edit,
+  Save
 } from 'lucide-react';
 
 interface HRViewProps {
@@ -71,15 +79,31 @@ export default function HRView({
   const [hrModel, setHrModel] = useState('');
   
   // UI Tabs & Filters
-  const [activeTab, setActiveTab] = useState<'leaderboard' | 'upload' | 'manual'>('leaderboard');
+  const [activeTab, setActiveTab] = useState<'leaderboard' | 'sheet' | 'upload' | 'manual'>('leaderboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [tierFilter, setTierFilter] = useState('all'); // all, top, strong, moderate
+
+  // Excel Export & Import State
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importingExcel, setImportingExcel] = useState(false);
+  const excelFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Row-wise Selection & Batch Delete State for Extraction Sheet
+  const [selectedSheetCandidateIds, setSelectedSheetCandidateIds] = useState<string[]>([]);
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
 
   // Staged Files for Batch/Folder upload
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>('');
+  const [uploadPercent, setUploadPercent] = useState<number>(0);
+  const [currentProcessingFile, setCurrentProcessingFile] = useState<string>('');
+  const [ingestionLogs, setIngestionLogs] = useState<string[]>([]);
+  const [activeJob, setActiveJob] = useState<any | null>(null);
+  const [showLogsDrawer, setShowLogsDrawer] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -113,13 +137,66 @@ export default function HRView({
   const [manualBudget, setManualBudget] = useState('');
   const [manualExtra, setManualExtra] = useState('');
   const [manualAdding, setManualAdding] = useState(false);
+  // Candidate edit modal state for Extraction Sheet
+  const [editingCandidate, setEditingCandidate] = useState<any | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editRole, setEditRole] = useState('');
+  const [editStatus, setEditStatus] = useState('sourced');
+  const [editPhone, setEditPhone] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editSkills, setEditSkills] = useState('');
+  const [editProjects, setEditProjects] = useState('');
+  const [editExperienceYears, setEditExperienceYears] = useState('');
+  const [editExperienceSummary, setEditExperienceSummary] = useState('');
+  const [editResumeLink, setEditResumeLink] = useState('');
+  const [editExtraRemarks, setEditExtraRemarks] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     if (token) {
       fetchCandidates();
       fetchContractTemplates();
+      checkIngestionJobStatus();
     }
   }, [token]);
+
+  // Check ongoing or last active ingestion job from database so state persists across page refresh
+  const checkIngestionJobStatus = async () => {
+    if (!token) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/hr/resumes/ingestion-status`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.job) {
+          const j = data.job;
+          setActiveJob(j);
+          setIngestionLogs(j.logs || []);
+          if (data.has_active_job || j.status === 'running') {
+            setUploadLoading(true);
+            setUploadPercent(j.progress_percent || 15);
+            setCurrentProcessingFile(j.current_file || `Processing ${j.processed_files}/${j.total_files} resumes...`);
+            // Poll until completed
+            setTimeout(() => {
+              checkIngestionJobStatus();
+            }, 1500);
+          } else if (j.status === 'completed') {
+            setUploadLoading(false);
+            setUploadPercent(100);
+            setCurrentProcessingFile(`Completed: Processed ${j.processed_files} candidate(s)`);
+            fetchCandidates();
+          } else if (j.status === 'failed') {
+            setUploadLoading(false);
+            setCurrentProcessingFile(`Failed: ${j.error_message || 'Resume parsing encountered an error'}`);
+          }
+        } else {
+          setActiveJob(null);
+        }
+      }
+    } catch (e) {
+      console.error("Error checking ingestion job status:", e);
+    }
+  };
 
   // Fetch all candidates
   const fetchCandidates = async () => {
@@ -218,11 +295,25 @@ export default function HRView({
     }
 
     setUploadLoading(true);
-    setUploadProgress(`Uploading & extracting ${selected.length} resumes...`);
+    setUploadPercent(5);
+    setCurrentProcessingFile(`Preparing ${selected.length} resume(s)...`);
+    setIngestionLogs([
+      `[${new Date().toLocaleTimeString()}] Target Role: "${hrRole}"`,
+      `[${new Date().toLocaleTimeString()}] Engine: ${hrProvider.toUpperCase()} (${hrModel || 'default model'})`,
+      `[${new Date().toLocaleTimeString()}] Initiating batch processing of ${selected.length} resume(s)...`
+    ]);
 
     try {
+      // Progress simulation during network upload & backend parsing
+      const progressTimer = setInterval(() => {
+        setUploadPercent(prev => {
+          if (prev < 85) return prev + 8;
+          return prev;
+        });
+      }, 700);
+
       const formData = new FormData();
-      selected.forEach(item => {
+      selected.forEach((item) => {
         formData.append("files", item.file);
       });
       formData.append("role", hrRole);
@@ -231,30 +322,127 @@ export default function HRView({
       formData.append("provider", hrProvider);
       if (hrModel) formData.append("model", hrModel);
 
-      setUploadProgress(`Running local ATS matching & cost-effective semantic ranking...`);
+      setUploadProgress(`Extracting text & evaluating candidates (${selected.length} resumes)...`);
+      setCurrentProcessingFile(`Running ATS matching & ${hrProvider.toUpperCase()} AI analysis...`);
+      setIngestionLogs(prev => [
+        ...prev,
+        `[${new Date().toLocaleTimeString()}] Uploaded ${selected.length} files to server. Extracting text via PyMuPDF/python-docx...`,
+        `[${new Date().toLocaleTimeString()}] Running deterministic ATS keyword scoring against requirements...`,
+        `[${new Date().toLocaleTimeString()}] Invoking AI semantic evaluation (${hrProvider} / ${hrModel || 'llama-3.3-70b'})...`
+      ]);
 
       const res = await fetchWithAuth(`${API_URL}/hr/resumes/upload-batch`, {
         method: 'POST',
         body: formData,
       });
 
+      clearInterval(progressTimer);
+      setUploadPercent(95);
+
       const data = await res.json();
       if (res.ok) {
-        notify(`Success! Processed and ranked ${data.processed_count} candidates with zero token waste.`);
+        setUploadPercent(100);
+        setCurrentProcessingFile(`Complete! Processed ${data.processed_count} candidates.`);
+        const candidateNames = (data.candidates || []).map((c: any) => c.name).filter(Boolean);
+        const nameListStr = candidateNames.length > 0 ? ` [${candidateNames.slice(0, 4).join(', ')}${candidateNames.length > 4 ? '...' : ''}]` : '';
+
+        setIngestionLogs(prev => [
+          ...prev,
+          `[${new Date().toLocaleTimeString()}] ✓ Successfully parsed and ranked ${data.processed_count} candidate(s)${nameListStr}`,
+          `[${new Date().toLocaleTimeString()}] ✓ Extracted: Name, Mobile No, Email, Address, Skills, Projects, Experience, and OctaOS Resume Links`,
+          `[${new Date().toLocaleTimeString()}] ✓ Database updated. Navigating to Extraction Sheet...`
+        ]);
+
+        notify(`Success! Ingested and ranked ${data.processed_count} candidate(s).`);
         // Remove processed files from staging
         setStagedFiles(prev => prev.filter(item => !item.selected));
-        fetchCandidates();
-        fetchData();
-        setActiveTab('leaderboard');
+        await fetchCandidates();
+        await fetchData();
+
+        // Brief delay so user sees 100% completion before switching
+        setTimeout(() => {
+          setActiveTab('sheet');
+          setUploadLoading(false);
+          setUploadPercent(0);
+          setCurrentProcessingFile('');
+        }, 1200);
+        return;
       } else {
+        const errorMsg = `[${new Date().toLocaleTimeString()}] ✗ Error: ${data.detail || 'Failed to process resumes'}`;
+        setIngestionLogs(prev => [...prev, errorMsg]);
         notify(`Upload error: ${data.detail || 'Failed to process resumes'}`);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      const networkErrMsg = `[${new Date().toLocaleTimeString()}] ✗ Network error during resume upload: ${e.message || String(e)}`;
+      setIngestionLogs(prev => [...prev, networkErrMsg]);
       notify("Network error during batch resume upload.");
     } finally {
       setUploadLoading(false);
       setUploadProgress('');
+    }
+  };
+
+  // Export candidates to Excel (.xlsx)
+  const handleExportExcel = async () => {
+    try {
+      setExportingExcel(true);
+      const res = await fetchWithAuth(`${API_URL}/hr/candidates/export-excel`);
+      if (!res.ok) {
+        notify("Failed to export Excel spreadsheet.");
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `octaos_candidates_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      notify("Candidates Excel spreadsheet exported successfully!");
+    } catch (e) {
+      console.error(e);
+      notify("Error downloading Excel file.");
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
+  // Import candidates from Excel (.xlsx) or CSV
+  const handleImportExcel = async () => {
+    if (!importFile) {
+      notify("Please select an Excel (.xlsx) or CSV file to import.");
+      return;
+    }
+    setImportingExcel(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", importFile);
+
+      const res = await fetchWithAuth(`${API_URL}/hr/candidates/import-excel`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        notify(data.message || `Imported ${data.imported_count} candidate(s)!`);
+        setIsImportModalOpen(false);
+        setImportFile(null);
+        if (excelFileInputRef.current) excelFileInputRef.current.value = '';
+        fetchCandidates();
+        fetchData();
+        setActiveTab('sheet');
+      } else {
+        notify(`Import error: ${data.detail || 'Failed to import spreadsheet'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      notify("Network error importing spreadsheet.");
+    } finally {
+      setImportingExcel(false);
     }
   };
 
@@ -288,10 +476,68 @@ export default function HRView({
       if (res.ok) {
         fetchCandidates();
         fetchData();
+        setSelectedSheetCandidateIds(prev => prev.filter(id => id !== candidateId));
         if (selectedCandidateId === candidateId) setSelectedCandidateId(null);
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // Toggle single candidate selection in Extraction Sheet
+  const toggleCandidateSelection = (candidateId: string) => {
+    setSelectedSheetCandidateIds(prev =>
+      prev.includes(candidateId) ? prev.filter(id => id !== candidateId) : [...prev, candidateId]
+    );
+  };
+
+  // Select / Deselect all visible candidates in Extraction Sheet
+  const toggleSelectAllCandidates = (selectAll: boolean) => {
+    if (selectAll) {
+      setSelectedSheetCandidateIds(filteredCandidates.map(c => c.id));
+    } else {
+      setSelectedSheetCandidateIds([]);
+    }
+  };
+
+  // Delete all selected candidates (or all candidates)
+  const handleBatchDeleteCandidates = async (deleteEntireList: boolean = false) => {
+    const idsToDelete = deleteEntireList
+      ? filteredCandidates.map(c => c.id)
+      : selectedSheetCandidateIds;
+
+    if (idsToDelete.length === 0) {
+      notify("No candidates selected to delete.");
+      return;
+    }
+
+    const confirmMsg = deleteEntireList
+      ? `Are you sure you want to delete ALL ${idsToDelete.length} candidates from the list? This cannot be undone.`
+      : `Are you sure you want to delete ${idsToDelete.length} selected candidate(s)?`;
+
+    if (!(await confirmAction(confirmMsg))) return;
+
+    setIsBatchDeleting(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/hr/candidates/batch-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidate_ids: idsToDelete })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        notify(data.message || `Deleted ${idsToDelete.length} candidate(s).`);
+        setSelectedSheetCandidateIds([]);
+        fetchCandidates();
+        fetchData();
+      } else {
+        notify(`Error: ${data.detail || 'Failed to delete candidates'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      notify("Network error during candidate batch deletion.");
+    } finally {
+      setIsBatchDeleting(false);
     }
   };
 
@@ -485,6 +731,67 @@ export default function HRView({
     }
   };
 
+  // Open Edit Candidate Modal
+  const openEditCandidateModal = (candidate: any) => {
+    setEditingCandidate(candidate);
+    const sc = candidate.scorecard || {};
+    setEditName(candidate.name || '');
+    setEditEmail(candidate.email || '');
+    setEditRole(candidate.role || '');
+    setEditStatus(candidate.status || 'sourced');
+    setEditPhone(sc.phone_number || sc.phone || '');
+    setEditAddress(sc.address || '');
+    setEditSkills(Array.isArray(sc.skills) ? sc.skills.join(', ') : (sc.skills || ''));
+    setEditProjects(Array.isArray(sc.projects) ? sc.projects.join('; ') : (sc.projects || ''));
+    setEditExperienceYears(sc.experience_years !== undefined ? String(sc.experience_years) : '');
+    setEditExperienceSummary(sc.experience_summary || '');
+    setEditResumeLink(sc.resume_link || '');
+    setEditExtraRemarks(sc.extra_remarks || sc.fit_verdict || sc.recommendation || '');
+  };
+
+  // Save Edited Candidate
+  const handleSaveEditedCandidate = async () => {
+    if (!editingCandidate) return;
+    setSavingEdit(true);
+    try {
+      const skillsArray = editSkills.split(',').map(s => s.trim()).filter(Boolean);
+      const projectsArray = editProjects ? editProjects.split(';').map(p => p.trim()).filter(Boolean) : [];
+
+      const res = await fetchWithAuth(`${API_URL}/hr/${editingCandidate.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editName,
+          email: editEmail,
+          role: editRole,
+          status: editStatus,
+          phone: editPhone,
+          address: editAddress,
+          skills: skillsArray,
+          projects: projectsArray,
+          experience_years: editExperienceYears ? parseFloat(editExperienceYears) : 0,
+          experience_summary: editExperienceSummary,
+          resume_link: editResumeLink,
+          extra_remarks: editExtraRemarks
+        })
+      });
+
+      if (res.ok) {
+        notify(`Successfully updated ${editName}'s profile!`);
+        setEditingCandidate(null);
+        fetchCandidates();
+      } else {
+        const errData = await res.json();
+        notify(`Error: ${errData.detail || 'Failed to update candidate'}`);
+      }
+    } catch (e) {
+      console.error("Error updating candidate:", e);
+      notify("Network error updating candidate.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   // Filtered Candidates computation
   const filteredCandidates = candidates.filter(c => {
     const matchesSearch =
@@ -535,15 +842,96 @@ export default function HRView({
           </Button>
 
           <Button
+            variant={activeTab === 'sheet' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('sheet')}
+            className={`rounded-xl h-10 px-4 font-semibold text-xs flex items-center gap-2 ${
+              activeTab === 'sheet' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold shadow-md shadow-amber-500/20' : 'border-gray-800 text-gray-300 hover:bg-gray-900'
+            }`}
+          >
+            <Table className="h-4 w-4" />
+            Extraction Sheet ({candidates.length})
+          </Button>
+
+          <Button
             variant={activeTab === 'leaderboard' ? 'default' : 'outline'}
             onClick={() => setActiveTab('leaderboard')}
             className={`rounded-xl h-10 px-4 font-semibold text-xs flex items-center gap-2 ${
- activeTab === 'leaderboard' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold' : 'border-gray-800 text-gray-300 hover:bg-gray-900'
- }`}
+              activeTab === 'leaderboard' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold' : 'border-gray-800 text-gray-300 hover:bg-gray-900'
+            }`}
           >
             <Award className="h-4 w-4" />
             Ranked Leaderboard ({candidates.length})
           </Button>
+
+          {/* Import Excel Dialog */}
+          <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+            <DialogTrigger
+              render={
+                <Button className="h-10 bg-gray-900 hover:bg-gray-800 text-white border border-gray-800 rounded-xl px-3 flex items-center gap-1.5 text-xs font-semibold" />
+              }
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" /> Import Excel
+            </DialogTrigger>
+            <DialogContent className="bg-gray-950 border-gray-800 text-white sm:max-w-[480px] rounded-3xl">
+              <DialogHeader>
+                <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                  <FileSpreadsheet className="h-5 w-5 text-emerald-400" />
+                  Import Candidates Spreadsheet (.xlsx / .csv)
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-3">
+                <p className="text-xs text-gray-400">
+                  Upload an existing spreadsheet containing candidate details (Name, Mobile No, Email, Address, Skills, Projects, Experience, Resume Link, Remarks). Columns will be automatically mapped.
+                </p>
+                <div
+                  onClick={() => excelFileInputRef.current?.click()}
+                  className="border-2 border-dashed border-gray-800 hover:border-emerald-500/50 rounded-2xl p-6 text-center cursor-pointer transition-colors bg-gray-900/40"
+                >
+                  <FileSpreadsheet className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
+                  <p className="text-xs font-semibold text-white">
+                    {importFile ? importFile.name : 'Click to select Excel (.xlsx) or CSV file'}
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-1">Supports standard .xlsx and .csv spreadsheets</p>
+                  <input
+                    ref={excelFileInputRef}
+                    type="file"
+                    accept=".xlsx,.csv"
+                    className="hidden"
+                    onChange={e => {
+                      if (e.target.files && e.target.files[0]) {
+                        setImportFile(e.target.files[0]);
+                      }
+                    }}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setIsImportModalOpen(false);
+                      setImportFile(null);
+                    }}
+                    className="text-xs text-gray-400 hover:text-white"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleImportExcel}
+                    disabled={!importFile || importingExcel}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl px-4"
+                  >
+                    {importingExcel ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Importing...
+                      </span>
+                    ) : (
+                      'Upload & Import Sheet'
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Manual Add Dialog */}
           <Dialog open={isManualAddOpen} onOpenChange={setIsManualAddOpen}>
@@ -602,6 +990,111 @@ export default function HRView({
         </div>
       </div>
 
+      {/* PERSISTENT RUNNING / COMPLETED JOB BANNER (Visible on all tabs) */}
+      {(uploadLoading || (activeJob && (activeJob.status === 'running' || activeJob.status === 'completed'))) && (
+        <Card className={`glass-panel border rounded-3xl p-4 shadow-2xl transition-all animate-in fade-in slide-in-from-top-2 ${
+          activeJob?.status === 'failed' ? 'border-rose-500/40 bg-rose-950/20' :
+          uploadLoading || activeJob?.status === 'running' ? 'border-amber-500/40 bg-amber-950/20' :
+          'border-emerald-500/30 bg-emerald-950/20'
+        }`}>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={`p-2.5 rounded-2xl flex-shrink-0 ${
+                activeJob?.status === 'failed' ? 'bg-rose-500/20 text-rose-400' :
+                uploadLoading || activeJob?.status === 'running' ? 'bg-amber-500/20 text-amber-400 animate-pulse' :
+                'bg-emerald-500/20 text-emerald-400'
+              }`}>
+                {uploadLoading || activeJob?.status === 'running' ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : activeJob?.status === 'failed' ? (
+                  <X className="h-5 w-5" />
+                ) : (
+                  <Sparkles className="h-5 w-5" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm text-white">
+                    {uploadLoading || activeJob?.status === 'running'
+                      ? `Ongoing Resume Ingestion for "${activeJob?.role || hrRole}"`
+                      : `Resume Ingestion Completed for "${activeJob?.role || hrRole}"`}
+                  </span>
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                    uploadLoading || activeJob?.status === 'running'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  }`}>
+                    {uploadLoading || activeJob?.status === 'running' ? 'PROCESSING' : 'COMPLETED'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 truncate mt-0.5">
+                  {currentProcessingFile || activeJob?.current_file || `${activeJob?.processed_files || 0}/${activeJob?.total_files || 0} files parsed`}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              {(uploadLoading || activeJob?.status === 'running') && (
+                <div className="w-36 md:w-48 space-y-1">
+                  <div className="flex justify-between text-[11px] font-mono text-gray-400">
+                    <span>Progress</span>
+                    <span className="font-bold text-amber-400">{uploadPercent}%</span>
+                  </div>
+                  <div className="w-full bg-gray-900 rounded-full h-2 overflow-hidden border border-gray-800">
+                    <div
+                      className="bg-gradient-to-r from-amber-500 to-emerald-400 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${uploadPercent}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowLogsDrawer(!showLogsDrawer)}
+                  className="rounded-xl border-gray-800 text-xs text-gray-300 hover:text-white h-9"
+                >
+                  <Bot className="h-3.5 w-3.5 mr-1.5 text-amber-400" />
+                  {showLogsDrawer ? 'Hide Logs' : `Logs (${ingestionLogs.length})`}
+                </Button>
+
+                {activeTab !== 'upload' && (
+                  <Button
+                    size="sm"
+                    onClick={() => setActiveTab('upload')}
+                    className="rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs h-9"
+                  >
+                    View Ingestion Tab
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Collapsible live log console in banner */}
+          {showLogsDrawer && ingestionLogs.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-800/80 animate-in fade-in duration-200">
+              <div className="max-h-40 overflow-y-auto space-y-1 font-mono text-[11px] p-2.5 bg-black/60 rounded-2xl border border-gray-900">
+                {ingestionLogs.map((log, lIdx) => (
+                  <div
+                    key={lIdx}
+                    className={`${
+                      log.includes('✓') ? 'text-emerald-400 font-semibold' :
+                      log.includes('✗') ? 'text-rose-400 font-semibold' :
+                      'text-gray-300'
+                    }`}
+                  >
+                    {log}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* TAB 1: RESUME INGESTION & STAGING ZONE */}
       {activeTab === 'upload' && (
         <div className="space-y-6 animate-in slide-in-from-top-2 duration-300">
@@ -651,8 +1144,9 @@ export default function HRView({
                   <Select value={hrProvider} onValueChange={(val) => {
                     if (val) {
                       setHrProvider(val);
-                      if (val === 'gemini') setHrModel('gemini-2.5-flash');
+                      if (val === 'openrouter') setHrModel('meta-llama/llama-3.3-70b-instruct');
                       else if (val === 'groq') setHrModel('llama-3.3-70b-versatile');
+                      else if (val === 'gemini') setHrModel('gemini-2.5-flash');
                       else if (val === 'openai') setHrModel('gpt-4o-mini');
                       else if (val === 'auto') setHrModel('');
                     }
@@ -661,10 +1155,11 @@ export default function HRView({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-gray-900 border-gray-800 text-white">
-                      <SelectItem value="auto">Auto (Ultra-Fast Flash Engine)</SelectItem>
+                      <SelectItem value="openrouter">OpenRouter (Meta Llama 3.3 70B Instruct)</SelectItem>
+                      <SelectItem value="groq">Groq (Llama 3.3 70B Versatile - Sub-second)</SelectItem>
                       <SelectItem value="gemini">Google Gemini 2.5 Flash ($0.0001)</SelectItem>
-                      <SelectItem value="groq">Groq Llama 3.3 70B (Sub-second)</SelectItem>
                       <SelectItem value="openai">OpenAI GPT-4o-mini</SelectItem>
+                      <SelectItem value="auto">Auto (Smart AI Gateway Router)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -677,7 +1172,7 @@ export default function HRView({
                 >
                   {uploadLoading ? (
                     <span className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" /> {uploadProgress || 'Processing...'}
+                      <Loader2 className="h-4 w-4 animate-spin" /> {uploadPercent}% - Processing...
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
@@ -685,6 +1180,24 @@ export default function HRView({
                     </span>
                   )}
                 </Button>
+
+                {/* Live Progress Bar & Status Feed */}
+                {uploadLoading && (
+                  <div className="space-y-2 pt-2 animate-in fade-in duration-200">
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="text-gray-300 truncate max-w-[190px] font-medium">
+                        {currentProcessingFile || uploadProgress}
+                      </span>
+                      <span className="font-mono font-bold text-amber-400">{uploadPercent}%</span>
+                    </div>
+                    <div className="w-full bg-gray-900 rounded-full h-2 overflow-hidden border border-gray-800">
+                      <div
+                        className="bg-gradient-to-r from-amber-500 to-emerald-400 h-2 rounded-full transition-all duration-500 ease-out"
+                        style={{ width: `${uploadPercent}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </Card>
             </div>
 
@@ -827,8 +1340,381 @@ export default function HRView({
                   )}
                 </div>
               </Card>
+
+              {/* Live Ingestion Processing Console & Progress Logs */}
+              {ingestionLogs.length > 0 && (
+                <Card className="glass-panel border-gray-800 rounded-3xl p-4 bg-gray-950/70 shadow-xl space-y-2">
+                  <div className="flex items-center justify-between border-b border-gray-800/80 pb-2">
+                    <span className="text-xs font-bold text-amber-400 flex items-center gap-2">
+                      <Bot className="h-4 w-4" /> Live Ingestion & Extraction Log
+                    </span>
+                    <span className="text-[11px] font-mono text-gray-500">
+                      {ingestionLogs.length} events logged
+                    </span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto space-y-1 font-mono text-[11px] p-2 bg-black/40 rounded-2xl border border-gray-900">
+                    {ingestionLogs.map((log, lIdx) => (
+                      <div
+                        key={lIdx}
+                        className={`${
+                          log.includes('✓') ? 'text-emerald-400 font-semibold' :
+                          log.includes('✗') ? 'text-rose-400 font-semibold' :
+                          'text-gray-300'
+                        }`}
+                      >
+                        {log}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* TAB 3: EXTRACTION SHEET & ROW-WISE CANDIDATE GRID */}
+      {activeTab === 'sheet' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Action Bar: Search, Filters, Excel Export & Import */}
+          <div className="flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search by name, email, phone, address, or skills..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="pl-10 bg-gray-900/70 border-gray-800 text-white rounded-2xl h-11 text-xs"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={statusFilter} onValueChange={val => val && setStatusFilter(val)}>
+                <SelectTrigger className="bg-gray-900/70 border-gray-800 text-white rounded-xl text-xs h-10 w-36">
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="sourced">Sourced</SelectItem>
+                  <SelectItem value="accepted">Accepted</SelectItem>
+                  <SelectItem value="screened">Screened</SelectItem>
+                  <SelectItem value="interviewed">Interviewed</SelectItem>
+                  <SelectItem value="offered">Offered</SelectItem>
+                  <SelectItem value="hired">Hired</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Delete Selected Candidates */}
+              {selectedSheetCandidateIds.length > 0 && (
+                <Button
+                  onClick={() => handleBatchDeleteCandidates(false)}
+                  disabled={isBatchDeleting}
+                  className="bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl h-10 px-3 text-xs flex items-center gap-1.5 shadow-md shadow-rose-600/20 animate-in fade-in"
+                >
+                  {isBatchDeleting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  Delete Selected ({selectedSheetCandidateIds.length})
+                </Button>
+              )}
+
+              {/* Delete All Candidates Button */}
+              {candidates.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => handleBatchDeleteCandidates(true)}
+                  disabled={isBatchDeleting}
+                  className="border-rose-900/60 hover:bg-rose-950/40 text-rose-400 hover:text-rose-300 rounded-xl h-10 px-3 text-xs font-semibold flex items-center gap-1.5"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete All ({candidates.length})
+                </Button>
+              )}
+
+              {/* Export to Excel Button */}
+              <Button
+                onClick={handleExportExcel}
+                disabled={exportingExcel || candidates.length === 0}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl h-10 px-4 text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/20"
+              >
+                {exportingExcel ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                Export to Excel (.xlsx)
+              </Button>
+
+              {/* Import Excel Trigger Button */}
+              <Button
+                variant="outline"
+                onClick={() => setIsImportModalOpen(true)}
+                className="border-gray-800 text-gray-300 hover:bg-gray-900 hover:text-white rounded-xl h-10 px-3 text-xs font-semibold flex items-center gap-1.5"
+              >
+                <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+                Import Excel
+              </Button>
+            </div>
+          </div>
+
+          {/* Row-wise Extraction Details Table */}
+          <Card className="glass-panel border-gray-800 overflow-hidden rounded-3xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[1100px]">
+                <thead>
+                  <tr className="border-b border-gray-800 bg-gray-950/70 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                    <th className="py-3.5 px-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={
+                          filteredCandidates.length > 0 &&
+                          selectedSheetCandidateIds.length === filteredCandidates.length
+                        }
+                        onChange={e => toggleSelectAllCandidates(e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-700 bg-gray-900 text-amber-500 focus:ring-amber-500/20 cursor-pointer"
+                        title="Select All"
+                      />
+                    </th>
+                    <th className="py-3.5 px-3 w-12 text-center">#</th>
+                    <th className="py-3.5 px-4">Candidate & Status</th>
+                    <th className="py-3.5 px-4">Mobile No</th>
+                    <th className="py-3.5 px-4">Email</th>
+                    <th className="py-3.5 px-4">Address</th>
+                    <th className="py-3.5 px-4">Skills</th>
+                    <th className="py-3.5 px-4">Projects</th>
+                    <th className="py-3.5 px-4">Experience</th>
+                    <th className="py-3.5 px-4 text-center">Resume Link</th>
+                    <th className="py-3.5 px-4">Extra Remarks</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/60 text-xs">
+                  {filteredCandidates.length === 0 ? (
+                    <tr>
+                      <td colSpan={12} className="py-16 text-center text-gray-500">
+                        <FileCheck className="h-8 w-8 mx-auto text-gray-600 mb-2" />
+                        <p className="font-semibold text-gray-400">No candidate records match your query</p>
+                        <p className="text-[11px] mt-1">Ingest resumes or click &quot;Import Excel&quot; to load candidate records.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredCandidates.map((cand, idx) => {
+                      const sc = cand.scorecard || {};
+                      const phone = sc.phone_number || sc.phone || 'N/A';
+                      const addr = sc.address || 'Not specified';
+                      const skills = sc.skills || [];
+                      const projects = sc.projects || [];
+                      const expYears = sc.experience_years ?? 0;
+                      const expSummary = sc.experience_summary || '';
+                      const resumeLink = sc.resume_link || '';
+                      const remarks = sc.extra_remarks || sc.fit_verdict || sc.recommendation || 'Verified candidate profile';
+                      const matchScore = sc.composite_score ?? sc.match_score ?? 65;
+                      const isRowSelected = selectedSheetCandidateIds.includes(cand.id);
+
+                      return (
+                        <tr
+                          key={cand.id}
+                          className={`transition-colors group ${
+                            isRowSelected ? 'bg-amber-500/10' : 'hover:bg-gray-900/40'
+                          }`}
+                        >
+                          {/* Checkbox */}
+                          <td className="py-3.5 px-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isRowSelected}
+                              onChange={() => toggleCandidateSelection(cand.id)}
+                              className="h-4 w-4 rounded border-gray-700 bg-gray-900 text-amber-500 focus:ring-amber-500/20 cursor-pointer"
+                            />
+                          </td>
+
+                          {/* Rank */}
+                          <td className="py-3.5 px-3 font-mono font-bold text-gray-500 text-center">
+                            {sc.rank || idx + 1}
+                          </td>
+
+                          {/* Candidate & Status */}
+                          <td className="py-3.5 px-4">
+                            <div className="font-bold text-white flex items-center gap-2">
+                              <span>{cand.name}</span>
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                                cand.status === 'hired' ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' :
+                                cand.status === 'offered' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
+                                cand.status === 'interviewed' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
+                                cand.status === 'accepted' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                cand.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                                'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                              }`}>
+                                {cand.status}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-gray-400 mt-0.5">{cand.role}</div>
+                          </td>
+
+                          {/* Mobile No */}
+                          <td className="py-3.5 px-4 font-mono text-gray-300">
+                            {phone !== 'N/A' ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="truncate max-w-[130px]">{phone}</span>
+                                <button
+                                  title="Copy phone number"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(phone);
+                                    notify(`Copied ${phone} to clipboard`);
+                                  }}
+                                  className="text-gray-500 hover:text-white p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-gray-600 italic">N/A</span>
+                            )}
+                          </td>
+
+                          {/* Email */}
+                          <td className="py-3.5 px-4 font-mono text-gray-300">
+                            {cand.email && cand.email !== 'N/A' && !cand.email.includes('@applicant.internal') ? (
+                              <a
+                                href={`mailto:${cand.email}`}
+                                className="text-amber-400/90 hover:text-amber-300 hover:underline truncate max-w-[160px] block"
+                              >
+                                {cand.email}
+                              </a>
+                            ) : (
+                              <span className="text-gray-600 italic">N/A</span>
+                            )}
+                          </td>
+
+                          {/* Address */}
+                          <td className="py-3.5 px-4 text-gray-300">
+                            <div className="flex items-center gap-1 text-[11px] max-w-[140px] truncate" title={addr}>
+                              <MapPin className="h-3 w-3 text-gray-500 shrink-0" />
+                              <span className="truncate">{addr}</span>
+                            </div>
+                          </td>
+
+                          {/* Skills */}
+                          <td className="py-3.5 px-4">
+                            <div className="flex flex-wrap gap-1 max-w-[190px]">
+                              {skills.slice(0, 3).map((s: string) => (
+                                <span key={s} className="px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-[10px] text-gray-300 font-medium">
+                                  {s}
+                                </span>
+                              ))}
+                              {skills.length > 3 && (
+                                <span className="px-1.5 py-0.5 rounded bg-gray-900/50 border border-gray-800 text-[10px] text-gray-500">
+                                  +{skills.length - 3}
+                                </span>
+                              )}
+                              {skills.length === 0 && <span className="text-gray-600 italic text-[11px]">N/A</span>}
+                            </div>
+                          </td>
+
+                          {/* Projects */}
+                          <td className="py-3.5 px-4">
+                            <div className="max-w-[180px] text-[11px] text-gray-300 line-clamp-2" title={Array.isArray(projects) ? projects.join(', ') : String(projects)}>
+                              {Array.isArray(projects) && projects.length > 0 ? (
+                                projects.slice(0, 2).map((p: string, i: number) => (
+                                  <div key={i} className="truncate">• {p}</div>
+                                ))
+                              ) : (
+                                <span className="text-gray-600 italic">None listed</span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Experience */}
+                          <td className="py-3.5 px-4">
+                            <div className="font-semibold text-white text-[11px]">{expYears} yrs exp</div>
+                            {expSummary && (
+                              <div className="text-[10px] text-gray-400 truncate max-w-[130px]" title={expSummary}>
+                                {expSummary}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Resume Link */}
+                          <td className="py-3.5 px-4 text-center">
+                            {resumeLink ? (
+                              <a
+                                href={resumeLink.startsWith('http') ? resumeLink : `${API_URL.replace('/api/v1', '')}${resumeLink}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-semibold transition-colors"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                Resume
+                              </a>
+                            ) : (
+                              <span className="text-gray-600 text-[11px] italic">Not attached</span>
+                            )}
+                          </td>
+
+                          {/* Extra Remarks */}
+                          <td className="py-3.5 px-4">
+                            <div className="max-w-[200px]">
+                              <div className="text-[11px] text-gray-300 line-clamp-2" title={remarks}>
+                                {remarks}
+                              </div>
+                              <div className="mt-1 flex items-center gap-1.5">
+                                <span className="text-[10px] font-bold text-amber-400 font-mono">{matchScore}% match</span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {cand.status === 'sourced' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleUpdateCandidateStatus(cand.id, 'accepted')}
+                                  className="h-7 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold"
+                                >
+                                  Approve
+                                </Button>
+                              )}
+                              {cand.status === 'accepted' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => openInterviewModal(cand)}
+                                  className="h-7 px-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold"
+                                >
+                                  Interview
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => openEditCandidateModal(cand)}
+                                title="Edit Candidate Details"
+                                className="h-7 w-7 p-0 text-gray-400 hover:text-amber-400 rounded-lg hover:bg-amber-500/10"
+                              >
+                                <Edit className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDeleteCandidate(cand.id)}
+                                title="Delete Candidate"
+                                className="h-7 w-7 p-0 text-gray-500 hover:text-rose-400 rounded-lg hover:bg-rose-500/10"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
       )}
 
@@ -999,8 +1885,12 @@ export default function HRView({
                           </div>
 
                           <p className="text-xs text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
-                            <span>{candidate.email}</span>
-                            {scorecard.phone_number && <span>• {scorecard.phone_number}</span>}
+                            <span>
+                              {candidate.email && candidate.email !== 'N/A' && !candidate.email.includes('@applicant.internal')
+                                ? candidate.email
+                                : 'Email: N/A'}
+                            </span>
+                            {scorecard.phone_number && scorecard.phone_number !== 'N/A' && <span>• {scorecard.phone_number}</span>}
                             <span>• Target: <strong className="text-gray-200">{candidate.role}</strong></span>
                             {experienceYears > 0 && <span>• <strong>{experienceYears} yrs exp</strong></span>}
                           </p>
@@ -1651,6 +2541,185 @@ export default function HRView({
                     )}
                   </Button>
                 </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Candidate Edit Dialog (Extraction Sheet Row-Wise Editor) */}
+      {editingCandidate && (
+        <Dialog open={!!editingCandidate} onOpenChange={open => !open && setEditingCandidate(null)}>
+          <DialogContent className="bg-gray-950 border-gray-800 text-white sm:max-w-[650px] max-h-[88vh] overflow-y-auto rounded-3xl p-6 shadow-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                <Edit className="h-5 w-5 text-amber-400" />
+                Edit Candidate Record
+              </DialogTitle>
+              <p className="text-xs text-gray-400">
+                Update candidate extraction details. All edits immediately synchronize with the database and Excel exports.
+              </p>
+            </DialogHeader>
+
+            <div className="space-y-4 pt-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-400">Full Name *</label>
+                  <Input
+                    value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                    placeholder="Candidate Name"
+                    className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs h-10"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-400">Email Address *</label>
+                  <Input
+                    value={editEmail}
+                    onChange={e => setEditEmail(e.target.value)}
+                    placeholder="candidate@example.com"
+                    type="email"
+                    className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs h-10"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-400">Role / Job Title *</label>
+                  <Input
+                    value={editRole}
+                    onChange={e => setEditRole(e.target.value)}
+                    placeholder="e.g. Senior Backend Engineer"
+                    className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs h-10"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-400">Shortlisting Status</label>
+                  <Select value={editStatus} onValueChange={val => val && setEditStatus(val)}>
+                    <SelectTrigger className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs h-10">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                      <SelectItem value="sourced">Sourced</SelectItem>
+                      <SelectItem value="accepted">Accepted</SelectItem>
+                      <SelectItem value="screened">Screened</SelectItem>
+                      <SelectItem value="interviewed">Interviewed</SelectItem>
+                      <SelectItem value="offered">Offered</SelectItem>
+                      <SelectItem value="hired">Hired</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-400">Mobile / Phone Number</label>
+                  <Input
+                    value={editPhone}
+                    onChange={e => setEditPhone(e.target.value)}
+                    placeholder="+1 (555) 123-4567"
+                    className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs h-10"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-400">Location / Address</label>
+                  <Input
+                    value={editAddress}
+                    onChange={e => setEditAddress(e.target.value)}
+                    placeholder="e.g. San Francisco, CA"
+                    className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs h-10"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-400">Skills (comma separated)</label>
+                <Input
+                  value={editSkills}
+                  onChange={e => setEditSkills(e.target.value)}
+                  placeholder="Python, React, TypeScript, Docker, PostgreSQL"
+                  className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs h-10"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-400">Projects (semicolon separated)</label>
+                <Textarea
+                  value={editProjects}
+                  onChange={e => setEditProjects(e.target.value)}
+                  placeholder="Project 1: Built distributed queue; Project 2: Microservices migration"
+                  className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs min-h-[60px]"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-400">Experience (Years)</label>
+                  <Input
+                    value={editExperienceYears}
+                    onChange={e => setEditExperienceYears(e.target.value)}
+                    placeholder="e.g. 5"
+                    type="number"
+                    step="0.5"
+                    className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs h-10"
+                  />
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-400">Experience Summary</label>
+                  <Input
+                    value={editExperienceSummary}
+                    onChange={e => setEditExperienceSummary(e.target.value)}
+                    placeholder="e.g. 5+ years building backend systems"
+                    className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs h-10"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-400">Resume Link (OctaOS Internal Media Link)</label>
+                <Input
+                  value={editResumeLink}
+                  onChange={e => setEditResumeLink(e.target.value)}
+                  placeholder="/media/resumes/tenant_id/resume.pdf"
+                  className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs h-10 font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-400">Extra Remarks & Evaluation Notes</label>
+                <Textarea
+                  value={editExtraRemarks}
+                  onChange={e => setEditExtraRemarks(e.target.value)}
+                  placeholder="Additional recruiter notes, recommendations, fit analysis..."
+                  className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs min-h-[70px]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-800">
+                <Button
+                  variant="ghost"
+                  onClick={() => setEditingCandidate(null)}
+                  className="text-xs text-gray-400 hover:text-white"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveEditedCandidate}
+                  disabled={savingEdit || !editName || !editEmail}
+                  className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-bold text-xs rounded-xl h-10 px-5 shadow-lg shadow-amber-500/20"
+                >
+                  {savingEdit ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving Changes...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <Save className="h-3.5 w-3.5" /> Save Changes
+                    </span>
+                  )}
+                </Button>
               </div>
             </div>
           </DialogContent>

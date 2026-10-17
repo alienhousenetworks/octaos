@@ -21,9 +21,11 @@ import SystemAdminView from '@/components/views/system-admin-view';
 import ApiManagementView from '@/components/views/api-management-view';
 import ProfileView from '@/components/views/profile-view';
 import EnterpriseView from '@/components/views/enterprise-view';
+import ApprovalsView from '@/components/views/approvals-view';
 import AutomationsView from '@/components/views/automations-view';
+import AgentLockedScreen from '@/components/shell/agent-locked-screen';
 import { EmptyState } from '@/components/shell/states';
-import { allNavItems, canSeeItem, pathForView } from '@/lib/navigation';
+import { allNavItems, canSeeItem, pathForView, isAgentAllowed } from '@/lib/navigation';
 import { useWorkspace, useWorkspaceFeed } from '@/lib/workspace';
 
 const FEED_PATHS = [
@@ -104,9 +106,29 @@ export default function WorkspaceScreen() {
     return <KnowledgeView {...shared} knowledge={workspace.knowledge} />;
   }
   if (pathname === '/app/campaigns') {
+    if (!isAgentAllowed('marketing', workspace.userProfile)) {
+      return (
+        <AgentLockedScreen
+          agentKey="marketing"
+          token={workspace.token}
+          API_URL={workspace.apiUrl}
+          fetchData={workspace.fetchData}
+        />
+      );
+    }
     return <CampaignsView {...shared} activeView="campaigns" configuredProviders={workspace.configuredProviders} />;
   }
   if (pathname === '/app/support') {
+    if (!isAgentAllowed('support', workspace.userProfile)) {
+      return (
+        <AgentLockedScreen
+          agentKey="support"
+          token={workspace.token}
+          API_URL={workspace.apiUrl}
+          fetchData={workspace.fetchData}
+        />
+      );
+    }
     return <SupportView {...shared} tenantId={workspace.tenantId} />;
   }
   if (pathname === '/app/orchestrator') {
@@ -132,6 +154,16 @@ export default function WorkspaceScreen() {
     return <AutomationsView {...shared} userProfile={workspace.userProfile} />;
   }
   if (pathname === '/app/hiring') {
+    if (!isAgentAllowed('hr', workspace.userProfile)) {
+      return (
+        <AgentLockedScreen
+          agentKey="hr"
+          token={workspace.token}
+          API_URL={workspace.apiUrl}
+          fetchData={workspace.fetchData}
+        />
+      );
+    }
     return <HRView {...shared} />;
   }
   if (pathname === '/app/ceo') {
@@ -140,10 +172,20 @@ export default function WorkspaceScreen() {
   if (pathname === '/app/boardroom') {
     return <CoordinationView {...shared} />;
   }
-  if (pathname === '/app/sales/intelligence') {
-    return <SalesIntelligenceView {...shared} />;
-  }
-  if (pathname in SALES_SECTIONS) {
+  if (pathname === '/app/sales/intelligence' || pathname in SALES_SECTIONS) {
+    if (!isAgentAllowed('sales', workspace.userProfile)) {
+      return (
+        <AgentLockedScreen
+          agentKey="sales"
+          token={workspace.token}
+          API_URL={workspace.apiUrl}
+          fetchData={workspace.fetchData}
+        />
+      );
+    }
+    if (pathname === '/app/sales/intelligence') {
+      return <SalesIntelligenceView {...shared} />;
+    }
     const section = SALES_SECTIONS[pathname as keyof typeof SALES_SECTIONS];
     return (
       <SalesView
@@ -172,10 +214,10 @@ export default function WorkspaceScreen() {
     return <AIOptimizationView {...shared} metrics={workspace.metrics} />;
   }
   if (pathname === '/app/approvals') {
-    return workspace.token ? <EnterpriseView token={workspace.token} mode="approvals" /> : null;
+    return <ApprovalsView {...shared} />;
   }
   if (pathname === '/app/settings/enterprise') {
-    return workspace.token ? <EnterpriseView token={workspace.token} mode="control" /> : null;
+    return workspace.token ? <EnterpriseView token={workspace.token} mode="control" API_URL={workspace.apiUrl} /> : null;
   }
   if (pathname === '/app/settings/integrations') {
     return (

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, validator
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 
 class LeadBase(BaseModel):
@@ -188,6 +188,21 @@ class CandidateBase(BaseModel):
 
 class CandidateCreate(CandidateBase):
     pass
+
+class CandidateUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    role: Optional[str] = None
+    status: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    skills: Optional[List[str]] = None
+    projects: Optional[List[str]] = None
+    experience_years: Optional[Union[int, float]] = None
+    experience_summary: Optional[str] = None
+    resume_link: Optional[str] = None
+    extra_remarks: Optional[str] = None
+    scorecard: Optional[dict] = None
 
 class Candidate(CandidateBase):
     id: str

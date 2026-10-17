@@ -74,7 +74,7 @@ def test_interactive_draft_and_refine_plan(db_session):
     assert initial_plan["status"] == "AWAITING_USER_APPROVAL"
 
     # Step 2: User review feedback loop
-    feedback_text = "Prioritize outbound outreach by Alex Rivera over broad brand campaigns, and ensure compliance with UK privacy rules"
+    feedback_text = "Prioritize outbound outreach by Sales AI over broad brand campaigns, and ensure compliance with UK privacy rules"
     refined_plan = orchestrator.draft_or_refine_plan(
         prompt="Accelerate enterprise SDR pipeline targeting Series B fintech companies",
         budget_cap=30000.0,
@@ -103,7 +103,7 @@ def test_interactive_summon_council_meeting(db_session):
         plan_id=plan["plan_id"],
         budget_cap=25000.0,
         timeline_days=30,
-        user_feedback="Elena: ensure strict 45-day payback guardrails",
+        user_feedback="CFO AI: ensure strict 45-day payback guardrails",
         workflow_id=plan["workflow_id"]
     )
 
@@ -111,12 +111,12 @@ def test_interactive_summon_council_meeting(db_session):
     assert meeting["status"] == "AWAITING_USER_DECISION"
     assert len(meeting["dialogue"]) >= 4
 
-    # Verify dialogue participants include Elena (CFO), Alex (Sales), Marcus (Red Team), and CEO
+    # Verify dialogue participants include CFO AI, Sales AI, Red Team AI, and CEO AI
     speakers = [d["speaker_name"] for d in meeting["dialogue"]]
-    assert "Elena Rostova" in speakers
-    assert "Alex Rivera" in speakers
-    assert "Marcus Vance" in speakers
-    assert "CEO Orchestrator" in speakers
+    assert "CFO AI" in speakers
+    assert "Sales AI" in speakers
+    assert "Red Team AI" in speakers
+    assert "CEO AI" in speakers
 
     # Verify ROI scorecard
     roi = meeting["roi_scorecard"]
@@ -158,9 +158,9 @@ def test_interactive_assign_and_execute(db_session):
     # Verify real deliverables created in database
     leads = db_session.query(Lead).filter_by(tenant_id="test-tenant-123").all()
     assert len(leads) >= 3
-    # Check lead was assigned to Alex Rivera
-    alex_leads = [l for l in leads if "Alex Rivera" in (l.assigned_to or "")]
-    assert len(alex_leads) >= 1
+    # Check lead was assigned to Sales AI (or tenant employee)
+    sales_leads = [l for l in leads if "Sales AI" in (l.assigned_to or "")]
+    assert len(sales_leads) >= 1
 
     # Check Workflow status updated to RUNNING
     wf = db_session.query(Workflow).filter_by(id=plan["workflow_id"]).first()
@@ -257,10 +257,10 @@ def test_cto_and_custom_agent_decision_and_grounding(db_session):
     summoned_roles = [a["agent_role"] for a in selection["summoned_agents"]]
     summoned_names = [a["name"] for a in selection["summoned_agents"]]
 
-    # Verify Technical AI (CTO - Rachel Chen) is summoned
+    # Verify Technical AI is summoned
     assert "Technical AI" in summoned_roles
-    rachel = next(a for a in selection["summoned_agents"] if a["agent_role"] == "Technical AI")
-    assert "software development" in rachel["attendance_reason"].lower() or "cto" in rachel["attendance_reason"].lower()
+    technical = next(a for a in selection["summoned_agents"] if a["agent_role"] == "Technical AI")
+    assert "software development" in technical["attendance_reason"].lower() or "cto" in technical["attendance_reason"].lower()
 
     # Verify custom-built agent is summoned based on specialized capabilities match
     assert "Kaelen Frost" in summoned_names
@@ -271,7 +271,7 @@ def test_cto_and_custom_agent_decision_and_grounding(db_session):
     assert "CFO AI" in summoned_roles
     assert "Red Team AI" in summoned_roles
 
-    # 4. Test council meeting includes Rachel Chen (CTO) dialogue
+    # 4. Test council meeting includes Technical AI dialogue
     plan = orchestrator.draft_or_refine_plan(
         prompt="Deploy automated microservices pipeline with Kubernetes failover targeting enterprise CTOs",
         budget_cap=35000.0
@@ -284,14 +284,14 @@ def test_cto_and_custom_agent_decision_and_grounding(db_session):
     )
 
     speakers = [d["speaker_name"] for d in meeting["dialogue"]]
-    assert "Rachel Chen" in speakers
+    assert "Technical AI" in speakers
     assert "Kaelen Frost" in speakers
-    assert "CEO Orchestrator" in speakers
+    assert "CEO AI" in speakers
 
-    rachel_turn = next(d for d in meeting["dialogue"] if d["speaker_name"] == "Rachel Chen")
-    assert rachel_turn["agent_role"] == "Technical AI"
-    assert "Rachel Chen, CTO" in rachel_turn["message"]
-    assert "AlienHouse Networks" in rachel_turn["message"]
+    tech_turn = next(d for d in meeting["dialogue"] if d["speaker_name"] == "Technical AI")
+    assert tech_turn["agent_role"] == "Technical AI"
+    assert "Technical AI, CTO" in tech_turn["message"]
+    assert "AlienHouse Networks" in tech_turn["message"]
 
     # 5. Execute plan and verify team status contains Technical AI deliverables
     team_status = orchestrator.assign_and_execute(
@@ -350,9 +350,9 @@ def test_ten_agents_critique_loop_and_live_dag_transcripts(db_session):
     assert critique_history[1]["status"] == "UNANIMOUS_CONSENSUS"
 
     critics_r1 = [c["critic_name"] for c in critique_history[0]["critiques"]]
-    assert "Rachel Chen" in critics_r1  # Technical Critic (CTO)
-    assert "Elena Rostova" in critics_r1  # Financial Critic (CFO)
-    assert "Marcus Vance" in critics_r1  # Adversarial Critic (Red Team)
+    assert "Technical AI" in critics_r1  # Technical Critic
+    assert "CFO AI" in critics_r1  # Financial Critic (CFO)
+    assert "Red Team AI" in critics_r1  # Adversarial Critic (Red Team)
 
     critics_r2 = [c["verdict"] for c in critique_history[1]["critiques"]]
     assert all(v == "We can do it" for v in critics_r2)
@@ -380,13 +380,13 @@ def test_ten_agents_critique_loop_and_live_dag_transcripts(db_session):
             assert "result" in entry
             assert "timestamp" in entry
 
-    # Verify node 2 is Technical AI (Rachel Chen) and node 6 is Operations AI (Liam Vance)
+    # Verify node 2 is Technical AI and node 6 is Operations AI
     node_2 = next(n for n in nodes if n["id"].endswith("_2"))
-    assert node_2["parameters"]["assigned_agent"] == "Rachel Chen"
+    assert node_2["parameters"]["assigned_agent"] == "Technical AI"
     assert node_2["department"] == "ENGINEERING"
 
     node_6 = next(n for n in nodes if n["id"].endswith("_6"))
-    assert node_6["parameters"]["assigned_agent"] == "Liam Vance"
+    assert node_6["parameters"]["assigned_agent"] == "Operations AI"
     assert node_6["department"] == "OPERATIONS"
 
 

@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Header
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Dict
 from pydantic import BaseModel
 from app.api import deps
 from app.core.config import settings
@@ -23,6 +23,7 @@ class CommandRequest(BaseModel):
     prompt: str
     provider: Optional[str] = "anthropic"
     model: Optional[str] = None
+    messages: Optional[List[Dict[str, Any]]] = None
 
 class APIKeyUpdate(BaseModel):
     provider: str
@@ -69,7 +70,7 @@ async def execute_command(
                 break
 
     from app.services.agents.intent_router import IntentRouter
-    intent_mode, _ = IntentRouter.classify(request.prompt)
+    intent_mode, _ = IntentRouter.classify(request.prompt, messages=request.messages)
 
     # 2. If no key, intercept the prompt (allow pasting key, or let analytics proceed with deterministic core)
     if not has_valid_key and intent_mode not in ["analytics", "hybrid"]:
@@ -114,7 +115,8 @@ async def execute_command(
         result = await orchestrator.handle_prompt(
             prompt=request.prompt,
             provider=resolved_provider,
-            model=request.model
+            model=request.model,
+            messages=request.messages
         )
     except ValueError as e:
         ve_str = str(e)

@@ -643,6 +643,12 @@ def read_current_user(
     db: Session = Depends(deps.get_db)
 ) -> Any:
     tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
+    ent = {}
+    try:
+        ent = SubscriptionService(db).entitlements(current_user.tenant_id)
+    except Exception:
+        pass
+
     return {
         "id": current_user.id,
         "email": current_user.email,
@@ -657,6 +663,10 @@ def read_current_user(
         "allowed_sections": getattr(current_user, "allowed_sections", None),
         "is_system_admin": getattr(current_user, "is_system_admin", False),
         "is_verified": getattr(current_user, "is_verified", False),
+        "allowed_agents": ent.get("allowed_agents", ["*"]),
+        "active_agents_details": ent.get("active_agents_details", []),
+        "plan": ent.get("plan"),
+        "subscription_status": ent.get("status", "active"),
     }
 
 

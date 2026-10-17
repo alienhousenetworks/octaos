@@ -35,10 +35,15 @@ class IntentRouter:
     ]
 
     @classmethod
-    def classify(cls, prompt: str) -> Tuple[Literal["execution", "analytics", "hybrid"], float]:
+    def classify(
+        cls,
+        prompt: str,
+        messages: Optional[List[Dict[str, Any]]] = None,
+    ) -> Tuple[Literal["execution", "analytics", "hybrid"], float]:
         """
         Fast-path classifier returning (mode, confidence).
         Rules fast-path completes in sub-millisecond time.
+        When prompt confidence is low, uses recent conversation messages as context.
         """
         p = prompt.strip().lower()
 
@@ -73,6 +78,18 @@ class IntentRouter:
             return "analytics", 0.85
         if has_ek:
             return "execution", 0.85
+
+        # If ambiguous and previous messages provided, inspect the latest user message in history
+        if messages:
+            prior_user_msgs = [m.get("content", "") for m in reversed(messages) if m.get("role") == "user" and m.get("content")]
+            for prior_p in prior_user_msgs:
+                prior_lower = prior_p.strip().lower()
+                prior_ak = any(re.search(rf"\b{w}\b", prior_lower) for w in analytics_keywords)
+                prior_ek = any(re.search(rf"\b{w}\b", prior_lower) for w in execution_keywords)
+                if prior_ak and not prior_ek:
+                    return "analytics", 0.75
+                if prior_ek and not prior_ak:
+                    return "execution", 0.75
 
         # Default fallback
         return "execution", 0.70

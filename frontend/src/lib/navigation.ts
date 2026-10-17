@@ -159,3 +159,12 @@ export function crumbForPath(pathname: string) {
   const group = NAV_GROUPS.find((entry) => entry.items.some((nav) => nav.href === pathname));
   return { section: group?.label || 'Workspace', name: item.name };
 }
+
+export function isAgentAllowed(agentKey: string, profile: any): boolean {
+  if (!profile) return true;
+  if (profile.is_system_admin) return true;
+  const allowed = profile.allowed_agents;
+  if (!allowed || allowed.includes('*')) return true;
+  return allowed.map((a: string) => String(a).toLowerCase()).includes(agentKey.toLowerCase());
+}
+

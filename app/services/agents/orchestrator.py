@@ -1,4 +1,6 @@
 import json
+import logging
+from typing import Optional, List, Dict, Any
 from app.services.agents.base import BaseAgent
 from app.services.agents.marketing import MarketingAgent
 from app.services.agents.sales import SalesAgent
@@ -8,11 +10,19 @@ from app.services.agents.hr import HRAgent
 
 from app.models.base import APICredential
 
+logger = logging.getLogger(__name__)
+
 class OrchestratorAgent(BaseAgent):
     def __init__(self, db, tenant_id):
         super().__init__(db, tenant_id, "Orchestrator AI")
 
-    async def handle_prompt(self, prompt: str, provider: str = None, model: str = None) -> dict:
+    async def handle_prompt(
+        self,
+        prompt: str,
+        provider: str = None,
+        model: str = None,
+        messages: Optional[List[Dict[str, Any]]] = None,
+    ) -> dict:
         from app.core.config import settings
         from app.services.ai_gateway import ai_gateway
 
@@ -41,15 +51,35 @@ class OrchestratorAgent(BaseAgent):
             self.log_activity("Configuration", f"Saved {provider} API key.")
             return {"plan": {}, "results": [{"status": "success", "message": f"I've saved your {provider} configuration. What task should I execute next?"}]}
 
+        # Build structured multi-turn conversation history
+        conversation_context = ""
+        if messages:
+            history_lines = []
+            for m in messages:
+                role = (m.get("role") or "").lower()
+                content = (m.get("content") or "").strip()
+                if not content or "Welcome to the Orchestrator AI Console" in content:
+                    continue
+                if role == "user":
+                    history_lines.append(f"User: {content}")
+                elif role in ("assistant", "system"):
+                    history_lines.append(f"Orchestrator AI: {content}")
+            if history_lines:
+                conversation_context = "Previous Conversation History:\n" + "\n".join(history_lines)
+
+        effective_prompt = prompt
+        if conversation_context:
+            effective_prompt = f"{conversation_context}\n\nCurrent User Request:\n{prompt}"
+
         # Intent routing: branch into analytics/hybrid vs execution
         from app.services.agents.intent_router import IntentRouter
-        mode, confidence = IntentRouter.classify(prompt)
+        mode, confidence = IntentRouter.classify(prompt, messages=messages)
 
         if mode in ["analytics", "hybrid"]:
             from app.services.agents.executive_swarm import ExecutiveSwarmCoordinator
             coordinator = ExecutiveSwarmCoordinator(self.db, self.tenant_id)
             briefing = await coordinator.execute_report(
-                prompt=prompt,
+                prompt=effective_prompt,
                 mode=mode,
                 confidence=confidence,
                 provider=provider,
@@ -72,6 +102,15 @@ class OrchestratorAgent(BaseAgent):
         creds = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id).all()
         configured_providers = [c.provider for c in creds]
 
+        # Query live database counts for operational grounding
+        from app.models.verticals import Candidate, Lead
+        try:
+            cand_count = self.db.query(Candidate).filter_by(tenant_id=self.tenant_id).count()
+            lead_count = self.db.query(Lead).filter_by(tenant_id=self.tenant_id).count()
+            operational_stats = f"Live Database Counts: {cand_count} Candidate(s)/Resume(s) currently on file; {lead_count} Lead(s) in CRM."
+        except Exception:
+            operational_stats = "Live Database Counts: 0 Candidate(s)/Resume(s) on file; 0 Lead(s) in CRM."
+
         # Inject company-dedicated knowledge base context (directives, brand rules, RAG)
         company_knowledge = self.get_knowledge_context("orchestrator", "General")
 
@@ -81,6 +120,7 @@ Your job is to assist company leadership, answer questions about operations, and
 {company_knowledge}
 
 Currently configured API keys/credentials: {configured_providers}.
+{operational_stats}
 
 Available Agents & Actions:
 - Marketing:
@@ -102,9 +142,10 @@ Available Agents & Actions:
   - "request_key": parameters: {{"provider": str}} - use this to ask the user for a missing key.
 
 Guidelines:
-1. If the user asks a conversational question, operational inquiry, or asks for advice, provide a clear, helpful response in the "message" field.
+1. If the user asks a conversational question, operational inquiry, or asks for advice, provide a clear, helpful response in the "message" field. (Use the operational database counts above if asked about candidate, resume, or lead counts).
 2. If the user request requires executing tasks, include them in the "tasks" array. If no execution tasks are needed, leave "tasks" as an empty list [].
 3. Adhere strictly to the company knowledge base and guidelines above.
+4. Multi-turn conversation context: If previous conversation history is provided, maintain context across turns. For example, if you asked the user clarifying questions about a role, task, campaign, or parameters in previous turns, interpret the user's latest reply in the context of those prior questions.
 
 Output MUST be valid JSON only.
 Format:
@@ -124,7 +165,7 @@ Format:
             plan_model = await AIRetryManager.call_with_retry(
                 gateway_call_fn=gateway_call,
                 model_class=OrchestratorPlan,
-                prompt=prompt,
+                prompt=effective_prompt,
                 system_prompt=system_prompt,
                 provider=provider,
                 model=model
@@ -134,8 +175,8 @@ Format:
             logger.info(f"[Orchestrator] Direct plan parsing fallback: {e}; generating conversational response.")
             try:
                 conv_resp = await self.llm.complete(
-                    prompt=prompt,
-                    system_prompt=f"You are the Orchestrator AI for OctaOS. Assist the user with their request.\n\n{company_knowledge}",
+                    prompt=effective_prompt,
+                    system_prompt=f"You are the Orchestrator AI for OctaOS. Assist the user with their request.\n\n{company_knowledge}\n\n{operational_stats}",
                     provider=provider,
                     model=model
                 )

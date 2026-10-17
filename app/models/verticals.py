@@ -204,6 +204,21 @@ class Candidate(Base):
     status = Column(String, default="sourced") # sourced, screened, interviewed, offered, hired
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+class HRResumeIngestionJob(Base):
+    __tablename__ = "hr_resume_ingestion_jobs"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    role = Column(String)
+    total_files = Column(Integer, default=0)
+    processed_files = Column(Integer, default=0)
+    progress_percent = Column(Integer, default=0)
+    current_file = Column(String, nullable=True)
+    status = Column(String, default="running")  # running, completed, failed
+    logs = Column(JSON, default=list)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
 # --- SUPPORT (Phase 3) ---
 
 class Ticket(Base):

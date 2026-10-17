@@ -139,7 +139,17 @@ export default function OrchestratorView({
     setLoading(true);
 
     try {
+      // Build previous conversation turns for multi-turn context (exclude welcome greeting)
+      const historyToSend = orchMessages
+        .filter((m: any) => m.id !== 'welcome' && typeof m.content === 'string' && m.content.trim())
+        .slice(-10)
+        .map((m: any) => ({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: m.content.trim(),
+        }));
+
       const payload: any = { prompt: inputText };
+      if (historyToSend.length > 0) payload.messages = historyToSend;
       if (orchProvider && orchProvider !== 'auto') payload.provider = orchProvider;
       if (orchModel && orchModel.trim()) payload.model = orchModel;
 
@@ -180,7 +190,7 @@ export default function OrchestratorView({
     } finally {
       setLoading(false);
     }
-  }, [orchInput, prompt, orchProvider, orchModel, fetchWithAuth, API_URL, fetchData]);
+  }, [orchInput, prompt, orchProvider, orchModel, orchMessages, fetchWithAuth, API_URL, fetchData]);
 
   const handleExecuteApprovedAction = React.useCallback(async (action: any) => {
     const actId = action.id || action.action_id;

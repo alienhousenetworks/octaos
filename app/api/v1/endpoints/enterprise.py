@@ -62,8 +62,13 @@ class PlanChange(BaseModel):
     plan_code: str
 
 
+class SubscribeAgentsBody(BaseModel):
+    agent_codes: List[str]
+
+
 class RazorpayCreateOrder(BaseModel):
-    plan_code: str
+    plan_code: Optional[str] = None
+    agent_codes: Optional[List[str]] = None
 
 
 class RazorpayVerifyPayment(BaseModel):
@@ -189,14 +194,25 @@ def evaluate_action(
     return engine.evaluate(**body.dict(), requested_by=user.id)
 
 
-@router.get("/approvals")
-def list_approvals(
+@router.get("/approvals/metrics")
+def get_approvals_metrics(
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
-    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.READ)),
-    limit: int = Query(50, le=200),
+    _: User = Depends(deps.get_current_user),
 ):
-    items = PolicyEngine(db, tenant_id).list_pending(limit=limit)
+    return PolicyEngine(db, tenant_id).get_metrics()
+
+
+@router.get("/approvals")
+def list_approvals(
+    status: Optional[str] = Query("pending"),
+    action_type: Optional[str] = Query(None),
+    limit: int = Query(50, le=200),
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(deps.get_current_user),
+):
+    items = PolicyEngine(db, tenant_id).list_approvals(status=status, action_type=action_type, limit=limit)
     return [
         {
             "id": a.id,
@@ -208,7 +224,10 @@ def list_approvals(
             "confidence": a.confidence,
             "status": a.status,
             "policy_reason": a.policy_reason,
-            "created_at": a.created_at,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+            "reviewed_at": a.reviewed_at.isoformat() if a.reviewed_at else None,
+            "reviewed_by": a.reviewed_by,
+            "review_note": a.review_note,
         }
         for a in items
     ]
@@ -220,15 +239,22 @@ def review_approval(
     body: ReviewApproval,
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
-    user: User = Depends(require_permission(Resource.CAMPAIGNS, Action.UPDATE)),
+    user: User = Depends(deps.get_current_user),
 ):
+    if (user.role or "").lower() in ["read_only", "viewer"]:
+        raise HTTPException(403, "Read-only users cannot review approvals")
     try:
         a = PolicyEngine(db, tenant_id).review(
             approval_id, approve=body.approve, reviewer_id=user.id, note=body.note
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return {"id": a.id, "status": a.status, "reviewed_at": a.reviewed_at}
+    return {
+        "id": a.id,
+        "status": a.status,
+        "reviewed_at": a.reviewed_at.isoformat() if a.reviewed_at else None,
+        "review_note": a.review_note,
+    }
 
 
 # ── Billing / Entitlements ───────────────────────────────────────────────────
@@ -251,6 +277,12 @@ def list_plans(db: Session = Depends(deps.get_db)):
     ]
 
 
+@router.get("/billing/agent-catalog")
+def get_agent_catalog(db: Session = Depends(deps.get_db)):
+    """Returns the catalog of standalone AI Agents with descriptions and pricing."""
+    return SubscriptionService(db).get_agent_catalog()
+
+
 @router.get("/billing/entitlements")
 def entitlements(
     db: Session = Depends(deps.get_db),
@@ -258,6 +290,33 @@ def entitlements(
     _: User = Depends(require_permission(Resource.SETTINGS, Action.READ)),
 ):
     return SubscriptionService(db).entitlements(tenant_id)
+
+
+@router.post("/billing/subscribe-agents")
+def subscribe_agents(
+    body: SubscribeAgentsBody,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    user: User = Depends(require_permission(Resource.SETTINGS, Action.UPDATE)),
+):
+    """
+    Directly activate specific agents (individually or multi-agent bundle).
+    """
+    from app.core.config import settings as app_settings
+
+    if (
+        app_settings.RAZORPAY_REQUIRE_PAYMENT
+        and not getattr(user, "is_system_admin", False)
+        and not getattr(user, "is_superuser", False)
+    ):
+        raise HTTPException(
+            402,
+            "Payment required. Use Razorpay checkout: POST /enterprise/billing/razorpay/create-order",
+        )
+    try:
+        return SubscriptionService(db).subscribe_agents(tenant_id, body.agent_codes)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @router.post("/billing/plan")
@@ -303,6 +362,12 @@ def razorpay_create_order(
     user: User = Depends(require_permission(Resource.SETTINGS, Action.UPDATE)),
 ):
     try:
+        if body.agent_codes:
+            return RazorpayService(db).create_order_for_agents(
+                tenant_id=tenant_id, agent_codes=body.agent_codes, user=user
+            )
+        if not body.plan_code:
+            raise ValueError("Either plan_code or agent_codes must be provided")
         return RazorpayService(db).create_order_for_plan(
             tenant_id=tenant_id, plan_code=body.plan_code, user=user
         )

@@ -499,6 +499,25 @@ def intervene_as_chairman(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/meetings/{meeting_id}/stop", response_model=schemas.AgentMeeting)
+def stop_meeting(
+    meeting_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id)
+) -> Any:
+    """Instantly halt and abort an ongoing deliberation."""
+    meeting = db.query(AgentMeeting).filter(
+        AgentMeeting.id == meeting_id,
+        AgentMeeting.tenant_id == tenant_id
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    service = BoardroomService(db, tenant_id)
+    res = service.cancel_meeting(meeting_id, reason="Emergency halt triggered by human chairman")
+    return res
+
+
 @router.post("/meetings/{meeting_id}/cancel", response_model=schemas.AgentMeeting)
 def cancel_meeting(
     meeting_id: str,
@@ -513,7 +532,7 @@ def cancel_meeting(
         raise HTTPException(status_code=404, detail="Meeting not found")
 
     service = BoardroomService(db, tenant_id)
-    res = service.cancel_meeting(meeting_id)
+    res = service.cancel_meeting(meeting_id, reason="Deliberation cancelled by user")
     return res
 
 
@@ -531,6 +550,7 @@ async def rerun_meeting(
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
+    BoardroomService.unhalt_meeting(meeting_id)
     meeting.status = "active"
     meeting.current_phase = "assembly"
     meeting.failure_reason = None

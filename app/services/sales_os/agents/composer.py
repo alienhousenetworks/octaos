@@ -85,6 +85,14 @@ class ComposerAgent(BaseSalesAgent):
         our_company = ctx.company_overview.get("name", "OctaOS") if ctx else "OctaOS"
         our_usp = ctx.company_overview.get("usp", "Enterprise autonomous sales operating system") if ctx else "Enterprise sales platform"
 
+        from app.models.base import User
+        user = self.db.query(User).filter_by(tenant_id=self.tenant_id).order_by(User.is_superuser.desc(), User.id.asc()).first()
+        employee_name = user.name.strip() if (user and user.name and user.name.strip()) else None
+        if employee_name:
+            sender_rule = f"Write on behalf of {employee_name} at {our_company}. Sign off with: Best regards, {employee_name}, {our_company}."
+        else:
+            sender_rule = f"Write on behalf of {our_company}. Do NOT invent any employee name. Sign off strictly with: Best regards, The {our_company} Team."
+
         pain_points = [p.get("inference", "") for p in (deal_room.pain_hypotheses or [])]
         signals = [s.headline for s in self.db.query(AccountSignal).filter(AccountSignal.deal_room_id == deal_room_id).all()]
         ev_records = self.db.query(EvidenceRecord).filter(EvidenceRecord.tenant_id == self.tenant_id).all()
@@ -103,6 +111,7 @@ Strict Guardrails:
 2. Ground every claim strictly in the signals and pain hypotheses above. Do NOT invent struggle or unverified claims.
 3. Soft, specific Call to Action (e.g. asking for perspective or brief chat).
 4. No placeholders, no brackets.
+5. Sender Context: {sender_rule} Do NOT invent or use any fake human personas.
 
 Output a JSON object:
 {{
@@ -117,11 +126,12 @@ Output a JSON object:
             body = msg_data.get("body", "").strip()
         except Exception:
             subject = f"Question for {recipient_name}"
-            proof_snippet = proof_claims[0] if proof_claims else "OctaOS helps leadership teams automate enterprise sales operations with verified reliability."
+            proof_snippet = proof_claims[0] if proof_claims else f"{our_company} helps leadership teams automate enterprise sales operations with verified reliability."
+            signoff = f"Best regards,\n{employee_name}\n{our_company}" if employee_name else f"Best regards,\nThe {our_company} Team\n{our_company}"
             if signals:
-                body = f"Hi {recipient_name},\n\nNoticed {deal_room.company_name}'s recent update: {signals[0]}. {proof_snippet}\n\nOpen to a brief conversation this week?"
+                body = f"Hi {recipient_name},\n\nNoticed {deal_room.company_name}'s recent update: {signals[0]}. {proof_snippet}\n\nOpen to a brief conversation this week?\n\n{signoff}"
             else:
-                body = f"Hi {recipient_name},\n\n{proof_snippet}\n\nOpen to a brief conversation this week?"
+                body = f"Hi {recipient_name},\n\n{proof_snippet}\n\nOpen to a brief conversation this week?\n\n{signoff}"
 
         # Evaluate Groundedness
         evidence_records = [

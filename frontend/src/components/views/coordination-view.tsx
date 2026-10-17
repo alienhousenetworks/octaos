@@ -2,7 +2,7 @@
 
 import { notify, confirmAction } from '@/lib/notify';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +41,19 @@ import {
   Gavel,
   FileText,
   Layers,
+  Globe,
+  Radio,
+  ExternalLink,
+  Filter,
+  ArrowRight,
+  Pause,
+  AlertOctagon,
+  Coins,
+  Cpu,
+  BarChart3,
+  Sliders,
+  CheckCircle2,
+  Share2,
 } from 'lucide-react';
 
 interface CoordinationViewProps {
@@ -75,6 +88,8 @@ interface MeetingMessage {
   sources?: string[];
   quality_flags?: string[];
   stance?: 'support' | 'oppose' | 'neutral';
+  turn_type?: 'challenge' | 'rebuttal' | 'evidence' | 'compromise';
+  target_agent?: string;
 }
 
 interface MeetingEvidence {
@@ -182,13 +197,21 @@ interface AgentMeeting {
 }
 
 const PHASES_LIST = [
-  { key: 'charter', label: 'Charter', icon: Scale },
-  { key: 'evidence', label: 'Evidence', icon: Database },
-  { key: 'positions', label: 'Positions', icon: Users },
-  { key: 'options', label: 'Options', icon: Sparkles },
-  { key: 'redteam', label: 'Red Team', icon: ShieldAlert },
-  { key: 'debate', label: 'Debate', icon: MessageSquare },
-  { key: 'completed', label: 'Execution', icon: Zap },
+  { key: 'charter', label: 'Charter', tab: 'debate', icon: Scale },
+  { key: 'evidence', label: 'Evidence', tab: 'evidence', icon: Database },
+  { key: 'positions', label: 'Positions', tab: 'debate', icon: Users },
+  { key: 'options', label: 'Options', tab: 'options', icon: Sparkles },
+  { key: 'redteam', label: 'Red Team', tab: 'redteam', icon: ShieldAlert },
+  { key: 'debate', label: 'Debate', tab: 'debate', icon: MessageSquare },
+  { key: 'completed', label: 'Execution', tab: 'actions', icon: Zap },
+];
+
+const QUICK_DIRECTIVES = [
+  'Cap initial spend at $8,000 for a 30-day pilot',
+  'Require 90-day payback period on CAC',
+  'Mandate 2 customer reference calls before rollout',
+  'Red Team: stress-test outbound domain reputation risks',
+  'Call for final executive consensus vote',
 ];
 
 export default function CoordinationView({
@@ -203,29 +226,43 @@ export default function CoordinationView({
   const [actionList, setActionList] = useState<MeetingAction[]>([]);
   const [actionTab, setActionTab] = useState<'awaiting' | 'completed' | 'all'>('awaiting');
 
-  // Institutional Governance State (12-Stage Pipeline)
+  // Governance State
   const [charter, setCharter] = useState<DecisionCharter | null>(null);
   const [optionsList, setOptionsList] = useState<MeetingOption[]>([]);
   const [dissentList, setDissentList] = useState<DissentRecord[]>([]);
   const [outcomesList, setOutcomesList] = useState<DecisionOutcome[]>([]);
-  const [activeDeckTab, setActiveDeckTab] = useState<'deliberation' | 'options' | 'redteam' | 'dissents' | 'actions' | 'evidence'>('deliberation');
+  
+  // Tabs: defaults to 'debate'
+  const [activeDeckTab, setActiveDeckTab] = useState<'debate' | 'options' | 'redteam' | 'dissents' | 'actions' | 'evidence'>('debate');
+  
+  // Interactive Controls
+  const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>('ALL');
+  const [autoScroll, setAutoScroll] = useState<boolean>(true);
+  const [isStopping, setIsStopping] = useState<boolean>(false);
   const [chairmanDirective, setChairmanDirective] = useState('');
   const [isSubmittingDirective, setIsSubmittingDirective] = useState(false);
+  const [sidebarSearch, setSidebarSearch] = useState('');
 
   // Manual meeting dialog state
   const [isCreateMeetingOpen, setIsCreateMeetingOpen] = useState(false);
   const [manualMeetingTitle, setManualMeetingTitle] = useState('');
   const [manualMeetingTopic, setManualMeetingTopic] = useState('');
-  const [manualMeetingParticipants, setManualMeetingParticipants] = useState<string[]>([]);
+  const [manualMeetingParticipants, setManualMeetingParticipants] = useState<string[]>([
+    'Sales Intelligence Expert',
+    'Finance Expert',
+    'Marketing Intelligence Expert',
+    'Human Resources Expert',
+    'Web Intelligence AI',
+    'Red Team AI',
+  ]);
   const [manualMeetingLoading, setManualMeetingLoading] = useState(false);
 
   // Rejection modal
   const [rejectActionId, setRejectActionId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  // Expandable sections
-  const [isEvidenceExpanded, setIsEvidenceExpanded] = useState(true);
-  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(true);
+  // Auto-scroll ref
+  const transcriptEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch all meetings
   const fetchMeetings = useCallback(async () => {
@@ -244,7 +281,7 @@ export default function CoordinationView({
     }
   }, [API_URL, fetchWithAuth, token, selectedMeetingId]);
 
-  // Fetch selected meeting details & institutional governance data
+  // Fetch selected meeting details
   const fetchMeetingDetails = useCallback(async (meetingId: string) => {
     if (!token) return;
     try {
@@ -311,22 +348,30 @@ export default function CoordinationView({
     }
   }, [selectedMeetingId, fetchMeetingDetails, token]);
 
-  // SSE Stream with Fallback Polling
+  // Robust Polling Fallback: When meeting is active, poll every 2.5s to ensure live transcript never pauses
+  useEffect(() => {
+    if (!selectedMeetingId || !token) return;
+    if (selectedMeeting?.status !== 'active') return;
+
+    const pollTimer = setInterval(() => {
+      void fetchMeetingDetails(selectedMeetingId);
+    }, 2500);
+
+    return () => clearInterval(pollTimer);
+  }, [selectedMeetingId, selectedMeeting?.status, token, fetchMeetingDetails]);
+
+  // SSE Stream with Auto-Update
   useEffect(() => {
     if (!selectedMeetingId || !token) return;
 
     let eventSource: EventSource | null = null;
-    let pollInterval: NodeJS.Timeout | null = null;
-
     const streamUrl = `${API_URL}/coordination/meetings/${selectedMeetingId}/stream`;
 
     try {
       eventSource = new EventSource(streamUrl);
-
       eventSource.onmessage = (e) => {
         try {
           const payload = JSON.parse(e.data);
-          // Refresh details when significant events arrive
           if (payload.event && payload.event !== 'keep-alive') {
             void fetchMeetingDetails(selectedMeetingId);
             void fetchMeetings();
@@ -335,27 +380,46 @@ export default function CoordinationView({
           // ignore keepalive
         }
       };
-
-      eventSource.onerror = () => {
-        if (eventSource) {
-          eventSource.close();
-          eventSource = null;
-        }
-        if (!pollInterval && (selectedMeeting?.status === 'active' || selectedMeeting?.status === 'awaiting_approval')) {
-          pollInterval = setInterval(() => {
-            void fetchMeetingDetails(selectedMeetingId);
-          }, 3000);
-        }
-      };
     } catch (err) {
       console.debug('SSE init skipped:', err);
     }
 
     return () => {
       if (eventSource) eventSource.close();
-      if (pollInterval) clearInterval(pollInterval);
     };
-  }, [selectedMeetingId, selectedMeeting?.status, token, API_URL, fetchMeetingDetails, fetchMeetings]);
+  }, [selectedMeetingId, token, API_URL, fetchMeetingDetails, fetchMeetings]);
+
+  // Smooth Auto-scroll to latest debate turn
+  useEffect(() => {
+    if (autoScroll && activeDeckTab === 'debate') {
+      transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [selectedMeeting?.transcript?.length, autoScroll, activeDeckTab]);
+
+  // Emergency Stop / Halt Flow Handler
+  const handleStopMeeting = async () => {
+    if (!selectedMeetingId) return;
+    if (!(await confirmAction('Immediately halt this boardroom deliberation? The running flow will stop and current evidence will be preserved.'))) return;
+    setIsStopping(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/coordination/meetings/${selectedMeetingId}/stop`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        notify.success('Deliberation halted by human supervisor');
+        await fetchMeetingDetails(selectedMeetingId);
+        await fetchMeetings();
+      } else {
+        const err = await res.json().catch(() => ({ detail: 'Failed to halt deliberation' }));
+        notify.error(err.detail || 'Failed to halt deliberation');
+      }
+    } catch (e) {
+      console.error('Stop failed:', e);
+      notify.error('Network error stopping deliberation');
+    } finally {
+      setIsStopping(false);
+    }
+  };
 
   // Create Meeting
   const handleCreateManualMeeting = async () => {
@@ -380,6 +444,7 @@ export default function CoordinationView({
         await fetchMeetings();
         if (data.id) {
           setSelectedMeetingId(data.id);
+          setActiveDeckTab('debate');
         }
       } else {
         notify(`Error: ${data.detail || 'Failed to start boardroom meeting'}`);
@@ -398,9 +463,10 @@ export default function CoordinationView({
       const res = await fetchWithAuth(`${API_URL}/coordination/meetings/${selectedMeetingId}/actions/${actionId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approved_by: 'Executive Manager' }),
+        body: JSON.stringify({ approved_by: 'Executive Chairman' }),
       });
       if (res.ok) {
+        notify.success('Action item approved for automated execution');
         await fetchMeetingDetails(selectedMeetingId);
         await fetchMeetings();
       }
@@ -415,9 +481,10 @@ export default function CoordinationView({
       const res = await fetchWithAuth(`${API_URL}/coordination/meetings/${selectedMeetingId}/actions/${rejectActionId}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rejected_by: 'Executive Manager', reason: rejectReason }),
+        body: JSON.stringify({ rejected_by: 'Executive Chairman', reason: rejectReason }),
       });
       if (res.ok) {
+        notify.success('Action item rejected');
         setRejectActionId(null);
         setRejectReason('');
         await fetchMeetingDetails(selectedMeetingId);
@@ -428,22 +495,6 @@ export default function CoordinationView({
     }
   };
 
-  const handleCancelMeeting = async () => {
-    if (!selectedMeetingId) return;
-    if (!(await confirmAction('Are you sure you want to cancel this boardroom deliberation?'))) return;
-    try {
-      const res = await fetchWithAuth(`${API_URL}/coordination/meetings/${selectedMeetingId}/cancel`, {
-        method: 'POST',
-      });
-      if (res.ok) {
-        await fetchMeetingDetails(selectedMeetingId);
-        await fetchMeetings();
-      }
-    } catch (e) {
-      console.error('Cancel failed:', e);
-    }
-  };
-
   const handleRerunMeeting = async () => {
     if (!selectedMeetingId) return;
     try {
@@ -451,8 +502,10 @@ export default function CoordinationView({
         method: 'POST',
       });
       if (res.ok) {
+        notify.success('Boardroom convened — agents starting live deliberation');
         await fetchMeetingDetails(selectedMeetingId);
         await fetchMeetings();
+        setActiveDeckTab('debate');
       }
     } catch (e) {
       console.error('Rerun failed:', e);
@@ -488,7 +541,7 @@ export default function CoordinationView({
         body: JSON.stringify({ directive: chairmanDirective.trim() }),
       });
       if (res.ok) {
-        notify.success('Chairman Directive Injected into Active Deliberation');
+        notify.success('Binding Directive Injected into Active Deliberation');
         setChairmanDirective('');
         await fetchMeetingDetails(selectedMeetingId);
         await fetchMeetings();
@@ -504,25 +557,114 @@ export default function CoordinationView({
     }
   };
 
-  // Agent Icon Resolver
-  const getAgentIcon = (name?: string) => {
-    if (!name || typeof name !== 'string') return Users;
-    if (name.includes('CEO')) return Crown;
-    if (name.includes('Finance') || name.includes('CFO')) return DollarSign;
-    if (name.includes('Red Team')) return ShieldAlert;
-    if (name.includes('Risk')) return ShieldCheck;
-    if (name.includes('Legal')) return Scale;
-    if (name.includes('Sales')) return TrendingUp;
-    if (name.includes('Marketing')) return Megaphone;
-    if (name.includes('Support')) return Headphones;
-    if (name.includes('Human') || name.includes('HR')) return UserCheck;
-    if (name.includes('Cyber') || name.includes('Security')) return Lock;
-    if (name.includes('Operations') || name.includes('Technical') || name.includes('CTO')) return Server;
-    if (name.includes('Research')) return Search;
-    return Users;
+  // Team Styling & Icon Helpers
+  const getAgentMeta = (name?: string) => {
+    const n = name || '';
+    if (n.includes('CEO')) {
+      return {
+        icon: Crown,
+        title: 'Chief Executive',
+        label: 'Executive Strategy',
+        color: 'text-amber-400',
+        bg: 'bg-amber-500/15',
+        border: 'border-amber-500/40',
+        glow: 'shadow-amber-500/20',
+        ring: 'ring-amber-400',
+        badge: 'from-amber-500/20 to-yellow-500/20 border-amber-500/40 text-amber-300',
+      };
+    }
+    if (n.includes('Sales') || n.includes('CRO')) {
+      return {
+        icon: TrendingUp,
+        title: 'Revenue Officer',
+        label: 'Pipeline & ACV',
+        color: 'text-emerald-400',
+        bg: 'bg-emerald-500/15',
+        border: 'border-emerald-500/40',
+        glow: 'shadow-emerald-500/20',
+        ring: 'ring-emerald-400',
+        badge: 'from-emerald-500/20 to-teal-500/20 border-emerald-500/40 text-emerald-300',
+      };
+    }
+    if (n.includes('Finance') || n.includes('CFO')) {
+      return {
+        icon: DollarSign,
+        title: 'Financial Officer',
+        label: 'Capital & Unit Econ',
+        color: 'text-purple-400',
+        bg: 'bg-purple-500/15',
+        border: 'border-purple-500/40',
+        glow: 'shadow-purple-500/20',
+        ring: 'ring-purple-400',
+        badge: 'from-purple-500/20 to-indigo-500/20 border-purple-500/40 text-purple-300',
+      };
+    }
+    if (n.includes('Marketing') || n.includes('CMO')) {
+      return {
+        icon: Megaphone,
+        title: 'Marketing Officer',
+        label: 'Demand Gen & ICP',
+        color: 'text-cyan-400',
+        bg: 'bg-cyan-500/15',
+        border: 'border-cyan-500/40',
+        glow: 'shadow-cyan-500/20',
+        ring: 'ring-cyan-400',
+        badge: 'from-cyan-500/20 to-blue-500/20 border-cyan-500/40 text-cyan-300',
+      };
+    }
+    if (n.includes('Human') || n.includes('HR') || n.includes('CHRO')) {
+      return {
+        icon: UserCheck,
+        title: 'People Officer',
+        label: 'Talent & Capacity',
+        color: 'text-blue-400',
+        bg: 'bg-blue-500/15',
+        border: 'border-blue-500/40',
+        glow: 'shadow-blue-500/20',
+        ring: 'ring-blue-400',
+        badge: 'from-blue-500/20 to-sky-500/20 border-blue-500/40 text-blue-300',
+      };
+    }
+    if (n.includes('Web') || n.includes('Research') || n.includes('Firecrawl')) {
+      return {
+        icon: Globe,
+        title: 'Firecrawl Research',
+        label: 'Live Web Intel',
+        color: 'text-orange-400',
+        bg: 'bg-orange-500/15',
+        border: 'border-orange-500/40',
+        glow: 'shadow-orange-500/20',
+        ring: 'ring-orange-400',
+        badge: 'from-orange-500/20 to-amber-500/20 border-orange-500/40 text-orange-300',
+      };
+    }
+    if (n.includes('Red Team') || n.includes('Risk')) {
+      return {
+        icon: ShieldAlert,
+        title: 'Pre-Mortem Officer',
+        label: 'Tripwires & Pre-Mortem',
+        color: 'text-rose-400',
+        bg: 'bg-rose-500/15',
+        border: 'border-rose-500/40',
+        glow: 'shadow-rose-500/20',
+        ring: 'ring-rose-400',
+        badge: 'from-rose-500/20 to-red-500/20 border-rose-500/40 text-rose-300',
+      };
+    }
+    return {
+      icon: Users,
+      title: 'Council Member',
+      label: 'Specialist Domain',
+      color: 'text-slate-300',
+      bg: 'bg-slate-800/40',
+      border: 'border-slate-700/60',
+      glow: 'shadow-slate-500/10',
+      ring: 'ring-slate-400',
+      badge: 'from-slate-800 to-slate-900 border-slate-700 text-slate-300',
+    };
   };
 
-  // Active Phase Helper with 12-Stage and Legacy Phase normalization
+  // Active Phase Helper
   const currentPhaseIndex = useMemo(() => {
     const rawPhase = selectedMeeting?.current_phase || (selectedMeeting?.status === 'completed' ? 'completed' : 'assembly');
     if (['assembly', 'intake', 'charter'].includes(rawPhase)) return 0;
@@ -535,12 +677,24 @@ export default function CoordinationView({
     return 0;
   }, [selectedMeeting?.current_phase, selectedMeeting?.status]);
 
-  // Governed Actions Counter
-  const awaitingCount = useMemo(() => {
-    return actionList.filter(a => a.status === 'awaiting_approval' || a.status === 'pending').length;
-  }, [actionList]);
+  // Derived Active Speaker for visual table
+  const activeSpeakerName = useMemo(() => {
+    if (!selectedMeeting?.transcript || selectedMeeting.transcript.length === 0) return null;
+    const lastMsg = selectedMeeting.transcript[selectedMeeting.transcript.length - 1];
+    return lastMsg.sender || lastMsg.speaker || lastMsg.speaker_name || null;
+  }, [selectedMeeting?.transcript]);
 
-  // Derived Confidence from transcript
+  // Filtered transcript based on selectedAgentFilter
+  const filteredTranscript = useMemo(() => {
+    if (!selectedMeeting?.transcript) return [];
+    if (selectedAgentFilter === 'ALL') return selectedMeeting.transcript;
+    return selectedMeeting.transcript.filter((msg) => {
+      const sender = msg.sender || msg.speaker_name || msg.speaker || '';
+      return sender.toLowerCase().includes(selectedAgentFilter.toLowerCase());
+    });
+  }, [selectedMeeting?.transcript, selectedAgentFilter]);
+
+  // Confidence calculation
   const latestConfidence = useMemo(() => {
     if (!selectedMeeting?.transcript || selectedMeeting.transcript.length === 0) return null;
     const rev = [...selectedMeeting.transcript].reverse();
@@ -548,164 +702,304 @@ export default function CoordinationView({
     return entry?.confidence_score ?? null;
   }, [selectedMeeting?.transcript]);
 
+  const awaitingCount = useMemo(() => {
+    return actionList.filter(a => a.status === 'awaiting_approval' || a.status === 'pending').length;
+  }, [actionList]);
+
+  const isLiveDeliberating = selectedMeeting?.status === 'active';
+  const isHalted = selectedMeeting?.status === 'cancelled';
+
+  // Council Seats Roster
+  const councilSeats = useMemo(() => {
+    const rawList: string[] = (selectedMeeting?.participants && selectedMeeting.participants.length > 0)
+      ? selectedMeeting.participants.map(p => typeof p === 'string' ? p : ((p as any)?.name || (p as any)?.agent_role || 'Specialist'))
+      : [
+          'CEO AI',
+          'Finance Expert',
+          'Sales Intelligence Expert',
+          'Marketing Intelligence Expert',
+          'Human Resources Expert',
+          'Web Intelligence AI',
+          'Red Team AI',
+        ];
+
+    return rawList.map((name) => {
+      const meta = getAgentMeta(name);
+      const isSpeaking = !!(activeSpeakerName && (
+        activeSpeakerName.toLowerCase().includes(name.toLowerCase()) ||
+        name.toLowerCase().includes(activeSpeakerName.toLowerCase())
+      ));
+
+      // Find last message from this agent
+      const lastMsg = selectedMeeting?.transcript
+        ? [...selectedMeeting.transcript].reverse().find(m => {
+            const sender = m.sender || m.speaker_name || m.agent_role || m.speaker || '';
+            return sender.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(sender.toLowerCase());
+          })
+        : null;
+
+      let stance = 'Observing';
+      let stanceColor = 'text-gray-400 bg-gray-900/60 border-gray-800';
+      if (lastMsg) {
+        const content = lastMsg.content || lastMsg.message || '';
+        if (lastMsg.stance === 'oppose' || content.includes('🔴') || content.toLowerCase().includes('challenge') || content.toLowerCase().includes('dissent')) {
+          stance = 'Challenge';
+          stanceColor = 'text-rose-300 bg-rose-500/15 border-rose-500/40';
+        } else if (lastMsg.stance === 'support' || content.includes('🟢') || content.toLowerCase().includes('align') || content.toLowerCase().includes('support')) {
+          stance = 'Alignment';
+          stanceColor = 'text-emerald-300 bg-emerald-500/15 border-emerald-500/40';
+        } else if (content.includes('🟡') || content.toLowerCase().includes('compromise') || content.toLowerCase().includes('counter')) {
+          stance = 'Counter-Propose';
+          stanceColor = 'text-amber-300 bg-amber-500/15 border-amber-500/40';
+        } else if (name.includes('Web') || name.includes('Firecrawl') || (lastMsg.sources && lastMsg.sources.length > 0)) {
+          stance = 'Live Web Data';
+          stanceColor = 'text-orange-300 bg-orange-500/15 border-orange-500/40';
+        }
+      }
+
+      return {
+        name,
+        meta,
+        isSpeaking,
+        stance,
+        stanceColor,
+        turnsCount: selectedMeeting?.transcript
+          ? selectedMeeting.transcript.filter(m => {
+              const sender = m.sender || m.speaker_name || m.agent_role || m.speaker || '';
+              return sender.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(sender.toLowerCase());
+            }).length
+          : 0,
+      };
+    });
+  }, [selectedMeeting?.participants, selectedMeeting?.transcript, activeSpeakerName]);
+
+  // Filtered sidebar meetings
+  const filteredMeetings = useMemo(() => {
+    if (!sidebarSearch.trim()) return meetings;
+    const q = sidebarSearch.toLowerCase();
+    return meetings.filter(m =>
+      m.title.toLowerCase().includes(q) ||
+      (m.context_summary || '').toLowerCase().includes(q) ||
+      m.status.toLowerCase().includes(q)
+    );
+  }, [meetings, sidebarSearch]);
+
   return (
-    <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-300">
-      {/* 1. Header Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800/80 pb-6">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-yellow-500/20 border border-amber-500/30 flex items-center justify-center">
-              <Users className="text-amber-400 h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2">
-                Executive AI Boardroom
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 font-semibold uppercase tracking-wider">
-                  Enterprise V2
-                </span>
-              </h1>
-              <p className="text-gray-400 text-xs mt-0.5">
-                Parallel multi-agent deliberations, ground truth evidence catalog, and risk-governed automated execution.
-              </p>
+    <div className="space-y-6 max-w-7xl mx-auto animate-in fade-in duration-300 pb-16">
+      {/* 1. Elite Executive Command Header */}
+      <div className="relative rounded-3xl p-6 bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 border border-gray-800/80 shadow-2xl overflow-hidden">
+        {/* Subtle background ambient glow */}
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="h-11 w-11 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-600 to-yellow-400 p-0.5 shadow-lg shadow-amber-500/20">
+                <div className="h-full w-full rounded-[14px] bg-gray-950 flex items-center justify-center">
+                  <Crown className="text-amber-400 h-5 w-5" />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-black text-white tracking-tight">
+                    Executive AI Boardroom
+                  </h1>
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-500/20 border border-amber-500/40 text-amber-300 font-extrabold uppercase tracking-wider shadow-sm">
+                    Autonomous Quorum
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 mt-0.5 max-w-2xl leading-relaxed">
+                  High-stakes multi-agent executive deliberation with live Firecrawl internet market validation, adversarial cross-examination, and human-in-the-loop governance.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2.5">
-          <Dialog open={isCreateMeetingOpen} onOpenChange={setIsCreateMeetingOpen}>
-            <DialogTrigger render={
-              <Button className="bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white font-bold h-10 px-5 rounded-xl shadow-lg shadow-amber-500/20 text-xs flex items-center gap-2 transition-all" />
-            }>
-              <Users size={15} /> Summon Boardroom
-            </DialogTrigger>
-            <DialogContent className="glass-panel border border-gray-800 text-white max-w-md rounded-2xl p-6">
-              <DialogHeader>
-                <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
-                  <Crown className="text-amber-400 h-5 w-5" /> Convene Boardroom Deliberation
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 mt-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-300">Strategic Objective / Title</label>
-                  <Input
-                    placeholder="e.g. Enterprise Contract Pricing: 10,000 Seat Quote"
-                    value={manualMeetingTitle}
-                    onChange={(e) => setManualMeetingTitle(e.target.value)}
-                    className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs h-10"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-300">Context & Key Questions</label>
-                  <Textarea
-                    placeholder="Describe background data, client inquiries, or financial limits..."
-                    value={manualMeetingTopic}
-                    onChange={(e) => setManualMeetingTopic(e.target.value)}
-                    className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs min-h-24"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-400">Assemble Specialists (optional overrides)</label>
-                  <div className="grid grid-cols-2 gap-1.5 mt-1">
-                    {[
-                      'Sales Intelligence Expert',
-                      'Finance Expert',
-                      'Legal & Compliance Expert',
-                      'Human Resources Expert',
-                      'Cybersecurity Expert',
-                      'Operations Expert',
-                      'Marketing Intelligence Expert',
-                      'Research Expert',
-                    ].map((agentName) => {
-                      const isChecked = manualMeetingParticipants.includes(agentName);
-                      return (
-                        <button
-                          key={agentName}
-                          type="button"
-                          onClick={() => {
-                            if (isChecked) {
-                              setManualMeetingParticipants(manualMeetingParticipants.filter(p => p !== agentName));
-                            } else {
-                              setManualMeetingParticipants([...manualMeetingParticipants, agentName]);
-                            }
-                          }}
-                          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border text-left flex items-center justify-between transition-colors ${
- isChecked
- ? 'bg-amber-500/20 border-amber-500 text-amber-200'
- : 'bg-gray-900/60 border-gray-800 text-gray-400 hover:border-gray-700'
- }`}
-                        >
-                          <span className="truncate">{agentName}</span>
-                          {isChecked && <Check size={12} className="text-amber-400 shrink-0 ml-1" />}
-                        </button>
-                      );
-                    })}
+          {/* Header Action Center */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* EMERGENCY STOP BUTTON */}
+            {isLiveDeliberating && (
+              <Button
+                onClick={handleStopMeeting}
+                disabled={isStopping}
+                className="bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-xs h-10 px-4 rounded-xl shadow-lg shadow-rose-950/60 border border-rose-400/40 animate-pulse cursor-pointer flex items-center gap-2"
+              >
+                <AlertOctagon size={15} className="text-white" />
+                {isStopping ? 'Halting Flow...' : 'STOP DELIBERATION'}
+              </Button>
+            )}
+
+            {/* Convene Modal Button */}
+            <Dialog open={isCreateMeetingOpen} onOpenChange={setIsCreateMeetingOpen}>
+              <DialogTrigger render={
+                <Button className="bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-gray-950 font-black text-xs h-10 px-5 rounded-xl shadow-lg shadow-amber-500/20 cursor-pointer flex items-center gap-2 transition-transform active:scale-95" />
+              }>
+                <Users size={15} /> Convene New Chamber
+              </DialogTrigger>
+              <DialogContent className="border border-gray-800 text-white max-w-lg rounded-3xl p-6 bg-gray-950/95 shadow-2xl backdrop-blur-2xl">
+                <DialogHeader>
+                  <DialogTitle className="text-base font-bold text-white flex items-center gap-2">
+                    <Crown className="text-amber-400 h-5 w-5" /> Convene Executive Deliberation
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 mt-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-gray-300">Strategic Objective / Title</label>
+                    <Input
+                      placeholder="e.g. Accelerate B2B SaaS outbound sales pipeline to reach $100k ARR"
+                      value={manualMeetingTitle}
+                      onChange={(e) => setManualMeetingTitle(e.target.value)}
+                      className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs h-10 focus:border-amber-500"
+                    />
                   </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-gray-300">Context, Budget & Constraints</label>
+                    <Textarea
+                      placeholder="Describe target ICP, $20,000 budget envelope, multi-touch sequences, target ACV..."
+                      value={manualMeetingTopic}
+                      onChange={(e) => setManualMeetingTopic(e.target.value)}
+                      className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs min-h-24 focus:border-amber-500"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-gray-400">Assemble Specialized Quorum</label>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      {[
+                        { name: 'Sales Intelligence Expert', desc: 'Outbound pipeline & conversion' },
+                        { name: 'Finance Expert', desc: 'Budget & unit economics' },
+                        { name: 'Marketing Intelligence Expert', desc: 'ICP demand gen & collateral' },
+                        { name: 'Human Resources Expert', desc: 'SDR ramp & talent timeline' },
+                        { name: 'Web Intelligence AI', desc: 'Live Firecrawl market discovery' },
+                        { name: 'Red Team AI', desc: 'Pre-mortem & tripwires' },
+                      ].map((team) => {
+                        const isChecked = manualMeetingParticipants.includes(team.name);
+                        return (
+                          <button
+                            key={team.name}
+                            type="button"
+                            onClick={() => {
+                              if (isChecked) {
+                                setManualMeetingParticipants(manualMeetingParticipants.filter(p => p !== team.name));
+                              } else {
+                                setManualMeetingParticipants([...manualMeetingParticipants, team.name]);
+                              }
+                            }}
+                            className={`p-2.5 rounded-xl text-xs font-medium border text-left transition-all ${
+                              isChecked
+                                ? 'bg-amber-500/15 border-amber-500/60 text-white shadow-md'
+                                : 'bg-gray-900/60 border-gray-800/80 text-gray-400 hover:border-gray-700'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="font-bold truncate text-[11px]">{team.name}</span>
+                              {isChecked && <Check size={12} className="text-amber-400 shrink-0" />}
+                            </div>
+                            <span className="text-[10px] text-gray-500 block truncate">{team.desc}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleCreateManualMeeting}
+                    disabled={manualMeetingLoading || !manualMeetingTitle || !manualMeetingTopic}
+                    className="w-full bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-gray-950 font-black h-11 rounded-xl shadow-lg mt-3 text-xs"
+                  >
+                    {manualMeetingLoading ? 'Assembling Board & Starting Debate...' : 'Begin Governed Deliberation'}
+                  </Button>
                 </div>
-                <Button
-                  onClick={handleCreateManualMeeting}
-                  disabled={manualMeetingLoading || !manualMeetingTitle || !manualMeetingTopic}
-                  className="w-full bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white font-bold h-10 rounded-xl shadow-lg mt-3 text-xs"
-                >
-                  {manualMeetingLoading ? 'Assembling Board...' : 'Begin Governed Deliberation'}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </div>
 
-      {/* 2. Main 3-Column Workspace */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Left Column: Boardroom Sessions Sidebar */}
+      {/* 2. Main Executive Workspace Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+        {/* Left Column: Deliberations Sessions Library */}
         <div className="lg:col-span-1 space-y-4">
-          <Card className="glass-panel border-gray-800/80 rounded-2xl overflow-hidden shadow-xl bg-gray-950/60 backdrop-blur-md">
-            <CardHeader className="p-4 border-b border-gray-800/60">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-bold text-white flex items-center gap-2">
-                  <Activity size={16} className="text-amber-400" /> Deliberations ({meetings.length})
+          <Card className="border border-gray-800/80 rounded-3xl overflow-hidden shadow-2xl bg-gray-950/80 backdrop-blur-xl">
+            <CardHeader className="p-4 border-b border-gray-800/70">
+              <div className="flex items-center justify-between mb-2">
+                <CardTitle className="text-xs font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Activity size={14} className="text-amber-400" />
+                  Deliberations ({meetings.length})
                 </CardTitle>
+                {isLiveDeliberating && (
+                  <span className="flex items-center gap-1 text-[9px] font-black text-amber-300 bg-amber-500/15 border border-amber-500/40 px-2 py-0.5 rounded-full animate-pulse">
+                    <Radio size={9} className="animate-spin text-amber-400" /> 1 ACTIVE
+                  </span>
+                )}
+              </div>
+              {/* Search Bar */}
+              <div className="relative">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <Input
+                  placeholder="Filter sessions..."
+                  value={sidebarSearch}
+                  onChange={(e) => setSidebarSearch(e.target.value)}
+                  className="bg-gray-900/80 border-gray-800 text-white rounded-xl text-xs h-8 pl-8 placeholder:text-gray-600 focus:border-amber-500/60"
+                />
               </div>
             </CardHeader>
-            <CardContent className="p-2">
-              {meetings.length === 0 ? (
-                <p className="text-xs text-gray-500 text-center py-8">No boardroom sessions found.</p>
+            <CardContent className="p-2.5">
+              {filteredMeetings.length === 0 ? (
+                <div className="text-center py-10 text-gray-500 space-y-2">
+                  <Users size={28} className="mx-auto text-gray-700" />
+                  <p className="text-xs font-semibold">No deliberations found</p>
+                  <p className="text-[10px] text-gray-600">Convene a new chamber to begin.</p>
+                </div>
               ) : (
-                <div className="flex flex-col gap-1.5 max-h-[640px] overflow-y-auto pr-1">
-                  {meetings.map((m) => {
+                <div className="flex flex-col gap-2 max-h-[680px] overflow-y-auto pr-1">
+                  {filteredMeetings.map((m) => {
                     const isSelected = selectedMeetingId === m.id;
                     const isAwaiting = m.status === 'awaiting_approval';
                     const isRunning = m.status === 'active';
+                    const isHaltedItem = m.status === 'cancelled';
 
                     return (
                       <button
                         key={m.id}
                         type="button"
                         onClick={() => setSelectedMeetingId(m.id)}
-                        className={`p-3 rounded-xl text-left border transition-all relative ${
- isSelected
- ? 'bg-amber-500/10 border-amber-500/50 text-white shadow-md'
- : 'bg-gray-900/40 border-gray-800/60 text-gray-300 hover:border-gray-700'
- }`}
+                        className={`p-3.5 rounded-2xl text-left border transition-all relative cursor-pointer ${
+                          isSelected
+                            ? 'bg-gradient-to-br from-amber-500/15 via-gray-900/90 to-gray-950 border-amber-500/60 text-white shadow-xl shadow-amber-950/20'
+                            : 'bg-gray-900/40 border-gray-800/60 text-gray-300 hover:border-gray-700/80 hover:bg-gray-900/70'
+                        }`}
                       >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={`text-xs uppercase font-bold px-2 py-0.5 rounded-full ${
- isAwaiting
- ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
- : isRunning
- ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
- : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
- }`}>
-                            {isAwaiting ? 'Approval Required' : isRunning ? 'Deliberating' : 'Resolved'}
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className={`text-[9px] uppercase font-black px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                            isRunning
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
+                              : isAwaiting
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                              : isHaltedItem
+                              ? 'bg-red-950/60 text-red-300 border border-red-800'
+                              : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                          }`}>
+                            {isRunning && <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping" />}
+                            {isRunning ? 'Deliberating' : isAwaiting ? 'Approval Gate' : isHaltedItem ? 'Halted' : 'Resolved'}
                           </span>
-                          <span className="text-xs text-gray-500">
+                          <span className="text-[10px] text-gray-500 font-mono">
                             {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                        <h4 className="text-xs font-semibold text-white line-clamp-2 leading-snug">{m.title}</h4>
-                        <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
-                          <span>{m.participants?.length || 0} Experts</span>
-                          <span>•</span>
-                          <span>{m.action_items?.length || 0} Actions</span>
+
+                        <h4 className="text-xs font-bold text-white line-clamp-2 leading-snug tracking-tight">
+                          {m.title}
+                        </h4>
+
+                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-800/60 text-[10px] text-gray-400">
+                          <span className="flex items-center gap-1 font-mono">
+                            <Users size={11} className="text-gray-500" />
+                            {m.participants?.length || 0} Experts
+                          </span>
+                          <span className="flex items-center gap-1 font-mono">
+                            <Zap size={11} className="text-amber-500" />
+                            {m.action_items?.length || 0} Actions
+                          </span>
                         </div>
                       </button>
                     );
@@ -716,39 +1010,68 @@ export default function CoordinationView({
           </Card>
         </div>
 
-        {/* Center & Right Columns: Deliberation Deck */}
+        {/* Center & Right Columns: Deliberation Deck & Executive Chamber */}
         <div className="lg:col-span-3 space-y-6">
           {selectedMeeting ? (
             <>
-              {/* Meeting Meta Header */}
-              <div className="glass-panel border border-gray-800/80 rounded-2xl p-5 bg-gray-950/60 backdrop-blur-md">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-xs text-amber-400 font-bold uppercase tracking-wider">
-                        {selectedMeeting.trigger_type?.replace('_', ' ') || 'MEETING'}
+              {/* Meeting Meta & Status Bar */}
+              <div className="rounded-3xl p-5 bg-gray-950/80 border border-gray-800/80 shadow-2xl backdrop-blur-xl">
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                  <div className="space-y-1.5 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[10px] text-amber-400 font-black uppercase tracking-widest bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                        {selectedMeeting.trigger_type?.replace('_', ' ') || 'STRATEGIC DELIBERATION'}
                       </span>
+                      {isLiveDeliberating && (
+                        <span className="flex items-center gap-1.5 text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
+                          <Radio size={11} className="text-amber-400 animate-spin" /> Live Deliberating
+                        </span>
+                      )}
+                      {isHalted && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-red-950/80 text-red-300 border border-red-800">
+                          <AlertOctagon size={11} /> Halted by Human Chairman
+                        </span>
+                      )}
                       {selectedMeeting.status === 'awaiting_approval' && (
-                        <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40">
-                          <ShieldAlert size={12} /> Action Gate Active
+                        <span className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse">
+                          <ShieldAlert size={11} /> Approval Gate Active
+                        </span>
+                      )}
+                      {selectedMeeting.status === 'completed' && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                          <CheckCircle2 size={11} /> Consensus Formed & Executing
                         </span>
                       )}
                     </div>
-                    <h2 className="text-lg font-semibold text-white tracking-tight">{selectedMeeting.title}</h2>
+
+                    <h2 className="text-xl font-black text-white tracking-tight pt-1">
+                      {selectedMeeting.title}
+                    </h2>
+
                     {selectedMeeting.context_summary && (
-                      <p className="text-gray-400 text-xs mt-1.5 line-clamp-2 bg-gray-900/50 p-2 rounded-lg border border-gray-800/60 font-mono">
+                      <p className="text-xs text-gray-400 leading-relaxed font-mono bg-gray-900/60 p-3 rounded-2xl border border-gray-800/80">
                         {selectedMeeting.context_summary}
                       </p>
                     )}
                   </div>
 
-                  {/* Executive Actions */}
+                  {/* Top Meeting Action Buttons */}
                   <div className="flex items-center gap-2 shrink-0">
+                    {!isLiveDeliberating && (
+                      <Button
+                        size="sm"
+                        onClick={handleRerunMeeting}
+                        className="border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs h-9 px-3.5 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <RotateCcw size={13} /> Re-run Deliberation
+                      </Button>
+                    )}
+
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleExportMeeting('md')}
-                      className="border-gray-800 text-gray-300 hover:bg-gray-800 text-xs h-8 px-3 rounded-lg"
+                      className="border-gray-800 text-gray-300 hover:bg-gray-800/80 text-xs h-9 px-3 rounded-xl cursor-pointer"
                     >
                       <Download size={13} className="mr-1.5" /> Export MD
                     </Button>
@@ -756,267 +1079,256 @@ export default function CoordinationView({
                       variant="outline"
                       size="sm"
                       onClick={() => handleExportMeeting('json')}
-                      className="border-gray-800 text-gray-300 hover:bg-gray-800 text-xs h-8 px-3 rounded-lg"
+                      className="border-gray-800 text-gray-300 hover:bg-gray-800/80 text-xs h-9 px-3 rounded-xl cursor-pointer"
                     >
                       <Download size={13} className="mr-1.5" /> JSON
                     </Button>
-                    {selectedMeeting.status === 'active' ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleCancelMeeting}
-                        className="border-rose-900/40 text-rose-400 hover:bg-rose-950/40 text-xs h-8 px-3 rounded-lg"
+                  </div>
+                </div>
+
+                {/* Halted State Banner */}
+                {isHalted && (
+                  <div className="mt-4 p-3 rounded-2xl bg-red-950/40 border border-red-900/60 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs text-red-200">
+                      <AlertOctagon size={16} className="text-red-400 shrink-0" />
+                      <span>
+                        Deliberation stopped by human chairman. Full transcript, evidence citations, and council stances are preserved.
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={handleRerunMeeting}
+                      className="bg-amber-500 hover:bg-amber-400 text-black font-extrabold h-7 px-3 text-[11px] rounded-lg ml-2 cursor-pointer"
+                    >
+                      <RotateCcw size={12} className="mr-1" /> Resume / Re-run
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. NEW EXECUTIVE COUNCIL CHAMBER HUD (Completely replaces the SVG table) */}
+              <div className="rounded-3xl p-5 bg-gradient-to-b from-gray-950 via-gray-900/60 to-gray-950 border border-gray-800/90 shadow-2xl relative overflow-hidden">
+                {/* HUD Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-gray-800/60">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
+                      <Crown size={15} className="text-amber-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                        Executive Council Chamber
+                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 font-mono">
+                          {councilSeats.length} Seats Formed
+                        </span>
+                      </h3>
+                      <p className="text-[10px] text-gray-400">Click any executive seat to isolate cross-examination discourse</p>
+                    </div>
+                  </div>
+
+                  {/* Filter Status Badge */}
+                  <div className="flex items-center gap-2">
+                    {selectedAgentFilter !== 'ALL' ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAgentFilter('ALL')}
+                        className="text-[10px] text-amber-300 font-bold bg-amber-500/15 px-2.5 py-1 rounded-full border border-amber-500/40 flex items-center gap-1.5 hover:bg-amber-500/25 transition-all cursor-pointer"
                       >
-                        <X size={13} className="mr-1.5" /> Cancel
-                      </Button>
+                        <Filter size={11} /> Filter: {selectedAgentFilter}
+                        <X size={11} className="text-amber-400 ml-1 hover:text-white" />
+                      </button>
                     ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleRerunMeeting}
-                        className="border-amber-900/40 text-amber-400 hover:bg-amber-950/40 text-xs h-8 px-3 rounded-lg"
-                      >
-                        <RotateCcw size={13} className="mr-1.5" /> Re-run
-                      </Button>
+                      <span className="text-[10px] text-gray-500 flex items-center gap-1">
+                        <Users size={11} /> Viewing Full Quorum
+                      </span>
                     )}
                   </div>
                 </div>
 
-                {/* Phase Stepper */}
-                <div className="mt-6 pt-5 border-t border-gray-800/60">
-                  <div className="grid grid-cols-7 gap-2">
+                {/* Council Seats Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2.5">
+                  {councilSeats.map((seat) => {
+                    const Icon = seat.meta.icon;
+                    const isFiltered = selectedAgentFilter.toLowerCase() === seat.name.toLowerCase();
+
+                    return (
+                      <button
+                        key={seat.name}
+                        type="button"
+                        onClick={() => setSelectedAgentFilter(isFiltered ? 'ALL' : seat.name)}
+                        className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer relative group ${
+                          seat.isSpeaking
+                            ? 'bg-amber-500/15 border-amber-500 shadow-lg shadow-amber-500/20 ring-2 ring-amber-400 ring-offset-2 ring-offset-gray-950 scale-102'
+                            : isFiltered
+                            ? 'bg-amber-500/20 border-amber-400 ring-1 ring-amber-400'
+                            : 'bg-gray-900/40 border-gray-800/80 hover:border-gray-700 hover:bg-gray-900/80'
+                        }`}
+                      >
+                        {/* Top: Icon & Speaking Beacon */}
+                        <div className="flex items-center justify-between mb-2">
+                          <div className={`h-8 w-8 rounded-xl flex items-center justify-center border shadow-sm ${seat.meta.bg} ${seat.meta.color} ${seat.meta.border}`}>
+                            <Icon size={15} />
+                          </div>
+                          {seat.isSpeaking ? (
+                            <span className="flex items-center gap-1 text-[8px] font-black uppercase text-amber-300 bg-amber-500/25 px-1.5 py-0.5 rounded-full border border-amber-500/40 animate-pulse">
+                              <Radio size={8} className="animate-spin text-amber-400" /> Speaking
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-mono text-gray-500">
+                              {seat.turnsCount} turns
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Middle: Title & Role */}
+                        <div>
+                          <h4 className="text-[11px] font-bold text-white truncate group-hover:text-amber-300 transition-colors">
+                            {seat.name.replace(' Expert', '').replace(' AI', '')}
+                          </h4>
+                          <span className="text-[9px] text-gray-400 truncate block">
+                            {seat.meta.title}
+                          </span>
+                        </div>
+
+                        {/* Bottom: Dynamic Stance Chip */}
+                        <div className="mt-2.5 pt-2 border-t border-gray-800/60 flex items-center justify-between">
+                          <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-md border truncate ${seat.stanceColor}`}>
+                            {seat.stance}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Consensus & Deliberation Phase Bar */}
+                <div className="mt-5 pt-4 border-t border-gray-800/70 flex flex-col md:flex-row items-center justify-between gap-4">
+                  {/* Phase Stepper */}
+                  <div className="w-full md:w-auto flex-1 flex items-center justify-between gap-1 overflow-x-auto pb-1">
                     {PHASES_LIST.map((phase, idx) => {
                       const Icon = phase.icon;
                       const isPast = idx < currentPhaseIndex;
                       const isCurrent = idx === currentPhaseIndex;
+                      const isTabActive = activeDeckTab === phase.tab;
 
                       return (
-                        <div key={phase.key} className="flex flex-col items-center text-center">
-                          <div className={`h-8 w-8 rounded-xl flex items-center justify-center border transition-all ${
- isCurrent
- ? 'bg-amber-500 border-amber-400 text-black font-bold shadow-lg shadow-amber-500/30 animate-pulse'
- : isPast
- ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
- : 'bg-gray-900/40 border-gray-800 text-gray-500'
- }`}>
-                            {isPast ? <Check size={14} /> : <Icon size={14} />}
-                          </div>
-                          <span className={`text-xs mt-1.5 font-semibold ${
- isCurrent ? 'text-amber-400' : isPast ? 'text-gray-300' : 'text-gray-600'
- }`}>
-                            {phase.label}
-                          </span>
-                        </div>
+                        <button
+                          key={phase.key}
+                          type="button"
+                          onClick={() => setActiveDeckTab(phase.tab as any)}
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                            isTabActive
+                              ? 'bg-amber-500 text-black shadow-md'
+                              : isCurrent
+                              ? 'bg-amber-500/20 border border-amber-500/50 text-amber-300 animate-pulse'
+                              : isPast
+                              ? 'text-emerald-400 hover:bg-gray-900/60'
+                              : 'text-gray-600 hover:text-gray-400'
+                          }`}
+                        >
+                          {isPast ? <Check size={11} className="text-emerald-400" /> : <Icon size={11} />}
+                          <span className="text-[11px]">{phase.label}</span>
+                        </button>
                       );
                     })}
                   </div>
+
+                  {/* Consensus Meter */}
+                  {latestConfidence !== null && (
+                    <div className="flex items-center gap-3 shrink-0 bg-gray-900/70 px-3.5 py-1.5 rounded-2xl border border-gray-800/80">
+                      <div className="text-right">
+                        <span className="text-[9px] uppercase tracking-wider text-gray-500 font-extrabold block">Council Consensus</span>
+                        <span className="text-xs font-black text-amber-400 font-mono">{latestConfidence}%</span>
+                      </div>
+                      <div className="w-24 bg-gray-800 h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-gradient-to-r from-amber-500 to-emerald-400 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${latestConfidence}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* 2.5. Decision Charter Card (Stage 2 — Institutional Pre-Commitment) */}
-              {charter && (
-                <div className="glass-panel border border-amber-500/30 rounded-2xl p-5 bg-gradient-to-r from-amber-950/25 via-gray-950/80 to-gray-900/40 relative overflow-hidden shadow-xl mb-6">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-2 max-w-xl">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full flex items-center gap-1.5 ${
-                          charter.decision_type === 'type_1'
-                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm'
-                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        }`}>
-                          <Scale size={11} />
-                          {charter.decision_type === 'type_1' ? 'Type 1 — Irreversible / High Stakes' : 'Type 2 — Reversible (Fast Path)'}
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          Owner: <strong className="text-white font-semibold">{charter.decision_owner}</strong>
-                        </span>
-                        {charter.cost_of_delay_per_week > 0 && (
-                          <span className="text-xs text-amber-400/90 font-mono flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                            <Clock size={11} /> Cost of Delay: ${charter.cost_of_delay_per_week.toLocaleString()} / wk
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="text-sm font-bold text-white leading-snug">{charter.question}</h3>
-                    </div>
-
-                    {/* Locked Criteria Weights */}
-                    {charter.criteria_weights && charter.criteria_weights.length > 0 && (
-                      <div className="bg-gray-900/90 p-3 rounded-xl border border-gray-800 shrink-0 min-w-[240px]">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5 flex items-center justify-between">
-                          <span>Pre-Locked Criteria Weights</span>
-                          <Lock size={10} className="text-amber-400" />
-                        </span>
-                        <div className="space-y-1.5">
-                          {charter.criteria_weights.map((c, i) => {
-                            const name = c.name || Object.keys(c)[0] || `Criterion ${i + 1}`;
-                            const rawWeight = typeof c.weight === 'number' ? c.weight : (typeof Object.values(c)[0] === 'number' ? Object.values(c)[0] : 0.25);
-                            const pct = Math.round(Number(rawWeight) * 100);
-                            return (
-                              <div key={i} className="text-[11px]">
-                                <div className="flex justify-between text-gray-300 mb-0.5">
-                                  <span className="capitalize">{String(name).replace('_', ' ')}</span>
-                                  <span className="font-mono text-amber-300 font-bold">{pct}%</span>
-                                </div>
-                                <div className="w-full bg-gray-800 h-1 rounded-full overflow-hidden">
-                                  <div className="bg-amber-500 h-full rounded-full" style={{ width: `${pct}%` }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* 3. Interactive Executive Oval Table Visualizer */}
-              <div className="glass-panel border border-gray-800/80 rounded-2xl p-6 bg-gradient-to-b from-gray-950/80 to-gray-900/40 relative overflow-hidden">
-                <div className="text-center mb-4">
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center justify-center gap-1.5">
-                    <Crown size={14} className="text-amber-400" /> Executive Deliberation Chamber
-                  </span>
-                </div>
-
-                {/* SVG Boardroom Table */}
-                <div className="relative w-full max-w-2xl mx-auto h-[280px] flex items-center justify-center">
-                  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 500 280">
-                    <defs>
-                      <linearGradient id="tableGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#1e293b" stopOpacity="0.8" />
-                        <stop offset="100%" stopColor="#0f172a" stopOpacity="0.9" />
-                      </linearGradient>
-                      <radialGradient id="amberGlow" cx="50%" cy="50%" r="50%">
-                        <stop offset="0%" stopColor="rgba(245, 158, 11, 0.15)" />
-                        <stop offset="100%" stopColor="rgba(245, 158, 11, 0)" />
-                      </radialGradient>
-                    </defs>
-
-                    {/* Table Halo Glow */}
-                    <ellipse cx="250" cy="140" rx="195" ry="95" fill="url(#amberGlow)" />
-                    {/* Outer Table Rim */}
-                    <ellipse cx="250" cy="140" rx="175" ry="85" fill="none" stroke="#334155" strokeWidth="2" strokeDasharray="4 4" />
-                    {/* Executive Table Surface */}
-                    <ellipse cx="250" cy="140" rx="155" ry="75" fill="url(#tableGrad)" stroke="#475569" strokeWidth="1.5" />
-                  </svg>
-
-                  {/* Center Table Dashboard */}
-                  <div className="relative z-10 text-center p-3 bg-gray-950/90 rounded-2xl border border-gray-800 shadow-2xl max-w-[200px]">
-                    <div className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-0.5">
-                      Decision Status
-                    </div>
-                    <div className="text-xs font-semibold text-amber-400 truncate">
-                      {selectedMeeting.current_phase?.toUpperCase() || selectedMeeting.status.toUpperCase()}
-                    </div>
-                    {latestConfidence !== null && (
-                      <div className="mt-2 pt-2 border-t border-gray-800">
-                        <div className="flex items-center justify-between text-xs mb-1">
-                          <span className="text-gray-400">Confidence</span>
-                          <span className="text-amber-400 font-bold">{latestConfidence}%</span>
-                        </div>
-                        <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
-                          <div
-                            className="bg-gradient-to-r from-amber-500 to-emerald-400 h-full rounded-full transition-all duration-500"
-                            style={{ width: `${latestConfidence}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Dynamic Elliptical Seats */}
-                  {(selectedMeeting.participants || []).map((participant, idx) => {
-                    const total = (selectedMeeting.participants || []).length || 1;
-                    const angle = (2 * Math.PI * idx) / total - Math.PI / 2;
-                    const cx = 250;
-                    const cy = 140;
-                    const rx = 180;
-                    const ry = 95;
-                    const x = cx + rx * Math.cos(angle);
-                    const y = cy + ry * Math.sin(angle);
-
-                    const participantName = typeof participant === 'string'
-                      ? participant
-                      : ((participant as any)?.name || (participant as any)?.agent_role || String(participant || ''));
-                    const Icon = getAgentIcon(participantName);
-                    const isCEO = participantName.includes('CEO');
-
-                    return (
-                      <div
-                        key={typeof participant === 'string' ? participant : idx}
-                        style={{
-                          left: `${(x / 500) * 100}%`,
-                          top: `${(y / 280) * 100}%`,
-                          transform: 'translate(-50%, -50%)',
-                        }}
-                        className="absolute z-20 flex flex-col items-center group cursor-pointer"
-                      >
-                        <div className={`h-9 w-9 rounded-full flex items-center justify-center border shadow-lg transition-transform group-hover:scale-110 ${
- isCEO
- ? 'bg-amber-500 text-black border-yellow-300 font-bold'
- : 'bg-gray-900/90 text-amber-300 border-gray-700'
- }`}>
-                          <Icon size={16} />
-                        </div>
-                        <span className="text-xs font-semibold text-gray-300 bg-gray-950/80 px-2 py-0.5 rounded-md border border-gray-800 mt-1 max-w-[100px] truncate shadow">
-                          {participantName.replace(' Expert', '').replace(' AI', '')}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 3.5. Chairman Gavel Mid-Deliberation Directive Bar */}
-              <div className="glass-panel border border-amber-500/30 rounded-2xl p-4 bg-gradient-to-r from-amber-950/25 via-gray-950/80 to-yellow-950/20 shadow-xl mb-6">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              {/* 4. Chairman Gavel Mid-Deliberation Directive Bar */}
+              <div className="rounded-3xl p-4 bg-gradient-to-r from-amber-950/30 via-gray-950 to-yellow-950/20 border border-amber-500/30 shadow-xl">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5 text-amber-400 shrink-0">
-                    <div className="h-8 w-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shadow-inner">
-                      <Gavel size={16} className="text-amber-400" />
+                    <div className="h-9 w-9 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shadow-inner">
+                      <Gavel size={17} className="text-amber-400" />
                     </div>
                     <div>
-                      <span className="text-xs font-bold text-white block">Chairman Gavel</span>
-                      <span className="text-[10px] text-gray-400 block">Inject binding constraints mid-deliberation</span>
+                      <span className="text-xs font-black text-white block">Chairman Binding Directive</span>
+                      <span className="text-[10px] text-gray-400 block">Inject real-time executive constraints or steer active deliberations</span>
                     </div>
                   </div>
+
                   <div className="flex-1 flex items-center gap-2">
                     <Input
-                      placeholder="Enter directive (e.g. 'Cap capital expense at $30,000', 'Demand 2 customer reference calls before pilot')..."
+                      placeholder="e.g. 'Cap SDR spend at $8,000 for 30-day pilot', 'Require 2 customer reference calls'..."
                       value={chairmanDirective}
                       onChange={(e) => setChairmanDirective(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') void handleChairmanIntervene(); }}
-                      className="bg-gray-900/80 border-gray-800 text-white rounded-xl text-xs h-9 focus:border-amber-500"
+                      className="bg-gray-900/90 border-gray-800 text-white rounded-xl text-xs h-9 focus:border-amber-500"
                     />
                     <Button
                       size="sm"
                       disabled={isSubmittingDirective || !chairmanDirective.trim()}
                       onClick={handleChairmanIntervene}
-                      className="bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white font-bold text-xs h-9 px-4 rounded-xl shrink-0 shadow-lg"
+                      className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-black text-xs h-9 px-4 rounded-xl shrink-0 shadow-lg cursor-pointer"
                     >
-                      {isSubmittingDirective ? 'Striking...' : 'Issue Directive'}
+                      {isSubmittingDirective ? 'Dispatching...' : 'Issue Directive'}
                     </Button>
                   </div>
                 </div>
+
+                {/* Quick Presets */}
+                <div className="mt-2.5 pt-2 border-t border-gray-800/60 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[9px] uppercase tracking-wider text-gray-500 font-extrabold mr-1">Presets:</span>
+                  {QUICK_DIRECTIVES.map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setChairmanDirective(preset)}
+                      className="text-[10px] text-gray-300 hover:text-amber-300 bg-gray-900/80 hover:bg-gray-800 border border-gray-800/80 hover:border-amber-500/40 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* 4. Institutional Deliberation Deck Tabs */}
-              <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-gray-950/80 rounded-2xl border border-gray-800/80 shadow-md mb-6">
+              {/* 5. Institutional Deliberation Deck Navigation Tabs */}
+              <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-gray-950/80 rounded-2xl border border-gray-800/80 shadow-md">
                 <button
                   type="button"
-                  onClick={() => setActiveDeckTab('deliberation')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                    activeDeckTab === 'deliberation'
+                  onClick={() => setActiveDeckTab('debate')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                    activeDeckTab === 'debate'
                       ? 'bg-amber-500 text-black shadow-md'
                       : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
                   }`}
                 >
-                  <MessageSquare size={13} /> Deliberation ({selectedMeeting.transcript?.length || 0})
+                  <MessageSquare size={13} /> Live Debate Chamber ({selectedMeeting.transcript?.length || 0})
+                  {isLiveDeliberating && <span className="h-1.5 w-1.5 rounded-full bg-amber-900 animate-ping" />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveDeckTab('evidence')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                    activeDeckTab === 'evidence'
+                      ? 'bg-amber-500 text-black shadow-md'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
+                  }`}
+                >
+                  <Database size={13} /> Evidence & Firecrawl ({evidenceList.length})
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setActiveDeckTab('options')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeDeckTab === 'options'
                       ? 'bg-amber-500 text-black shadow-md'
                       : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
@@ -1028,7 +1340,7 @@ export default function CoordinationView({
                 <button
                   type="button"
                   onClick={() => setActiveDeckTab('redteam')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeDeckTab === 'redteam'
                       ? 'bg-amber-500 text-black shadow-md'
                       : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
@@ -1040,7 +1352,7 @@ export default function CoordinationView({
                 <button
                   type="button"
                   onClick={() => setActiveDeckTab('dissents')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeDeckTab === 'dissents'
                       ? 'bg-amber-500 text-black shadow-md'
                       : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
@@ -1052,7 +1364,7 @@ export default function CoordinationView({
                 <button
                   type="button"
                   onClick={() => setActiveDeckTab('actions')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeDeckTab === 'actions'
                       ? 'bg-amber-500 text-black shadow-md'
                       : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
@@ -1060,196 +1372,308 @@ export default function CoordinationView({
                 >
                   <ShieldCheck size={13} /> Governed Actions ({actionList.length})
                   {awaitingCount > 0 && (
-                    <span className="ml-1 px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-bold">
+                    <span className="ml-1 px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-black animate-pulse">
                       {awaitingCount}
                     </span>
                   )}
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveDeckTab('evidence')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                    activeDeckTab === 'evidence'
-                      ? 'bg-amber-500 text-black shadow-md'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
-                  }`}
-                >
-                  <Database size={13} /> Evidence Pack ({evidenceList.length})
-                </button>
               </div>
 
-              {/* TAB 1: DELIBERATION TRANSCRIPT */}
-              {activeDeckTab === 'deliberation' && (
-                <Card className="glass-panel border-gray-800/80 rounded-2xl overflow-hidden bg-gray-950/60">
-                  <CardHeader className="p-4 border-b border-gray-800/60">
-                    <CardTitle className="text-sm text-white font-bold flex items-center gap-2">
-                      <MessageSquare className="text-amber-400 h-4 w-4" />
-                      Executive Deliberation Transcript
-                    </CardTitle>
+              {/* TAB 1: LIVE DEBATE CHAMBER (Streaming Arguments) */}
+              {activeDeckTab === 'debate' && (
+                <Card className="border border-gray-800/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl backdrop-blur-xl">
+                  <CardHeader className="p-4 border-b border-gray-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-sm text-white font-black flex items-center gap-2">
+                        <MessageSquare className="text-amber-400 h-4 w-4" />
+                        Executive Deliberation Discourse
+                        {isLiveDeliberating && (
+                          <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse flex items-center gap-1 font-bold">
+                            <Radio size={10} className="text-amber-400 animate-spin" /> Live Streaming
+                          </span>
+                        )}
+                      </CardTitle>
+                      <CardDescription className="text-gray-400 text-xs mt-0.5">
+                        Multi-round cross-examination and consensus formation across Sales, Finance, Marketing, HR, Firecrawl Web Intelligence, and Red Team.
+                      </CardDescription>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setAutoScroll(!autoScroll)}
+                        className={`text-[11px] h-7 px-2.5 rounded-xl border ${
+                          autoScroll
+                            ? 'border-amber-500/40 text-amber-300 bg-amber-500/10'
+                            : 'border-gray-800 text-gray-400'
+                        }`}
+                      >
+                        {autoScroll ? 'Auto-scroll: ON' : 'Auto-scroll: PAUSED'}
+                      </Button>
+
+                      {selectedAgentFilter !== 'ALL' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedAgentFilter('ALL')}
+                          className="text-[11px] h-7 px-2 text-gray-400 hover:text-white"
+                        >
+                          Clear Filter
+                        </Button>
+                      )}
+                    </div>
                   </CardHeader>
-                  <CardContent className="p-4 space-y-4">
-                    {(!selectedMeeting.transcript || selectedMeeting.transcript.length === 0) ? (
-                      <p className="text-xs text-gray-500 py-6 text-center">Deliberation transcript empty. Waiting for expert claims...</p>
+
+                  <CardContent className="p-4 space-y-4 max-h-[720px] overflow-y-auto">
+                    {filteredTranscript.length === 0 ? (
+                      <div className="text-center py-16 text-gray-500 space-y-2">
+                        <MessageSquare size={36} className="mx-auto text-gray-700 opacity-60" />
+                        <p className="text-xs font-bold text-gray-400">Deliberation transcript empty.</p>
+                        <p className="text-[11px] text-gray-600 max-w-sm mx-auto">
+                          {isLiveDeliberating
+                            ? 'Council specialists are analyzing evidence and synthesizing opening positions...'
+                            : 'Convene or re-run deliberation to generate multi-agent debate turns.'}
+                        </p>
+                      </div>
                     ) : (
-                      selectedMeeting.transcript.map((msg, i) => {
-                        const sender = msg.sender || msg.speaker_name || msg.agent_role || msg.speaker || 'Agent';
+                      filteredTranscript.map((msg, i) => {
+                        const sender = msg.sender || msg.speaker_name || msg.agent_role || msg.speaker || 'Council Expert';
                         const content = msg.content || msg.message || msg.agent_thought || msg.thought || '';
-                        const phase = msg.phase || msg.domain_tag || '';
-                        const Icon = getAgentIcon(sender);
+                        const meta = getAgentMeta(sender);
+                        const Icon = meta.icon;
                         const isCEO = sender.includes('CEO');
                         const isRedTeam = sender.includes('Red Team');
+                        const stance = msg.stance || (content.includes('🔴') ? 'oppose' : content.includes('🟢') ? 'support' : 'neutral');
 
                         return (
                           <div
                             key={i}
-                            className={`p-4 rounded-xl border space-y-2 ${
+                            className={`p-4 rounded-2xl border transition-all space-y-3 ${
                               isCEO
-                                ? 'bg-amber-950/15 border-amber-500/30'
+                                ? 'bg-amber-950/25 border-amber-500/40 shadow-lg shadow-amber-950/20'
                                 : isRedTeam
-                                ? 'bg-rose-950/15 border-rose-500/30'
-                                : 'bg-gray-900/40 border-gray-800/60'
+                                ? 'bg-rose-950/20 border-rose-500/40 shadow-lg shadow-rose-950/20'
+                                : `${meta.bg} ${meta.border}`
                             }`}
                           >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <div className={`h-6 w-6 rounded-lg flex items-center justify-center ${
-                                  isCEO
-                                    ? 'bg-amber-500 text-black'
-                                    : isRedTeam
-                                    ? 'bg-rose-600 text-white'
-                                    : 'bg-gray-800 text-amber-300'
-                                }`}>
-                                  <Icon size={13} />
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5">
+                                <div className={`h-8 w-8 rounded-xl flex items-center justify-center border shadow-sm ${meta.bg} ${meta.color} ${meta.border}`}>
+                                  <Icon size={15} />
                                 </div>
-                                <span className="text-xs font-bold text-white">{sender}</span>
-                                {phase && (
-                                  <span className="text-xs text-gray-400 px-2 py-0.5 rounded-full bg-gray-800/60 border border-gray-700/40">
-                                    {phase}
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-black text-white">{sender}</span>
+                                    <span className="text-[10px] text-gray-400 px-2 py-0.2 rounded-full bg-gray-900/80 border border-gray-800">
+                                      {meta.title}
+                                    </span>
+                                    {msg.target_agent && (
+                                      <span className="text-[10px] text-amber-300/90 font-mono flex items-center gap-1">
+                                        <ArrowRight size={10} className="text-amber-400" />
+                                        Cross-examining: {msg.target_agent}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                {stance === 'oppose' && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                    🔴 Challenge
                                   </span>
                                 )}
-                              </div>
-                              {msg.confidence_score !== undefined && (
-                                <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                                  {msg.confidence_score}% Confidence
+                                {stance === 'support' && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                    🟢 Alignment
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-mono text-gray-500">
+                                  {msg.timestamp || 'Recorded'}
                                 </span>
-                              )}
+                              </div>
                             </div>
 
-                            <p className="text-xs text-gray-300 whitespace-pre-wrap leading-relaxed">
+                            {/* Main Message Text */}
+                            <div className="text-xs text-gray-200 whitespace-pre-wrap leading-relaxed space-y-1">
                               {content}
-                            </p>
+                            </div>
 
-                            {/* Findings Chips */}
-                            {msg.findings && msg.findings.length > 0 && (
-                              <div className="mt-2 pt-2 border-t border-gray-800/40">
-                                <span className="text-[10px] text-gray-400 font-semibold uppercase">Claim Findings:</span>
-                                <div className="flex flex-wrap gap-1.5 mt-1">
-                                  {msg.findings.map((f, idx) => (
-                                    <span
-                                      key={idx}
-                                      className="text-xs text-gray-300 bg-gray-950 px-2 py-1 rounded-md border border-gray-800"
+                            {/* Clickable Citations & Findings */}
+                            {((msg.sources && msg.sources.length > 0) || (msg.findings && msg.findings.length > 0)) && (
+                              <div className="mt-2.5 pt-2.5 border-t border-gray-800/60 flex flex-wrap items-center gap-2">
+                                {msg.sources?.map((src, sIdx) => {
+                                  const isWeb = src.startsWith('web:');
+                                  const cleanUrl = isWeb ? src.replace('web:', '') : src;
+                                  return isWeb ? (
+                                    <a
+                                      key={sIdx}
+                                      href={cleanUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-[10px] text-orange-300 bg-orange-950/40 px-2.5 py-0.5 rounded-lg border border-orange-800/60 flex items-center gap-1.5 hover:border-orange-500 transition-colors"
                                     >
-                                      {typeof f === 'string' ? f : f.claim}
+                                      <Globe size={11} className="text-orange-400" />
+                                      <span className="truncate max-w-[200px]">{cleanUrl}</span>
+                                      <ExternalLink size={9} />
+                                    </a>
+                                  ) : (
+                                    <span
+                                      key={sIdx}
+                                      className="text-[10px] text-gray-400 bg-gray-900/80 px-2 py-0.5 rounded-lg border border-gray-800 flex items-center gap-1"
+                                    >
+                                      <Database size={10} /> {src}
                                     </span>
-                                  ))}
-                                </div>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
                         );
                       })
                     )}
+                    <div ref={transcriptEndRef} />
                   </CardContent>
                 </Card>
               )}
 
-              {/* TAB 2: QUANTIFIED OPTIONS MATRIX */}
-              {activeDeckTab === 'options' && (
-                <Card className="glass-panel border-gray-800/80 rounded-2xl overflow-hidden bg-gray-950/60">
-                  <CardHeader className="p-5 border-b border-gray-800/60">
-                    <CardTitle className="text-base text-white font-bold flex items-center gap-2">
-                      <Sparkles className="text-amber-400 h-5 w-5" />
-                      Quantified Options Matrix (Stage 5 & 6)
+              {/* TAB 2: EVIDENCE PACK & FIRECRAWL INTELLIGENCE */}
+              {activeDeckTab === 'evidence' && (
+                <Card className="border border-gray-800/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl">
+                  <CardHeader className="p-4 border-b border-gray-800/60">
+                    <CardTitle className="text-sm text-white font-bold flex items-center gap-2">
+                      <Database className="text-amber-400 h-4 w-4" />
+                      Ground Truth Evidence Catalog & Firecrawl Search ({evidenceList.length})
                     </CardTitle>
                     <CardDescription className="text-gray-400 text-xs">
-                      Rigorous multi-path evaluation: Status Quo (Do Nothing), Staged Pilot, and Full Scale with Expected Value (EV) and Downside P10 modeling.
+                      Live internet market research, competitor outbound benchmarks, database metrics, and knowledge documents.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="p-5">
-                    {optionsList.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500 text-xs">
-                        No structured options generated yet. Generated during Stage 5 of the 12-stage pipeline.
+                  <CardContent className="p-4 space-y-4">
+                    {evidenceList.length === 0 ? (
+                      <p className="text-xs text-gray-500 py-8 text-center">No evidence records cataloged yet.</p>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {evidenceList.map((ev) => {
+                          const isWeb = ev.source_type === 'firecrawl_web_search' || ev.source_ref.startsWith('web:');
+                          const cleanUrl = ev.source_ref.replace('web:', '');
+
+                          return (
+                            <div
+                              key={ev.id}
+                              className={`p-4 rounded-2xl border flex flex-col justify-between space-y-2 ${
+                                isWeb
+                                  ? 'bg-orange-950/15 border-orange-500/30 shadow-lg shadow-orange-950/20'
+                                  : 'bg-gray-900/40 border-gray-800/70'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase flex items-center gap-1 ${
+                                    isWeb
+                                      ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
+                                      : 'bg-gray-800 text-gray-300 border border-gray-700'
+                                  }`}>
+                                    {isWeb ? <Globe size={10} /> : <Database size={10} />}
+                                    {isWeb ? 'Firecrawl Web Evidence' : ev.source_type.replace('_', ' ')}
+                                  </span>
+                                  {ev.trust_score !== undefined && (
+                                    <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 font-mono">
+                                      {ev.trust_score}% Trust
+                                    </span>
+                                  )}
+                                </div>
+                                <h4 className="text-xs font-bold text-white truncate mb-1">
+                                  {cleanUrl}
+                                </h4>
+                                <p className="text-xs text-gray-300 line-clamp-3 leading-relaxed">
+                                  {ev.excerpt || 'No excerpt provided.'}
+                                </p>
+                              </div>
+
+                              {isWeb && cleanUrl.startsWith('http') && (
+                                <div className="pt-2 border-t border-gray-800/40">
+                                  <a
+                                    href={cleanUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[10px] text-orange-400 hover:text-orange-300 flex items-center gap-1 font-bold"
+                                  >
+                                    Inspect Live Evidence Source <ExternalLink size={10} />
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* TAB 3: QUANTIFIED OPTIONS MATRIX */}
+              {activeDeckTab === 'options' && (
+                <Card className="border border-gray-800/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl">
+                  <CardHeader className="p-4 border-b border-gray-800/60">
+                    <CardTitle className="text-sm text-white font-bold flex items-center gap-2">
+                      <Sparkles className="text-amber-400 h-4 w-4" />
+                      Quantified Options Matrix (EV & Downside P10 Modeling)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4">
+                    {optionsList.length === 0 ? (
+                      <p className="text-xs text-gray-500 py-8 text-center">Options modeled during Stage 5 of deliberation.</p>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {optionsList.map((opt) => {
                           const fm = opt.financial_model || {};
                           const ev = fm.ev !== undefined ? fm.ev : null;
                           const p10 = fm.downside_p10 !== undefined ? fm.downside_p10 : null;
-                          const payback = fm.payback_months !== undefined ? fm.payback_months : null;
                           const isTopOption = opt.weighted_score >= 0.7;
 
                           return (
                             <div
                               key={opt.id}
-                              className={`p-5 rounded-2xl border flex flex-col justify-between transition-all relative ${
+                              className={`p-4 rounded-2xl border flex flex-col justify-between ${
                                 isTopOption
-                                  ? 'bg-amber-950/20 border-amber-500/50 shadow-lg shadow-amber-950/20'
+                                  ? 'bg-amber-950/20 border-amber-500/50 shadow-lg'
                                   : 'bg-gray-900/40 border-gray-800/70'
                               }`}
                             >
-                              {isTopOption && (
-                                <div className="absolute -top-2.5 right-4 bg-amber-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow">
-                                  Top Council Recommendation
-                                </div>
-                              )}
                               <div>
                                 <div className="flex items-center justify-between mb-2">
-                                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-gray-800 text-amber-300">
+                                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-gray-800 text-amber-300">
                                     Option {opt.option_code}
                                   </span>
-                                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                                    opt.reversibility === 'high'
-                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                      : opt.reversibility === 'low'
-                                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                  }`}>
+                                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                                     {opt.reversibility} Reversibility
                                   </span>
                                 </div>
+                                <h4 className="text-xs font-bold text-white mb-1">{opt.title}</h4>
+                                <p className="text-xs text-gray-300 mb-3">{opt.description}</p>
 
-                                <h4 className="text-sm font-bold text-white mb-1.5">{opt.title}</h4>
-                                <p className="text-xs text-gray-300 leading-relaxed mb-4">{opt.description}</p>
-
-                                {/* Financial Metrics Grid */}
-                                <div className="grid grid-cols-2 gap-2 p-3 rounded-xl bg-gray-950/60 border border-gray-800 mb-3 text-xs">
+                                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-gray-950 border border-gray-800 text-[11px] mb-3">
                                   <div>
-                                    <span className="text-[10px] text-gray-400 block uppercase">Expected Value</span>
-                                    <span className={`font-mono font-bold ${ev !== null && Number(ev) >= 0 ? 'text-emerald-400' : 'text-gray-300'}`}>
+                                    <span className="text-[9px] text-gray-400 block uppercase">Expected Value</span>
+                                    <span className="font-mono font-bold text-emerald-400">
                                       {ev !== null ? `$${Number(ev).toLocaleString()}` : 'N/A'}
                                     </span>
                                   </div>
                                   <div>
-                                    <span className="text-[10px] text-gray-400 block uppercase">Downside (P10)</span>
-                                    <span className={`font-mono font-bold ${p10 !== null && Number(p10) < 0 ? 'text-rose-400' : 'text-gray-300'}`}>
+                                    <span className="text-[9px] text-gray-400 block uppercase">Downside (P10)</span>
+                                    <span className="font-mono font-bold text-rose-400">
                                       {p10 !== null ? `$${Number(p10).toLocaleString()}` : 'N/A'}
                                     </span>
                                   </div>
-                                  {payback !== null && (
-                                    <div className="col-span-2 pt-1 border-t border-gray-800/80">
-                                      <span className="text-[10px] text-gray-400 block uppercase">Est. Payback Period</span>
-                                      <span className="font-mono text-gray-200">{payback} Months</span>
-                                    </div>
-                                  )}
                                 </div>
                               </div>
 
                               <div>
-                                <div className="flex justify-between items-center text-xs mb-1">
-                                  <span className="text-gray-400">Weighted Score</span>
-                                  <span className="font-bold text-amber-400">{(opt.weighted_score * 100).toFixed(0)}%</span>
+                                <div className="flex justify-between items-center text-[10px] mb-1">
+                                  <span className="text-gray-400">Weighted Council Score</span>
+                                  <span className="font-bold text-amber-400 font-mono">{(opt.weighted_score * 100).toFixed(0)}%</span>
                                 </div>
                                 <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
                                   <div
@@ -1267,325 +1691,73 @@ export default function CoordinationView({
                 </Card>
               )}
 
-              {/* TAB 3: RED TEAM PRE-MORTEM & TRIPWIRES */}
+              {/* TAB 4: RED TEAM & TRIPWIRES */}
               {activeDeckTab === 'redteam' && (
-                <Card className="glass-panel border-gray-800/80 rounded-2xl overflow-hidden bg-gray-950/60">
-                  <CardHeader className="p-5 border-b border-gray-800/60">
-                    <CardTitle className="text-base text-white font-bold flex items-center gap-2">
-                      <ShieldAlert className="text-rose-400 h-5 w-5" />
-                      Red Team Pre-Mortem & Tripwire Registry (Stage 7, 11 & 12)
-                    </CardTitle>
-                    <CardDescription className="text-gray-400 text-xs">
-                      Identifies fatal failure modes before execution, registers automated tripwires, and schedules 30/90/180-day calibration reviews.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-5 space-y-5">
-                    {/* Failure Modes Banner */}
-                    <div className="p-4 rounded-xl bg-rose-950/20 border border-rose-900/60">
-                      <span className="text-xs font-bold text-rose-300 uppercase tracking-wider block mb-1">
-                        Pre-Mortem Failure Analysis
-                      </span>
-                      <p className="text-xs text-gray-300 leading-relaxed">
-                        Red Team AI assumes the selected option failed catastrophically 12 months in the future. The board has evaluated these primary failure modes and attached automated tripwires.
-                      </p>
-                    </div>
-
-                    {/* Milestones & Tripwires List */}
-                    {outcomesList.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500 text-xs">
-                        Review outcomes scheduled upon governed execution.
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {outcomesList.map((out) => (
-                          <div key={out.id} className="p-4 rounded-xl bg-gray-900/40 border border-gray-800 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 uppercase font-mono">
-                                Milestone: {out.review_milestone}
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                {new Date(out.review_date).toLocaleDateString()}
-                              </span>
-                            </div>
-
-                            <div>
-                              <span className="text-[10px] text-gray-400 uppercase font-bold block mb-1">Tripwires:</span>
-                              <div className="space-y-1">
-                                {(out.tripwires || []).map((tw, idx) => (
-                                  <div key={idx} className="text-xs text-rose-300/90 bg-rose-950/30 p-2 rounded-lg border border-rose-900/40 flex items-start gap-1.5">
-                                    <AlertTriangle size={13} className="shrink-0 text-rose-400 mt-0.5" />
-                                    <span>{tw}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* TAB 4: DISSENT REGISTER & ADR */}
-              {activeDeckTab === 'dissents' && (
-                <Card className="glass-panel border-gray-800/80 rounded-2xl overflow-hidden bg-gray-950/60">
-                  <CardHeader className="p-5 border-b border-gray-800/60">
-                    <CardTitle className="text-base text-white font-bold flex items-center gap-2">
-                      <AlertTriangle className="text-amber-400 h-5 w-5" />
-                      Dissent Register & Architectural Decision Record (Stage 10)
-                    </CardTitle>
-                    <CardDescription className="text-gray-400 text-xs">
-                      Permanent audit of minority opinions and unaddressed agent objections. Prevents retrospective blaming and forces explicit risk ownership.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-5">
-                    {dissentList.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500 text-xs">
-                        No formal dissents logged. Full council consensus achieved or deliberation still in early stages.
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {dissentList.map((dis) => (
-                          <div
-                            key={dis.id}
-                            className={`p-4 rounded-xl border space-y-2 ${
-                              dis.requires_human_signoff
-                                ? 'bg-rose-950/20 border-rose-800/60'
-                                : 'bg-gray-900/40 border-gray-800'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold text-white">{dis.agent}</span>
-                                {dis.preferred_option && (
-                                  <span className="text-xs text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
-                                    Advocated Option {dis.preferred_option}
-                                  </span>
-                                )}
-                              </div>
-                              <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
-                                dis.addressed
-                                  ? 'bg-emerald-500/20 text-emerald-300'
-                                  : 'bg-rose-500/20 text-rose-300 animate-pulse'
-                              }`}>
-                                {dis.addressed ? 'Addressed by Chair' : 'Unaddressed Objection'}
-                              </span>
-                            </div>
-
-                            <p className="text-xs text-gray-300 leading-relaxed font-mono bg-gray-950/50 p-2.5 rounded-lg border border-gray-800/60">
-                              {dis.dissent_position}
-                            </p>
-
-                            {dis.override_rationale && (
-                              <div className="text-xs text-gray-400">
-                                <strong>Chair Override Rationale:</strong> {dis.override_rationale}
-                              </div>
-                            )}
-
-                            {dis.requires_human_signoff && (
-                              <div className="text-xs text-rose-300 font-semibold flex items-center gap-1.5 pt-1">
-                                <ShieldAlert size={13} />
-                                Mandatory human executive sign-off required prior to executing actions.
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* TAB 5: GOVERNED ACTIONS KANBAN */}
-              {activeDeckTab === 'actions' && (
-                <Card className="glass-panel border-gray-800/80 rounded-2xl overflow-hidden bg-gray-950/60">
-                  <CardHeader className="p-5 border-b border-gray-800/60">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                      <div>
-                        <CardTitle className="text-base text-white font-bold flex items-center gap-2">
-                          <ShieldCheck className="text-amber-400 h-5 w-5" />
-                          Governed Action Queue
-                          {awaitingCount > 0 && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold">
-                              {awaitingCount} Awaiting Human Review
-                            </span>
-                          )}
-                        </CardTitle>
-                        <CardDescription className="text-gray-400 text-xs mt-0.5">
-                          High-risk actions require human signoff before execution. Low-risk actions are automated with audit logs.
-                        </CardDescription>
-                      </div>
-
-                      <div className="flex gap-1 bg-gray-900/80 p-1 rounded-xl border border-gray-800">
-                        <button
-                          type="button"
-                          onClick={() => setActionTab('awaiting')}
-                          className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                            actionTab === 'awaiting' ? 'bg-amber-500 text-black font-bold' : 'text-gray-400 hover:text-white'
-                          }`}
-                        >
-                          Awaiting ({awaitingCount})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setActionTab('completed')}
-                          className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                            actionTab === 'completed' ? 'bg-amber-500 text-black font-bold' : 'text-gray-400 hover:text-white'
-                          }`}
-                        >
-                          Executed
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setActionTab('all')}
-                          className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                            actionTab === 'all' ? 'bg-amber-500 text-black font-bold' : 'text-gray-400 hover:text-white'
-                          }`}
-                        >
-                          All ({actionList.length})
-                        </button>
-                      </div>
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="p-5">
-                    {actionList.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500 text-xs">
-                        No actions produced yet. Actions are generated upon CEO synthesis.
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {actionList
-                          .filter(a => {
-                            if (actionTab === 'awaiting') return a.status === 'awaiting_approval' || a.status === 'pending';
-                            if (actionTab === 'completed') return a.status === 'completed' || a.status === 'executing';
-                            return true;
-                          })
-                          .map((action) => {
-                            const isHigh = action.risk_tier === 'high';
-                            const isMedium = action.risk_tier === 'medium';
-                            const isAwaiting = action.status === 'awaiting_approval' || action.status === 'pending';
-                            const isDone = action.status === 'completed';
-                            const isRejected = action.status === 'rejected';
-
-                            return (
-                              <div
-                                key={action.id}
-                                className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${
-                                  isAwaiting
-                                    ? 'bg-rose-950/20 border-rose-800/60 shadow-lg shadow-rose-950/20'
-                                    : isDone
-                                    ? 'bg-gray-900/40 border-gray-800/60'
-                                    : 'bg-gray-900/20 border-gray-800/40'
-                                }`}
-                              >
-                                <div>
-                                  <div className="flex items-center justify-between mb-2">
-                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 ${
-                                      isHigh
-                                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                                        : isMedium
-                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                    }`}>
-                                      {isHigh ? <ShieldAlert size={11} /> : isMedium ? <AlertTriangle size={11} /> : <Zap size={11} />}
-                                      {action.risk_tier || 'standard'} Risk
-                                    </span>
-
-                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
-                                      isDone
-                                        ? 'bg-emerald-500/10 text-emerald-400'
-                                        : isRejected
-                                        ? 'bg-rose-500/10 text-rose-400'
-                                        : 'bg-amber-500/10 text-amber-400'
-                                    }`}>
-                                      {action.status.replace('_', ' ')}
-                                    </span>
-                                  </div>
-
-                                  <div className="text-xs font-bold text-gray-200 mb-1">
-                                    {action.assigned_to}
-                                  </div>
-                                  <p className="text-xs text-gray-300 leading-relaxed">
-                                    {action.description}
-                                  </p>
-
-                                  {action.rejection_reason && (
-                                    <div className="mt-2 text-xs text-rose-400 bg-rose-950/30 p-2 rounded-lg border border-rose-900/50">
-                                      <strong>Rejection Reason:</strong> {action.rejection_reason}
-                                    </div>
-                                  )}
-
-                                  {action.approved_by && (
-                                    <div className="mt-2 text-xs text-gray-400">
-                                      Approved by: <span className="text-gray-300 font-semibold">{action.approved_by}</span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {isAwaiting && (
-                                  <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-800/60">
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handleApproveAction(action.id)}
-                                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-8 px-3 rounded-lg flex items-center gap-1.5 flex-1"
-                                    >
-                                      <Check size={13} /> Approve & Execute
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setRejectActionId(action.id)}
-                                      className="border-rose-900/40 text-rose-400 hover:bg-rose-950/40 text-xs h-8 px-3 rounded-lg"
-                                    >
-                                      <X size={13} /> Reject
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* TAB 6: EVIDENCE CATALOG PANEL */}
-              {activeDeckTab === 'evidence' && (
-                <Card className="glass-panel border-gray-800/80 rounded-2xl overflow-hidden bg-gray-950/60">
+                <Card className="border border-gray-800/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl">
                   <CardHeader className="p-4 border-b border-gray-800/60">
                     <CardTitle className="text-sm text-white font-bold flex items-center gap-2">
-                      <Database className="text-amber-400 h-4 w-4" />
-                      Verified Evidence Catalog ({evidenceList.length})
+                      <ShieldAlert className="text-rose-400 h-4 w-4" />
+                      Red Team Pre-Mortem & Tripwire Registry
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 space-y-4">
+                    <div className="p-3.5 rounded-2xl bg-rose-950/20 border border-rose-900/60 text-xs text-gray-300">
+                      Red Team assumes outbound initiatives failed catastrophically. The council establishes automated tripwires to prevent domain blacklisting and budget overrun.
+                    </div>
+                    {outcomesList.length === 0 ? (
+                      <p className="text-xs text-gray-500 py-8 text-center">Tripwires registered upon governed execution.</p>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {outcomesList.map((out) => (
+                          <div key={out.id} className="p-4 rounded-2xl bg-gray-900/40 border border-gray-800 space-y-2">
+                            <span className="text-xs font-bold text-amber-300 font-mono block">
+                              Milestone: {out.review_milestone}
+                            </span>
+                            <div className="space-y-1">
+                              {(out.tripwires || []).map((tw, idx) => (
+                                <div key={idx} className="text-xs text-rose-300 bg-rose-950/30 p-2 rounded-xl border border-rose-900/40 flex items-start gap-1">
+                                  <AlertTriangle size={12} className="shrink-0 text-rose-400 mt-0.5" />
+                                  <span>{tw}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* TAB 5: DISSENT REGISTER */}
+              {activeDeckTab === 'dissents' && (
+                <Card className="border border-gray-800/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl">
+                  <CardHeader className="p-4 border-b border-gray-800/60">
+                    <CardTitle className="text-sm text-white font-bold flex items-center gap-2">
+                      <AlertTriangle className="text-amber-400 h-4 w-4" />
+                      Dissent Register & Architectural Decision Record (ADR)
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4">
-                    {evidenceList.length === 0 ? (
-                      <p className="text-xs text-gray-500 py-4 text-center">No ground-truth evidence records cataloged for this deliberation.</p>
+                    {dissentList.length === 0 ? (
+                      <p className="text-xs text-gray-500 py-8 text-center">Full council consensus achieved without unaddressed dissents.</p>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {evidenceList.map((ev) => (
-                          <div key={ev.id} className="p-3 rounded-xl bg-gray-900/40 border border-gray-800/60 space-y-2">
+                      <div className="space-y-3">
+                        {dissentList.map((dis) => (
+                          <div key={dis.id} className="p-3.5 rounded-2xl bg-gray-900/40 border border-gray-800 space-y-2">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs font-mono font-bold text-amber-300">
-                                {ev.source_ref}
-                              </span>
-                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 uppercase">
-                                {ev.source_type}
-                              </span>
+                              <span className="text-xs font-bold text-white">{dis.agent}</span>
+                              {dis.requires_human_signoff && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                  Human Signoff Required
+                                </span>
+                              )}
                             </div>
-                            {ev.excerpt && (
-                              <p className="text-xs text-gray-400 line-clamp-3 font-mono bg-gray-950/50 p-2 rounded-lg border border-gray-800/40">
-                                {ev.excerpt}
+                            <p className="text-xs text-gray-300">{dis.dissent_position}</p>
+                            {dis.override_rationale && (
+                              <p className="text-[11px] text-amber-300/90 bg-amber-500/10 p-2 rounded-xl border border-amber-500/20">
+                                Override Rationale: {dis.override_rationale}
                               </p>
-                            )}
-                            {ev.trust_score !== undefined && (
-                              <div className="flex items-center justify-between text-xs text-gray-400 pt-1">
-                                <span>Trust Rating</span>
-                                <span className="font-bold text-emerald-400">{ev.trust_score}%</span>
-                              </div>
                             )}
                           </div>
                         ))}
@@ -1594,46 +1766,123 @@ export default function CoordinationView({
                   </CardContent>
                 </Card>
               )}
-\n            </>
+
+              {/* TAB 6: GOVERNED ACTIONS */}
+              {activeDeckTab === 'actions' && (
+                <Card className="border border-gray-800/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl">
+                  <CardHeader className="p-4 border-b border-gray-800/60 flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-sm text-white font-bold flex items-center gap-2">
+                        <ShieldCheck className="text-emerald-400 h-4 w-4" />
+                        Governed Action Center ({actionList.length})
+                      </CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-4 space-y-3">
+                    {actionList.length === 0 ? (
+                      <p className="text-xs text-gray-500 py-8 text-center">No action items produced yet.</p>
+                    ) : (
+                      actionList.map((act) => {
+                        const isAwaiting = act.status === 'awaiting_approval' || act.status === 'pending';
+                        return (
+                          <div
+                            key={act.id}
+                            className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                              isAwaiting
+                                ? 'bg-amber-950/20 border-amber-500/40 shadow-lg'
+                                : 'bg-gray-900/40 border-gray-800/70'
+                            }`}
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full uppercase ${
+                                  act.risk_tier === 'high'
+                                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                    : act.risk_tier === 'medium'
+                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                }`}>
+                                  {act.risk_tier || 'standard'} risk
+                                </span>
+                                <span className="text-xs font-bold text-white">Assigned: {act.assigned_to}</span>
+                              </div>
+                              <p className="text-xs text-gray-300">{act.description}</p>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              {isAwaiting ? (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleApproveAction(act.id)}
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-8 px-3 rounded-xl cursor-pointer"
+                                  >
+                                    <Check size={12} className="mr-1" /> Approve
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setRejectActionId(act.id)}
+                                    className="border-rose-900/60 text-rose-300 hover:bg-rose-950/40 text-xs h-8 px-3 rounded-xl cursor-pointer"
+                                  >
+                                    <X size={12} className="mr-1" /> Reject
+                                  </Button>
+                                </>
+                              ) : (
+                                <span className="text-xs font-bold text-emerald-400 uppercase">
+                                  {act.status}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </>
           ) : (
-            <div className="glass-panel border border-gray-800 rounded-2xl p-16 text-center text-gray-500 text-xs">
-              Select or summon a boardroom deliberation to inspect live events.
-            </div>
+            <Card className="border border-gray-800 p-16 text-center text-gray-500 rounded-3xl bg-gray-950/70">
+              <Users size={44} className="mx-auto text-gray-700 mb-3" />
+              <h3 className="text-base font-bold text-white">No Boardroom Session Selected</h3>
+              <p className="text-xs mt-1 text-gray-400">Select an active deliberation from the sidebar or convene a new chamber.</p>
+            </Card>
           )}
         </div>
       </div>
 
-      {/* Rejection Modal Dialog */}
-      <Dialog open={!!rejectActionId} onOpenChange={(open) => !open && setRejectActionId(null)}>
-        <DialogContent className="glass-panel border border-gray-800 text-white max-w-sm rounded-2xl p-5">
+      {/* Reject Action Modal Dialog */}
+      <Dialog open={!!rejectActionId} onOpenChange={(open) => { if (!open) setRejectActionId(null); }}>
+        <DialogContent className="border border-gray-800 text-white max-w-md rounded-3xl p-6 bg-gray-950/95 shadow-2xl backdrop-blur-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-white flex items-center gap-2">
-              <ShieldAlert className="text-rose-400 h-5 w-5" /> Reject Proposed Action
+              <AlertTriangle className="text-rose-400 h-5 w-5" /> Reject Action Item
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 mt-3">
-            <p className="text-xs text-gray-400">
-              Provide a rationale for blocking this action. The reason is permanently audited.
+          <div className="space-y-4 mt-3">
+            <p className="text-xs text-gray-300">
+              Provide a rationale for rejecting this governed action. The council will be notified to formulate an alternate proposal.
             </p>
             <Textarea
-              placeholder="e.g. Budget limit exceeded; proposed discount violates enterprise policy."
+              placeholder="e.g. Budget exceeds quarterly limit, require cheaper email warmup provider..."
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs min-h-20"
+              className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs min-h-24 focus:border-rose-500"
             />
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2 pt-2">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={() => setRejectActionId(null)}
-                className="border-gray-800 text-gray-400 text-xs h-8"
+                className="text-gray-400 hover:text-white text-xs h-9 px-4 rounded-xl"
               >
                 Cancel
               </Button>
               <Button
                 size="sm"
                 onClick={handleRejectAction}
-                className="bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs h-8"
+                className="bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs h-9 px-4 rounded-xl shadow-lg"
               >
                 Confirm Rejection
               </Button>

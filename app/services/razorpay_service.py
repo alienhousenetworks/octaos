@@ -154,6 +154,107 @@ class RazorpayService:
             "theme": {"color": "#8b5cf6"},
         }
 
+    def create_order_for_agents(
+        self,
+        *,
+        tenant_id: str,
+        agent_codes: List[str],
+        user: Optional[User] = None,
+    ) -> Dict[str, Any]:
+        """Create order for custom selected modular agents with bundling discounts."""
+        self._require()
+        sub_svc = SubscriptionService(self.db)
+        sub_svc.seed_plans()
+        catalog = sub_svc.get_agent_catalog()
+        cat_map = {item["id"]: item for item in catalog}
+
+        cleaned = [a.lower().strip() for a in agent_codes if a.lower().strip() in cat_map]
+        if not cleaned:
+            raise ValueError("No valid agents selected")
+
+        # If user picked only 1 agent, use that standalone plan directly
+        if len(cleaned) == 1:
+            code = cat_map[cleaned[0]]["plan_code"]
+            return self.create_order_for_plan(tenant_id=tenant_id, plan_code=code, user=user)
+
+        # If user picked all 4 agents, use the all_access bundle plan
+        if len(cleaned) >= 4:
+            return self.create_order_for_plan(tenant_id=tenant_id, plan_code="all_access", user=user)
+
+        # Multi-agent selection: Calculate sum with 10% bundle discount
+        total_inr = sum(cat_map[c]["price_inr_monthly"] for c in cleaned)
+        total_usd = sum(cat_map[c]["price_usd_monthly"] for c in cleaned)
+        # Apply 10% multi-agent bundle discount
+        discount_rate = 0.90
+        amount_major = round(total_inr * discount_rate, 2) if self.currency == "INR" else round(total_usd * discount_rate, 2)
+        amount_paise = int(round(amount_major * 100))
+
+        bundle_code = f"bundle_{'_'.join(cleaned)}"
+        receipt = f"octa_{tenant_id[:8]}_{bundle_code[:12]}_{uuid.uuid4().hex[:6]}"
+
+        payload = {
+            "amount": amount_paise,
+            "currency": self.currency,
+            "receipt": receipt,
+            "notes": {
+                "tenant_id": tenant_id,
+                "plan_code": bundle_code,
+                "agent_codes": ",".join(cleaned),
+                "product": "octaos_agent_bundle",
+            },
+        }
+        resp = requests.post(
+            f"{RAZORPAY_API}/orders",
+            auth=self._auth(),
+            json=payload,
+            timeout=30,
+        )
+        if resp.status_code >= 400:
+            logger.error("Razorpay multi-agent order create failed: %s %s", resp.status_code, resp.text)
+            raise RuntimeError(f"Razorpay order failed: {resp.text}")
+
+        data = resp.json()
+        order = PaymentOrder(
+            tenant_id=tenant_id,
+            plan_code=bundle_code,
+            provider="razorpay",
+            amount=amount_major,
+            amount_paise=amount_paise,
+            currency=self.currency,
+            status="created",
+            razorpay_order_id=data.get("id"),
+            receipt=receipt,
+            notes={"agent_codes": cleaned, "razorpay_response": {"id": data.get("id"), "status": data.get("status")}},
+            created_by=user.id if user else None,
+        )
+        self.db.add(order)
+        self.db.commit()
+        self.db.refresh(order)
+
+        tenant = self.db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        prefill_name = (user.name if user else None) or (tenant.name if tenant else "")
+        prefill_email = (user.email if user else None) or (tenant.company_email if tenant else "")
+
+        agent_names = ", ".join([cat_map[c]["name"] for c in cleaned])
+        return {
+            "order_id": order.id,
+            "razorpay_order_id": order.razorpay_order_id,
+            "amount": amount_major,
+            "amount_paise": amount_paise,
+            "currency": self.currency,
+            "plan_code": bundle_code,
+            "plan_name": f"Custom Bundle ({agent_names})",
+            "key_id": self.key_id,
+            "name": "OctaOS",
+            "description": f"OctaOS Custom Bundle: {agent_names}",
+            "prefill": {
+                "name": prefill_name or "",
+                "email": prefill_email or "",
+            },
+            "notes": payload["notes"],
+            "theme": {"color": "#8b5cf6"},
+        }
+
     @staticmethod
     def verify_payment_signature(
         *,
@@ -208,10 +309,22 @@ class RazorpayService:
         order.razorpay_signature = razorpay_signature
         order.paid_at = datetime.now(timezone.utc)
 
-        sub = SubscriptionService(self.db).change_plan(tenant_id, order.plan_code)
-        sub.razorpay_last_order_id = razorpay_order_id
-        sub.razorpay_last_payment_id = razorpay_payment_id
-        sub.status = "active"
+        # Check if modular agent bundle or standard plan
+        notes_agents = (order.notes or {}).get("agent_codes")
+        if notes_agents:
+            if isinstance(notes_agents, str):
+                agent_list = [a.strip() for a in notes_agents.split(",") if a.strip()]
+            else:
+                agent_list = list(notes_agents)
+            SubscriptionService(self.db).subscribe_agents(tenant_id, agent_list)
+        else:
+            SubscriptionService(self.db).change_plan(tenant_id, order.plan_code)
+
+        sub = SubscriptionService(self.db).get_subscription(tenant_id)
+        if sub:
+            sub.razorpay_last_order_id = razorpay_order_id
+            sub.razorpay_last_payment_id = razorpay_payment_id
+            sub.status = "active"
         self.db.commit()
 
         AuditService.log_event(

@@ -449,6 +449,116 @@ export default function LandingPage() {
             </div>
           </div>
         </div>
+
+        {/* Modular AI Workforce Pricing Section */}
+        <div className="mb-16">
+          <div className="max-w-3xl mx-auto text-center mb-12">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-violet-500/10 text-violet-400 border border-violet-500/20 mb-3">
+              <Zap size={12} /> Transparent Modular Pricing
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold text-white tracking-tight">Hire Individually or as a Full Team</h2>
+            <p className="text-gray-400 mt-2 text-sm md:text-base">
+              Pay only for the autonomous employees you actually deploy. No forced all-in-one locks.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {[
+              {
+                name: 'Campaign Planner AI',
+                persona: 'Jules — Senior Copywriter',
+                desc: '30-day autonomous marketing calendar, visual prompts, and multi-channel posting.',
+                priceUsd: '$49',
+                priceInr: '₹3,999',
+                quota: '10,000 actions/mo',
+                color: 'text-violet-400',
+                border: 'border-violet-500/30',
+              },
+              {
+                name: 'Sales AI SDR',
+                persona: 'Alex — Outbound SDR',
+                desc: 'Lead scraping from Google Places & Apollo, automated email sequencing, and Deal Rooms.',
+                priceUsd: '$79',
+                priceInr: '₹5,999',
+                quota: '15,000 actions/mo',
+                color: 'text-emerald-400',
+                border: 'border-emerald-500/30',
+              },
+              {
+                name: 'HR Recruiter AI',
+                persona: 'Hunter — Talent Recruiter',
+                desc: 'Resume parsing, job-match scoring, candidate screening tests, and Google Meet scheduling.',
+                priceUsd: '$49',
+                priceInr: '₹3,999',
+                quota: '10,000 actions/mo',
+                color: 'text-amber-400',
+                border: 'border-amber-500/30',
+              },
+              {
+                name: 'Customer Support AI',
+                persona: 'Sam — 24/7 Support Agent',
+                desc: 'Omnichannel WhatsApp & Email resolution with Knowledge-Base RAG grounding & human takeover.',
+                priceUsd: '$49',
+                priceInr: '₹3,999',
+                quota: '15,000 actions/mo',
+                color: 'text-blue-400',
+                border: 'border-blue-500/30',
+              },
+            ].map((plan, idx) => (
+              <div
+                key={idx}
+                className={`p-6 rounded-2xl glass-panel border ${plan.border} flex flex-col justify-between hover:scale-[1.02] transition-all`}
+              >
+                <div>
+                  <h3 className="font-bold text-lg text-white">{plan.name}</h3>
+                  <span className={`text-xs ${plan.color} font-medium block mt-0.5`}>{plan.persona}</span>
+                  <p className="text-xs text-gray-400 mt-3 leading-relaxed">{plan.desc}</p>
+                </div>
+
+                <div className="pt-6 mt-4 border-t border-gray-800">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-bold text-white">{plan.priceInr}</span>
+                    <span className="text-xs text-gray-400">/ mo ({plan.priceUsd})</span>
+                  </div>
+                  <span className="text-[11px] text-zinc-500 block mt-0.5">{plan.quota}</span>
+
+                  <button
+                    onClick={() => setAppState('signup')}
+                    className="w-full mt-4 bg-white/5 hover:bg-white/10 text-white border border-white/10 font-semibold py-2 px-3 rounded-xl text-xs transition-colors"
+                  >
+                    Hire Standalone
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Full Access Workforce Banner */}
+          <div className="p-8 rounded-3xl glass-panel border border-violet-500/30 bg-gradient-to-r from-violet-950/40 via-indigo-950/30 to-black flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-500/10 text-violet-400 border border-violet-500/20 mb-2">
+                <Zap size={11} /> Best Value For Scale
+              </div>
+              <h3 className="text-2xl font-bold text-white">All-In-One AI Workforce</h3>
+              <p className="text-sm text-gray-300 mt-1 max-w-2xl">
+                Deploy Jules (Marketing), Alex (Sales), Hunter (HR), and Sam (Support) simultaneously, coordinated by the CEO Workspace and Boardroom orchestrator.
+              </p>
+            </div>
+
+            <div className="text-left lg:text-right shrink-0">
+              <div className="text-3xl font-extrabold text-white">
+                ₹11,999 <span className="text-sm text-gray-400 font-normal">/ mo ($149 USD)</span>
+              </div>
+              <span className="text-xs text-emerald-400 font-medium block mt-0.5">100,000 monthly actions included</span>
+              <button
+                onClick={() => setAppState('signup')}
+                className="mt-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 py-2.5 rounded-xl text-xs shadow-lg shadow-violet-500/25 transition-all"
+              >
+                Deploy Complete Workforce
+              </button>
+            </div>
+          </div>
+        </div>
       </main>
     </div>
   );

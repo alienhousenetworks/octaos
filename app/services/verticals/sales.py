@@ -32,13 +32,27 @@ class SalesService:
         
         data = lead.data or {}
         title = (data.get("contact") or {}).get("title") or ""
+
+        from app.models.base import User
+        from app.models.verticals import BusinessProfile
+        bp = self.db.query(BusinessProfile).filter_by(tenant_id=self.tenant_id).first()
+        company_name = bp.company_name if (bp and bp.company_name) else "our company"
+        user = self.db.query(User).filter_by(tenant_id=self.tenant_id).order_by(User.is_superuser.desc(), User.id.asc()).first()
+        employee_name = user.name.strip() if (user and user.name and user.name.strip()) else None
+
+        if employee_name:
+            sender_rule = f"Write on behalf of {employee_name} at {company_name}. Sign off with: Best regards, {employee_name}, {company_name}."
+        else:
+            sender_rule = f"Write on behalf of {company_name}. Do NOT invent any employee or sender name. Sign off strictly with: Best regards, The {company_name} Team."
+
         prompt = (
             f"Write a personalized short outreach email (under 120 words, body only, no placeholders) "
             f"for {lead.name} {f'({title}) ' if title else ''}at {lead.company}. Found via {lead.source}.\n"
             f"Why now: {lead.why or data.get('why_now') or 'n/a'}\n"
             f"Pain points: {data.get('pain_points') or 'n/a'}\n"
             f"Our offer: {lead.need_of_what or 'n/a'}\n"
-            f"Use only the facts above; do not invent any."
+            f"Sender & Context: {sender_rule}\n"
+            f"Use only the facts above; do not invent any fake human personas."
         )
         if instructions:
             prompt += f"\nUser instructions to follow: {instructions}"

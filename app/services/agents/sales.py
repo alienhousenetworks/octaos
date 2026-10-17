@@ -660,6 +660,14 @@ No other text, just the JSON."""
                 proofs = (sales_ctx.proof_points if sales_ctx else [])[:3]
                 proof_text = f"\nVerified Proof Points: {', '.join(proofs)}" if proofs else ""
 
+                from app.models.base import User
+                user = self.db.query(User).filter_by(tenant_id=self.tenant_id).order_by(User.is_superuser.desc(), User.id.asc()).first()
+                employee_name = user.name.strip() if (user and user.name and user.name.strip()) else None
+                if employee_name:
+                    behalf_instruction = f"Write on behalf of {employee_name} at {profile.company_name}. Sign off with: Best regards, {employee_name}, {profile.company_name}."
+                else:
+                    behalf_instruction = f"Write on behalf of {profile.company_name}. Do NOT invent any employee or sender name. Sign off strictly with: Best regards, {profile.company_name} (or The {profile.company_name} Team)."
+
                 for i, c in enumerate(scored_leads):
                     emit_activity(7, f"Drafting tailored outreach email for {c['contact']['name']} at {c['company_name']} ({i+1}/{len(scored_leads)})...")
                     news_context = ", ".join([n["title"] for n in c.get("news", [])]) if c.get("news") else "None recent"
@@ -671,6 +679,10 @@ Recent Company News to reference (if relevant): {news_context}
 Recent Job Openings to reference (if relevant): {jobs_context}
 Use our USP: {profile.usp}
 Offer: {profile.offer_details}{proof_text}
+
+Sender & Context Instructions:
+- {behalf_instruction}
+- Do NOT invent or use any fake names.
 
 Strict Tone & Quality Rules:
 - Direct, consultative, value-first tone.
@@ -1440,6 +1452,19 @@ Only output valid JSON. No other text."""
             if not gmail_credentials:
                 raise ValueError("No Gmail API credentials configured. Please connect Google Workspace under Platform Setup -> API Settings.")
 
+        # Resolve company and employee sender context
+        from app.models.base import User
+        from app.models.verticals import BusinessProfile
+        bp = self.db.query(BusinessProfile).filter_by(tenant_id=self.tenant_id).first()
+        company_name = bp.company_name if (bp and bp.company_name) else "OctaOS"
+        user = self.db.query(User).filter_by(tenant_id=self.tenant_id).order_by(User.is_superuser.desc(), User.id.asc()).first()
+        employee_name = user.name.strip() if (user and user.name and user.name.strip()) else None
+
+        if employee_name:
+            sender_rule = f"Write on behalf of {employee_name} at {company_name}. Sign off with: Best regards, {employee_name}, {company_name}."
+        else:
+            sender_rule = f"Write on behalf of {company_name}. Do NOT invent any employee name. Sign off strictly with: Best regards, The {company_name} Team."
+
         sent_count = 0
         for lead in leads:
             prompt = f"""Write a personalized sales email/outreach message.
@@ -1451,6 +1476,8 @@ Lead Pain Points (Why): {lead.why or 'N/A'}
 Target Context: {lead.target_context or 'N/A'}
 Base Template: {body_template}
 Subject: {subject}
+Sender Context: {sender_rule}
+Do NOT use or invent any fake human personas.
 Output a JSON object with keys 'subject' and 'body'. No other text."""
             
             response = await self.llm.complete(prompt, provider=provider, model=model)

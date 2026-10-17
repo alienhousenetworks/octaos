@@ -191,6 +191,29 @@ class PolicyEngine:
         self.db.commit()
         self.db.refresh(approval)
 
+        # Execute side-effects for linked resources upon approval/rejection
+        try:
+            if approval.resource_type in ["post", "content_post"] or approval.action_type == "public_post":
+                from app.models.verticals import ContentPost
+                post_id = approval.resource_id or (approval.payload or {}).get("post_id")
+                if post_id:
+                    post = self.db.query(ContentPost).filter_by(id=post_id, tenant_id=self.tenant_id).first()
+                    if post:
+                        post.approval_status = "approved" if approve else "rejected"
+                        if not approve:
+                            post.status = "draft"
+                        self.db.commit()
+            elif approval.resource_type == "lead":
+                from app.models.verticals import Lead
+                lead_id = approval.resource_id or (approval.payload or {}).get("lead_id")
+                if lead_id:
+                    lead = self.db.query(Lead).filter_by(id=lead_id, tenant_id=self.tenant_id).first()
+                    if lead:
+                        lead.approval_status = "approved" if approve else "rejected"
+                        self.db.commit()
+        except Exception as e:
+            logger.warning(f"Error applying side-effects for approval {approval_id}: {e}")
+
         AuditService.log_event(
             self.db,
             action="approval.reviewed",
@@ -216,3 +239,37 @@ class PolicyEngine:
             .limit(limit)
             .all()
         )
+
+    def list_approvals(
+        self,
+        status: Optional[str] = "pending",
+        action_type: Optional[str] = None,
+        limit: int = 50,
+    ) -> list[ApprovalRequest]:
+        q = self.db.query(ApprovalRequest).filter(ApprovalRequest.tenant_id == self.tenant_id)
+        if status and status.lower() != "all":
+            q = q.filter(ApprovalRequest.status == status.lower())
+        if action_type and action_type.lower() != "all":
+            q = q.filter(ApprovalRequest.action_type == action_type.lower())
+        return q.order_by(ApprovalRequest.created_at.desc()).limit(limit).all()
+
+    def get_metrics(self) -> Dict[str, int]:
+        total = self.db.query(ApprovalRequest).filter(ApprovalRequest.tenant_id == self.tenant_id).count()
+        pending = self.db.query(ApprovalRequest).filter(
+            ApprovalRequest.tenant_id == self.tenant_id,
+            ApprovalRequest.status == "pending"
+        ).count()
+        approved = self.db.query(ApprovalRequest).filter(
+            ApprovalRequest.tenant_id == self.tenant_id,
+            ApprovalRequest.status == "approved"
+        ).count()
+        rejected = self.db.query(ApprovalRequest).filter(
+            ApprovalRequest.tenant_id == self.tenant_id,
+            ApprovalRequest.status == "rejected"
+        ).count()
+        return {
+            "total": total,
+            "pending": pending,
+            "approved": approved,
+            "rejected": rejected,
+        }

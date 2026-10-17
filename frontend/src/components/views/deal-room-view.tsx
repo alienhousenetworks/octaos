@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { 
   Building2, Users, Target, ShieldCheck, AlertTriangle, TrendingUp, Sparkles, 
   Send, RefreshCw, Plus, CheckCircle2, XCircle, Search, FileText, DollarSign,
-  ChevronRight, ArrowUpRight, Clock, HelpCircle, Layers, Mail, Check
+  ChevronRight, ArrowUpRight, Clock, HelpCircle, Layers, Mail, Check, ExternalLink,
+  ShieldAlert, ChevronDown
 } from 'lucide-react';
 
 interface DealRoomViewProps {
@@ -108,7 +109,6 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
         const data = await res.json();
         setManagerAudit(data);
       }
-      // Also fetch gaps
       const gapsRes = await fetchWithAuth(`${API_URL}/sales-manager/knowledge-gaps`);
       if (gapsRes.ok) {
         const gapsData = await gapsRes.json();
@@ -253,108 +253,164 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
     }
   };
 
+  const getStageBadge = (stage: string) => {
+    const s = stage?.toLowerCase() || '';
+    if (s.includes('won') || s === 'meeting_booked') {
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    }
+    if (s.includes('cadence') || s.includes('outreach')) {
+      return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+    }
+    if (s.includes('qualified')) {
+      return 'bg-blue-50 text-blue-700 border-blue-200';
+    }
+    if (s.includes('proposal') || s.includes('closing')) {
+      return 'bg-purple-50 text-purple-700 border-purple-200';
+    }
+    return 'bg-slate-100 text-slate-700 border-slate-200';
+  };
+
   return (
-    <div className="space-y-6">
-      {/* 1. Autonomous Sales Manager Header Metric Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-slate-950/70 border-slate-800 shadow-md backdrop-blur">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase tracking-wider text-slate-400 flex items-center justify-between">
-              <span>Active Deal Rooms</span>
-              <Building2 className="w-4 h-4 text-cyan-400" />
-            </CardDescription>
-            <CardTitle className="text-2xl font-bold text-white">
-              {dealRooms.length}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-slate-400">
-            Persistent account state machines
-          </CardContent>
-        </Card>
+    <div className="space-y-5 text-slate-900">
+      {/* ── 1. EXECUTIVE KPI METRIC RIBBON ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Metric 1: Active Deal Rooms */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between text-slate-500">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Active Deal Rooms
+            </span>
+            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+              State Machines
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <div>
+              <span className="text-2xl font-extrabold tracking-tight text-slate-900">
+                {dealRooms.length}
+              </span>
+              <p className="text-[11px] text-slate-500 mt-0.5">Persistent buyer environments</p>
+            </div>
+            <div className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
+              <Building2 size={16} />
+            </div>
+          </div>
+        </div>
 
-        <Card className="bg-slate-950/70 border-slate-800 shadow-md backdrop-blur">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase tracking-wider text-slate-400 flex items-center justify-between">
-              <span>Calibrated Forecast</span>
-              <DollarSign className="w-4 h-4 text-emerald-400" />
-            </CardDescription>
-            <CardTitle className="text-2xl font-bold text-emerald-400">
-              ${(managerAudit?.data?.total_calibrated_pipeline_usd || 0).toLocaleString()}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-slate-400">
-            Bayesian probability weighted pipeline
-          </CardContent>
-        </Card>
+        {/* Metric 2: Calibrated Pipeline Forecast */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between text-slate-500">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Calibrated Forecast
+            </span>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              Bayesian Weighted
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <div>
+              <span className="text-2xl font-extrabold tracking-tight text-emerald-600">
+                ${(managerAudit?.data?.total_calibrated_pipeline_usd || 0).toLocaleString()}
+              </span>
+              <p className="text-[11px] text-slate-500 mt-0.5">Weighted probability ARR</p>
+            </div>
+            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100">
+              <DollarSign size={16} />
+            </div>
+          </div>
+        </div>
 
-        <Card className="bg-slate-950/70 border-slate-800 shadow-md backdrop-blur">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase tracking-wider text-slate-400 flex items-center justify-between">
-              <span>Multi-Threaded Coverage</span>
-              <Users className="w-4 h-4 text-indigo-400" />
-            </CardDescription>
-            <CardTitle className="text-2xl font-bold text-indigo-400">
-              {dealRooms.length > 0 
-                ? `${Math.round((dealRooms.filter(r => r.is_multi_threaded).length / dealRooms.length) * 100)}%`
-                : '0%'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-slate-400">
-            Accounts with &ge; 2 identified personas
-          </CardContent>
-        </Card>
+        {/* Metric 3: Multi-Threaded Coverage */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between text-slate-500">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Multi-Threaded Coverage
+            </span>
+            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
+              &ge; 2 Personas
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <div>
+              <span className="text-2xl font-extrabold tracking-tight text-indigo-600">
+                {dealRooms.length > 0 
+                  ? `${Math.round((dealRooms.filter(r => r.is_multi_threaded).length / dealRooms.length) * 100)}%`
+                  : '0%'}
+              </span>
+              <p className="text-[11px] text-slate-500 mt-0.5">Stakeholder consensus rate</p>
+            </div>
+            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100">
+              <Users size={16} />
+            </div>
+          </div>
+        </div>
 
-        <Card className="bg-slate-950/70 border-slate-800 shadow-md backdrop-blur">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase tracking-wider text-slate-400 flex items-center justify-between">
-              <span>Pipeline Inspection</span>
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
-            </CardDescription>
-            <CardTitle className="text-2xl font-bold text-amber-400">
-              {managerAudit?.data?.stalled_deals_count || 0} At Risk
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-slate-400 flex items-center justify-between">
-            <span>Stalled &gt; 7 days or single-threaded</span>
-            <Button variant="ghost" size="sm" onClick={runManagerAudit} disabled={managerLoading} className="h-6 px-2 text-xs text-cyan-400 hover:text-cyan-300">
-              <RefreshCw className={`w-3 h-3 mr-1 ${managerLoading ? 'animate-spin' : ''}`} /> Audit
+        {/* Metric 4: Risk Inspection & Audit */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between text-slate-500">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Pipeline Risk Inspection
+            </span>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={runManagerAudit} 
+              disabled={managerLoading} 
+              className="h-5 px-1.5 text-[10px] font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            >
+              <RefreshCw className={`w-3 h-3 mr-1 ${managerLoading ? 'animate-spin' : ''}`} /> Run Audit
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <div>
+              <span className="text-2xl font-extrabold tracking-tight text-amber-600">
+                {managerAudit?.data?.stalled_deals_count || 0} At Risk
+              </span>
+              <p className="text-[11px] text-slate-500 mt-0.5">Stalled &gt; 7 days / single-threaded</p>
+            </div>
+            <div className="p-2 rounded-xl bg-amber-50 text-amber-600 border border-amber-100">
+              <AlertTriangle size={16} />
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Action Notification Banner */}
+      {/* ── ACTION NOTIFICATION BANNER ── */}
       {actionMessage && (
-        <div className="p-3 bg-cyan-950/50 border border-cyan-800/80 rounded-lg text-sm text-cyan-200 flex items-center justify-between">
+        <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-xs font-semibold text-blue-900 flex items-center justify-between shadow-2xs animate-in fade-in">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" />
+            <Sparkles className="w-4 h-4 text-blue-600 animate-pulse" />
             <span>{actionMessage}</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setActionMessage(null)} className="h-6 w-6 p-0 text-slate-400 hover:text-white">
+          <button 
+            type="button" 
+            onClick={() => setActionMessage(null)} 
+            className="text-slate-400 hover:text-slate-700 p-1"
+          >
             &times;
-          </Button>
+          </button>
         </div>
       )}
 
-      {/* 2. Command Center Toolbar & Filters */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
+      {/* ── 2. COMMAND CENTER TOOLBAR & ACTIONS ── */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 w-full sm:w-auto flex-1 max-w-md">
+          <div className="relative w-full">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
             <Input
-              placeholder="Search accounts by name or domain..."
+              placeholder="Search deal rooms by company name or domain..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && fetchDealRooms()}
-              className="pl-9 bg-slate-950/80 border-slate-700 text-sm"
+              className="pl-9 bg-slate-50 border-slate-200 text-xs h-9 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 rounded-xl"
             />
           </div>
 
           <Select value={stageFilter} onValueChange={(val) => val && setStageFilter(val)}>
-            <SelectTrigger className="w-[180px] bg-slate-950/80 border-slate-700 text-sm">
-              <SelectValue placeholder="Stage" />
+            <SelectTrigger className="w-[160px] bg-slate-50 border-slate-200 text-slate-800 rounded-xl text-xs h-9">
+              <SelectValue placeholder="All Stages" />
             </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
+            <SelectContent className="bg-white border-slate-200 text-slate-900 shadow-xl rounded-xl">
               <SelectItem value="all">All Stages</SelectItem>
               <SelectItem value="discovered">Discovered</SelectItem>
               <SelectItem value="qualified">Qualified</SelectItem>
@@ -372,236 +428,265 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
           <Dialog open={isNewRoomOpen} onOpenChange={setIsNewRoomOpen}>
             <DialogTrigger
               render={
-                <Button className="bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-medium text-sm" />
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-9 px-3.5 rounded-xl shadow-xs transition-all flex items-center gap-1.5" />
               }
             >
-              <Plus className="w-4 h-4 mr-1.5" /> New Deal Room
+              <Plus size={14} /> New Deal Room
             </DialogTrigger>
-            <DialogContent className="bg-slate-900 border-slate-800 text-slate-100">
+            <DialogContent className="bg-white border border-slate-200 text-slate-900 rounded-3xl max-w-lg p-6 shadow-2xl">
               <DialogHeader>
-                <DialogTitle>Open Persistent Deal Room</DialogTitle>
-                <DialogDescription className="text-slate-400">
+                <DialogTitle className="text-base font-bold flex items-center gap-2 text-slate-900">
+                  <span className="text-blue-600 font-bold">▎</span>
+                  Open Persistent Deal Room
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
                   Initializes a persistent account state machine with buying committee, signals, and deliverability tracking.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 pt-2">
+
+              <div className="space-y-3.5 pt-2">
                 <div>
-                  <label className="text-xs font-semibold text-slate-300">Company Name</label>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Company Name *</label>
                   <Input 
                     placeholder="e.g. Acme Cloud Corp"
                     value={newCompanyName}
                     onChange={(e) => setNewCompanyName(e.target.value)}
-                    className="mt-1 bg-slate-950 border-slate-700"
+                    className="bg-slate-50 border-slate-200 text-xs text-slate-900 rounded-xl focus:bg-white focus:border-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-300">Domain</label>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Domain *</label>
                   <Input 
                     placeholder="e.g. acmecloud.com"
                     value={newDomain}
                     onChange={(e) => setNewDomain(e.target.value)}
-                    className="mt-1 bg-slate-950 border-slate-700"
+                    className="bg-slate-50 border-slate-200 text-xs text-slate-900 rounded-xl focus:bg-white focus:border-blue-500"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-semibold text-slate-300">Industry</label>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">Industry</label>
                     <Input 
                       value={newIndustry}
                       onChange={(e) => setNewIndustry(e.target.value)}
-                      className="mt-1 bg-slate-950 border-slate-700"
+                      className="bg-slate-50 border-slate-200 text-xs text-slate-900 rounded-xl focus:bg-white focus:border-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-300">Employee Count</label>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">Employee Count</label>
                     <Input 
                       value={newEmployees}
                       onChange={(e) => setNewEmployees(e.target.value)}
-                      className="mt-1 bg-slate-950 border-slate-700"
+                      className="bg-slate-50 border-slate-200 text-xs text-slate-900 rounded-xl focus:bg-white focus:border-blue-500"
                     />
                   </div>
                 </div>
-                <Button onClick={handleCreateDealRoom} className="w-full bg-cyan-600 hover:bg-cyan-500 mt-2">
-                  Initialize Deal Room
-                </Button>
+                <div className="pt-2 flex justify-end gap-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setIsNewRoomOpen(false)}
+                    className="text-xs rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleCreateDealRoom} 
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl px-5 shadow-xs"
+                  >
+                    Initialize Deal Room
+                  </Button>
+                </div>
               </div>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
-      {/* 3. Main Split View: Deal Room Table & Detail Inspector */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* ── 3. MAIN SPLIT VIEW: ROOMS TABLE & 360° INSPECTOR ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Deal Rooms List */}
         <div className={selectedRoom ? 'lg:col-span-5 space-y-3' : 'lg:col-span-12 space-y-3'}>
-          <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
-            <Table>
-              <TableHeader className="bg-slate-950/80">
-                <TableRow className="border-slate-800 hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-medium">Account</TableHead>
-                  <TableHead className="text-slate-400 font-medium">Stage</TableHead>
-                  <TableHead className="text-slate-400 font-medium">Threading</TableHead>
-                  <TableHead className="text-slate-400 font-medium">Priority Index</TableHead>
-                  <TableHead className="text-slate-400 font-medium text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12 text-slate-500">
-                      Loading Deal Rooms...
-                    </TableCell>
+          <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-xs">
+            <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Accounts in Deal Rooms ({dealRooms.length})
+              </span>
+              <span className="text-[11px] text-slate-500">
+                Click any row to inspect buyer consensus
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-slate-50">
+                  <TableRow className="border-b border-slate-200 text-slate-600 font-bold">
+                    <TableHead className="text-slate-600 font-bold text-[11px] uppercase tracking-wider py-2.5 px-3.5">Account</TableHead>
+                    <TableHead className="text-slate-600 font-bold text-[11px] uppercase tracking-wider py-2.5 px-3">Stage</TableHead>
+                    <TableHead className="text-slate-600 font-bold text-[11px] uppercase tracking-wider py-2.5 px-3">Threading</TableHead>
+                    <TableHead className="text-slate-600 font-bold text-[11px] uppercase tracking-wider py-2.5 px-3">Priority Index</TableHead>
+                    <TableHead className="text-slate-600 font-bold text-[11px] uppercase tracking-wider py-2.5 px-3 text-right">Inspect</TableHead>
                   </TableRow>
-                ) : dealRooms.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12 text-slate-500">
-                      No Deal Rooms found. Create one to begin autonomous account execution.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  dealRooms.map((r) => {
-                    const isSelected = selectedRoom?.id === r.id;
-                    return (
-                      <TableRow 
-                        key={r.id} 
-                        onClick={() => fetchRoomDetails(r.id)}
-                        className={`cursor-pointer transition-colors border-slate-800/80 ${
- isSelected ? 'bg-cyan-950/40 border-l-4 border-l-cyan-500' : 'hover:bg-slate-800/40'
- }`}
-                      >
-                        <TableCell>
-                          <div className="font-semibold text-slate-100 flex items-center gap-1.5">
-                            {r.company_name}
-                          </div>
-                          <div className="text-xs text-slate-400 font-mono">{r.domain}</div>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
- r.stage === 'meeting_booked' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
- r.stage === 'in_cadence' ? 'bg-indigo-950 text-indigo-400 border border-indigo-800' :
- r.stage === 'qualified' ? 'bg-cyan-950 text-cyan-400 border border-cyan-800' :
- 'bg-slate-800 text-slate-300'
- }`}>
-                            {r.stage.replace('_', ' ')}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {r.is_multi_threaded ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-indigo-400">
-                              <ShieldCheck className="w-3.5 h-3.5" /> Multi-Threaded
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-xs text-amber-400">
-                              <AlertTriangle className="w-3.5 h-3.5" /> Single-Threaded
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="w-12 bg-slate-800 h-2 rounded-full overflow-hidden">
-                              <div 
-                                className="bg-cyan-500 h-full rounded-full" 
-                                style={{ width: `${Math.min(100, Math.round((r.priority_index || 0) * 100))}%` }}
-                              />
+                </TableHeader>
+                <TableBody className="divide-y divide-slate-100">
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-12 text-slate-500 text-xs">
+                        Loading persistent deal rooms...
+                      </TableCell>
+                    </TableRow>
+                  ) : dealRooms.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-12 text-slate-500 text-xs">
+                        No Deal Rooms found. Initialize a room to begin multi-threaded account execution.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    dealRooms.map((r) => {
+                      const isSelected = selectedRoom?.id === r.id;
+                      return (
+                        <TableRow 
+                          key={r.id} 
+                          onClick={() => fetchRoomDetails(r.id)}
+                          className={`cursor-pointer transition-colors ${
+                            isSelected 
+                              ? 'bg-blue-50/70 border-l-4 border-l-blue-600 font-medium' 
+                              : 'hover:bg-slate-50/80'
+                          }`}
+                        >
+                          <TableCell className="py-3 px-3.5">
+                            <div className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                              {r.company_name}
                             </div>
-                            <span className="text-xs font-mono text-slate-300">
-                              {((r.priority_index || 0)).toFixed(2)}
+                            <div className="text-[11px] text-slate-500 font-mono mt-0.5">{r.domain}</div>
+                          </TableCell>
+                          <TableCell className="py-3 px-3">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${getStageBadge(r.stage)}`}>
+                              {r.stage?.replace(/_/g, ' ') || 'Discovered'}
                             </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-7 w-7 p-0 text-slate-400 hover:text-white"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              fetchRoomDetails(r.id);
-                            }}
-                          >
-                            <ChevronRight className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+                          </TableCell>
+                          <TableCell className="py-3 px-3">
+                            {r.is_multi_threaded ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                                <ShieldCheck className="w-3 h-3 text-indigo-600" /> Multi-Threaded
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                <AlertTriangle className="w-3 h-3 text-amber-600" /> Single-Threaded
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="py-3 px-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-12 bg-slate-200 h-2 rounded-full overflow-hidden">
+                                <div 
+                                  className="bg-blue-600 h-full rounded-full" 
+                                  style={{ width: `${Math.min(100, Math.round((r.priority_index || 0) * 100))}%` }}
+                                />
+                              </div>
+                              <span className="text-[11px] font-mono font-bold text-slate-700">
+                                {((r.priority_index || 0)).toFixed(2)}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3 px-3 text-right">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                fetchRoomDetails(r.id);
+                              }}
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </div>
 
         {/* Selected Deal Room Detail Inspector */}
         {selectedRoom && (
           <div className="lg:col-span-7 space-y-4">
-            <Card className="bg-slate-900/90 border-slate-800 shadow-xl overflow-hidden">
-              <CardHeader className="bg-slate-950/60 pb-4 border-b border-slate-800/80">
-                <div className="flex items-start justify-between">
+            <Card className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+              <CardHeader className="bg-slate-50/80 p-5 border-b border-slate-200">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <CardTitle className="text-xl font-bold text-white">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <CardTitle className="text-lg font-bold text-slate-900">
                         {selectedRoom.company_name}
                       </CardTitle>
-                      <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
-                        {selectedRoom.domain}
-                      </span>
+                      {selectedRoom.domain && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 font-mono font-semibold">
+                          {selectedRoom.domain}
+                        </span>
+                      )}
                     </div>
-                    <CardDescription className="text-xs text-slate-400 mt-1">
-                      {selectedRoom.industry || 'Technology'} &bull; {selectedRoom.employee_count || '100+'} employees &bull; Calibrated Win Prob: {Math.round((selectedRoom.calibrated_win_prob || 0) * 100)}%
+                    <CardDescription className="text-xs text-slate-500 mt-1">
+                      {selectedRoom.industry || 'Technology'} &bull; {selectedRoom.employee_count || '100+'} employees &bull; Calibrated Win Prob: <strong className="text-slate-800">{Math.round((selectedRoom.calibrated_win_prob || 0) * 100)}%</strong>
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <Button 
                       variant="outline" 
                       size="sm" 
                       onClick={() => handleQualifyAccount(selectedRoom.id)}
                       disabled={actionLoading}
-                      className="border-slate-700 hover:bg-slate-800 text-xs"
+                      className="border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold rounded-xl text-slate-700 h-8"
                     >
-                      <Target className="w-3.5 h-3.5 mr-1 text-cyan-400" /> Qualify
+                      <Target className="w-3.5 h-3.5 mr-1 text-blue-600" /> Qualify
                     </Button>
                     <Button 
                       variant="outline" 
                       size="sm" 
                       onClick={() => handleResearchAccount(selectedRoom.id)}
                       disabled={actionLoading}
-                      className="border-slate-700 hover:bg-slate-800 text-xs"
+                      className="border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold rounded-xl text-slate-700 h-8"
                     >
-                      <Sparkles className="w-3.5 h-3.5 mr-1 text-indigo-400" /> Research Brief
+                      <Sparkles className="w-3.5 h-3.5 mr-1 text-indigo-600" /> Research
                     </Button>
                     <Button 
                       variant="default" 
                       size="sm" 
                       onClick={() => handleComposeOutreach(selectedRoom.id)}
                       disabled={actionLoading}
-                      className="bg-cyan-600 hover:bg-cyan-500 text-xs"
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl h-8 shadow-xs"
                     >
-                      <Send className="w-3.5 h-3.5 mr-1" /> Compose Outreach
+                      <Send className="w-3.5 h-3.5 mr-1" /> Outreach
                     </Button>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-6 pt-4 text-slate-200">
-                
-                {/* Risk Flags & Next Best Action */}
-                <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800 flex items-center justify-between">
+
+              <CardContent className="space-y-5 p-5 text-slate-900">
+                {/* Risk Flags & Next Best Action Directive */}
+                <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <div className="text-xs uppercase tracking-wider font-semibold text-slate-400 flex items-center gap-1.5">
-                      <Target className="w-3.5 h-3.5 text-cyan-400" /> Next Best Action
+                    <div className="text-[11px] uppercase tracking-wider font-bold text-blue-700 flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-blue-600" /> Next Best Action
                     </div>
-                    <div className="text-sm font-medium text-slate-100 mt-0.5">
+                    <div className="text-sm font-extrabold text-slate-900 mt-0.5">
                       {selectedRoom.next_best_action?.action 
                         ? selectedRoom.next_best_action.action.replace(/_/g, ' ').toUpperCase()
                         : 'CONDUCT MULTI-THREADING OUTREACH'}
                     </div>
-                    <div className="text-xs text-slate-400 mt-0.5">
-                      {selectedRoom.next_best_action?.reason || 'Multi-thread to economic buyer and champion personas.'}
+                    <div className="text-xs text-slate-600 mt-0.5">
+                      {selectedRoom.next_best_action?.reason || 'Multi-thread to economic buyer and champion personas to build consensus.'}
                     </div>
                   </div>
+
                   {selectedRoom.risk_flags && selectedRoom.risk_flags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 justify-end max-w-[200px]">
+                    <div className="flex flex-wrap gap-1 justify-start sm:justify-end max-w-xs shrink-0">
                       {selectedRoom.risk_flags.map((flag: string, idx: number) => (
-                        <span key={idx} className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-950/70 border border-amber-800 text-amber-300">
+                        <span key={idx} className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 border border-amber-200 text-amber-800">
                           {flag.replace(/_/g, ' ')}
                         </span>
                       ))}
@@ -611,60 +696,66 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
 
                 {/* Buying Committee Map */}
                 <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                      <Users className="w-4 h-4 text-indigo-400" /> Buying Committee ({(selectedRoom.committee || []).length} Stakeholders)
+                  <div className="flex items-center justify-between mb-2.5">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                      <span className="w-1.5 h-3 bg-indigo-600 rounded-sm" />
+                      Buying Committee ({(selectedRoom.committee || []).length} Stakeholders)
                     </h4>
+                    
                     <Dialog open={isNewMemberOpen} onOpenChange={setIsNewMemberOpen}>
                       <DialogTrigger
                         render={
-                          <Button variant="ghost" size="sm" className="h-7 text-xs text-cyan-400 hover:text-cyan-300" />
+                          <Button variant="ghost" size="sm" className="h-6 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50" />
                         }
                       >
                         <Plus className="w-3.5 h-3.5 mr-1" /> Add Stakeholder
                       </DialogTrigger>
-                      <DialogContent className="bg-slate-900 border-slate-800 text-slate-100">
+                      <DialogContent className="bg-white border border-slate-200 text-slate-900 rounded-3xl max-w-lg p-6 shadow-2xl">
                         <DialogHeader>
-                          <DialogTitle>Add Buying Committee Member</DialogTitle>
-                          <DialogDescription className="text-slate-400">
-                            Add an executive or influencer to this account's multi-threading committee.
+                          <DialogTitle className="text-base font-bold flex items-center gap-2 text-slate-900">
+                            <span className="text-blue-600 font-bold">▎</span>
+                            Add Buying Committee Member
+                          </DialogTitle>
+                          <DialogDescription className="text-xs text-slate-500">
+                            Add an executive or influencer to this account's multi-threading consensus map.
                           </DialogDescription>
                         </DialogHeader>
-                        <div className="space-y-3 pt-2">
+
+                        <div className="space-y-3.5 pt-2">
                           <div>
-                            <label className="text-xs font-semibold text-slate-300">Full Name</label>
+                            <label className="text-xs font-semibold text-slate-700 block mb-1">Full Name *</label>
                             <Input 
                               value={newMemberName} 
                               onChange={(e) => setNewMemberName(e.target.value)} 
                               placeholder="e.g. Sarah Jenkins"
-                              className="mt-1 bg-slate-950 border-slate-700"
+                              className="bg-slate-50 border-slate-200 text-xs text-slate-900 rounded-xl focus:bg-white focus:border-blue-500"
                             />
                           </div>
                           <div>
-                            <label className="text-xs font-semibold text-slate-300">Work Email</label>
+                            <label className="text-xs font-semibold text-slate-700 block mb-1">Work Email *</label>
                             <Input 
                               value={newMemberEmail} 
                               onChange={(e) => setNewMemberEmail(e.target.value)} 
                               placeholder="e.g. sjenkins@company.com"
-                              className="mt-1 bg-slate-950 border-slate-700"
+                              className="bg-slate-50 border-slate-200 text-xs text-slate-900 rounded-xl focus:bg-white focus:border-blue-500"
                             />
                           </div>
                           <div>
-                            <label className="text-xs font-semibold text-slate-300">Title</label>
+                            <label className="text-xs font-semibold text-slate-700 block mb-1">Job Title</label>
                             <Input 
                               value={newMemberTitle} 
                               onChange={(e) => setNewMemberTitle(e.target.value)} 
                               placeholder="e.g. Chief Revenue Officer"
-                              className="mt-1 bg-slate-950 border-slate-700"
+                              className="bg-slate-50 border-slate-200 text-xs text-slate-900 rounded-xl focus:bg-white focus:border-blue-500"
                             />
                           </div>
                           <div>
-                            <label className="text-xs font-semibold text-slate-300">Role Type</label>
+                            <label className="text-xs font-semibold text-slate-700 block mb-1">Role Type</label>
                             <Select value={newMemberRole} onValueChange={(val) => val && setNewMemberRole(val)}>
-                              <SelectTrigger className="mt-1 bg-slate-950 border-slate-700">
+                              <SelectTrigger className="bg-slate-50 border-slate-200 text-xs text-slate-900 rounded-xl">
                                 <SelectValue />
                               </SelectTrigger>
-                              <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
+                              <SelectContent className="bg-white border-slate-200 text-slate-900 rounded-xl shadow-xl">
                                 <SelectItem value="economic_buyer">Economic Buyer (Budget Owner)</SelectItem>
                                 <SelectItem value="champion">Champion (Internal Advocate)</SelectItem>
                                 <SelectItem value="influencer">Influencer</SelectItem>
@@ -673,9 +764,22 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
                               </SelectContent>
                             </Select>
                           </div>
-                          <Button onClick={handleAddCommitteeMember} className="w-full bg-indigo-600 hover:bg-indigo-500 mt-2">
-                            Add Stakeholder
-                          </Button>
+                          <div className="pt-2 flex justify-end gap-2">
+                            <Button 
+                              type="button" 
+                              variant="outline" 
+                              onClick={() => setIsNewMemberOpen(false)}
+                              className="text-xs rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
+                            >
+                              Cancel
+                            </Button>
+                            <Button 
+                              onClick={handleAddCommitteeMember} 
+                              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl px-5 shadow-xs"
+                            >
+                              Add Stakeholder
+                            </Button>
+                          </div>
                         </div>
                       </DialogContent>
                     </Dialog>
@@ -683,25 +787,25 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {(selectedRoom.committee || []).length === 0 ? (
-                      <div className="col-span-2 p-6 border border-dashed border-slate-800 rounded-lg text-center text-xs text-slate-500">
-                        No committee members mapped yet. Add stakeholders or run Lead Discovery to populate.
+                      <div className="col-span-2 p-6 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500 bg-slate-50/50">
+                        No committee members mapped yet. Add stakeholders or run Lead Discovery to auto-populate.
                       </div>
                     ) : (
                       selectedRoom.committee.map((m: any) => (
-                        <div key={m.id} className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/80 flex items-start justify-between">
+                        <div key={m.id} className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200 flex items-start justify-between gap-2 shadow-2xs hover:bg-slate-50 transition-all">
                           <div>
-                            <div className="font-medium text-sm text-slate-100">{m.name}</div>
-                            <div className="text-xs text-slate-400">{m.title}</div>
-                            <div className="text-xs text-cyan-400/90 font-mono mt-1">{m.email}</div>
-                            <div className="mt-2 flex items-center gap-1.5">
-                              <span className="px-1.5 py-0.5 rounded text-xs bg-slate-800 text-slate-300">
-                                {m.role_type.replace('_', ' ')}
+                            <div className="font-bold text-xs text-slate-900">{m.name}</div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">{m.title}</div>
+                            <div className="text-[11px] text-blue-600 font-mono mt-1">{m.email}</div>
+                            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-white border border-slate-200 text-slate-700">
+                                {m.role_type?.replace(/_/g, ' ')}
                               </span>
-                              <span className={`px-1.5 py-0.5 rounded text-xs ${
- m.engagement_state === 'replied' ? 'bg-emerald-950 text-emerald-400' :
- m.engagement_state === 'contacted' ? 'bg-indigo-950 text-indigo-400' :
- 'bg-slate-900 text-slate-400'
- }`}>
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                m.engagement_state === 'replied' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                m.engagement_state === 'contacted' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                                'bg-slate-100 text-slate-600'
+                              }`}>
                                 {m.engagement_state}
                               </span>
                             </div>
@@ -710,7 +814,7 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
                             variant="ghost" 
                             size="sm" 
                             onClick={() => handleComposeOutreach(selectedRoom.id, m.id)}
-                            className="h-7 px-2 text-xs text-cyan-400 hover:text-cyan-300 hover:bg-slate-800"
+                            className="h-7 px-2 text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg shrink-0"
                           >
                             <Send className="w-3 h-3 mr-1" /> Outreach
                           </Button>
@@ -722,20 +826,21 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
 
                 {/* Executive Intelligence Brief & Pain Hypotheses */}
                 {selectedRoom.account_brief && (
-                  <div className="p-4 bg-slate-950/60 rounded-lg border border-slate-800 space-y-3">
-                    <h4 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-cyan-400" /> Executive Intelligence Brief
+                  <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200 space-y-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                      <span className="w-1.5 h-3 bg-blue-600 rounded-sm" />
+                      Executive Intelligence Brief
                     </h4>
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      {selectedRoom.account_brief.executive_summary || 'Brief compiled from verified primary sources and technographics.'}
+                    <p className="text-xs text-slate-700 leading-relaxed">
+                      {selectedRoom.account_brief.executive_summary || 'Brief compiled from verified primary sources, search signals, and technographics.'}
                     </p>
                     
                     {selectedRoom.pain_hypotheses && selectedRoom.pain_hypotheses.length > 0 && (
                       <div className="space-y-1.5 pt-2">
-                        <div className="text-xs uppercase font-semibold text-slate-400">Identified Pain Hypotheses</div>
+                        <div className="text-[11px] uppercase font-bold text-slate-500">Identified Pain Hypotheses</div>
                         {selectedRoom.pain_hypotheses.map((p: any, idx: number) => (
-                          <div key={idx} className="p-2 bg-slate-900/80 rounded border border-slate-800/80 text-xs">
-                            <span className="font-semibold text-slate-200">{p.signal}:</span> {p.inference}
+                          <div key={idx} className="p-2.5 bg-white rounded-lg border border-slate-200 text-xs shadow-2xs">
+                            <span className="font-bold text-slate-900">{p.signal}:</span> <span className="text-slate-600">{p.inference}</span>
                           </div>
                         ))}
                       </div>
@@ -744,55 +849,67 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
                 )}
 
                 {/* Deal Desk Quoting & Governance */}
-                <div className="flex items-center justify-between pt-2">
-                  <div className="text-xs text-slate-400">
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                  <div className="text-xs text-slate-500">
                     Deal Desk Governance: Max discount cap enforced by policy
                   </div>
                   <Dialog open={isQuoteOpen} onOpenChange={setIsQuoteOpen}>
                     <DialogTrigger
                       render={
-                        <Button variant="outline" size="sm" className="border-slate-700 text-xs" />
+                        <Button variant="outline" size="sm" className="border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold rounded-xl h-8 text-slate-700" />
                       }
                     >
-                      <DollarSign className="w-3.5 h-3.5 mr-1 text-emerald-400" /> Generate Quote
+                      <DollarSign className="w-3.5 h-3.5 mr-1 text-emerald-600" /> Generate Quote
                     </DialogTrigger>
-                    <DialogContent className="bg-slate-900 border-slate-800 text-slate-100">
+                    <DialogContent className="bg-white border border-slate-200 text-slate-900 rounded-3xl max-w-lg p-6 shadow-2xl">
                       <DialogHeader>
-                        <DialogTitle>Deal Desk Quote Generator</DialogTitle>
-                        <DialogDescription className="text-slate-400">
-                          Enforces discount caps and policy approval rules.
+                        <DialogTitle className="text-base font-bold flex items-center gap-2 text-slate-900">
+                          <span className="text-blue-600 font-bold">▎</span>
+                          Deal Desk Quote Generator
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-slate-500">
+                          Enforces discount thresholds, payment terms, and executive approval policy rules.
                         </DialogDescription>
                       </DialogHeader>
-                      <div className="space-y-4 pt-2">
+
+                      <div className="space-y-3.5 pt-2">
                         <div>
-                          <label className="text-xs font-semibold text-slate-300">Base List Price ($ USD)</label>
+                          <label className="text-xs font-semibold text-slate-700 block mb-1">Base List Price ($ USD)</label>
                           <Input 
                             value={quoteListPrice} 
                             onChange={(e) => setQuoteListPrice(e.target.value)} 
-                            className="mt-1 bg-slate-950 border-slate-700"
+                            className="bg-slate-50 border-slate-200 text-xs text-slate-900 rounded-xl focus:bg-white focus:border-blue-500"
                           />
                         </div>
                         <div>
-                          <label className="text-xs font-semibold text-slate-300">Requested Discount (%)</label>
+                          <label className="text-xs font-semibold text-slate-700 block mb-1">Requested Discount (%)</label>
                           <Input 
                             value={quoteDiscountPct} 
                             onChange={(e) => setQuoteDiscountPct(e.target.value)} 
-                            className="mt-1 bg-slate-950 border-slate-700"
+                            className="bg-slate-50 border-slate-200 text-xs text-slate-900 rounded-xl focus:bg-white focus:border-blue-500"
                           />
                         </div>
-                        <Button onClick={() => handleGenerateQuote(selectedRoom.id)} className="w-full bg-emerald-600 hover:bg-emerald-500">
-                          Calculate Quote & Check Policy
+
+                        <Button 
+                          onClick={() => handleGenerateQuote(selectedRoom.id)} 
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl h-9 shadow-xs"
+                        >
+                          Calculate Quote &amp; Verify Governance
                         </Button>
 
                         {quoteResult && (
-                          <div className="p-3 bg-slate-950 rounded border border-slate-800 text-xs space-y-1.5">
-                            <div className="flex justify-between font-medium">
-                              <span>Net Amount:</span>
-                              <span className="text-emerald-400 font-bold">${quoteResult.net_amount?.toLocaleString()}</span>
+                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2 mt-2">
+                            <div className="flex justify-between items-center font-bold">
+                              <span className="text-slate-600">Net Contract Amount:</span>
+                              <span className="text-emerald-700 text-sm font-extrabold">${quoteResult.net_amount?.toLocaleString()}</span>
                             </div>
-                            <div className="flex justify-between">
-                              <span>Approval Status:</span>
-                              <span className={quoteResult.status === 'approved' ? 'text-emerald-400' : 'text-amber-400'}>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-600">Governance Status:</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                quoteResult.status === 'approved' 
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+                              }`}>
                                 {quoteResult.status?.toUpperCase()}
                               </span>
                             </div>
@@ -802,71 +919,73 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
                     </DialogContent>
                   </Dialog>
                 </div>
-
               </CardContent>
             </Card>
           </div>
         )}
       </div>
 
-      {/* 4. Evidence-Grounded Outreach Composer Dialog */}
+      {/* ── 4. EVIDENCE-GROUNDED OUTREACH COMPOSER DIALOG ── */}
       <Dialog open={isComposerOpen} onOpenChange={setIsComposerOpen}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-2xl">
+        <DialogContent className="bg-white border border-slate-200 text-slate-900 rounded-3xl max-w-2xl p-6 shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-cyan-400" />
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-slate-900">
+              <span className="text-blue-600 font-bold">▎</span>
+              <Sparkles className="w-4 h-4 text-blue-600" />
               Evidence-Grounded Outreach Draft
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
-              Generated copy grounded strictly in verified primary source evidence and decay-calibrated signals.
+            <DialogDescription className="text-xs text-slate-500">
+              Generated copy grounded strictly in verified primary source evidence and decay-calibrated buying signals.
             </DialogDescription>
           </DialogHeader>
 
           {composerResult && (
             <div className="space-y-4 pt-2">
               {/* Groundedness Gate Badge */}
-              <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between p-3.5 bg-emerald-50/70 rounded-xl border border-emerald-200">
+                <div className="flex items-center gap-2.5">
                   {composerResult.decision === 'ready' ? (
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                   ) : (
-                    <AlertTriangle className="w-5 h-5 text-amber-400" />
+                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
                   )}
                   <div>
-                    <div className="text-xs font-semibold text-slate-200">
+                    <div className="text-xs font-bold text-slate-900">
                       Groundedness Score: {Math.round((composerResult.confidence || 0) * 100)}%
                     </div>
-                    <div className="text-xs text-slate-400">
+                    <div className="text-[11px] text-slate-600 mt-0.5">
                       {composerResult.decision === 'ready' 
                         ? 'All claims verified against Primary Source evidence. Approved for dispatch.'
                         : 'Ungrounded claims detected. Human review required before sending.'}
                     </div>
                   </div>
                 </div>
-                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
- composerResult.decision === 'ready' ? 'bg-emerald-950 text-emerald-300' : 'bg-amber-950 text-amber-300'
- }`}>
+                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                  composerResult.decision === 'ready' 
+                    ? 'bg-emerald-600 text-white' 
+                    : 'bg-amber-600 text-white'
+                }`}>
                   {composerResult.decision.toUpperCase()}
                 </span>
               </div>
 
-              {/* Message Draft */}
-              <div className="space-y-2">
+              {/* Message Draft Fields */}
+              <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-400">Subject</label>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Subject Line</label>
                   <Input 
                     value={composerResult.data?.subject || ''} 
                     readOnly 
-                    className="mt-1 bg-slate-950 border-slate-700 text-slate-100 font-medium"
+                    className="bg-slate-50 border-slate-200 text-xs text-slate-900 font-semibold rounded-xl"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-400">Body</label>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Email Body</label>
                   <Textarea 
                     value={composerResult.data?.body || ''} 
                     readOnly 
                     rows={6}
-                    className="mt-1 bg-slate-950 border-slate-700 text-slate-100 text-sm leading-relaxed"
+                    className="bg-slate-50 border-slate-200 text-xs text-slate-900 rounded-xl leading-relaxed"
                   />
                 </div>
               </div>
@@ -874,24 +993,28 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
               {/* Citations & Evidence Records */}
               {composerResult.evidence && composerResult.evidence.length > 0 && (
                 <div className="space-y-1.5">
-                  <div className="text-xs uppercase font-semibold text-slate-400">Evidence Citations</div>
+                  <div className="text-[11px] uppercase font-bold text-slate-500">Verified Evidence Citations</div>
                   <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
                     {composerResult.evidence.map((ev: any, idx: number) => (
-                      <div key={idx} className="p-2 bg-slate-950 rounded border border-slate-800/80 text-xs text-slate-300">
-                        <span className="text-cyan-400 font-mono">[{ev.source || 'Verified Source'}]:</span> {ev.claim}
+                      <div key={idx} className="p-2 bg-slate-50 rounded-lg border border-slate-200 text-[11px] text-slate-700">
+                        <span className="text-blue-600 font-mono font-bold">[{ev.source || 'Verified Source'}]:</span> {ev.claim}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={() => setIsComposerOpen(false)} className="border-slate-700 text-xs">
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsComposerOpen(false)} 
+                  className="text-xs rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
+                >
                   Close
                 </Button>
                 <Button 
                   disabled={composerResult.decision !== 'ready'} 
-                  className="bg-cyan-600 hover:bg-cyan-500 text-xs font-medium"
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl px-4 shadow-xs"
                 >
                   <Send className="w-3.5 h-3.5 mr-1" /> Dispatch to Cadence
                 </Button>

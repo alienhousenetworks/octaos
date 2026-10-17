@@ -84,9 +84,14 @@ def extract_heuristic_entities(text: str, filename: str = "") -> Dict[str, Any]:
     email_match = re.search(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", text)
     email = email_match.group(0) if email_match else ""
 
-    # 2. Phone extraction
-    phone_match = re.search(r"(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}\b", text)
-    phone = phone_match.group(0).strip() if phone_match else ""
+    # 2. Phone / Mobile extraction
+    phone = ""
+    phone_label_match = re.search(r"(?i)(?:phone|mobile|cell|contact|tel)[:\s\-\.]*([+\d\(\)\s\.\-]{8,22})\b", text)
+    if phone_label_match:
+        phone = phone_label_match.group(1).strip()
+    if not phone:
+        phone_match = re.search(r"(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}\b", text)
+        phone = phone_match.group(0).strip() if phone_match else ""
 
     # 3. Links (LinkedIn, GitHub, Portfolio)
     linkedin_match = re.search(r"(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+", text)
@@ -107,16 +112,14 @@ def extract_heuristic_entities(text: str, filename: str = "") -> Dict[str, Any]:
                     name = line
                     break
 
-    # Fallback name from filename or email if not found in header
+    # Fallback name from filename if valid, otherwise N/A
     if not name:
         clean_fn = re.sub(r"[-_]", " ", filename.rsplit(".", 1)[0])
         clean_fn = re.sub(r"(?i)(resume|cv|profile|doc)", "", clean_fn).strip()
-        if clean_fn and len(clean_fn) > 2:
+        if clean_fn and len(clean_fn) > 2 and not clean_fn.lower().startswith("file"):
             name = clean_fn.title()
-        elif email:
-            name = email.split("@")[0].replace(".", " ").replace("_", " ").title()
         else:
-            name = "Candidate"
+            name = "N/A"
 
     # 5. Detected Skills (Local keyword lookup)
     detected_skills = set()
@@ -158,13 +161,49 @@ def extract_heuristic_entities(text: str, filename: str = "") -> Dict[str, Any]:
             education = edu
             break
 
+    # 8. Address / Location extraction
+    address = "Not specified"
+    address_patterns = [
+        # City, State / Country patterns e.g. "San Francisco, CA" or "Bangalore, India" or "London, UK"
+        r"\b([A-Z][a-zA-Z\s.-]+,\s*(?:[A-Z]{2}|California|New York|Texas|Florida|Washington|Ontario|UK|United States|USA|India|Canada|Germany|Australia))\b",
+        r"\b(?:Address|Location|Residence|City)[:\-]?\s*([A-Za-z0-9\s,.-]{4,50})\b",
+        r"\b([A-Z][a-zA-Z]+,\s*[A-Z][a-zA-Z]+(?:\s+\d{5,6})?)\b"
+    ]
+    for pat in address_patterns:
+        addr_match = re.search(pat, text[:1500])
+        if addr_match:
+            cand_addr = addr_match.group(1).strip()
+            # Verify candidate doesn't match a generic word or header
+            if len(cand_addr) >= 4 and not any(bad in cand_addr.lower() for bad in ["curriculum", "resume", "profile", "github", "linkedin", "email"]):
+                address = cand_addr
+                break
+
+    # 9. Projects extraction
+    projects = []
+    # Scan for project headings like "Projects", "Key Projects", "Selected Projects"
+    proj_section_match = re.search(r"(?i)(?:projects|key projects|selected projects|personal projects|notable projects)[:\s\n]+(.*?)(?=\n[A-Z\s]{4,}|\Z)", text, re.DOTALL)
+    if proj_section_match:
+        proj_text = proj_section_match.group(1).strip()
+        proj_lines = [p.strip().lstrip("•-*#0123456789. ") for p in proj_text.splitlines() if p.strip()]
+        for pline in proj_lines:
+            if 6 <= len(pline) <= 120 and not pline.lower().startswith("http"):
+                projects.append(pline)
+                if len(projects) >= 4:
+                    break
+
+    # Fallback to github repo mentions if no projects section found
+    if not projects and github:
+        projects.append(f"Open source contributions on GitHub ({github})")
+
     return {
         "name": name,
         "email": email,
         "phone": phone,
+        "address": address,
         "linkedin": linkedin,
         "github": github,
         "skills": sorted(list(detected_skills)),
+        "projects": projects,
         "experience_years": experience_years,
         "education": education,
     }
@@ -225,7 +264,9 @@ async def evaluate_semantic_fit(
     profile_payload = {
         "name": condensed_profile.get("name"),
         "role_applied": role,
+        "address": condensed_profile.get("address", "Not specified"),
         "detected_skills": condensed_profile.get("skills", [])[:20],
+        "projects": condensed_profile.get("projects", [])[:3],
         "experience_years": condensed_profile.get("experience_years", 0),
         "education": condensed_profile.get("education", ""),
         "ats_matched_skills": condensed_profile.get("matched_skills", []),
@@ -249,14 +290,15 @@ Respond with ONLY a valid JSON object in this exact schema:
   "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
   "gaps": ["<gap or red flag 1>", "<gap or red flag 2>"],
   "recommendation": "<Strong Hire | Recommended | Consider | Review Needed | Reject>",
-  "fit_verdict": "<1-sentence hiring decision insight>"
+  "fit_verdict": "<1-sentence hiring decision insight>",
+  "extra_remarks": "<Brief recruiter note summarizing candidate suitability, standout projects, and interview focus>"
 }}"""
 
     try:
-        # Route to fast/cheap models
-        if provider == "auto" or not provider:
-            req_provider = "gemini"
-            req_model = "gemini-2.5-flash"
+        # Route to fast/cheap models unless provider is explicitly specified
+        if not provider or provider == "auto":
+            req_provider = None
+            req_model = None
         else:
             req_provider = provider
             req_model = model
@@ -270,18 +312,23 @@ Respond with ONLY a valid JSON object in this exact schema:
         if cleaned.endswith("```"):
             cleaned = cleaned[:-3]
         parsed = json.loads(cleaned.strip())
+        if "extra_remarks" not in parsed or not parsed["extra_remarks"]:
+            parsed["extra_remarks"] = f"{parsed.get('recommendation', 'Consider')}: {parsed.get('fit_verdict', '')}"
         return parsed
     except Exception as e:
         logger.warning(f"Semantic LLM evaluation fallback due to: {e}")
         # Deterministic fallback calculation
         ats_score = condensed_profile.get("ats_score", 60)
+        rec = "Recommended" if ats_score >= 70 else "Consider"
+        verdict = f"Candidate matches {len(condensed_profile.get('matched_skills', []))} core skills."
         return {
             "semantic_score": min(95, max(30, ats_score - 5 if condensed_profile.get("missing_skills") else ats_score + 5)),
             "experience_summary": f"{condensed_profile.get('name')} with approximately {condensed_profile.get('experience_years', 'several')} years of experience with skills in {', '.join(condensed_profile.get('skills', [])[:4])}.",
             "strengths": [f"Demonstrated skills in {', '.join(condensed_profile.get('matched_skills', ['Core capabilities'])[:3])}"],
             "gaps": [f"Missing direct match for {s}" for s in condensed_profile.get("missing_skills", [])[:2]] or ["Standard interview verification required"],
-            "recommendation": "Recommended" if ats_score >= 70 else "Consider",
-            "fit_verdict": "Candidate meets primary criteria based on heuristic ATS scorecard."
+            "recommendation": rec,
+            "fit_verdict": verdict,
+            "extra_remarks": f"{rec}: {verdict} Address: {condensed_profile.get('address', 'N/A')}. Experience: {condensed_profile.get('experience_years', 0)} yrs."
         }
 
 

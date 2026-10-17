@@ -29,14 +29,23 @@ def parse_smtp_credentials(key_str: str) -> Optional[Dict[str, Any]]:
 
 def send_smtp_email(smtp_cred: dict, to_email: str, subject: str, body: str) -> bool:
     msg = MIMEMultipart()
-    msg["From"] = smtp_cred.get("from_addr") or smtp_cred["username"]
+    from_addr = smtp_cred.get("from_addr") or smtp_cred.get("username")
+    msg["From"] = from_addr
     msg["To"] = to_email
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "plain"))
 
-    server = smtplib.SMTP(smtp_cred["host"], smtp_cred["port"])
-    if smtp_cred.get("use_tls", True):
-        server.starttls()
+    port = int(smtp_cred.get("port") or 587)
+    host = smtp_cred.get("host") or "smtp.gmail.com"
+
+    # Port 465 uses direct SSL; Port 587 uses STARTTLS
+    if port == 465:
+        server = smtplib.SMTP_SSL(host, port, timeout=20)
+    else:
+        server = smtplib.SMTP(host, port, timeout=20)
+        if smtp_cred.get("use_tls", True):
+            server.starttls()
+
     server.login(smtp_cred["username"], smtp_cred["password"])
     server.send_message(msg)
     server.quit()

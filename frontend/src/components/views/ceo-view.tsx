@@ -175,18 +175,18 @@ export default function CEOView({
 
   const getAssignedAgent = (dept: string) => {
     const d = (dept || '').toLowerCase();
-    if (d.includes('market')) return 'Marketing AI (Sarah Chen)';
-    if (d.includes('sale')) return 'Sales AI (Alex Rivera)';
-    if (d.includes('finan')) return 'CFO AI (Elena Rostova)';
-    if (d.includes('hr') || d.includes('talent') || d.includes('people')) return 'HR AI (Olivia Taylor)';
-    if (d.includes('support')) return 'Customer Support AI (Maya Patel)';
-    if (d.includes('engine') || d.includes('tech')) return 'CTO AI (David Kim)';
-    if (d.includes('operat')) return 'Operations AI (Liam Vance)';
-    if (d.includes('prod')) return 'Product AI (Aria Tanaka)';
-    if (d.includes('legal') || d.includes('regulat')) return 'Legal AI (Devon Cole)';
-    if (d.includes('risk') || d.includes('red')) return 'Red Team AI (Marcus Vance)';
-    if (d.includes('crm')) return 'CRM Specialist';
-    return 'CEO Orchestrator';
+    if (d.includes('market')) return 'Marketing AI';
+    if (d.includes('sale')) return 'Sales AI';
+    if (d.includes('finan')) return 'CFO AI';
+    if (d.includes('hr') || d.includes('talent') || d.includes('people')) return 'HR AI';
+    if (d.includes('support')) return 'Customer Support AI';
+    if (d.includes('engine') || d.includes('tech')) return 'Technical AI';
+    if (d.includes('operat')) return 'Operations AI';
+    if (d.includes('prod')) return 'Product AI';
+    if (d.includes('legal') || d.includes('regulat')) return 'Legal AI';
+    if (d.includes('risk') || d.includes('red')) return 'Red Team AI';
+    if (d.includes('crm')) return 'CRM AI';
+    return 'CEO AI';
   };
 
 
@@ -1630,7 +1630,7 @@ export default function CEOView({
                             </span>
                             <p className="text-slate-300 text-xs leading-relaxed">
                               {currentPlanData.consensus_rationale || 
-                                'Autonomous 3-Agent Pre-Review Loop completed 2 iterations. Technical (CTO Rachel Chen), Financial (CFO Elena Rostova), and Adversarial (Red Team Marcus Vance) critics resolved all flagged issues and reached unanimous sign-off: "We can do it".'}
+                                'Autonomous 3-Agent Pre-Review Loop completed 2 iterations. Technical (Technical AI), Financial (CFO AI), and Adversarial (Red Team AI) critics resolved all flagged issues and reached unanimous sign-off: "We can do it".'}
                             </p>
                           </div>
                         </div>
@@ -1691,21 +1691,21 @@ export default function CEOView({
                                     consensus_verdict: "ISSUES_FOUND",
                                     critics: [
                                       {
-                                        critic: "Technical Critic (CTO Rachel Chen)",
+                                        critic: "Technical Critic (Technical AI)",
                                         category: "technical",
                                         status: "ISSUES_IDENTIFIED",
                                         verdict: "NEEDS_HARDENING",
                                         findings: "Flagged missing OpenAPI webhook schema definition and latency SLO bounds in execution nodes."
                                       },
                                       {
-                                        critic: "Financial Critic (CFO Elena Rostova)",
+                                        critic: "Financial Critic (CFO AI)",
                                         category: "financial",
                                         status: "ISSUES_IDENTIFIED",
                                         verdict: "NEEDS_HARDENING",
                                         findings: "Identified absence of 15% contingency reserve in budget and recommended stricter payback guardrails."
                                       },
                                       {
-                                        critic: "Adversarial Critic (Red Team Marcus Vance)",
+                                        critic: "Adversarial Critic (Red Team AI)",
                                         category: "risk_adversarial",
                                         status: "ISSUES_IDENTIFIED",
                                         verdict: "NEEDS_HARDENING",
@@ -1723,21 +1723,21 @@ export default function CEOView({
                                     consensus_verdict: "WE_CAN_DO_IT",
                                     critics: [
                                       {
-                                        critic: "Technical Critic (CTO Rachel Chen)",
+                                        critic: "Technical Critic (Technical AI)",
                                         category: "technical",
                                         status: "APPROVED",
                                         verdict: "WE_CAN_DO_IT",
                                         findings: "Technical architecture validated. Schemas and latency boundaries verified cleanly."
                                       },
                                       {
-                                        critic: "Financial Critic (CFO Elena Rostova)",
+                                        critic: "Financial Critic (CFO AI)",
                                         category: "financial",
                                         status: "APPROVED",
                                         verdict: "WE_CAN_DO_IT",
                                         findings: "Financial unit economics hardened. 15% reserve buffer confirmed with solid payback."
                                       },
                                       {
-                                        critic: "Adversarial Critic (Red Team Marcus Vance)",
+                                        critic: "Adversarial Critic (Red Team AI)",
                                         category: "risk_adversarial",
                                         status: "APPROVED",
                                         verdict: "WE_CAN_DO_IT",
@@ -1844,7 +1844,7 @@ export default function CEOView({
                       </p>
 
                       <Textarea
-                        placeholder="e.g. Prioritize Alex Rivera's outbound SDR outreach in the UK and reduce broad brand campaigns by $3,000..."
+                        placeholder="e.g. Prioritize Sales AI outbound SDR outreach in the UK and reduce broad brand campaigns by $3,000..."
                         value={userPlanFeedback}
                         onChange={(e) => setUserPlanFeedback(e.target.value)}
                         className="bg-slate-950/80 border-slate-800 text-white rounded-xl text-xs min-h-[75px] focus:border-indigo-500"
@@ -2172,9 +2172,9 @@ export default function CEOView({
                               </thead>
                               <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
                                 {(currentMeetingData.mom_document?.action_items_matrix || [
-                                  { item_no: "ACT-1", task: "Outbound SDR prospect verification", owner: "Alex Rivera", deadline: "Day 5", budget_cap: "$10,625" },
-                                  { item_no: "ACT-2", task: "Brand messaging matrix synthesis", owner: "Sarah Jenkins", deadline: "Day 7", budget_cap: "$10,625" },
-                                  { item_no: "ACT-3", task: "Burn envelope verification", owner: "Elena Rostova", deadline: "Day 7", budget_cap: "$1,875" }
+                                  { item_no: "ACT-1", task: "Outbound SDR prospect verification", owner: "Sales AI", deadline: "Day 5", budget_cap: "$10,625" },
+                                  { item_no: "ACT-2", task: "Brand messaging matrix synthesis", owner: "Marketing AI", deadline: "Day 7", budget_cap: "$10,625" },
+                                  { item_no: "ACT-3", task: "Burn envelope verification", owner: "CFO AI", deadline: "Day 7", budget_cap: "$1,875" }
                                 ]).map((act: any, idx: number) => (
                                   <tr key={idx} className="hover:bg-slate-900/40">
                                     <td className="py-2 px-3 font-mono text-[11px] text-sky-400">{act.item_no}</td>
@@ -2203,7 +2203,7 @@ export default function CEOView({
                                   <p className="text-[11px] text-slate-300">
                                     <strong className="text-slate-400">Enforced Guardrail:</strong> {rw.mitigation}
                                   </p>
-                                  <div className="text-[10px] text-slate-500">Auditor: {rw.owner || 'Marcus Vance'}</div>
+                                  <div className="text-[10px] text-slate-500">Auditor: {rw.owner || 'Red Team AI'}</div>
                                 </div>
                               ))}
                             </div>
@@ -2227,11 +2227,11 @@ export default function CEOView({
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Review the council's dialogue and Minutes of Meeting (MOM). If you'd like adjustments (e.g. asking Elena to shift capital, Sarah to re-weight channels, or Marcus to verify additional security tripwires), type instructions below and re-convene. When satisfied, click <span className="text-emerald-400 font-semibold">"Approve Council Decisions & Deploy Workforce"</span>.
+                  Review the council's dialogue and Minutes of Meeting (MOM). If you'd like adjustments (e.g. asking CFO AI to shift capital, Marketing AI to re-weight channels, or Red Team AI to verify additional security tripwires), type instructions below and re-convene. When satisfied, click <span className="text-emerald-400 font-semibold">"Approve Council Decisions & Deploy Workforce"</span>.
                 </p>
 
                 <Textarea
-                  placeholder="e.g. Ask Elena to allocate 15% more budget to Alex's outbound SDRs, and ensure Marcus signs off on GDPR compliance..."
+                  placeholder="e.g. Ask CFO AI to allocate 15% more budget to Sales AI outbound SDRs, and ensure Red Team AI signs off on GDPR compliance..."
                   value={userMeetingFeedback}
                   onChange={(e) => setUserMeetingFeedback(e.target.value)}
                   className="bg-slate-950/80 border-slate-800 text-white rounded-xl text-xs min-h-[75px] focus:border-emerald-500"
@@ -2853,7 +2853,7 @@ export default function CEOView({
                               <div className="flex items-center gap-2">
                                 <h4 className="text-sm font-bold text-white">Campaign Planner AI & Social Calendar</h4>
                                 <span className="text-[9px] bg-purple-950 text-purple-300 border border-purple-800/60 px-2 py-0.5 rounded-full font-bold">
-                                  Sarah Jenkins
+                                  Marketing AI
                                 </span>
                               </div>
                               <p className="text-xs text-slate-400">Scheduled episodic multi-platform campaign posts grounded in approved USP.</p>
@@ -2962,7 +2962,7 @@ export default function CEOView({
                               <div className="flex items-center gap-2">
                                 <h4 className="text-sm font-bold text-white">Sales Pipeline & Deal Rooms</h4>
                                 <span className="text-[9px] bg-emerald-950 text-emerald-300 border border-emerald-800/60 px-2 py-0.5 rounded-full font-bold">
-                                  Alex Rivera
+                                  Sales AI
                                 </span>
                               </div>
                               <p className="text-xs text-slate-400">B2B ICP accounts with buying committee intelligence and stage cadence.</p>
@@ -3087,7 +3087,7 @@ export default function CEOView({
                               <div className="flex items-center gap-2">
                                 <h4 className="text-sm font-bold text-white">Customer Support & Triage Control</h4>
                                 <span className="text-[9px] bg-sky-950 text-sky-300 border border-sky-800/60 px-2 py-0.5 rounded-full font-bold">
-                                  Maya Lin
+                                  Customer Support AI
                                 </span>
                               </div>
                               <p className="text-xs text-slate-400">Set executive triage mode and prime campaign response playbooks.</p>

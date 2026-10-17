@@ -3,6 +3,9 @@
 import { notify } from '@/lib/notify';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useWorkspace } from '@/lib/workspace';
+import { isAgentAllowed } from '@/lib/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,7 +37,8 @@ import {
   Compass,
   Activity,
   Copy,
-  Search
+  Search,
+  Lock,
 } from 'lucide-react';
 
 interface MarketplaceViewProps {
@@ -364,6 +368,9 @@ export default function MarketplaceView({
   fetchData,
   apps,
 }: MarketplaceViewProps) {
+  const router = useRouter();
+  const workspace = useWorkspace();
+
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<'catalog' | 'installed' | 'approvals'>('catalog');
   const [selectedSection, setSelectedSection] = useState<string>('all');
@@ -937,7 +944,20 @@ export default function MarketplaceView({
                     </div>
 
                     <div className="flex items-center gap-2 pt-2">
-                      {pack.is_installed ? (
+                      {!isAgentAllowed(pack.section, workspace?.userProfile) ? (
+                        <div className="flex-1 p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-medium text-amber-300 flex items-center gap-1">
+                            <Lock size={12} /> {pack.section.toUpperCase()} Agent License Required
+                          </span>
+                          <Button
+                            size="sm"
+                            onClick={() => router.push('/app/settings/enterprise')}
+                            className="h-7 px-2.5 bg-amber-500 hover:bg-amber-400 text-black font-bold text-[10px] rounded-lg shrink-0"
+                          >
+                            Hire Agent
+                          </Button>
+                        </div>
+                      ) : pack.is_installed ? (
                         <>
                           <Button
                             onClick={() => handleOpenRunModal(pack)}

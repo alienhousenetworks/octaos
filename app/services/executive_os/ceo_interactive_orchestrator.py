@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 
-from app.models.base import Tenant, APICredential
+from app.models.base import Tenant, APICredential, User
 from app.models.verticals import BusinessProfile, Lead, AgentMeeting, ContentPost, Ticket, TicketMessage
 from app.models.deal_room import DealRoom, BuyingCommitteeMember
 from app.models.agents import KnowledgeDocument, ActivityLog
@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 # Directory of Built-in Executive Employees & Specialists
 EMPLOYEE_DIRECTORY: Dict[str, Dict[str, Any]] = {
     "Marketing AI": {
-        "id": "emp_sarah_jenkins",
-        "name": "Sarah Jenkins",
+        "id": "emp_marketing_ai",
+        "name": "Marketing AI",
         "title": "VP of Growth & Marketing",
         "agent_role": "Marketing AI",
         "department": "MARKETING",
@@ -36,8 +36,8 @@ EMPLOYEE_DIRECTORY: Dict[str, Dict[str, Any]] = {
         "is_custom": False
     },
     "Sales AI": {
-        "id": "emp_alex_rivera",
-        "name": "Alex Rivera",
+        "id": "emp_sales_ai",
+        "name": "Sales AI",
         "title": "VP of Revenue & Sales",
         "agent_role": "Sales AI",
         "department": "SALES",
@@ -47,8 +47,8 @@ EMPLOYEE_DIRECTORY: Dict[str, Dict[str, Any]] = {
         "is_custom": False
     },
     "CFO AI": {
-        "id": "emp_elena_rostova",
-        "name": "Elena Rostova",
+        "id": "emp_cfo_ai",
+        "name": "CFO AI",
         "title": "Chief Financial Officer",
         "agent_role": "CFO AI",
         "department": "FINANCE",
@@ -58,8 +58,8 @@ EMPLOYEE_DIRECTORY: Dict[str, Dict[str, Any]] = {
         "is_custom": False
     },
     "HR AI": {
-        "id": "emp_david_kim",
-        "name": "David Kim",
+        "id": "emp_hr_ai",
+        "name": "HR AI",
         "title": "Head of People & Talent",
         "agent_role": "HR AI",
         "department": "HR",
@@ -69,8 +69,8 @@ EMPLOYEE_DIRECTORY: Dict[str, Dict[str, Any]] = {
         "is_custom": False
     },
     "Customer Support AI": {
-        "id": "emp_maya_lin",
-        "name": "Maya Lin",
+        "id": "emp_customer_support_ai",
+        "name": "Customer Support AI",
         "title": "Head of Customer Experience",
         "agent_role": "Customer Support AI",
         "department": "SUPPORT",
@@ -80,8 +80,8 @@ EMPLOYEE_DIRECTORY: Dict[str, Dict[str, Any]] = {
         "is_custom": False
     },
     "Technical AI": {
-        "id": "emp_rachel_chen",
-        "name": "Rachel Chen",
+        "id": "emp_technical_ai",
+        "name": "Technical AI",
         "title": "Chief Technology Officer & VP Engineering",
         "agent_role": "Technical AI",
         "department": "ENGINEERING",
@@ -91,8 +91,8 @@ EMPLOYEE_DIRECTORY: Dict[str, Dict[str, Any]] = {
         "is_custom": False
     },
     "Red Team AI": {
-        "id": "emp_marcus_vance",
-        "name": "Marcus Vance",
+        "id": "emp_red_team_ai",
+        "name": "Red Team AI",
         "title": "Chief Risk & Red Team Auditor",
         "agent_role": "Red Team AI",
         "department": "RED_TEAM",
@@ -102,8 +102,8 @@ EMPLOYEE_DIRECTORY: Dict[str, Dict[str, Any]] = {
         "is_custom": False
     },
     "Operations AI": {
-        "id": "emp_liam_vance",
-        "name": "Liam Vance",
+        "id": "emp_operations_ai",
+        "name": "Operations AI",
         "title": "VP of Operations & Delivery",
         "agent_role": "Operations AI",
         "department": "OPERATIONS",
@@ -113,8 +113,8 @@ EMPLOYEE_DIRECTORY: Dict[str, Dict[str, Any]] = {
         "is_custom": False
     },
     "Product AI": {
-        "id": "emp_aria_tanaka",
-        "name": "Aria Tanaka",
+        "id": "emp_product_ai",
+        "name": "Product AI",
         "title": "Chief Product Officer",
         "agent_role": "Product AI",
         "department": "PRODUCT",
@@ -124,8 +124,8 @@ EMPLOYEE_DIRECTORY: Dict[str, Dict[str, Any]] = {
         "is_custom": False
     },
     "Legal AI": {
-        "id": "emp_devon_cole",
-        "name": "Devon Cole",
+        "id": "emp_legal_ai",
+        "name": "Legal AI",
         "title": "Chief Legal & Regulatory Counsel",
         "agent_role": "Legal AI",
         "department": "LEGAL",
@@ -425,9 +425,9 @@ class CEOInteractiveOrchestrator:
     ) -> Dict[str, Any]:
         """
         Runs an autonomous 3-agent critique loop:
-        1. Technical Critic (Rachel Chen, CTO): Software architecture, technical feasibility, APIs, stack dependencies.
-        2. Financial Critic (Elena Rostova, CFO): Unit economics, payback period, burn rate, hurdle rate multiple.
-        3. Advanced Adversarial Critic (Marcus Vance, Red Team Auditor): Single points of failure, policy tripwires, irreversible risk.
+        1. Technical Critic (Technical AI): Software architecture, technical feasibility, APIs, stack dependencies.
+        2. Financial Critic (CFO AI): Unit economics, payback period, burn rate, hurdle rate multiple.
+        3. Advanced Adversarial Critic (Red Team AI): Single points of failure, policy tripwires, irreversible risk.
 
         Evaluates the draft plan, flags issues, autonomously updates the plan,
         and loops until all 3 critics return unanimous consensus: 'WE_CAN_DO_IT'.
@@ -435,7 +435,7 @@ class CEOInteractiveOrchestrator:
         # Round 1: Critical inspection - identify gaps
         round1_critiques = [
             {
-                "critic_name": "Rachel Chen",
+                "critic_name": "Technical AI",
                 "agent_role": "Technical AI",
                 "title": "Chief Technology Officer & VP Engineering",
                 "avatar": "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&q=80&w=256",
@@ -445,7 +445,7 @@ class CEOInteractiveOrchestrator:
                 "domain_tag": "Technical Architecture"
             },
             {
-                "critic_name": "Elena Rostova",
+                "critic_name": "CFO AI",
                 "agent_role": "CFO AI",
                 "title": "Chief Financial Officer",
                 "avatar": "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=256",
@@ -455,7 +455,7 @@ class CEOInteractiveOrchestrator:
                 "domain_tag": "Financial Feasibility"
             },
             {
-                "critic_name": "Marcus Vance",
+                "critic_name": "Red Team AI",
                 "agent_role": "Red Team AI",
                 "title": "Chief Risk & Red Team Auditor",
                 "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=256",
@@ -468,15 +468,15 @@ class CEOInteractiveOrchestrator:
 
         # Autonomous CEO synthesis of critiques
         autonomous_revisions_applied = [
-            f"Added 'API Schema Contract & Webhook Verification' to Phase 1 per Rachel Chen (CTO).",
-            f"Locked 15% capital reserve (${budget_cap * 0.15:,.2f}) and compressed payback horizon to <45 days per Elena Rostova (CFO).",
-            f"Enforced Policy Safety Gate R3 tripwire on external commitments per Marcus Vance (Red Team)."
+            f"Added 'API Schema Contract & Webhook Verification' to Phase 1 per Technical AI.",
+            f"Locked 15% capital reserve (${budget_cap * 0.15:,.2f}) and compressed payback horizon to <45 days per CFO AI.",
+            f"Enforced Policy Safety Gate R3 tripwire on external commitments per Red Team AI."
         ]
 
         # Round 2: Verification audit - Unanimous Consensus ("We can do it")
         round2_critiques = [
             {
-                "critic_name": "Rachel Chen",
+                "critic_name": "Technical AI",
                 "agent_role": "Technical AI",
                 "title": "Chief Technology Officer & VP Engineering",
                 "avatar": "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&q=80&w=256",
@@ -486,7 +486,7 @@ class CEOInteractiveOrchestrator:
                 "domain_tag": "Technical Architecture"
             },
             {
-                "critic_name": "Elena Rostova",
+                "critic_name": "CFO AI",
                 "agent_role": "CFO AI",
                 "title": "Chief Financial Officer",
                 "avatar": "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=256",
@@ -496,7 +496,7 @@ class CEOInteractiveOrchestrator:
                 "domain_tag": "Financial Feasibility"
             },
             {
-                "critic_name": "Marcus Vance",
+                "critic_name": "Red Team AI",
                 "agent_role": "Red Team AI",
                 "title": "Chief Risk & Red Team Auditor",
                 "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=256",
@@ -545,7 +545,7 @@ class CEOInteractiveOrchestrator:
             "critique_loop_rounds": critique_history,
             "consensus_status": "UNANIMOUS_CONSENSUS",
             "consensus_phrase": "We can do it",
-            "consensus_rationale": f"Unanimous council consensus achieved after 2 autonomous critique rounds. Technical architecture (CTO Rachel Chen), financial unit economics (CFO Elena Rostova), and adversarial safety tripwires (Red Team Marcus Vance) are fully aligned against {company_ctx['company_name']}'s verified USP.",
+            "consensus_rationale": f"Unanimous council consensus achieved after 2 autonomous critique rounds. Technical architecture (Technical AI), financial unit economics (CFO AI), and adversarial safety tripwires (Red Team AI) are fully aligned against {company_ctx['company_name']}'s verified USP.",
             "source_facts_matrix": source_facts_matrix
         }
 
@@ -691,7 +691,7 @@ Generate a JSON object with:
                     "deliverables": [
                         f"Synthesize {company_ctx['company_name']} brand guidelines & USP: '{company_ctx['usp'][:50]}...'",
                         f"ICP verification for target decision makers: {', '.join(company_ctx['target_decision_makers'][:3])}",
-                        "Budget governance envelope lock with CFO Elena Rostova"
+                        "Budget governance envelope lock with CFO AI"
                     ]
                 },
                 {
@@ -797,14 +797,14 @@ Generate a JSON object with:
                 "department": "MARKETING",
                 "capability_id": "marketing.analyze_market",
                 "parameters": {
-                    "assigned_agent": "Sarah Jenkins",
+                    "assigned_agent": "Marketing AI",
                     "agent_role": "Marketing AI",
                     "target_roles": company_ctx["target_decision_makers"],
                     "usp": company_ctx["usp"],
                     "sources_cited": [f"{company_ctx['company_name']} Brand Guidelines", "ICP Persona Matrix"],
                     "live_transcript": [
-                        {"timestamp": "00:01", "phase": "INITIALIZATION", "speaker": "Sarah Jenkins (Marketing AI)", "thought": f"Ingesting verified USP from {company_ctx['company_name']}: '{company_ctx['usp'][:55]}...'", "action": "query_knowledge_base(type='usp')", "result": "Verified USP anchored into messaging framework."},
-                        {"timestamp": "00:04", "phase": "ANALYSIS", "speaker": "Sarah Jenkins (Marketing AI)", "thought": f"Synthesizing ICP targeting decision makers: {', '.join(company_ctx['target_decision_makers'][:2])}.", "action": "segment_decision_makers()", "result": "Target persona resonance score calculated at 94.2%."}
+                        {"timestamp": "00:01", "phase": "INITIALIZATION", "speaker": "Marketing AI", "thought": f"Ingesting verified USP from {company_ctx['company_name']}: '{company_ctx['usp'][:55]}...'", "action": "query_knowledge_base(type='usp')", "result": "Verified USP anchored into messaging framework."},
+                        {"timestamp": "00:04", "phase": "ANALYSIS", "speaker": "Marketing AI", "thought": f"Synthesizing ICP targeting decision makers: {', '.join(company_ctx['target_decision_makers'][:2])}.", "action": "segment_decision_makers()", "result": "Target persona resonance score calculated at 94.2%."}
                     ]
                 },
                 "depends_on": [],
@@ -817,13 +817,13 @@ Generate a JSON object with:
                 "department": "ENGINEERING",
                 "capability_id": "engineering.verify_architecture",
                 "parameters": {
-                    "assigned_agent": "Rachel Chen",
+                    "assigned_agent": "Technical AI",
                     "agent_role": "Technical AI",
                     "industry": company_ctx["industry"],
                     "sources_cited": ["System Architecture Blueprint v2", "API Integration Contract"],
                     "live_transcript": [
-                        {"timestamp": "00:02", "phase": "INITIALIZATION", "speaker": "Rachel Chen (Technical AI / CTO)", "thought": f"Validating architectural stack compatibility for {company_ctx['company_name']} ({company_ctx['industry']}).", "action": "validate_stack_contracts()", "result": "Microservice webhooks provisioned with zero latency bottlenecks."},
-                        {"timestamp": "00:06", "phase": "EXECUTION", "speaker": "Rachel Chen (Technical AI / CTO)", "thought": "Verifying idempotency locks on outbound event streams to ensure zero ledger duplication.", "action": "verify_idempotency_keys()", "result": "All integration endpoints cryptographically verified."}
+                        {"timestamp": "00:02", "phase": "INITIALIZATION", "speaker": "Technical AI", "thought": f"Validating architectural stack compatibility for {company_ctx['company_name']} ({company_ctx['industry']}).", "action": "validate_stack_contracts()", "result": "Microservice webhooks provisioned with zero latency bottlenecks."},
+                        {"timestamp": "00:06", "phase": "EXECUTION", "speaker": "Technical AI", "thought": "Verifying idempotency locks on outbound event streams to ensure zero ledger duplication.", "action": "verify_idempotency_keys()", "result": "All integration endpoints cryptographically verified."}
                     ]
                 },
                 "depends_on": [node_1_id],
@@ -836,14 +836,14 @@ Generate a JSON object with:
                 "department": "FINANCE",
                 "capability_id": "finance.allocate_budget",
                 "parameters": {
-                    "assigned_agent": "Elena Rostova",
+                    "assigned_agent": "CFO AI",
                     "agent_role": "CFO AI",
                     "budget_cap": budget_cap,
                     "contingency_pct": 15,
                     "sources_cited": ["Financial Model v1.2", "Unit Economics Hurdle Rate"],
                     "live_transcript": [
-                        {"timestamp": "00:01", "phase": "INITIALIZATION", "speaker": "Elena Rostova (CFO AI)", "thought": f"Allocating ${budget_cap:,.2f} envelope with 15% reserve cushion (${budget_cap * 0.15:,.2f}).", "action": "fiduciary_budget_lock()", "result": "Capital envelope locked. Hurdle rate 3.8x net yield enforced."},
-                        {"timestamp": "00:05", "phase": "EXECUTION", "speaker": "Elena Rostova (CFO AI)", "thought": "Modeling cash payback velocity against directive milestones.", "action": "simulate_burn_curve()", "result": "Cash payback horizon confirmed at 1.8 months."}
+                        {"timestamp": "00:01", "phase": "INITIALIZATION", "speaker": "CFO AI", "thought": f"Allocating ${budget_cap:,.2f} envelope with 15% reserve cushion (${budget_cap * 0.15:,.2f}).", "action": "fiduciary_budget_lock()", "result": "Capital envelope locked. Hurdle rate 3.8x net yield enforced."},
+                        {"timestamp": "00:05", "phase": "EXECUTION", "speaker": "CFO AI", "thought": "Modeling cash payback velocity against directive milestones.", "action": "simulate_burn_curve()", "result": "Cash payback horizon confirmed at 1.8 months."}
                     ]
                 },
                 "depends_on": [],
@@ -856,13 +856,13 @@ Generate a JSON object with:
                 "department": "RED_TEAM",
                 "capability_id": "redteam.enforce_tripwires",
                 "parameters": {
-                    "assigned_agent": "Marcus Vance",
+                    "assigned_agent": "Red Team AI",
                     "agent_role": "Red Team AI",
                     "gate": "R3_IRREVERSIBLE_ACTION",
                     "sources_cited": ["Red Team Pre-Mortem Audit", "Safety Gate Policy $R3"],
                     "live_transcript": [
-                        {"timestamp": "00:02", "phase": "INITIALIZATION", "speaker": "Marcus Vance (Red Team AI)", "thought": "Executing adversarial pre-mortem scan across external touchpoints.", "action": "scan_tail_risks()", "result": "Enacted strict Policy Gate R3: Human approval required before external dispatch."},
-                        {"timestamp": "00:07", "phase": "EXECUTION", "speaker": "Marcus Vance (Red Team AI)", "thought": "Verifying domain reputation threshold and compliance tripwires.", "action": "verify_tripwire_state()", "result": "Safety clearance verified. Zero critical vulnerabilities."}
+                        {"timestamp": "00:02", "phase": "INITIALIZATION", "speaker": "Red Team AI", "thought": "Executing adversarial pre-mortem scan across external touchpoints.", "action": "scan_tail_risks()", "result": "Enacted strict Policy Gate R3: Human approval required before external dispatch."},
+                        {"timestamp": "00:07", "phase": "EXECUTION", "speaker": "Red Team AI", "thought": "Verifying domain reputation threshold and compliance tripwires.", "action": "verify_tripwire_state()", "result": "Safety clearance verified. Zero critical vulnerabilities."}
                     ]
                 },
                 "depends_on": [node_2_id, node_3_id],
@@ -875,14 +875,14 @@ Generate a JSON object with:
                 "department": "SALES",
                 "capability_id": "sales.engage_leads",
                 "parameters": {
-                    "assigned_agent": "Alex Rivera",
+                    "assigned_agent": "Sales AI",
                     "agent_role": "Sales AI",
                     "qualification_threshold": 85,
                     "target_countries": company_ctx["target_countries"],
                     "sources_cited": ["Apollo Prospecting Pipeline", "Sales ICP Matrix"],
                     "live_transcript": [
-                        {"timestamp": "00:03", "phase": "INITIALIZATION", "speaker": "Alex Rivera (Sales AI)", "thought": f"Configuring multi-touch sequence for {company_ctx['target_countries'][0]} decision makers.", "action": "apollo_filter_prospects()", "result": f"Sourced verified decision makers matching '{company_ctx['target_decision_makers'][0]}' persona."},
-                        {"timestamp": "00:08", "phase": "EXECUTION", "speaker": "Alex Rivera (Sales AI)", "thought": "Verifying deliverability rates and automated deal room routing.", "action": "validate_deliverability()", "result": "Email deliverability score 98.4%. Ready for cadence dispatch."}
+                        {"timestamp": "00:03", "phase": "INITIALIZATION", "speaker": "Sales AI", "thought": f"Configuring multi-touch sequence for {company_ctx['target_countries'][0]} decision makers.", "action": "apollo_filter_prospects()", "result": f"Sourced verified decision makers matching '{company_ctx['target_decision_makers'][0]}' persona."},
+                        {"timestamp": "00:08", "phase": "EXECUTION", "speaker": "Sales AI", "thought": "Verifying deliverability rates and automated deal room routing.", "action": "validate_deliverability()", "result": "Email deliverability score 98.4%. Ready for cadence dispatch."}
                     ]
                 },
                 "depends_on": [node_1_id, node_4_id],
@@ -895,12 +895,12 @@ Generate a JSON object with:
                 "department": "OPERATIONS",
                 "capability_id": "operations.monitor_cadence",
                 "parameters": {
-                    "assigned_agent": "Liam Vance",
+                    "assigned_agent": "Operations AI",
                     "agent_role": "Operations AI",
                     "sources_cited": ["Operational SLA Playbook", "Execution Cadence Matrix"],
                     "live_transcript": [
-                        {"timestamp": "00:03", "phase": "INITIALIZATION", "speaker": "Liam Vance (Operations AI)", "thought": "Establishing cross-functional execution cadence and eliminating milestone dependencies.", "action": "orchestrate_sla_cadence()", "result": "SLA tracking active. Zero delivery bottlenecks detected."},
-                        {"timestamp": "00:09", "phase": "EXECUTION", "speaker": "Liam Vance (Operations AI)", "thought": "Synchronizing real-time telemetry across all operational nodes.", "action": "sync_telemetry_stream()", "result": "Topological throughput optimal at 99.8% execution efficiency."}
+                        {"timestamp": "00:03", "phase": "INITIALIZATION", "speaker": "Operations AI", "thought": "Establishing cross-functional execution cadence and eliminating milestone dependencies.", "action": "orchestrate_sla_cadence()", "result": "SLA tracking active. Zero delivery bottlenecks detected."},
+                        {"timestamp": "00:09", "phase": "EXECUTION", "speaker": "Operations AI", "thought": "Synchronizing real-time telemetry across all operational nodes.", "action": "sync_telemetry_stream()", "result": "Topological throughput optimal at 99.8% execution efficiency."}
                     ]
                 },
                 "depends_on": [node_5_id],
@@ -1002,7 +1002,7 @@ OFFER: {company_ctx['offer_details']}
 SUMMONED AGENTS: {', '.join(summoned_names)}
 
 Generate a meeting JSON structure with:
-1. "dialogue": An array of turns (starting with CEO Orchestrator opening, followed by Elena Rostova CFO, each domain specialist, Marcus Vance Red Team, and CEO consensus).
+1. "dialogue": An array of turns (starting with CEO AI opening, followed by CFO AI, each domain specialist, Red Team AI, and CEO AI consensus).
 Each turn MUST have:
   - "turn": integer
   - "speaker_name": string
@@ -1016,14 +1016,14 @@ Each turn MUST have:
 
 2. "mom_document": Minutes of Meeting object:
   - "topic": "{prompt}"
-  - "chairperson": "CEO Orchestrator"
+  - "chairperson": "CEO AI"
   - "deliberation_summary": "Executive summary of council debate"
   - "consensus_decisions": ["List of 3 concrete executive resolutions approved"]
   - "action_items_matrix": [
       {{ "item_no": "ACT-1", "task": "Task description", "owner": "Owner Name", "deadline": "Day 5", "budget_allocation": "$X,XXX" }}
     ]
   - "risk_assessment_tripwires": [
-      {{ "risk": "Primary risk identified", "mitigation": "Enforced guardrail", "owner": "Marcus Vance" }}
+      {{ "risk": "Primary risk identified", "mitigation": "Enforced guardrail", "owner": "Red Team AI" }}
     ]
 
 3. "roi_scorecard":
@@ -1060,18 +1060,18 @@ Each turn MUST have:
                 "payback_months": 1.8,
                 "key_optimizations": [
                     f"Direct USP integration cuts estimated CAC by 28%",
-                    f"Elena Rostova locked 15% budget contingency to protect unit economics",
-                    f"Marcus Vance configured Red Team automated tripwires on irreversible actions"
+                    f"CFO AI locked 15% budget contingency to protect unit economics",
+                    f"Red Team AI configured automated tripwires on irreversible actions"
                 ]
             })
         else:
             # High-fidelity fallback dialogue with agent thoughts, facts, figures, and sources
             turn_idx = 1
 
-            # Turn 1: CEO Orchestrator
+            # Turn 1: CEO AI
             dialogue.append({
                 "turn": turn_idx,
-                "speaker_name": "CEO Orchestrator",
+                "speaker_name": "CEO AI",
                 "agent_role": "CEO AI",
                 "title": "Chief Executive Officer",
                 "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256",
@@ -1083,7 +1083,7 @@ Each turn MUST have:
             })
             turn_idx += 1
 
-            # Turn 2: Elena Rostova (CFO AI)
+            # Turn 2: CFO AI
             elena = next((p for p in ordered_participants if p["agent_role"] == "CFO AI"), EMPLOYEE_DIRECTORY["CFO AI"])
             dialogue.append({
                 "turn": turn_idx,
@@ -1092,14 +1092,14 @@ Each turn MUST have:
                 "title": elena["title"],
                 "avatar": elena["avatar"],
                 "agent_thought": f"Simulating burn curve at ${budget_cap:,.2f}. Hurdle rate: 3.2x revenue multiple with 45-day cash payback horizon.",
-                "message": f"Elena Rostova here. At a ${budget_cap:,.2f} envelope, our hurdle rate is a minimum 3.0x net revenue yield. Based on {company_ctx['company_name']}'s offer ('{company_ctx['offer_details'][:50]}...'), I propose front-loading high-velocity triggers with a hard 45-day payback guardrail. I have locked a 15% capital reserve (${budget_cap * 0.15:,.2f}) for down-funnel scaling.",
+                "message": f"CFO AI here. At a ${budget_cap:,.2f} envelope, our hurdle rate is a minimum 3.0x net revenue yield. Based on {company_ctx['company_name']}'s offer ('{company_ctx['offer_details'][:50]}...'), I propose front-loading high-velocity triggers with a hard 45-day payback guardrail. I have locked a 15% capital reserve (${budget_cap * 0.15:,.2f}) for down-funnel scaling.",
                 "sources_cited": ["Financial Model v1.2", "Unit Economics Hurdle Rate"],
                 "domain_tag": "Financial Feasibility",
                 "sentiment": "POSITIVE"
             })
             turn_idx += 1
 
-            # Turn 3: Sarah Jenkins (Marketing AI) if present
+            # Turn 3: Marketing AI if present
             sarah = next((p for p in ordered_participants if p["agent_role"] == "Marketing AI"), None)
             if sarah:
                 dialogue.append({
@@ -1109,14 +1109,14 @@ Each turn MUST have:
                     "title": sarah["title"],
                     "avatar": sarah["avatar"],
                     "agent_thought": f"Benchmarking acquisition CAC against target personas: {', '.join(company_ctx['target_decision_makers'][:2])}. Expected conversion lift: +24%.",
-                    "message": f"Sarah Jenkins from Growth. We will anchor all messaging around our verified USP: '{company_ctx['usp'][:70]}'. Targeting {', '.join(company_ctx['target_decision_makers'][:2])} across {company_ctx['industry']}. By syncing with our outbound SDR engine, we project reducing customer acquisition cost by 28%.",
+                    "message": f"Marketing AI from Growth. We will anchor all messaging around our verified USP: '{company_ctx['usp'][:70]}'. Targeting {', '.join(company_ctx['target_decision_makers'][:2])} across {company_ctx['industry']}. By syncing with our outbound SDR engine, we project reducing customer acquisition cost by 28%.",
                     "sources_cited": [f"{company_ctx['company_name']} Brand Guidelines", "Target ICP Directory"],
                     "domain_tag": "Go-To-Market Yield",
                     "sentiment": "POSITIVE"
                 })
                 turn_idx += 1
 
-            # Turn 4: Alex Rivera (Sales AI) if present
+            # Turn 4: Sales AI if present
             alex = next((p for p in ordered_participants if p["agent_role"] == "Sales AI"), None)
             if alex:
                 dialogue.append({
@@ -1126,14 +1126,14 @@ Each turn MUST have:
                     "title": alex["title"],
                     "avatar": alex["avatar"],
                     "agent_thought": f"Configuring multi-touch cadence for {company_ctx['target_countries'][0]} accounts. Expected deal qualification rate: 18.5%.",
-                    "message": f"Alex Rivera reporting. We have automated multi-touch sequences configured for high-fit decision makers in {', '.join(company_ctx['target_countries'][:2])}. Our lead scoring algorithm will verify prospect fit against {company_ctx['company_name']}'s core capabilities before routing to deal rooms.",
+                    "message": f"Sales AI reporting. We have automated multi-touch sequences configured for high-fit decision makers in {', '.join(company_ctx['target_countries'][:2])}. Our lead scoring algorithm will verify prospect fit against {company_ctx['company_name']}'s core capabilities before routing to deal rooms.",
                     "sources_cited": ["Apollo Prospecting Pipeline", "Sales ICP Matrix"],
                     "domain_tag": "Pipeline Velocity",
                     "sentiment": "POSITIVE"
                 })
                 turn_idx += 1
 
-            # Turn 5: Rachel Chen (Technical AI / CTO) if present
+            # Turn 5: Technical AI if present
             rachel = next((p for p in ordered_participants if p["agent_role"] == "Technical AI"), None)
             if rachel:
                 has_cto_target = any("cto" in str(dm).lower() for dm in company_ctx.get("target_decision_makers", []))
@@ -1144,7 +1144,7 @@ Each turn MUST have:
                     "title": rachel["title"],
                     "avatar": rachel["avatar"],
                     "agent_thought": f"Assessing architectural scalability, API integration endpoints, and technical feasibility for {company_ctx['company_name']}.",
-                    "message": f"Rachel Chen, CTO. From an engineering and software architecture perspective, we have validated technical feasibility against {company_ctx['company_name']}'s stack. " + (f"Targeting peer CTO decision makers requires verifiable technical proof-of-concepts highlighting our verified USP: '{company_ctx['usp'][:60]}...'. " if has_cto_target else f"Our microservices and event pipelines are configured for high-throughput execution with zero ledger data loss. ") + "All API webhooks and data pipelines are provisioned.",
+                    "message": f"Technical AI, CTO. From an engineering and software architecture perspective, we have validated technical feasibility against {company_ctx['company_name']}'s stack. " + (f"Targeting peer CTO decision makers requires verifiable technical proof-of-concepts highlighting our verified USP: '{company_ctx['usp'][:60]}...'. " if has_cto_target else f"Our microservices and event pipelines are configured for high-throughput execution with zero ledger data loss. ") + "All API webhooks and data pipelines are provisioned.",
                     "sources_cited": ["System Architecture Blueprint", "API Integration Contract"],
                     "domain_tag": "Technical Architecture",
                     "sentiment": "POSITIVE"
@@ -1169,7 +1169,7 @@ Each turn MUST have:
                     })
                     turn_idx += 1
 
-            # Turn 6: Marcus Vance (Red Team AI)
+            # Turn 6: Red Team AI
             marcus = next((p for p in ordered_participants if p["agent_role"] == "Red Team AI"), EMPLOYEE_DIRECTORY["Red Team AI"])
             dialogue.append({
                 "turn": turn_idx,
@@ -1178,7 +1178,7 @@ Each turn MUST have:
                 "title": marcus["title"],
                 "avatar": marcus["avatar"],
                 "agent_thought": "Running pre-mortem vulnerability scan: checking irreversible action tripwires, domain reputation thresholds, and data leakage vectors.",
-                "message": f"Marcus Vance, Red Team Auditor. Pre-mortem analysis reveals two primary operational risks: 1) Account over-saturation without verified USP touchpoints; 2) Premature budget disbursement prior to Day-7 milestone sign-off. I have enacted strict policy tripwires requiring human executive review before any irreversible external commitment.",
+                "message": f"Red Team AI, Risk Auditor. Pre-mortem analysis reveals two primary operational risks: 1) Account over-saturation without verified USP touchpoints; 2) Premature budget disbursement prior to Day-7 milestone sign-off. I have enacted strict policy tripwires requiring human executive review before any irreversible external commitment.",
                 "sources_cited": ["Red Team Adversarial Audit", "Policy Safety Gate $R3"],
                 "domain_tag": "Adversarial Risk Audit",
                 "sentiment": "CAUTION"
@@ -1188,12 +1188,12 @@ Each turn MUST have:
             # Turn 7: CEO Consensus
             dialogue.append({
                 "turn": turn_idx,
-                "speaker_name": "CEO Orchestrator",
+                "speaker_name": "CEO AI",
                 "agent_role": "CEO AI",
                 "title": "Chief Executive Officer",
                 "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256",
                 "agent_thought": "Evaluating council debate. All fiduciary and risk guardrails satisfy governance policies.",
-                "message": "Consensus reached. We approve Elena's capital efficiency model, enforce Marcus's Red Team tripwires, and lock in our domain milestones for immediate deployment upon executive sign-off.",
+                "message": "Consensus reached. We approve CFO AI's capital efficiency model, enforce Red Team AI's tripwires, and lock in our domain milestones for immediate deployment upon executive sign-off.",
                 "sources_cited": ["Executive Council Charter"],
                 "domain_tag": "Council Consensus",
                 "sentiment": "POSITIVE"
@@ -1202,24 +1202,24 @@ Each turn MUST have:
             # Formal Minutes of Meeting Document
             mom_doc = {
                 "topic": prompt,
-                "chairperson": "CEO Orchestrator",
+                "chairperson": "CEO AI",
                 "date": datetime.now(timezone.utc).strftime("%B %d, %Y - %H:%M UTC"),
                 "budget_envelope": f"${budget_cap:,.2f}",
                 "deliberation_summary": f"The Executive Council convened to formalize the battle plan for '{prompt}'. Capital allocation was stress-tested against hurdle rates, domain pipelines were confirmed, and safety tripwires were enacted.",
                 "consensus_decisions": [
-                    f"Approved ${budget_cap:,.2f} budget allocation with 15% reserve held by CFO Elena Rostova.",
+                    f"Approved ${budget_cap:,.2f} budget allocation with 15% reserve held by CFO AI.",
                     f"Locked ICP targeting for decision makers: {', '.join(company_ctx['target_decision_makers'][:3])}.",
                     "Enacted mandatory Red Team safety gates on all external irreversible actions."
                 ],
                 "action_items_matrix": [
-                    {"item_no": "ACT-1", "task": "Lock ICP prospect parameters & launch multi-touch sequence", "owner": "Alex Rivera (Sales AI)", "deadline": "Day 5", "budget_cap": f"${per_dept_budget:,.2f}"},
-                    {"item_no": "ACT-2", "task": "Synthesize brand creative brief & messaging matrix", "owner": "Sarah Jenkins (Marketing AI)", "deadline": "Day 7", "budget_cap": f"${per_dept_budget:,.2f}"},
-                    {"item_no": "ACT-3", "task": "Monitor Day-7 burn variance and unlock Phase 2 funds", "owner": "Elena Rostova (CFO AI)", "deadline": "Day 7", "budget_cap": f"${exec_budget / 2:,.2f}"},
-                    {"item_no": "ACT-4", "task": "Audit compliance boundaries & monitor rate limits", "owner": "Marcus Vance (Red Team AI)", "deadline": "Continuous", "budget_cap": f"${exec_budget / 2:,.2f}"}
+                    {"item_no": "ACT-1", "task": "Lock ICP prospect parameters & launch multi-touch sequence", "owner": "Sales AI", "deadline": "Day 5", "budget_cap": f"${per_dept_budget:,.2f}"},
+                    {"item_no": "ACT-2", "task": "Synthesize brand creative brief & messaging matrix", "owner": "Marketing AI", "deadline": "Day 7", "budget_cap": f"${per_dept_budget:,.2f}"},
+                    {"item_no": "ACT-3", "task": "Monitor Day-7 burn variance and unlock Phase 2 funds", "owner": "CFO AI", "deadline": "Day 7", "budget_cap": f"${exec_budget / 2:,.2f}"},
+                    {"item_no": "ACT-4", "task": "Audit compliance boundaries & monitor rate limits", "owner": "Red Team AI", "deadline": "Continuous", "budget_cap": f"${exec_budget / 2:,.2f}"}
                 ],
                 "risk_assessment_tripwires": [
-                    {"risk": "Outbound fatigue & spam threshold breach", "mitigation": "Strict daily domain volume caps & personalization audits", "owner": "Marcus Vance"},
-                    {"risk": "Budget over-burn on underperforming channels", "mitigation": "Weekly burn variance threshold capped at ±5%", "owner": "Elena Rostova"}
+                    {"risk": "Outbound fatigue & spam threshold breach", "mitigation": "Strict daily domain volume caps & personalization audits", "owner": "Red Team AI"},
+                    {"risk": "Budget over-burn on underperforming channels", "mitigation": "Weekly burn variance threshold capped at ±5%", "owner": "CFO AI"}
                 ]
             }
 
@@ -1230,8 +1230,8 @@ Each turn MUST have:
                 "payback_months": 1.8,
                 "key_optimizations": [
                     f"Direct USP integration cuts estimated CAC by 28%",
-                    f"Elena Rostova locked 15% budget contingency to protect unit economics",
-                    f"Marcus Vance configured Red Team automated tripwires on irreversible actions"
+                    f"CFO AI locked 15% budget contingency to protect unit economics",
+                    f"Red Team AI configured automated tripwires on irreversible actions"
                 ]
             }
 
@@ -1331,7 +1331,7 @@ Each turn MUST have:
             )
             self.db.add(envelope)
 
-        # 1. GENERATE REAL DELIVERABLES FOR SALES AI (Alex Rivera) & INITIALIZE DEAL ROOMS
+        # 1. GENERATE REAL DELIVERABLES FOR SALES AI & INITIALIZE DEAL ROOMS
         created_leads = []
         target_roles = company_ctx["target_decision_makers"] or ["VP of Sales", "Chief Revenue Officer", "Head of Growth"]
         sample_prospects = [
@@ -1386,15 +1386,26 @@ Each turn MUST have:
 
             existing_lead = self.db.query(Lead).filter_by(tenant_id=self.tenant_id, email=p["email"]).first()
             if not existing_lead:
+                # Query employee/user context if available for this tenant
+                user = self.db.query(User).filter_by(tenant_id=self.tenant_id).order_by(User.is_superuser.desc(), User.id.asc()).first()
+                employee_name = user.name.strip() if (user and user.name and user.name.strip()) else None
+
+                if employee_name:
+                    behalf_intro = f"I am reaching out on behalf of {employee_name} at {company_ctx['company_name']}."
+                    signoff = f"Best regards,\n{employee_name}\n{company_ctx['company_name']}"
+                else:
+                    behalf_intro = f"I am reaching out on behalf of {company_ctx['company_name']}."
+                    signoff = f"Best regards,\nThe {company_ctx['company_name']} Team\n{company_ctx['company_name']}"
+
                 outreach_email_draft = {
                     "subject": f"Strategic Operational Partnership: {company_ctx['company_name']} x {p['company']}",
                     "body": (
                         f"Hi {p['name']},\n\n"
-                        f"I noticed your leadership at {p['company']} as {p['role']}. At {company_ctx['company_name']}, "
+                        f"{behalf_intro} I noticed your leadership at {p['company']} as {p['role']}. At {company_ctx['company_name']}, "
                         f"we specialize in {company_ctx['service_description']}.\n\n"
                         f"Our verified differentiator: {company_ctx['usp']}.\n\n"
                         f"Given your focus in {company_ctx['industry']}, I'd welcome 10 minutes to discuss how we could drive tangible leverage for your team.\n\n"
-                        f"Best regards,\nExecutive Office\n{company_ctx['company_name']}"
+                        f"{signoff}"
                     ),
                     "recipient": p["email"],
                     "status": "ready"
@@ -1405,11 +1416,11 @@ Each turn MUST have:
                     name=p["name"],
                     company=p["company"],
                     email=p["email"],
-                    source="Sales AI (Alex Rivera)",
+                    source="Sales AI",
                     score=94,
                     status="qualified",
                     priority="high",
-                    assigned_to="Alex Rivera (VP Sales)",
+                    assigned_to=employee_name or "Sales AI",
                     need_of_what=company_ctx["service_description"],
                     target_context=f"Matched against {company_ctx['company_name']} ICP. Decision maker: {p['role']}",
                     data={
@@ -1422,10 +1433,10 @@ Each turn MUST have:
                 self.db.add(new_lead)
                 created_leads.append(new_lead)
 
-        # 2. GENERATE REAL DELIVERABLES FOR MARKETING AI (Sarah Jenkins) - SCHEDULED CAMPAIGN POSTS
+        # 2. GENERATE REAL DELIVERABLES FOR MARKETING AI - SCHEDULED CAMPAIGN POSTS
         self.generate_scheduled_campaign(workflow_id=workflow_id, days=14)
 
-        # 3. CONFIGURE CUSTOMER SUPPORT READINESS (Maya Lin)
+        # 3. CONFIGURE CUSTOMER SUPPORT READINESS
         self.configure_support_policy(
             reply_mode="review_first",
             auto_replies={
@@ -1465,47 +1476,47 @@ Each turn MUST have:
         # 4. CREATE WORKFLOW TASKS IN DATABASE
         task_specs = [
             {
-                "name": "Sarah Jenkins: Multi-Channel Audience Matrix & Creative Brief",
+                "name": "Marketing AI: Multi-Channel Audience Matrix & Creative Brief",
                 "type": "marketing_campaign",
-                "assigned_to": "Sarah Jenkins",
+                "assigned_to": "Marketing AI",
                 "status": "in_progress"
             },
             {
-                "name": "Alex Rivera: Sourcing Verified Enterprise Leads & Decision Makers",
+                "name": "Sales AI: Sourcing Verified Enterprise Leads & Decision Makers",
                 "type": "lead_prospecting",
-                "assigned_to": "Alex Rivera",
+                "assigned_to": "Sales AI",
                 "status": "completed"
             },
             {
-                "name": "Maya Lin: Customer Support Readiness & Campaign Triage Sync",
+                "name": "Customer Support AI: Customer Support Readiness & Campaign Triage Sync",
                 "type": "support_readiness",
-                "assigned_to": "Maya Lin",
+                "assigned_to": "Customer Support AI",
                 "status": "completed"
             },
             {
-                "name": "Elena Rostova: Unit Economics & Payback Model Verification",
+                "name": "CFO AI: Unit Economics & Payback Model Verification",
                 "type": "finance_audit",
-                "assigned_to": "Elena Rostova",
+                "assigned_to": "CFO AI",
                 "status": "completed"
             },
             {
-                "name": "Marcus Vance: Adversarial Red Team Safety Clearance",
+                "name": "Red Team AI: Adversarial Red Team Safety Clearance",
                 "type": "risk_audit",
-                "assigned_to": "Marcus Vance",
+                "assigned_to": "Red Team AI",
                 "status": "completed"
             }
         ]
 
-        # Check if Technical AI / Rachel Chen or custom agents are participating in meeting
+        # Check if Technical AI or custom agents are participating in meeting
         meeting = self.db.query(AgentMeeting).filter_by(id=meeting_id).first() if meeting_id else None
         meeting_participants = meeting.participants if (meeting and meeting.participants) else []
         is_software = any(k in str(company_ctx.get("industry", "")).lower() for k in ["software", "tech", "saas", "developer", "engineering", "ai"])
 
-        if any(p in ["Technical AI", "Rachel Chen", "emp_rachel_chen"] for p in meeting_participants) or is_software:
+        if any(p in ["Technical AI", "Rachel Chen", "emp_rachel_chen", "emp_technical_ai"] for p in meeting_participants) or is_software:
             task_specs.append({
-                "name": "Rachel Chen: Technical Architecture & API Integration Blueprint",
+                "name": "Technical AI: Technical Architecture & API Integration Blueprint",
                 "type": "engineering_architecture",
-                "assigned_to": "Rachel Chen",
+                "assigned_to": "Technical AI",
                 "status": "completed"
             })
 
@@ -1666,7 +1677,7 @@ Each turn MUST have:
             }
         ]
 
-        # Determine if Technical AI / Rachel Chen or custom agents should be included
+        # Determine if Technical AI or custom agents should be included
         meeting = (
             self.db.query(AgentMeeting)
             .filter(
@@ -1908,10 +1919,10 @@ Each turn MUST have:
                     if role in available_agent_map or role in EMPLOYEE_DIRECTORY
                 ],
                 "budget_allocations": [
-                    {"employee": "Elena Rostova", "role": "Chief Financial Officer", "department": "FINANCE", "allocated_amount": 1875.0, "percentage": 7.5},
-                    {"employee": "Marcus Vance", "role": "Chief Risk Auditor", "department": "RED_TEAM", "allocated_amount": 1875.0, "percentage": 7.5},
-                    {"employee": "Alex Rivera", "role": "VP Revenue & Sales", "department": "SALES", "allocated_amount": 10625.0, "percentage": 42.5},
-                    {"employee": "Sarah Jenkins", "role": "VP Growth & Marketing", "department": "MARKETING", "allocated_amount": 10625.0, "percentage": 42.5}
+                    {"employee": "CFO AI", "role": "Chief Financial Officer", "department": "FINANCE", "allocated_amount": 1875.0, "percentage": 7.5},
+                    {"employee": "Red Team AI", "role": "Chief Risk Auditor", "department": "RED_TEAM", "allocated_amount": 1875.0, "percentage": 7.5},
+                    {"employee": "Sales AI", "role": "VP Revenue & Sales", "department": "SALES", "allocated_amount": 10625.0, "percentage": 42.5},
+                    {"employee": "Marketing AI", "role": "VP Growth & Marketing", "department": "MARKETING", "allocated_amount": 10625.0, "percentage": 42.5}
                 ],
                 "milestones": [
                     {"id": "ms_phase1", "phase": "Phase 1: Operational Alignment", "days": "Days 1 - 5", "deliverables": ["Brand ICP Alignment", "Budget Lock"]},
@@ -1963,8 +1974,8 @@ Each turn MUST have:
                     "payback_months": 1.8,
                     "key_optimizations": [
                         "Direct USP alignment cuts CAC by 28%",
-                        "Elena Rostova locked 15% budget contingency",
-                        "Marcus Vance configured safety tripwires"
+                        "CFO AI locked 15% budget contingency",
+                        "Red Team AI configured safety tripwires"
                     ]
                 },
                 "consensus_summary": "Council approved optimized execution plan with 3.9x projected ROI."
@@ -2174,7 +2185,7 @@ Each turn MUST have:
 
         log = ActivityLog(
             tenant_id=self.tenant_id,
-            agent_name="Sales AI (Alex Rivera)",
+            agent_name="Sales AI",
             action=f"Advanced Deal Stage: {deal.company_name}",
             description=f"Stage shifted from '{old_stage}' to '{new_stage}'.",
             status="success"
@@ -2237,25 +2248,39 @@ Each turn MUST have:
     ) -> Dict[str, Any]:
         """
         Executes real email outreach or test dispatch using configured SMTP / Gmail channels.
+        Contextually determines whose behalf the email is sent on:
+        - If an employee name is known in the tenant context, signs and attributes on their behalf.
+        - If no employee name is known, uses the Company Name only.
         """
         company_ctx = self.get_company_context()
+
+        # Resolve employee/user context for this tenant
+        user = self.db.query(User).filter_by(tenant_id=self.tenant_id).order_by(User.is_superuser.desc(), User.id.asc()).first()
+        employee_name = user.name.strip() if (user and user.name and user.name.strip()) else None
+
+        if employee_name:
+            sender_signoff = f"Best regards,\n{employee_name}\n{company_ctx['company_name']}"
+            behalf_line = f"on behalf of {employee_name} at {company_ctx['company_name']}"
+        else:
+            sender_signoff = f"Best regards,\nThe {company_ctx['company_name']} Team\n{company_ctx['company_name']}"
+            behalf_line = f"on behalf of {company_ctx['company_name']}"
 
         # 1. Test Email to executive
         if test_email:
             subject = f"[EXECUTIVE TEST PREVIEW] Strategic Alignment with {company_ctx['company_name']}"
             body = (
                 f"Hello,\n\n"
-                f"This is an executive test preview from OctaOS CEO Cockpit.\n\n"
+                f"This is an executive test preview from OctaOS CEO AI.\n\n"
                 f"Company: {company_ctx['company_name']}\n"
                 f"Verified USP: {company_ctx['usp']}\n"
                 f"Service Description: {company_ctx['service_description']}\n\n"
                 f"If you received this email, your outbound email delivery pipeline is verified and operational.\n\n"
-                f"Best regards,\nExecutive Office\n{company_ctx['company_name']}"
+                f"{sender_signoff}"
             )
             result = send_email_with_status(self.db, self.tenant_id, test_email, subject, body)
             log = ActivityLog(
                 tenant_id=self.tenant_id,
-                agent_name="CEO Orchestrator",
+                agent_name="CEO AI",
                 action="Test Email Dispatched",
                 description=f"Recipient: {test_email}. Channel: {result.get('channel')}. Result: {result.get('message')}",
                 status="success" if result.get("sent") else "warning"
@@ -2278,10 +2303,10 @@ Each turn MUST have:
             subject = outreach.get("subject") or f"Strategic Partnership: {company_ctx['company_name']} x {lead.company}"
             body = outreach.get("body") or (
                 f"Hi {lead.name},\n\n"
-                f"I noticed your work at {lead.company}. At {company_ctx['company_name']}, we specialize in {company_ctx['service_description']}.\n\n"
+                f"I noticed your work at {lead.company}. I am reaching out {behalf_line}. At {company_ctx['company_name']}, we specialize in {company_ctx['service_description']}.\n\n"
                 f"Our key differentiator: {company_ctx['usp']}.\n\n"
                 f"I would welcome a brief conversation to explore potential operational synergies.\n\n"
-                f"Best regards,\nExecutive Office\n{company_ctx['company_name']}"
+                f"{sender_signoff}"
             )
             to_addr = lead.email or lead.company_email
             result = send_email_with_status(self.db, self.tenant_id, to_addr, subject, body)
@@ -2300,7 +2325,7 @@ Each turn MUST have:
 
             log = ActivityLog(
                 tenant_id=self.tenant_id,
-                agent_name="Sales AI (Alex Rivera)",
+                agent_name="Sales AI",
                 action=f"Outreach Dispatched to {lead.name}",
                 description=f"Recipient: {to_addr}. Channel: {result.get('channel')}. Status: {result.get('sent')}",
                 status="success" if result.get("sent") else "warning"
@@ -2330,7 +2355,11 @@ Each turn MUST have:
                 continue
             outreach = (l.data or {}).get("outreach_email", {})
             subject = outreach.get("subject") or f"Strategic Partnership: {company_ctx['company_name']} x {l.company}"
-            body = outreach.get("body") or f"Hi {l.name},\n\nReaching out regarding {company_ctx['company_name']}."
+            body = outreach.get("body") or (
+                f"Hi {l.name},\n\n"
+                f"I am reaching out {behalf_line} regarding {company_ctx['company_name']}.\n\n"
+                f"{sender_signoff}"
+            )
             res = send_email_with_status(self.db, self.tenant_id, to_addr, subject, body)
             if res.get("sent"):
                 sent_count += 1

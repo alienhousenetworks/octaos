@@ -14,95 +14,178 @@ from app.models.enterprise import (
     TenantSubscription,
 )
 
-# Keep all plan definitions in code; only ACTIVE_PLAN_CODE is offered to users.
+# Active default plan for new signups
 ACTIVE_PLAN_CODE = "explorer"
 
+AGENT_CATALOG = [
+    {
+        "id": "marketing",
+        "plan_code": "campaign_planner",
+        "name": "Campaign Planner AI",
+        "title": "Jules - Senior Marketing Copywriter",
+        "desc": "Autonomously schedules 30-day visual campaigns across LinkedIn, Meta, and Instagram. Generates viral hooks, high-converting copy, and visual graphic prompts.",
+        "icon": "Calendar",
+        "color": "text-violet-400",
+        "price_usd_monthly": 49.0,
+        "price_inr_monthly": 3999.0,
+        "action_quota_monthly": 10000,
+        "capabilities": [
+            "30-Day Autonomous Campaign Scheduler",
+            "Multi-channel Post Publisher (LinkedIn, Facebook, Instagram)",
+            "AI Graphic & Copy Content Lab",
+            "Context Radar & Trend Intelligence",
+        ],
+    },
+    {
+        "id": "sales",
+        "plan_code": "sales_ai",
+        "name": "Sales AI SDR",
+        "title": "Alex - Outbound SDR & Lead Engine",
+        "desc": "Scrapes and enriches targeted B2B leads from Google Places, Apollo, and web directories. Conducts automated personalized email & LinkedIn DM outreach and manages Deal Rooms.",
+        "icon": "TrendingUp",
+        "color": "text-emerald-400",
+        "price_usd_monthly": 79.0,
+        "price_inr_monthly": 5999.0,
+        "action_quota_monthly": 15000,
+        "capabilities": [
+            "Lead Discovery & Deep Enrichment",
+            "Automated Multi-step Email Sequences",
+            "Interactive Deal Rooms & Pipeline Management",
+            "Source Intelligence & ROI Scoring",
+        ],
+    },
+    {
+        "id": "hr",
+        "plan_code": "hr_ai",
+        "name": "HR Recruiter AI",
+        "title": "Hunter - Technical Recruiter & Onboarding",
+        "desc": "Parses incoming CVs against job specifications, calculates percentage match scores, conducts automated candidate email screening tests, and books Google Meet interviews.",
+        "icon": "Briefcase",
+        "color": "text-amber-400",
+        "price_usd_monthly": 49.0,
+        "price_inr_monthly": 3999.0,
+        "action_quota_monthly": 10000,
+        "capabilities": [
+            "AI Resume Parser & Job Match Scoring",
+            "Automated Screening Questionnaires",
+            "Interview Booking & Google Meet Calendar Sync",
+            "Onboarding Checklist & Document Verification",
+        ],
+    },
+    {
+        "id": "support",
+        "plan_code": "support_ai",
+        "name": "Customer Support AI",
+        "title": "Sam - Omnichannel Support Specialist",
+        "desc": "Resolves customer inquiries 24/7 across WhatsApp and Email using company Knowledge-Base RAG documents, with intelligent human takeover override.",
+        "icon": "MessageSquare",
+        "color": "text-blue-400",
+        "price_usd_monthly": 49.0,
+        "price_inr_monthly": 3999.0,
+        "action_quota_monthly": 15000,
+        "capabilities": [
+            "WhatsApp Cloud API & Email Ticket Resolution",
+            "Company Knowledge-Base (RAG) Grounding",
+            "Human Interception & Instant Takeover",
+            "SLA Monitoring & Tone Customization",
+        ],
+    },
+]
+
 DEFAULT_PLANS = [
+    # Standalone Modular Agent Plans
     {
-        "code": "starter",
-        "name": "Starter",
-        "price_usd_monthly": 399.0,
-        "price_inr_monthly": 14999.0,
-        "seat_limit": 3,
-        "action_quota_monthly": 5000,
-        "allowed_agents": ["sales", "support"],
-        "is_active": False,  # deactivated — keep code
+        "code": "campaign_planner",
+        "name": "Campaign Planner AI",
+        "price_usd_monthly": 49.0,
+        "price_inr_monthly": 3999.0,
+        "seat_limit": 5,
+        "action_quota_monthly": 10000,
+        "allowed_agents": ["marketing"],
+        "is_active": True,
         "feature_flags": {
+            "agent_role": "marketing",
+            "weekly_action_quota": 2500,
+            "approvals": True,
             "crm_sync": False,
-            "sso": False,
-            "roi_pdf": False,
-            "mfa": True,
-            "approvals": True,
-            "weekly_action_quota": 1500,
         },
     },
     {
-        "code": "growth",
-        "name": "Growth",
-        "price_usd_monthly": 1499.0,
-        "price_inr_monthly": 49999.0,
-        "seat_limit": 15,
-        "action_quota_monthly": 25000,
-        "allowed_agents": ["sales", "marketing", "support", "hr"],
-        "is_active": False,
+        "code": "sales_ai",
+        "name": "Sales AI SDR",
+        "price_usd_monthly": 79.0,
+        "price_inr_monthly": 5999.0,
+        "seat_limit": 5,
+        "action_quota_monthly": 15000,
+        "allowed_agents": ["sales"],
+        "is_active": True,
         "feature_flags": {
+            "agent_role": "sales",
             "crm_sync": True,
-            "sso": False,
-            "roi_pdf": True,
-            "mfa": True,
+            "weekly_action_quota": 4000,
             "approvals": True,
-            "weekly_action_quota": 8000,
         },
     },
     {
-        "code": "business",
-        "name": "Business",
-        "price_usd_monthly": 3999.0,
-        "price_inr_monthly": 149999.0,
-        "seat_limit": 50,
-        "action_quota_monthly": 100000,
-        "allowed_agents": ["sales", "marketing", "support", "hr", "ceo", "finance"],
-        "is_active": False,
+        "code": "hr_ai",
+        "name": "HR Recruiter AI",
+        "price_usd_monthly": 49.0,
+        "price_inr_monthly": 3999.0,
+        "seat_limit": 5,
+        "action_quota_monthly": 10000,
+        "allowed_agents": ["hr"],
+        "is_active": True,
         "feature_flags": {
-            "crm_sync": True,
-            "sso": True,
-            "roi_pdf": True,
-            "mfa": True,
+            "agent_role": "hr",
+            "weekly_action_quota": 2500,
             "approvals": True,
-            "audit_export": True,
-            "weekly_action_quota": 30000,
         },
     },
     {
-        "code": "enterprise",
-        "name": "Enterprise",
-        "price_usd_monthly": 12000.0,
-        "price_inr_monthly": 999999.0,
+        "code": "support_ai",
+        "name": "Customer Support AI",
+        "price_usd_monthly": 49.0,
+        "price_inr_monthly": 3999.0,
+        "seat_limit": 5,
+        "action_quota_monthly": 15000,
+        "allowed_agents": ["support"],
+        "is_active": True,
+        "feature_flags": {
+            "agent_role": "support",
+            "weekly_action_quota": 4000,
+            "approvals": True,
+        },
+    },
+    # All-in-One Full Workforce Plan
+    {
+        "code": "all_access",
+        "name": "All-in-One AI Workforce",
+        "price_usd_monthly": 149.0,
+        "price_inr_monthly": 11999.0,
         "seat_limit": None,
-        "action_quota_monthly": 500000,
+        "action_quota_monthly": 100000,
         "allowed_agents": ["*"],
-        "is_active": False,
+        "is_active": True,
         "feature_flags": {
+            "all_access": True,
             "crm_sync": True,
             "sso": True,
             "roi_pdf": True,
             "mfa": True,
             "approvals": True,
             "audit_export": True,
-            "dedicated_env": True,
-            "sla": True,
-            "weekly_action_quota": 100000,
+            "weekly_action_quota": 25000,
+            "api_rate_limit_per_minute": 300,
         },
     },
-    # Single active plan — full product access, high exploratory limits
-    # Quotas refresh monthly / weekly (no lifetime total — users renew each month)
+    # Explorer / Development Plan
     {
         "code": "explorer",
-        "name": "OctaOS Full Access",
+        "name": "OctaOS Full Access (Dev / Trial)",
         "price_usd_monthly": 0.0,
         "price_inr_monthly": 0.0,
         "seat_limit": None,
-        "action_quota_monthly": 100000,  # refreshes each calendar month
+        "action_quota_monthly": 100000,
         "allowed_agents": ["*"],
         "is_active": True,
         "feature_flags": {
@@ -113,10 +196,54 @@ DEFAULT_PLANS = [
             "approvals": True,
             "audit_export": True,
             "all_access": True,
-            "video_studio": False,  # in-app video creation hidden
-            "weekly_action_quota": 25000,  # refreshes each ISO week
-            "api_rate_limit_per_minute": 300,  # high request rate
+            "weekly_action_quota": 25000,
+            "api_rate_limit_per_minute": 300,
         },
+    },
+    # Legacy / enterprise custom tiers
+    {
+        "code": "starter",
+        "name": "Starter",
+        "price_usd_monthly": 399.0,
+        "price_inr_monthly": 14999.0,
+        "seat_limit": 3,
+        "action_quota_monthly": 5000,
+        "allowed_agents": ["sales", "support"],
+        "is_active": False,
+        "feature_flags": {},
+    },
+    {
+        "code": "growth",
+        "name": "Growth",
+        "price_usd_monthly": 1499.0,
+        "price_inr_monthly": 49999.0,
+        "seat_limit": 15,
+        "action_quota_monthly": 25000,
+        "allowed_agents": ["sales", "marketing", "support", "hr"],
+        "is_active": False,
+        "feature_flags": {},
+    },
+    {
+        "code": "business",
+        "name": "Business",
+        "price_usd_monthly": 3999.0,
+        "price_inr_monthly": 149999.0,
+        "seat_limit": 50,
+        "action_quota_monthly": 100000,
+        "allowed_agents": ["sales", "marketing", "support", "hr", "ceo", "finance"],
+        "is_active": False,
+        "feature_flags": {},
+    },
+    {
+        "code": "enterprise",
+        "name": "Enterprise",
+        "price_usd_monthly": 12000.0,
+        "price_inr_monthly": 999999.0,
+        "seat_limit": None,
+        "action_quota_monthly": 500000,
+        "allowed_agents": ["*"],
+        "is_active": False,
+        "feature_flags": {},
     },
 ]
 
@@ -232,16 +359,78 @@ class SubscriptionService:
         self.db.refresh(sub)
         return sub
 
+    def get_agent_catalog(self) -> List[Dict[str, Any]]:
+        return AGENT_CATALOG
+
+    def subscribe_agents(self, tenant_id: str, agent_keys: List[str]) -> Dict[str, Any]:
+        """Subscribe or activate specific agents (individually or bundled)."""
+        self.seed_plans()
+        cleaned_keys = list(dict.fromkeys([k.strip().lower() for k in agent_keys if k.strip()]))
+        if not cleaned_keys:
+            raise ValueError("At least one agent must be selected")
+
+        sub = self.ensure_trial(tenant_id)
+        
+        # Check if selection maps directly to a defined plan
+        core_all = {"marketing", "sales", "hr", "support"}
+        if set(cleaned_keys).issuperset(core_all) or "*" in cleaned_keys:
+            plan = self.get_plan("all_access") or self.get_plan(ACTIVE_PLAN_CODE)
+            sub.plan_id = plan.id
+            overrides = dict(sub.feature_overrides or {})
+            overrides["allowed_agents"] = ["*"]
+            sub.feature_overrides = overrides
+        elif len(cleaned_keys) == 1:
+            single_map = {
+                "marketing": "campaign_planner",
+                "sales": "sales_ai",
+                "hr": "hr_ai",
+                "support": "support_ai",
+            }
+            target_code = single_map.get(cleaned_keys[0])
+            plan = self.get_plan(target_code) if target_code else None
+            if plan:
+                sub.plan_id = plan.id
+                overrides = dict(sub.feature_overrides or {})
+                overrides["allowed_agents"] = plan.allowed_agents
+                sub.feature_overrides = overrides
+            else:
+                overrides = dict(sub.feature_overrides or {})
+                overrides["allowed_agents"] = cleaned_keys
+                sub.feature_overrides = overrides
+        else:
+            # Custom multi-agent bundle (e.g. marketing + sales)
+            base_plan = self.get_plan("growth") or self.get_plan("campaign_planner") or self.get_plan(ACTIVE_PLAN_CODE)
+            sub.plan_id = base_plan.id
+            overrides = dict(sub.feature_overrides or {})
+            overrides["allowed_agents"] = cleaned_keys
+            # Aggregate quotas: 10k actions per agent
+            overrides["action_quota_monthly"] = max(20000, len(cleaned_keys) * 10000)
+            overrides["weekly_action_quota"] = max(5000, len(cleaned_keys) * 2500)
+            sub.feature_overrides = overrides
+
+        sub.status = "active"
+        now = datetime.now(timezone.utc)
+        sub.current_period_start = now
+        sub.current_period_end = now + timedelta(days=30)
+        self.db.commit()
+        self.db.refresh(sub)
+        return self.entitlements(tenant_id)
+
     def change_plan(self, tenant_id: str, plan_code: str) -> TenantSubscription:
         self.seed_plans()
         plan = self.get_plan(plan_code)
         if not plan:
             raise ValueError(f"Unknown plan: {plan_code}")
         if not plan.is_active and plan_code != ACTIVE_PLAN_CODE:
-            raise ValueError(f"Plan '{plan_code}' is not available. Use '{ACTIVE_PLAN_CODE}'.")
+            raise ValueError(f"Plan '{plan_code}' is not available.")
         sub = self.ensure_trial(tenant_id)
         sub.plan_id = plan.id
         sub.status = "active"
+        # Reset custom agent override to match plan defaults
+        overrides = dict(sub.feature_overrides or {})
+        overrides["allowed_agents"] = plan.allowed_agents
+        sub.feature_overrides = overrides
+
         now = datetime.now(timezone.utc)
         sub.current_period_start = now
         sub.current_period_end = now + timedelta(days=30)
@@ -285,10 +474,22 @@ class SubscriptionService:
         self.db.commit()
 
         flags = dict(plan.feature_flags or {})
-        flags.update(sub.feature_overrides or {})
+        overrides = dict(sub.feature_overrides or {})
+        flags.update(overrides)
         # Drop legacy lifetime flag if still present in DB feature_flags
         flags.pop("lifetime_action_quota", None)
         weekly_quota = int(flags.get("weekly_action_quota") or 25000)
+        monthly_quota = int(flags.get("action_quota_monthly") or plan.action_quota_monthly or 100000)
+
+        # Resolve allowed agents (custom overrides take precedence over plan defaults)
+        allowed_agents = overrides.get("allowed_agents") or plan.allowed_agents or []
+
+        # Determine readable active agent summaries
+        catalog = self.get_agent_catalog()
+        active_agents_details = []
+        for cat in catalog:
+            if "*" in allowed_agents or cat["id"] in [a.lower() for a in allowed_agents]:
+                active_agents_details.append(cat)
 
         return {
             "tenant_id": tenant_id,
@@ -301,11 +502,13 @@ class SubscriptionService:
             },
             "seat_limit": plan.seat_limit,
             "seats_used": seats,
-            "action_quota_monthly": plan.action_quota_monthly,
+            "action_quota_monthly": monthly_quota,
             "actions_used_period": month_c.action_count or 0,
             "actions_used_weekly": week_c.action_count or 0,
             "weekly_action_quota": weekly_quota,
-            "allowed_agents": plan.allowed_agents,
+            "allowed_agents": allowed_agents,
+            "active_agents_details": active_agents_details,
+            "agent_catalog": catalog,
             "feature_flags": flags,
             "trial_ends_at": sub.trial_ends_at.isoformat() if sub.trial_ends_at else None,
             "current_period_end": sub.current_period_end.isoformat() if sub.current_period_end else None,

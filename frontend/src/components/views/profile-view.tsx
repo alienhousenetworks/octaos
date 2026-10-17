@@ -1,15 +1,28 @@
 'use client';
 
-import { notify } from '@/lib/notify';
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  User, Mail, Phone, Shield, Building2, Globe, MapPin,
-  CheckCircle2, ChevronRight, LogIn, Loader2, RefreshCcw,
-  Star, Crown, Briefcase, ExternalLink, AlertCircle, Edit2, Save
+  Building2,
+  Globe,
+  Mail,
+  MapPin,
+  CheckCircle2,
+  ChevronRight,
+  Loader2,
+  Copy,
+  Check,
+  User,
+  Shield,
+  Crown,
+  Phone,
+  RefreshCcw,
+  Sparkles,
+  ArrowRightLeft,
+  ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { notify } from '@/lib/notify';
 
 interface ProfileViewProps {
   token: string | null;
@@ -32,26 +45,23 @@ export default function ProfileView({
   setTenantId,
   fetchData,
 }: ProfileViewProps) {
+  const [activeTab, setActiveTab] = useState<'organization' | 'workspaces' | 'account'>('organization');
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [loadingOrgs, setLoadingOrgs] = useState(false);
   const [switchingTo, setSwitchingTo] = useState<string | null>(null);
-  const [switchSuccess, setSwitchSuccess] = useState<string | null>(null);
+  const [copiedTenant, setCopiedTenant] = useState(false);
 
-  // Edit profile state
-  const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState('');
-  const [editPhone, setEditPhone] = useState('');
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [profileSaved, setProfileSaved] = useState(false);
-
-  // Edit organization state
-  const [editingOrg, setEditingOrg] = useState(false);
+  // Edit Organization Form State
   const [editOrgName, setEditOrgName] = useState('');
   const [editOrgEmail, setEditOrgEmail] = useState('');
   const [editOrgWebsite, setEditOrgWebsite] = useState('');
   const [editOrgAddress, setEditOrgAddress] = useState('');
   const [savingOrg, setSavingOrg] = useState(false);
-  const [orgSaved, setOrgSaved] = useState(false);
+
+  // Edit Personal Profile Form State
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
 
   const fetchOrganizations = useCallback(async () => {
     setLoadingOrgs(true);
@@ -59,7 +69,7 @@ export default function ProfileView({
       const res = await fetchWithAuth(`${API_URL}/auth/my-organizations`);
       if (res.ok) {
         const data = await res.json();
-        setOrganizations(data);
+        setOrganizations(Array.isArray(data) ? data : []);
       }
     } catch (e) {
       console.error('Failed to fetch organizations:', e);
@@ -74,7 +84,29 @@ export default function ProfileView({
       setEditName(userProfile?.name || '');
       setEditPhone(userProfile?.phone_no || '');
     }
-  }, [token]);
+  }, [token, userProfile?.name, userProfile?.phone_no, fetchOrganizations]);
+
+  const currentOrg = useMemo(() => {
+    return organizations.find((o) => o.is_current) || organizations[0] || null;
+  }, [organizations]);
+
+  useEffect(() => {
+    if (currentOrg) {
+      setEditOrgName(currentOrg.name || '');
+      setEditOrgEmail(currentOrg.company_email || '');
+      setEditOrgWebsite(currentOrg.company_website || '');
+      setEditOrgAddress(currentOrg.company_address || '');
+    }
+  }, [currentOrg]);
+
+  const handleCopyTenantId = () => {
+    const tid = userProfile?.tenant_id || currentOrg?.id || '';
+    if (tid) {
+      navigator.clipboard.writeText(tid);
+      setCopiedTenant(true);
+      setTimeout(() => setCopiedTenant(false), 2000);
+    }
+  };
 
   const handleSwitchOrg = async (tenantId: string) => {
     if (tenantId === userProfile?.tenant_id) return;
@@ -87,7 +119,6 @@ export default function ProfileView({
       });
       if (res.ok) {
         const data = await res.json();
-        // Update token + tenant in localStorage (include refresh if rotated)
         try {
           const { saveSession } = await import('@/lib/auth-session');
           saveSession({
@@ -101,54 +132,18 @@ export default function ProfileView({
         }
         setToken(data.access_token);
         setTenantId(data.tenant_id);
-        setSwitchSuccess(tenantId);
-        // Reload profile + data for new org
-        setTimeout(async () => {
-          await fetchData();
-          setSwitchSuccess(null);
-          // Refresh org list to update is_current flags
-          await fetchOrganizations();
-        }, 800);
+        notify(`Switched to organization: ${tenantId}`);
+        await fetchData();
+        await fetchOrganizations();
       } else {
-        const err = await res.json();
-        notify(err.detail || 'Failed to switch organization');
+        const err = await res.json().catch(() => ({}));
+        notify(err.detail || 'Failed to switch workspace');
       }
     } catch (e) {
       console.error(e);
+      notify('Network error switching workspace');
     } finally {
       setSwitchingTo(null);
-    }
-  };
-
-  const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingProfile(true);
-    try {
-      // We use the auth/me PATCH endpoint if available; otherwise update via profile endpoint
-      // For now we'll use a PUT to auth/profile
-      const res = await fetchWithAuth(`${API_URL}/auth/profile`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editName, phone_no: editPhone }),
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setUserProfile({ ...userProfile, name: updated.name || editName, phone_no: updated.phone_no || editPhone });
-        setEditing(false);
-        setProfileSaved(true);
-        setTimeout(() => setProfileSaved(false), 3000);
-      } else {
-        // Graceful fallback: optimistically update UI
-        setUserProfile({ ...userProfile, name: editName, phone_no: editPhone });
-        setEditing(false);
-        setProfileSaved(true);
-        setTimeout(() => setProfileSaved(false), 3000);
-      }
-    } catch {
-      setUserProfile({ ...userProfile, name: editName, phone_no: editPhone });
-      setEditing(false);
-    } finally {
-      setSavingProfile(false);
     }
   };
 
@@ -163,469 +158,399 @@ export default function ProfileView({
           name: editOrgName,
           company_email: editOrgEmail,
           company_website: editOrgWebsite,
-          company_address: editOrgAddress
+          company_address: editOrgAddress,
         }),
       });
       if (res.ok) {
-        setEditingOrg(false);
-        setOrgSaved(true);
+        notify('✅ Organization profile saved');
         await fetchOrganizations();
-        await fetchData?.();
-        setTimeout(() => setOrgSaved(false), 3000);
+        await fetchData();
       } else {
-        const err = await res.json();
-        notify(err.detail || 'Failed to save organization');
+        const err = await res.json().catch(() => ({}));
+        notify(err.detail || 'Failed to update organization');
       }
     } catch {
-      notify('Network error while saving organization');
+      notify('Network error saving organization');
     } finally {
       setSavingOrg(false);
     }
   };
 
-  const getRoleBadge = (role: string, isSystemAdmin: boolean) => {
-    if (isSystemAdmin) return { label: 'System Admin', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.25)', icon: <Crown size={11} /> };
-    if (role === 'admin') return { label: 'Admin', color: '#a78bfa', bg: 'rgba(139,92,246,0.12)', border: 'rgba(139,92,246,0.25)', icon: <Shield size={11} /> };
-    return { label: 'Member', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.2)', icon: <User size={11} /> };
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/auth/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editName, phone_no: editPhone }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setUserProfile({
+          ...userProfile,
+          name: updated.name || editName,
+          phone_no: updated.phone_no || editPhone,
+        });
+        notify('✅ Account profile updated');
+      } else {
+        setUserProfile({ ...userProfile, name: editName, phone_no: editPhone });
+        notify('✅ Profile updated');
+      }
+    } catch {
+      setUserProfile({ ...userProfile, name: editName, phone_no: editPhone });
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
-  const roleBadge = getRoleBadge(userProfile?.role, userProfile?.is_system_admin);
-  const initials = (userProfile?.name || userProfile?.email || 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
-
-  const currentOrg = organizations.find(o => o.is_current);
-  const otherOrgs = organizations.filter(o => !o.is_current);
+  const roleLabel = useMemo(() => {
+    if (userProfile?.is_system_admin) return 'System Admin';
+    if (userProfile?.role === 'admin') return 'Organization Admin';
+    if (userProfile?.role === 'manager') return 'Team Manager';
+    return 'Member Operator';
+  }, [userProfile]);
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto animate-fade-in-up">
-
-      {/* ─── Page header ──────────────────────────────────────────── */}
-      <div className="relative z-10 bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 p-6 rounded-3xl border border-white/5 shadow-2xl mb-8 flex flex-col md:flex-row items-center gap-6">
-        <div
-          className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 shadow-lg"
-          style={{ background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', boxShadow: '0 0 30px rgba(139,92,246,0.5)' }}
-        >
-          <User size={32} className="text-white drop-shadow-md" />
-        </div>
+    <div className="mx-auto max-w-5xl space-y-6 pb-16">
+      {/* Header & Breadcrumb */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
         <div>
-          <h1 className="text-xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-white to-violet-300 tracking-tight">
-            My Profile
+          <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mb-1">
+            <span>Settings</span>
+            <span>/</span>
+            <span className="text-zinc-200">Organization & Account</span>
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-white flex items-center gap-2.5">
+            Organization Profile
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+              Live Tenant
+            </span>
           </h1>
-          <p className="text-base text-violet-200/70 mt-1 font-medium">Manage your personal details and switch between organizations.</p>
+          <p className="text-xs text-zinc-400 mt-1">
+            Manage your legal entity profile, multi-tenant workspace routing, and administrative security credentials.
+          </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-
-        {/* ─── Left column: User card ───────────────────────────────── */}
-        <div className="lg:col-span-2 space-y-5">
-
-          {/* Avatar + identity */}
-          <div
-            className="rounded-3xl p-6 relative overflow-hidden group transition-all duration-500"
-            style={{
-              background: 'linear-gradient(145deg, rgba(20,15,40,0.7) 0%, rgba(8,6,22,0.85) 100%)',
-              backdropFilter: 'blur(24px)',
-              border: '1px solid rgba(167,139,250,0.25)',
-              boxShadow: '0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
-            }}
-          >
-            {/* Ambient glow */}
-            <div className="absolute top-0 right-0 w-40 h-40 rounded-full pointer-events-none"
-              style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.15) 0%, transparent 70%)', transform: 'translate(20%, -20%)' }} />
-
-            <div className="flex items-start gap-4 relative">
-              {/* Avatar */}
-              <div className="relative flex-shrink-0">
-                <div
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-xl font-semibold select-none"
-                  style={{ background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', boxShadow: '0 8px 20px rgba(139,92,246,0.45)' }}
+      {/* Organization Identity Card (Apple/GCP Style) */}
+      <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-zinc-800 border border-white/[0.1] text-zinc-200 flex items-center justify-center shrink-0">
+              <Building2 className="w-6 h-6 text-zinc-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-semibold text-white tracking-tight">
+                  {currentOrg?.name || userProfile?.name || 'OctaOS Enterprise Workspace'}
+                </h2>
+                <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
+                  ENTERPRISE
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-zinc-400">
+                <span className="font-mono text-zinc-400">
+                  Tenant ID: {userProfile?.tenant_id?.slice(0, 16)}…
+                </span>
+                <button
+                  onClick={handleCopyTenantId}
+                  className="inline-flex items-center gap-1 text-[11px] font-mono text-zinc-400 hover:text-white transition-colors"
+                  title="Copy full Tenant ID"
                 >
-                  {initials}
-                </div>
-                {userProfile?.is_verified && (
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center"
-                    style={{ background: '#10b981', border: '2px solid #030014' }}>
-                    <CheckCircle2 size={10} className="text-white" />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="text-lg font-bold text-white truncate">
-                  {userProfile?.name || 'No Name Set'}
-                </div>
-                <div className="text-sm text-gray-400 truncate">{userProfile?.email}</div>
-                <div className="mt-2 flex items-center gap-1.5">
-                  <span
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold"
-                    style={{ background: roleBadge.bg, border: `1px solid ${roleBadge.border}`, color: roleBadge.color }}
-                  >
-                    {roleBadge.icon}
-                    {roleBadge.label}
-                  </span>
-                  {userProfile?.is_verified && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold"
-                      style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399' }}>
-                      <CheckCircle2 size={9} /> Verified
-                    </span>
+                  {copiedTenant ? (
+                    <Check className="w-3 h-3 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-3 h-3 text-zinc-500" />
                   )}
-                </div>
+                  {copiedTenant ? 'Copied' : 'Copy ID'}
+                </button>
               </div>
             </div>
+          </div>
 
-            {/* Details list */}
-            <div className="mt-5 space-y-3">
-              <InfoRow icon={<Mail size={13} />} label="Email" value={userProfile?.email} />
-              <InfoRow icon={<Phone size={13} />} label="Phone" value={userProfile?.phone_no || '—'} />
-              <InfoRow icon={<Shield size={13} />} label="Role" value={roleBadge.label} highlight={roleBadge.color} />
-            </div>
-
-            {/* Edit / Save profile */}
-            {!editing ? (
-              <button
-                onClick={() => { setEditing(true); setEditName(userProfile?.name || ''); setEditPhone(userProfile?.phone_no || ''); }}
-                className="mt-5 w-full h-9 rounded-xl text-xs font-semibold transition-all"
-                style={{ background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.2)', color: '#c4b5fd' }}
-                id="profile-edit-btn"
-              >
-                Edit Profile
-              </button>
-            ) : (
-              <form onSubmit={handleSaveProfile} className="mt-5 space-y-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Full Name</label>
-                  <Input
-                    value={editName}
-                    onChange={e => setEditName(e.target.value)}
-                    placeholder="Your full name"
-                    className="bg-gray-900/60 border-gray-800 text-white text-xs h-9 rounded-xl focus:border-violet-500"
-                    id="profile-name-input"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Phone</label>
-                  <Input
-                    value={editPhone}
-                    onChange={e => setEditPhone(e.target.value)}
-                    placeholder="+1 555 000 0000"
-                    className="bg-gray-900/60 border-gray-800 text-white text-xs h-9 rounded-xl focus:border-violet-500"
-                    id="profile-phone-input"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button type="submit" disabled={savingProfile}
-                    className="flex-1 h-9 text-xs font-bold rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500"
-                    id="profile-save-btn"
-                  >
-                    {savingProfile ? <Loader2 size={13} className="animate-spin mr-1" /> : null}
-                    Save
-                  </Button>
-                  <Button type="button" variant="ghost" onClick={() => setEditing(false)}
-                    className="flex-1 h-9 text-xs rounded-xl border border-gray-700/50 text-gray-400 hover:text-white"
-                    id="profile-cancel-btn"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            )}
-
-            {profileSaved && (
-              <div className="mt-3 flex items-center gap-2 text-emerald-400 text-xs font-semibold">
-                <CheckCircle2 size={13} /> Profile updated successfully
-              </div>
-            )}
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            <span className="inline-flex items-center gap-1 text-xs font-mono font-medium px-2.5 py-1 rounded-md bg-zinc-900 border border-white/[0.08] text-zinc-300">
+              <Shield className="w-3.5 h-3.5 text-emerald-400" />
+              {roleLabel}
+            </span>
           </div>
         </div>
+      </div>
 
-        {/* ─── Right column: Current org + Org switcher ─────────────────── */}
-        <div className="lg:col-span-3 space-y-5">
+      {/* Segmented Tab Controls */}
+      <div className="inline-flex p-1 rounded-lg bg-zinc-900/90 border border-white/[0.08]">
+        <button
+          onClick={() => setActiveTab('organization')}
+          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+            activeTab === 'organization'
+              ? 'bg-zinc-800 text-white shadow-sm'
+              : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          Company Profile
+        </button>
+        <button
+          onClick={() => setActiveTab('workspaces')}
+          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+            activeTab === 'workspaces'
+              ? 'bg-zinc-800 text-white shadow-sm'
+              : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          Workspaces ({organizations.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('account')}
+          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+            activeTab === 'account'
+              ? 'bg-zinc-800 text-white shadow-sm'
+              : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          Personal Account & Security
+        </button>
+      </div>
 
-          {/* Current Organization card */}
-          <div
-            className="rounded-3xl p-6 relative overflow-hidden group transition-all duration-500"
-            style={{
-              background: 'linear-gradient(145deg, rgba(20,15,40,0.7) 0%, rgba(8,6,22,0.85) 100%)',
-              backdropFilter: 'blur(24px)',
-              border: '1px solid rgba(167,139,250,0.25)',
-              boxShadow: '0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
-            }}
-          >
-            <div className="absolute top-0 left-0 w-48 h-48 pointer-events-none"
-              style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%)', transform: 'translate(-30%, -30%)' }} />
-
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)' }}>
-                  <Building2 size={14} className="text-violet-400" />
-                </div>
-                <h2 className="text-sm font-bold text-white">Current Organization</h2>
-              </div>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold"
-                style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: '#34d399' }}>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"
-                  style={{ boxShadow: '0 0 6px #10b981', animation: 'pulseGlow 2s infinite ease-in-out' }} />
-                Active
-              </span>
-            </div>
-
-            {currentOrg ? (
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-base font-semibold flex-shrink-0"
-                    style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', boxShadow: '0 4px 12px rgba(99,102,241,0.35)' }}>
-                    {(currentOrg.tenant_name || 'O')[0].toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="text-base font-bold text-white">{currentOrg.tenant_name}</div>
-                    {currentOrg.company_email && (
-                      <div className="text-xs text-gray-400">{currentOrg.company_email}</div>
-                    )}
-                    <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-xs font-semibold"
-                      style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)', color: '#a78bfa' }}>
-                      <Star size={8} /> {currentOrg.role === 'admin' ? 'Admin' : 'Member'}
-                    </span>
-                  </div>
-                </div>
-
-                {editingOrg ? (
-                  <form onSubmit={handleSaveOrganization} className="pt-3 border-t border-gray-800/60 flex flex-col gap-3">
-                    <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Company Name</label>
-                      <input type="text" value={editOrgName} onChange={e => setEditOrgName(e.target.value)} className="w-full bg-black/40 border border-gray-800 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Company Email</label>
-                      <input type="email" value={editOrgEmail} onChange={e => setEditOrgEmail(e.target.value)} className="w-full bg-black/40 border border-gray-800 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Website</label>
-                      <input type="text" value={editOrgWebsite} onChange={e => setEditOrgWebsite(e.target.value)} className="w-full bg-black/40 border border-gray-800 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Address</label>
-                      <input type="text" value={editOrgAddress} onChange={e => setEditOrgAddress(e.target.value)} className="w-full bg-black/40 border border-gray-800 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors" />
-                    </div>
-                    <div className="flex gap-2 justify-end mt-2">
-                      <button type="button" onClick={() => setEditingOrg(false)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition-colors">Cancel</button>
-                      <button type="submit" disabled={savingOrg} className="px-3 py-1.5 text-xs bg-violet-600 hover:bg-violet-500 text-white rounded transition-colors flex items-center gap-1">
-                        {savingOrg ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                        Save
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <div className="pt-3 border-t border-gray-800/60 grid grid-cols-1 gap-2.5">
-                    {userProfile?.company_website && (
-                      <OrgDetail icon={<Globe size={12} />} label="Website" value={userProfile.company_website} isLink />
-                    )}
-                    {userProfile?.company_email && (
-                      <OrgDetail icon={<Mail size={12} />} label="Company Email" value={userProfile.company_email} />
-                    )}
-                    {userProfile?.company_address && (
-                      <OrgDetail icon={<MapPin size={12} />} label="Address" value={userProfile.company_address} />
-                    )}
-                    {currentOrg.role === 'admin' && (
-                      <button
-                        onClick={() => {
-                          setEditOrgName(currentOrg.tenant_name || '');
-                          setEditOrgEmail(userProfile?.company_email || '');
-                          setEditOrgWebsite(userProfile?.company_website || '');
-                          setEditOrgAddress(userProfile?.company_address || '');
-                          setEditingOrg(true);
-                        }}
-                        className="mt-2 text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1 transition-colors w-fit"
-                      >
-                        <Edit2 size={10} /> Edit Organization
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-sm text-gray-500 flex items-center gap-2">
-                <AlertCircle size={14} /> Organization info unavailable
-              </div>
-            )}
+      {/* Tab 1: Organization Details Form */}
+      {activeTab === 'organization' && (
+        <form onSubmit={handleSaveOrganization} className="rounded-xl border border-white/[0.08] bg-[#111318] p-6 space-y-6">
+          <div className="border-b border-white/[0.08] pb-4">
+            <h3 className="text-sm font-semibold text-white">General Information</h3>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Legal entity details used across automated contracts, invoices, and branded communications.
+            </p>
           </div>
 
-          {/* ─── Organization Switcher ─────────────────────────────── */}
-          <div
-            className="rounded-3xl p-6 relative overflow-hidden group transition-all duration-500"
-            style={{
-              background: 'linear-gradient(145deg, rgba(20,15,40,0.7) 0%, rgba(8,6,22,0.85) 100%)',
-              backdropFilter: 'blur(24px)',
-              border: '1px solid rgba(167,139,250,0.25)',
-              boxShadow: '0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
-            }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.2)' }}>
-                  <Briefcase size={14} className="text-blue-400" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-white">My Organizations</h2>
-                  <p className="text-xs text-gray-500">Switch between organizations linked to your email</p>
-                </div>
-              </div>
-              <button
-                onClick={fetchOrganizations}
-                disabled={loadingOrgs}
-                className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#64748b' }}
-                title="Refresh organizations"
-                id="refresh-orgs-btn"
-              >
-                <RefreshCcw size={13} className={loadingOrgs ? 'animate-spin' : ''} />
-              </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-zinc-400" />
+                Organization Legal Name
+              </label>
+              <Input
+                value={editOrgName}
+                onChange={(e) => setEditOrgName(e.target.value)}
+                placeholder="Acme Technologies Inc."
+                className="h-9 text-xs bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
+              />
             </div>
 
-            {loadingOrgs && !organizations.length ? (
-              <div className="flex items-center gap-2 text-gray-500 text-xs py-4">
-                <Loader2 size={14} className="animate-spin" /> Loading organizations…
-              </div>
-            ) : organizations.length === 0 ? (
-              <div className="text-xs text-gray-500 py-4 flex items-center gap-2">
-                <AlertCircle size={13} /> No organizations found for this account.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {organizations.map(org => {
-                  const isCurrent = org.is_current;
-                  const isSwitching = switchingTo === org.tenant_id;
-                  const didSwitch = switchSuccess === org.tenant_id;
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-zinc-400" />
+                Corporate Contact Email
+              </label>
+              <Input
+                type="email"
+                value={editOrgEmail}
+                onChange={(e) => setEditOrgEmail(e.target.value)}
+                placeholder="contact@enterprise.com"
+                className="h-9 text-xs bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-zinc-400" />
+                Company Website
+              </label>
+              <Input
+                type="url"
+                value={editOrgWebsite}
+                onChange={(e) => setEditOrgWebsite(e.target.value)}
+                placeholder="https://enterprise.com"
+                className="h-9 text-xs bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-zinc-400" />
+                Registered Business Address
+              </label>
+              <Input
+                value={editOrgAddress}
+                onChange={(e) => setEditOrgAddress(e.target.value)}
+                placeholder="100 Enterprise Way, Suite 400"
+                className="h-9 text-xs bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-3 border-t border-white/[0.08]">
+            <Button
+              type="submit"
+              disabled={savingOrg}
+              className="h-8 bg-zinc-100 hover:bg-white text-zinc-950 font-medium text-xs rounded-md px-4 shadow-sm"
+            >
+              {savingOrg ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                  Saving Changes…
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {/* Tab 2: Workspaces Switcher Grid */}
+      {activeTab === 'workspaces' && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-5">
+            <h3 className="text-sm font-semibold text-white">Your Authorized Workspaces</h3>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Switch tenant context across multi-organization deployments without re-authenticating.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+              {loadingOrgs && organizations.length === 0 ? (
+                <div className="col-span-2 py-8 text-center text-xs text-zinc-400">
+                  <Loader2 className="w-4 h-4 mx-auto mb-2 animate-spin text-zinc-500" />
+                  Loading tenant organizations…
+                </div>
+              ) : (
+                organizations.map((org) => {
+                  const isCurrent = org.id === userProfile?.tenant_id || org.is_current;
+                  const isSwitching = switchingTo === org.id;
 
                   return (
                     <div
-                      key={org.tenant_id}
-                      className="flex items-center gap-3 p-3 rounded-2xl transition-all duration-300"
-                      style={{
-                        background: isCurrent ? 'linear-gradient(90deg, rgba(139,92,246,0.15) 0%, rgba(79,70,229,0.05) 100%)' : 'rgba(255,255,255,0.03)',
-                        border: isCurrent ? '1px solid rgba(139,92,246,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                        boxShadow: isCurrent ? '0 4px 20px rgba(139,92,246,0.15)' : 'none',
-                      }}
-                      id={`org-row-${org.tenant_id}`}
+                      key={org.id}
+                      className={`rounded-xl border p-4 transition-all ${
+                        isCurrent
+                          ? 'border-indigo-500/40 bg-indigo-950/20 shadow-sm'
+                          : 'border-white/[0.08] bg-zinc-900/60 hover:border-white/[0.16]'
+                      }`}
                     >
-                      {/* Org avatar */}
-                      <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-semibold text-white flex-shrink-0"
-                        style={{
-                          background: isCurrent
-                            ? 'linear-gradient(135deg,#7c3aed,#4f46e5)'
-                            : 'linear-gradient(135deg,#1e293b,#0f172a)',
-                          boxShadow: isCurrent ? '0 4px 12px rgba(139,92,246,0.3)' : 'none',
-                          border: isCurrent ? 'none' : '1px solid rgba(255,255,255,0.08)',
-                        }}
-                      >
-                        {(org.tenant_name || 'O')[0].toUpperCase()}
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-semibold text-white truncate">{org.tenant_name}</span>
-                          {isCurrent && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold flex-shrink-0"
-                              style={{ background: 'rgba(139,92,246,0.15)', color: '#c4b5fd' }}>
-                              Current
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-white truncate">
+                              {org.name || 'Organization Workspace'}
                             </span>
-                          )}
+                            {isCurrent && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                ACTIVE
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] font-mono text-zinc-500 mt-1 truncate">
+                            ID: {org.id}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {org.company_email && (
-                            <span className="text-xs text-gray-500 truncate">{org.company_email}</span>
-                          )}
-                          <span className="text-xs font-semibold"
-                            style={{ color: org.role === 'admin' ? '#a78bfa' : '#64748b' }}>
-                            {org.role === 'admin' ? '· Admin' : '· Member'}
-                          </span>
-                        </div>
+
+                        {!isCurrent && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleSwitchOrg(org.id)}
+                            disabled={isSwitching}
+                            className="h-7 text-xs border-white/[0.1] bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-md px-2.5 shrink-0"
+                          >
+                            {isSwitching ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <>
+                                <ArrowRightLeft className="w-3 h-3 mr-1" /> Switch
+                              </>
+                            )}
+                          </Button>
+                        )}
                       </div>
-
-                      {/* Switch button */}
-                      {!isCurrent && (
-                        <button
-                          onClick={() => handleSwitchOrg(org.tenant_id)}
-                          disabled={!!switchingTo}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex-shrink-0"
-                          style={{
-                            background: didSwitch ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.1)',
-                            border: didSwitch ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(99,102,241,0.2)',
-                            color: didSwitch ? '#34d399' : '#818cf8',
-                          }}
-                          id={`switch-org-btn-${org.tenant_id}`}
-                        >
-                          {isSwitching ? (
-                            <Loader2 size={11} className="animate-spin" />
-                          ) : didSwitch ? (
-                            <CheckCircle2 size={11} />
-                          ) : (
-                            <LogIn size={11} />
-                          )}
-                          {isSwitching ? 'Switching…' : didSwitch ? 'Switched!' : 'Switch'}
-                        </button>
-                      )}
-
-                      {isCurrent && (
-                        <div className="flex items-center gap-1 text-violet-400 flex-shrink-0">
-                          <CheckCircle2 size={14} />
-                        </div>
-                      )}
                     </div>
                   );
-                })}
-              </div>
-            )}
-
-            {organizations.length > 1 && (
-              <p className="text-xs text-gray-600 mt-4 flex items-center gap-1.5">
-                <AlertCircle size={10} />
-                Switching organization reloads your session to that workspace. Your email stays the same.
-              </p>
-            )}
+                })
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
+      )}
 
-/* ─── Small helper sub-components ─────────────────────────────────────────── */
+      {/* Tab 3: Personal Account & Security */}
+      {activeTab === 'account' && (
+        <form onSubmit={handleSaveProfile} className="rounded-xl border border-white/[0.08] bg-[#111318] p-6 space-y-6">
+          <div className="border-b border-white/[0.08] pb-4">
+            <h3 className="text-sm font-semibold text-white">Personal Credentials</h3>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Account identity associated with session tokens and audit log signatures.
+            </p>
+          </div>
 
-function InfoRow({ icon, label, value, highlight }: { icon: React.ReactNode; label: string; value?: string | null; highlight?: string }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <span style={{ color: '#64748b' }}>{icon}</span>
-      <span className="text-xs text-gray-500 w-14 flex-shrink-0">{label}</span>
-      <span className="text-xs font-medium truncate" style={{ color: highlight || '#e2e8f0' }}>
-        {value || '—'}
-      </span>
-    </div>
-  );
-}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-zinc-400" />
+                Full Name
+              </label>
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Jane Doe"
+                className="h-9 text-xs bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
+              />
+            </div>
 
-function OrgDetail({ icon, label, value, isLink }: { icon: React.ReactNode; label: string; value: string; isLink?: boolean }) {
-  return (
-    <div className="flex items-start gap-2.5">
-      <span className="mt-0.5 flex-shrink-0" style={{ color: '#64748b' }}>{icon}</span>
-      <div className="min-w-0">
-        <div className="text-xs text-gray-600 uppercase tracking-wider font-semibold">{label}</div>
-        {isLink ? (
-          <a
-            href={value.startsWith('http') ? value : `https://${value}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors"
-          >
-            {value} <ExternalLink size={10} />
-          </a>
-        ) : (
-          <div className="text-xs text-gray-300 break-all">{value}</div>
-        )}
-      </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-zinc-400" />
+                Phone Number
+              </label>
+              <Input
+                type="tel"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="+1 (555) 000-0000"
+                className="h-9 text-xs bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-zinc-500" />
+                Account Email (Primary SSO)
+              </label>
+              <Input
+                readOnly
+                disabled
+                value={userProfile?.email || ''}
+                className="h-9 text-xs bg-zinc-900/40 border-white/[0.04] text-zinc-500 cursor-not-allowed rounded-md font-mono"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5 text-zinc-500" />
+                Security Verification
+              </label>
+              <div className="h-9 px-3 rounded-md bg-zinc-900/40 border border-white/[0.04] flex items-center gap-2 text-xs text-emerald-400 font-mono">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                SSO Identity Verified
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-3 border-t border-white/[0.08]">
+            <Button
+              type="submit"
+              disabled={savingProfile}
+              className="h-8 bg-zinc-100 hover:bg-white text-zinc-950 font-medium text-xs rounded-md px-4 shadow-sm"
+            >
+              {savingProfile ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                  Saving…
+                </>
+              ) : (
+                'Save Profile'
+              )}
+            </Button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }
