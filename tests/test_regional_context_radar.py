@@ -155,3 +155,19 @@ async def test_marketing_agent_scan_context_radar_with_regions(db_session, india
 
     event_names = [e["name"] for e in radar_data["upcoming_events"]]
     assert any("Dussehra" in n for n in event_names)
+
+
+def test_business_profile_serialization_with_agentic_calendars(db_session, indian_tenant_data):
+    from app.schemas import verticals as schemas
+    profile = db_session.query(BusinessProfile).filter_by(tenant_id=indian_tenant_data).first()
+    profile.calendars = [
+        {"name": "Diwali", "date": "2026-10-30", "hook": "Festival of lights", "category": "cultural", "region": "India", "source": "agentic_radar"},
+        "https://calendly.com/acme"
+    ]
+    db_session.commit()
+
+    validated = schemas.BusinessProfile.model_validate(profile)
+    assert len(validated.calendars) == 2
+    assert validated.calendars[0]["name"] == "Diwali"
+    assert validated.calendars[1] == "https://calendly.com/acme"
+

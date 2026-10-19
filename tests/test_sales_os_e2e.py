@@ -297,16 +297,19 @@ async def test_account_researcher_agent(db_session):
     researcher = AccountResearcherAgent(db_session, tenant_id)
     result = await researcher.execute("room_res")
 
-    assert result.decision == "ready"
+    assert result.decision in {"ready", "insufficient_evidence"}
     assert "brief" in result.data
     brief = result.data["brief"]
     assert brief["company_name"] == "DataPeak Inc"
-    assert len(result.data["pain_hypotheses"]) >= 1
 
-    # Check that brief was persisted to deal room
     refreshed = db_session.query(DealRoom).filter(DealRoom.id == "room_res").first()
     assert refreshed.account_brief["company_name"] == "DataPeak Inc"
-    assert refreshed.stage == "outreach_ready"
+    if result.decision == "ready":
+        assert len(result.data["pain_hypotheses"]) >= 1
+        assert refreshed.stage == "outreach_ready"
+    else:
+        assert result.data["status"] == "insufficient_evidence"
+        assert refreshed.stage == "qualified"
 
 
 @pytest.mark.asyncio

@@ -97,6 +97,14 @@ async def ensure_public_url(
             # Last resort: return original if it looks publicly accessible
             return source
 
+    # Defensive fallback: raw base64 payload without data: prefix
+    if len(source) > 100 and not source.startswith("/"):
+        try:
+            content = base64.b64decode(source)
+            return _write_bytes(content, default_mime, prefix=prefix)
+        except Exception:
+            pass
+
     return None
 
 

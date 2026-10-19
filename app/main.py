@@ -91,9 +91,19 @@ def startup_db_check():
             from sqlalchemy import text
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS lead_freshness VARCHAR DEFAULT '30_days';"))
-            print("business_profiles.lead_freshness column verified.")
+                conn.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS owner_type VARCHAR DEFAULT 'ai';"))
+                conn.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS handoff_started_at TIMESTAMP WITH TIME ZONE;"))
+                conn.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS handoff_deadline_at TIMESTAMP WITH TIME ZONE;"))
+                conn.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS handoff_generation INTEGER DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS customer_id VARCHAR;"))
+                conn.execute(text("ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS direction VARCHAR DEFAULT 'inbound';"))
+                conn.execute(text("ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS channel VARCHAR;"))
+                conn.execute(text("ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS provider_message_id VARCHAR;"))
+                conn.execute(text("ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS delivery_status VARCHAR DEFAULT 'sent';"))
+                conn.execute(text("ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS extra_data JSON DEFAULT '{}'::json;"))
+            print("Schema column extensions verified.")
         except Exception as col_error:
-            print(f"Skipped lead_freshness column alter: {col_error}")
+            print(f"Skipped schema column alter: {col_error}")
     except Exception as e:
         print(f"Flow engine startup check: {e}")
 

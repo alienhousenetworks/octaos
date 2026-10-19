@@ -230,5 +230,22 @@ class SuppressionService:
         self.db.refresh(record)
         return record
 
+    def suppress(
+        self,
+        email: Optional[str] = None,
+        domain: Optional[str] = None,
+        phone: Optional[str] = None,
+        reason: str = "manual",
+        origin: str = "system",
+    ) -> Optional[SuppressionRecord]:
+        """Convenience method to suppress an email, domain, or phone."""
+        if email:
+            return self.add_suppression("email", email, reason=reason, origin=origin)
+        if domain:
+            return self.add_suppression("domain", domain, reason=reason, origin=origin)
+        if phone:
+            return self.add_suppression("phone", phone, reason=reason, origin=origin)
+        return None
+
 
 SuppressionEngine = SuppressionService

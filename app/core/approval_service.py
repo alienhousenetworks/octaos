@@ -24,7 +24,8 @@ class ApprovalService:
         description: str,
         financial_impact: float = 0.0,
         requester_user_id: Optional[str] = None,
-        expires_in_hours: int = 24
+        expires_in_hours: int = 24,
+        idempotency_key: Optional[str] = None,
     ) -> ApprovalRequest:
         """
         Creates an approval request cryptographically bound to the exact payload hash.
@@ -34,6 +35,10 @@ class ApprovalService:
 
         required_keys = 2 if risk_class == "R4_FINANCIAL_CRITICAL" else 1
         now = datetime.now(timezone.utc)
+        if capability_id.startswith("hr.") and not idempotency_key:
+            raise ValueError("HR approvals require a 33-character idempotency_key.")
+        if idempotency_key and len(idempotency_key) > 64:
+            raise ValueError("idempotency_key must fit workflow_events.correlation_id (64).")
 
         req = ApprovalRequest(
             tenant_id=self.tenant_id,
@@ -51,7 +56,8 @@ class ApprovalService:
             financial_impact=financial_impact,
             requester_user_id=requester_user_id,
             expires_at=now + timedelta(hours=expires_in_hours),
-            created_at=now
+            created_at=now,
+            idempotency_key=idempotency_key,
         )
         self.db.add(req)
         self.db.flush()
@@ -81,6 +87,24 @@ class ApprovalService:
 
         if req.status != "PENDING":
             return {"status": req.status, "message": f"Request already resolved as {req.status}."}
+
+        now = datetime.now(timezone.utc)
+        expires_at = req.expires_at
+        if expires_at is not None and expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at is not None and now > expires_at:
+            req.status = "EXPIRED"
+            if req.idempotency_key and str(req.capability_id).startswith("hr."):
+                from app.core.governance import DeterministicGovernanceKernel
+                DeterministicGovernanceKernel(self.db, self.tenant_id).release_hr_hold(req.idempotency_key)
+            self.db.flush()
+            return {"status": "EXPIRED", "message": "Approval expired."}
+
+        stored_key = getattr(req, "idempotency_key", None)
+        if stored_key:
+            if idempotency_key and idempotency_key != stored_key:
+                raise ValueError("idempotency_key does not match the approval row.")
+            idempotency_key = stored_key
 
         # Anti-self-approval rule for high risk
         if req.risk_class in ["R3_EXTERNAL_IRREVERSIBLE", "R4_FINANCIAL_CRITICAL"]:
@@ -120,6 +144,22 @@ class ApprovalService:
 
         if len(distinct_approver_ids) >= req.required_keys:
             req.status = "APPROVED"
+
+            if req.capability_id == "hr.application.reject":
+                EventLedger.append_event(
+                    db=self.db,
+                    tenant_id=self.tenant_id,
+                    workflow_id=req.workflow_id,
+                    execution_id=req.id,
+                    event_type="approval_granted_internal",
+                    actor_type="USER",
+                    actor_id=user_id,
+                    task_id=req.task_id,
+                    payload={"capability_id": req.capability_id, "payload_hash": req.payload_hash},
+                    correlation_id=idempotency_key,
+                )
+                self.db.flush()
+                return {"status": "APPROVED", "message": "Rejection approved. No outbox row."}
 
             # Atomically stage into SideEffectOutbox in the SAME transaction
             outbox_entry = SideEffectOutbox(

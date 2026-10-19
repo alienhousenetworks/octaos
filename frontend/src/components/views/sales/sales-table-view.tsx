@@ -16,7 +16,8 @@ interface SalesTableViewProps {
   leads: Lead[];
   onSelectLead: (lead: Lead) => void;
   selectedLeadId?: string | null;
-  onDeleteLead: (leadId: string) => Promise<void>;
+  onDeleteLead: (leadId: string, skipConfirm?: boolean) => Promise<void>;
+  onBulkDeleteLeads?: (leadIds: string[]) => Promise<void>;
   onUpdateStatus: (leadId: string, status: string) => Promise<void>;
   onOpenCreateLead: () => void;
   onOpenProspecting: () => void;
@@ -62,6 +63,7 @@ export default function SalesTableView({
   onSelectLead,
   selectedLeadId,
   onDeleteLead,
+  onBulkDeleteLeads,
   onUpdateStatus,
   onOpenCreateLead,
   onOpenProspecting,
@@ -123,13 +125,20 @@ export default function SalesTableView({
   };
 
   const handleBulkDelete = async () => {
-    if (!window.confirm(`Delete ${selectedLeadIds.length} selected accounts?`)) return;
+    if (selectedLeadIds.length === 0) return;
     setBulkUpdating(true);
     try {
-      for (const id of selectedLeadIds) {
-        await onDeleteLead(id);
+      if (onBulkDeleteLeads) {
+        await onBulkDeleteLeads(selectedLeadIds);
+      } else {
+        if (!window.confirm(`Delete ${selectedLeadIds.length} selected accounts?`)) return;
+        for (const id of selectedLeadIds) {
+          await onDeleteLead(id, true);
+        }
       }
       setSelectedLeadIds([]);
+    } catch (e) {
+      console.error(e);
     } finally {
       setBulkUpdating(false);
     }
@@ -456,9 +465,7 @@ export default function SalesTableView({
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (window.confirm(`Delete ${lead.company}?`)) {
-                                onDeleteLead(lead.id);
-                              }
+                              onDeleteLead(lead.id);
                             }}
                             className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
                             title="Delete Lead"

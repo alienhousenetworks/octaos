@@ -387,6 +387,47 @@ MODEL_REGISTRY = {
         "output_cost_1m": 0.00,
         "supports_batch": False,
         "supports_caching": False
+    },
+    # NVIDIA NIM (Enterprise Accelerated Inference)
+    "nvidia/meta/llama-3.3-70b-instruct": {
+        "provider": "nvidia",
+        "model": "meta/llama-3.3-70b-instruct",
+        "complexity": "high",
+        "latency": 0.35,
+        "input_cost_1m": 0.70,
+        "output_cost_1m": 0.90,
+        "supports_batch": False,
+        "supports_caching": False
+    },
+    "nvidia/meta/llama-3.1-405b-instruct": {
+        "provider": "nvidia",
+        "model": "meta/llama-3.1-405b-instruct",
+        "complexity": "high",
+        "latency": 0.90,
+        "input_cost_1m": 2.00,
+        "output_cost_1m": 2.00,
+        "supports_batch": False,
+        "supports_caching": False
+    },
+    "nvidia/meta/llama-3.1-70b-instruct": {
+        "provider": "nvidia",
+        "model": "meta/llama-3.1-70b-instruct",
+        "complexity": "high",
+        "latency": 0.40,
+        "input_cost_1m": 0.70,
+        "output_cost_1m": 0.90,
+        "supports_batch": False,
+        "supports_caching": False
+    },
+    "nvidia/meta/llama-3.1-8b-instruct": {
+        "provider": "nvidia",
+        "model": "meta/llama-3.1-8b-instruct",
+        "complexity": "low",
+        "latency": 0.15,
+        "input_cost_1m": 0.20,
+        "output_cost_1m": 0.20,
+        "supports_batch": False,
+        "supports_caching": False
     }
 }
 
@@ -395,7 +436,7 @@ def get_provider_models(provider: str) -> List[Dict[str, Any]]:
     """
     Returns available models for a given provider, dynamically merging built-in
     registry models with any custom models specified in environment variables
-    (e.g., OPENROUTER_MODELS, TOGETHER_MODELS, GROQ_MODELS, GROK_MODELS).
+    (e.g., OPENROUTER_MODELS, TOGETHER_MODELS, GROQ_MODELS, GROK_MODELS, NVIDIA_MODELS).
     """
     from app.core.config import settings
     import os
@@ -406,6 +447,8 @@ def get_provider_models(provider: str) -> List[Dict[str, Any]]:
         p_lower = "together"
     elif p_lower in ("xai",):
         p_lower = "grok"
+    elif p_lower in ("nim", "nvidia_nim"):
+        p_lower = "nvidia"
 
     results: List[Dict[str, Any]] = []
     seen_model_ids = set()
@@ -428,6 +471,8 @@ def get_provider_models(provider: str) -> List[Dict[str, Any]]:
         env_str = getattr(settings, "GROQ_MODELS", None) or os.getenv("GROQ_MODELS", "")
     elif p_lower == "grok":
         env_str = getattr(settings, "GROK_MODELS", None) or os.getenv("GROK_MODELS", "")
+    elif p_lower == "nvidia":
+        env_str = getattr(settings, "NVIDIA_MODELS", None) or os.getenv("NVIDIA_MODELS", "")
 
     if env_str:
         for custom_model in [m.strip() for m in env_str.split(",") if m.strip()]:
@@ -468,6 +513,8 @@ class AIRoutingEngine:
             available_providers.add("together")
         if "xai" in available_providers:
             available_providers.add("grok")
+        if "nim" in available_providers or "nvidia_nim" in available_providers:
+            available_providers.add("nvidia")
 
         # 0. Check if an environment default provider is active and available
         pref_provider = (getattr(settings, "DEFAULT_AI_PROVIDER", None) or "openrouter").lower().strip()

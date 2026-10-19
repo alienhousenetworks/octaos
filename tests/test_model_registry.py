@@ -81,6 +81,16 @@ async def test_validate_model_available(registry):
         )
         assert res["status"] == "available"
 
+        # Valid text model with modality='text'
+        res_text = await registry.validate_model(
+            db=mock_db,
+            tenant_id="test-tenant",
+            provider="together",
+            modality="text",
+            model_slug="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        )
+        assert res_text["status"] == "available"
+
         # Incompatible modality (text model in image modality)
         res_incomp = await registry.validate_model(
             db=mock_db,
@@ -102,3 +112,59 @@ async def test_validate_model_available(registry):
         )
         assert res_fuzzy["status"] == "not_found"
         assert "black-forest-labs/FLUX.1-dev" in res_fuzzy.get("suggestions", [])
+
+
+@pytest.mark.asyncio
+async def test_resolve_model_text_default_llama_70b(registry):
+    mock_db = AsyncMock()
+    with patch.object(registry, "_get_api_key", return_value="fake-api-key"):
+        # OpenRouter default text model resolution
+        prov, model, fallback = await registry.resolve_model(
+            db=mock_db,
+            tenant_id="test-tenant",
+            modality="text",
+            preferred_provider="openrouter",
+            preferred_model=None,
+        )
+        assert prov == "openrouter"
+        assert model == "meta-llama/llama-3.3-70b-instruct"
+
+        # NVIDIA default text model resolution
+        prov_nvd, model_nvd, _ = await registry.resolve_model(
+            db=mock_db,
+            tenant_id="test-tenant",
+            modality="text",
+            preferred_provider="nvidia",
+            preferred_model=None,
+        )
+        assert prov_nvd == "nvidia"
+        assert model_nvd == "meta/llama-3.3-70b-instruct"
+
+
+@pytest.mark.asyncio
+async def test_nvidia_nim_adapter_generate_text(registry):
+    adapter = registry.get_adapter("nvidia")
+    assert adapter is not None
+
+    from unittest.mock import MagicMock
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "choices": [{"message": {"content": "Hello from Llama 3.3 70B on NVIDIA NIM!"}}],
+            "usage": {"total_tokens": 42},
+        }
+        mock_post.return_value = mock_resp
+
+        from app.services.ai_gateway.providers.base import TextReq
+        res = await adapter.generate_text(
+            TextReq(
+                model="meta/llama-3.3-70b-instruct",
+                prompt="Say hello",
+                temperature=0.2,
+                max_tokens=1024,
+            ),
+            api_key="nvapi-test-key",
+        )
+        assert res.content == "Hello from Llama 3.3 70B on NVIDIA NIM!"
+

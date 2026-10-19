@@ -259,6 +259,7 @@ export default function AIOptimizationView({
                                   gemini: "bg-blue-500",
                                   groq: "bg-orange-500",
                                   grok: "bg-purple-600",
+                                  nvidia: "bg-emerald-500",
                                   local: "bg-teal-500",
                                   mock: "bg-gray-600"
                                 };
@@ -292,6 +293,7 @@ export default function AIOptimizationView({
  provider === 'anthropic' ? 'bg-violet-600' :
  provider === 'gemini' ? 'bg-blue-500' :
  provider === 'groq' ? 'bg-orange-500' :
+ provider === 'nvidia' ? 'bg-emerald-500' :
  provider === 'grok' ? 'bg-purple-600' : 'bg-gray-450'
  }`} />
                                   <span className="capitalize text-xs">{provider}</span> ({pct}%)

@@ -8,7 +8,7 @@ from app.models.verticals import Lead, ContentPost, Ticket, Transaction, Candida
 from app.models.deal_room import DealRoom
 from app.models.agents import ActivityLog
 from app.models.teams import AgentMetric
-from app.models.flow_engine import FlowRun, UsageEvent
+from app.models.flow_engine import FlowRun, UsageEvent, StepRun
 from app.services.analytics.metrics_service import MetricsService
 from app.services.analytics.chart_builders import build_all_charts
 from app.services.analytics.detectors import detect_all_findings
@@ -29,6 +29,7 @@ def in_memory_db():
         ActivityLog.__table__,
         AgentMetric.__table__,
         FlowRun.__table__,
+        StepRun.__table__,
         UsageEvent.__table__,
         ProviderUsage.__table__,
     ])

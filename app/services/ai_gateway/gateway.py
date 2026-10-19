@@ -13,7 +13,7 @@ from app.core.observability import metrics_registry
 from app.services.ai_gateway.adapters import (
     BaseProviderAdapter, OpenAIAdapter, AnthropicAdapter, GeminiAdapter,
     GrokAdapter, GroqAdapter, MistralAdapter, CohereAdapter, LocalAdapter,
-    OpenRouterAdapter, TogetherAdapter
+    OpenRouterAdapter, TogetherAdapter, NvidiaAdapter
 )
 from app.services.ai_gateway.caching import PromptOptimizationEngine
 from app.services.ai_gateway.routing import AIRoutingEngine
@@ -33,6 +33,7 @@ SUPPORTED_AI_PROVIDERS = {
     "mistral",
     "cohere",
     "local",
+    "nvidia",
 }
 
 def normalize_ai_provider(provider: Optional[str]) -> Optional[str]:
@@ -43,6 +44,8 @@ def normalize_ai_provider(provider: Optional[str]) -> Optional[str]:
         return "together"
     elif p in ("xai",):
         return "grok"
+    elif p in ("nim", "nvidia_nim"):
+        return "nvidia"
     if p in SUPPORTED_AI_PROVIDERS:
         return p
     return None
@@ -91,6 +94,8 @@ class AIProviderGateway:
             return CohereAdapter(api_key=api_key)
         elif provider_lower == "local":
             return LocalAdapter(api_key=api_key)
+        elif provider_lower in ("nvidia", "nim", "nvidia_nim"):
+            return NvidiaAdapter(api_key=api_key)
         else:
             raise ValueError(f"Provider '{provider}' is not supported. Please configure a valid API key.")
 
@@ -188,6 +193,8 @@ class AIProviderGateway:
                 or os.getenv("GOOGLE_API_KEY")
                 or ""
             )
+        elif p in ("nvidia", "nim", "nvidia_nim"):
+            return getattr(settings, "NVIDIA_API_KEY", None) or os.getenv("NVIDIA_API_KEY") or ""
         elif p == "mistral":
             return os.getenv("MISTRAL_API_KEY") or ""
         elif p == "cohere":
@@ -264,7 +271,7 @@ class AIProviderGateway:
                         configured.add(norm_p)
 
         # In Inbuilt mode (or if no BYOK keys found): include server environment keys
-        for p in ["openrouter", "together", "groq", "grok", "anthropic", "openai", "gemini", "mistral", "cohere"]:
+        for p in ["openrouter", "together", "groq", "grok", "anthropic", "openai", "gemini", "nvidia", "mistral", "cohere"]:
             if self._get_system_env_key(p):
                 configured.add(p)
 
@@ -314,7 +321,7 @@ class AIProviderGateway:
         
         # Default chain of fallback providers for safety & redundancy
         primary_pref = (getattr(settings, "DEFAULT_AI_PROVIDER", None) or "openrouter").lower().strip()
-        all_vendors = ["openrouter", "together", "groq", "grok", "openai", "anthropic", "gemini"]
+        all_vendors = ["openrouter", "together", "groq", "grok", "openai", "anthropic", "gemini", "nvidia"]
         # Ensure primary is tried first, then others
         fallback_chain = [primary_pref] + [v for v in all_vendors if v != primary_pref]
         
@@ -324,11 +331,13 @@ class AIProviderGateway:
                 # If original model was on another provider, OpenRouter can route it directly or use default
                 if original_model and ("/" in original_model or "gpt" in original_model or "claude" in original_model):
                     return original_model
-                return getattr(settings, "DEFAULT_AI_MODEL", None) or "google/gemini-2.5-flash"
+                return getattr(settings, "DEFAULT_AI_MODEL", None) or "meta-llama/llama-3.3-70b-instruct"
             elif prov_lower in ("together", "togetherapi"):
                 return "meta-llama/Llama-3.3-70B-Instruct-Turbo"
             elif prov_lower == "groq":
-                return "openai/gpt-oss-120b"
+                return "llama-3.3-70b-versatile"
+            elif prov_lower in ("nvidia", "nim", "nvidia_nim"):
+                return "meta/llama-3.3-70b-instruct"
             elif prov_lower in ("grok", "xai"):
                 return "grok-2"
             elif prov_lower == "openai":
@@ -510,11 +519,13 @@ class AIProviderGateway:
         for p in fallback_chain:
             if p not in tried_providers:
                 if p == "openrouter":
-                    return "openrouter", getattr(settings, "DEFAULT_AI_MODEL", None) or "google/gemini-2.5-flash"
+                    return "openrouter", getattr(settings, "DEFAULT_AI_MODEL", None) or "meta-llama/llama-3.3-70b-instruct"
                 elif p in ("together", "togetherapi"):
                     return "together", "meta-llama/Llama-3.3-70B-Instruct-Turbo"
                 elif p == "groq":
-                    return "groq", "openai/gpt-oss-120b"
+                    return "groq", "llama-3.3-70b-versatile"
+                elif p in ("nvidia", "nim", "nvidia_nim"):
+                    return "nvidia", "meta/llama-3.3-70b-instruct"
                 elif p in ("grok", "xai"):
                     return "grok", "grok-2"
                 elif p == "openai":

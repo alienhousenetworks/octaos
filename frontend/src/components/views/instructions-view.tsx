@@ -150,13 +150,13 @@ export default function InstructionsView({
                   <p className="text-gray-400 text-xs mt-1">Powers the core thinking, writing, image creation, and video generation for your AI employees.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${configuredProviders.includes('anthropic') || configuredProviders.includes('openai') || configuredProviders.includes('gemini') || configuredProviders.includes('openrouter') || configuredProviders.includes('together') || configuredProviders.includes('groq') || configuredProviders.includes('grok')
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${configuredProviders.includes('anthropic') || configuredProviders.includes('openai') || configuredProviders.includes('gemini') || configuredProviders.includes('openrouter') || configuredProviders.includes('together') || configuredProviders.includes('groq') || configuredProviders.includes('grok') || configuredProviders.includes('nvidia')
  ? 'bg-emerald-500/10 text-emerald-455 border-emerald-500/20'
  : 'bg-rose-500/10 text-rose-455 border-rose-500/20 animate-pulse'
  }`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${configuredProviders.includes('anthropic') || configuredProviders.includes('openai') || configuredProviders.includes('gemini') || configuredProviders.includes('openrouter') || configuredProviders.includes('together') || configuredProviders.includes('groq') || configuredProviders.includes('grok') ? 'bg-emerald-450' : 'bg-rose-450'
+                    <span className={`h-1.5 w-1.5 rounded-full ${configuredProviders.includes('anthropic') || configuredProviders.includes('openai') || configuredProviders.includes('gemini') || configuredProviders.includes('openrouter') || configuredProviders.includes('together') || configuredProviders.includes('groq') || configuredProviders.includes('grok') || configuredProviders.includes('nvidia') ? 'bg-emerald-450' : 'bg-rose-450'
  }`} />
-                    {configuredProviders.includes('anthropic') || configuredProviders.includes('openai') || configuredProviders.includes('gemini') || configuredProviders.includes('openrouter') || configuredProviders.includes('together') || configuredProviders.includes('groq') || configuredProviders.includes('grok') ? 'Active' : 'Missing Primary Key'}
+                    {configuredProviders.includes('anthropic') || configuredProviders.includes('openai') || configuredProviders.includes('gemini') || configuredProviders.includes('openrouter') || configuredProviders.includes('together') || configuredProviders.includes('groq') || configuredProviders.includes('grok') || configuredProviders.includes('nvidia') ? 'Active' : 'Missing Primary Key'}
                   </span>
                   <Button
                     onClick={openIntegrations}
@@ -232,6 +232,18 @@ export default function InstructionsView({
                     <li>Click the blue <strong>Create API Key in new project</strong> button.</li>
                     <li>Once generated, copy the long alphanumeric string.</li>
                     <li>Paste the key into the OctaOS configuration panel to enable Google's models.</li>
+                  </ol>
+                </div>
+
+                {/* NVIDIA NIM */}
+                <div className="space-y-2">
+                  <p className="font-bold text-white flex items-center gap-1.5 text-sm pb-1 border-b border-gray-800">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" /> NVIDIA NIM (Accelerated Inference)
+                  </p>
+                  <ol className="list-decimal pl-4 space-y-1.5 text-gray-400">
+                    <li>Go to <a href="https://build.nvidia.com/" target="_blank" rel="noreferrer" className="text-violet-400 hover:text-violet-300 transition-colors hover:underline font-medium">build.nvidia.com</a> and sign in.</li>
+                    <li>Generate your enterprise API key starting with <code>nvapi-</code>.</li>
+                    <li>Provides ultra-high throughput Llama 3.3 70B inference powered by NVIDIA GPUs.</li>
                   </ol>
                 </div>
 

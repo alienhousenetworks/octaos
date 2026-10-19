@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.services.sales_os.agents.base import BaseSalesAgent, AgentResult, EvidenceItem
 from app.models.deal_room import DealRoom, CompanySalesContext, EvidenceRecord, BuyingCommitteeMember
 from app.services.knowledge_os.entity_extractor import extract_json_safe
+from app.services.sales_os.contracts.registry import render_prompts
 
 
 class DealDeskAgent(BaseSalesAgent):
@@ -103,21 +104,21 @@ class DealDeskAgent(BaseSalesAgent):
                 )
                 .all()
             )
-            ev_text = "\n".join([f"- [{e.location_reference}]: {e.claim}" for e in evidence]) if evidence else "AES-256 in transit and at rest."
+            ev_text = "\n".join([f"- [{e.location_reference}]: {e.claim}" for e in evidence]) if evidence else "No verified evidence records match this question."
+            rendered = render_prompts("sales.deal_desk", {"question": question, "evidence": ev_text})
 
-            prompt = f"""You are the Deal Desk Security Officer.
-Answer this security questionnaire item accurately using ONLY the verified evidence below.
-
-Question: {question}
-Verified Evidence:
-{ev_text}
-
-Provide an executive, compliance-grade answer. Include citations."""
-
-            try:
-                answer = await self.llm.complete(prompt=prompt, model="claude-3-haiku-20240307", provider="anthropic")
-            except Exception:
-                answer = f"All data is encrypted in transit and at rest adhering to tenant compliance standards. Refer to {ev_text[:60]}."
+            if not evidence:
+                answer = "insufficient_evidence: no verified evidence record matches this question."
+            else:
+                try:
+                    answer = await self.llm.complete(
+                        prompt=rendered["task_prompt"],
+                        system_prompt=rendered["system_prompt"],
+                        model=rendered["model_id"],
+                        provider=rendered["provider"],
+                    )
+                except Exception:
+                    answer = f"insufficient_evidence: the model was unavailable. Verified evidence remains: {ev_text[:240]}"
 
             elapsed = int((time.time() - start_time) * 1000)
             return AgentResult(

@@ -31,14 +31,34 @@ class OpenRouterAdapter:
         }
 
     async def list_models(self, api_key: str) -> List[ModelInfo]:
-        """Fetch models from OpenRouter GET /api/v1/models and normalize."""
-        url = "https://openrouter.ai/api/v1/models"
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, headers=self._headers(api_key), timeout=25.0)
-            if resp.status_code != 200:
-                raise Exception(f"OpenRouter list_models failed ({resp.status_code}): {resp.text}")
-            data = resp.json().get("data", [])
-            return [normalize_openrouter_model(m) for m in data if isinstance(m, dict) and m.get("id")]
+        """Fetch models from OpenRouter GET /api/v1/models and GET /api/v1/images/models and normalize."""
+        headers = self._headers(api_key)
+        models: List[ModelInfo] = []
+        seen_slugs = set()
+
+        async with httpx.AsyncClient(timeout=25.0) as client:
+            try:
+                resp = await client.get("https://openrouter.ai/api/v1/models", headers=headers)
+                if resp.status_code == 200:
+                    for m in resp.json().get("data", []):
+                        if isinstance(m, dict) and m.get("id"):
+                            norm = normalize_openrouter_model(m)
+                            seen_slugs.add(norm.slug)
+                            models.append(norm)
+            except Exception as e:
+                logger.warning(f"[OpenRouter] Failed to fetch text models: {e}")
+
+            try:
+                resp_img = await client.get("https://openrouter.ai/api/v1/images/models", headers=headers)
+                if resp_img.status_code == 200:
+                    for m in resp_img.json().get("data", []):
+                        if isinstance(m, dict) and m.get("id") and m.get("id") not in seen_slugs:
+                            seen_slugs.add(m.get("id"))
+                            models.append(normalize_openrouter_model(m))
+            except Exception as e:
+                logger.warning(f"[OpenRouter] Failed to fetch image models: {e}")
+
+        return models
 
     async def generate_text(self, req: TextReq, api_key: str) -> TextResult:
         """Call OpenRouter chat completions endpoint."""
@@ -102,12 +122,16 @@ class OpenRouterAdapter:
         payload: Dict[str, Any] = {
             "model": req.model,
             "prompt": req.prompt,
-            "aspect_ratio": req.aspect_ratio,
         }
-        if req.negative_prompt:
-            payload["negative_prompt"] = req.negative_prompt
+        if req.aspect_ratio:
+            payload["aspect_ratio"] = req.aspect_ratio
+
         if req.reference_image_url:
-            payload["reference_image"] = req.reference_image_url
+            payload["input_references"] = [
+                {"type": "image_url", "image_url": {"url": req.reference_image_url}}
+            ]
+        if req.negative_prompt and "tencent" not in req.model.lower():
+            payload["negative_prompt"] = req.negative_prompt
 
         async with httpx.AsyncClient() as client:
             resp = await client.post(url, headers=self._headers(api_key), json=payload, timeout=90.0)
@@ -115,16 +139,23 @@ class OpenRouterAdapter:
                 data = resp.json()
                 img_url = ""
                 if "data" in data and len(data["data"]) > 0:
-                    img_url = data["data"][0].get("url") or data["data"][0].get("b64_json") or ""
+                    first = data["data"][0]
+                    if first.get("url"):
+                        img_url = first["url"]
+                    elif first.get("b64_json"):
+                        media_type = first.get("media_type") or "image/png"
+                        img_url = f"data:{media_type};base64,{first['b64_json']}"
                 elif "url" in data:
                     img_url = data["url"]
-                
+
                 if not img_url:
-                    raise Exception(f"OpenRouter image generation returned no URL: {data}")
-                
+                    raise Exception(f"OpenRouter image generation returned no URL or image data: {data}")
+
+                cost = float(data.get("usage", {}).get("cost", 0.0) or data.get("cost", 0.0) or 0.0)
+
                 return ImageResult(
                     image_url=img_url,
-                    cost_usd=float(data.get("cost", 0.0) or 0.0),
+                    cost_usd=cost,
                     model_used=req.model,
                     raw_response=data,
                 )

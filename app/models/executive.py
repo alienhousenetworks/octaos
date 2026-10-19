@@ -142,6 +142,7 @@ class PlanVersion(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False, index=True)
     workflow_id = Column(String, ForeignKey("workflows.id", ondelete="RESTRICT"), nullable=False, index=True)
+    objective_id = Column(String, ForeignKey("business_objectives.id", ondelete="SET NULL"), nullable=True, index=True)
     version_num = Column(Integer, nullable=False)
     strategy_variant = Column(String(32), nullable=False) # 'AGGRESSIVE', 'BALANCED', 'CONSERVATIVE', 'CUSTOM'
     status = Column(String(32), nullable=False, default="DRAFT")
@@ -156,6 +157,7 @@ class PlanVersion(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     nodes = relationship("PlanNode", back_populates="plan_version", cascade="all, delete-orphan")
+    objective_rel = relationship("BusinessObjective", back_populates="plans", foreign_keys=[objective_id])
 
     __table_args__ = (
         UniqueConstraint("workflow_id", "version_num", "strategy_variant", name="uq_plan_version_variant"),
@@ -175,6 +177,14 @@ class PlanNode(Base):
     depends_on = Column(JSON, nullable=False, default=list) # List of node IDs
     estimated_duration_seconds = Column(Integer, nullable=False, default=60)
     is_compensable = Column(Boolean, nullable=False, default=True)
+    
+    # Cross-Department Execution Contract
+    input_contract_schema = Column(JSON, nullable=True)
+    output_contract_schema = Column(JSON, nullable=True)
+    evidence_requirements = Column(JSON, nullable=False, default=list)
+    max_retries = Column(Integer, nullable=False, default=3)
+    timeout_seconds = Column(Integer, nullable=False, default=300)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     plan_version = relationship("PlanVersion", back_populates="nodes")
@@ -186,7 +196,8 @@ class ExecutiveApprovalRequest(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False, index=True)
     workflow_id = Column(String, ForeignKey("workflows.id", ondelete="RESTRICT"), nullable=False, index=True)
-    plan_version_id = Column(String, ForeignKey("plan_versions.id", ondelete="RESTRICT"), nullable=False)
+    plan_version_id = Column(String, ForeignKey("plan_versions.id", ondelete="RESTRICT"), nullable=True)
+    idempotency_key = Column(String(64), nullable=True)
     task_id = Column(String(64), nullable=False)
     capability_id = Column(String(128), nullable=False)
     capability_version = Column(String(16), nullable=False)
@@ -202,6 +213,17 @@ class ExecutiveApprovalRequest(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     decisions = relationship("ApprovalDecision", back_populates="request", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        CheckConstraint(
+            "plan_version_id IS NOT NULL OR capability_id LIKE 'hr.%'",
+            name="chk_hr_plan_version_nullable",
+        ),
+        CheckConstraint(
+            "capability_id NOT LIKE 'hr.%' OR idempotency_key IS NOT NULL",
+            name="chk_hr_idempotency_key",
+        ),
+    )
 
 
 # Alias for backward compatibility within Executive OS

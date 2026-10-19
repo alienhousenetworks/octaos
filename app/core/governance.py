@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timezone, timedelta
+from decimal import Decimal
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -110,7 +111,8 @@ class DeterministicGovernanceKernel:
 
         # 7. Check Autonomy vs Risk Envelope
         if final_decision == "ALLOW":
-            if not self._is_autonomy_sufficient(actor_autonomy, effective_risk):
+            max_autonomy = getattr(definition, "max_autonomy", "L3") if str(capability_id).startswith("hr.") else "L3"
+            if not self._is_autonomy_sufficient(actor_autonomy, effective_risk, max_autonomy):
                 final_decision = "REQUIRE_APPROVAL"
 
         required_keys = 2 if effective_risk == "R4_FINANCIAL_CRITICAL" else 1
@@ -244,6 +246,100 @@ class DeterministicGovernanceKernel:
         self.db.flush()
         return True
 
+    def reserve_envelope(
+        self,
+        envelope_id: str,
+        workflow_id: str,
+        task_id: str,
+        amount: Decimal,
+        idempotency_key: str,
+        hold_until: datetime,
+    ):
+        """Hold against one department=hr envelope. Does not call reserve_budget."""
+        if amount <= 0:
+            return None
+        existing = self.db.query(BudgetReservation).filter_by(idempotency_key=idempotency_key).first()
+        if existing:
+            return existing
+        envelope = self.db.query(BudgetEnvelope).filter_by(
+            id=envelope_id, tenant_id=self.tenant_id, department="hr", is_active=True
+        ).first()
+        if not envelope:
+            return None
+        stmt = text("""
+            UPDATE budget_envelopes
+            SET reserved_amount = reserved_amount + CAST(:amount AS NUMERIC),
+                updated_at = :now
+            WHERE id = :envelope_id
+              AND tenant_id = :tenant_id
+              AND department = 'hr'
+              AND is_active = :is_active
+              AND (reserved_amount + consumed_amount + CAST(:amount AS NUMERIC)) <= authorized_limit
+        """)
+        result = self.db.execute(stmt, {
+            "amount": format(amount, "f"),
+            "now": datetime.now(timezone.utc),
+            "envelope_id": envelope_id,
+            "tenant_id": self.tenant_id,
+            "is_active": True,
+        })
+        if result.rowcount == 0:
+            return None
+        reservation = BudgetReservation(
+            tenant_id=self.tenant_id,
+            envelope_id=envelope_id,
+            workflow_id=workflow_id,
+            task_id=task_id,
+            amount=amount,
+            status="RESERVED",
+            idempotency_key=idempotency_key,
+            expires_at=hold_until,
+        )
+        self.db.add(reservation)
+        self.db.flush()
+        return reservation
+
+    def release_hr_hold(self, idempotency_key: str) -> bool:
+        res = self.db.query(BudgetReservation).filter_by(idempotency_key=idempotency_key, status="RESERVED").first()
+        if not res:
+            return False
+        amount = format(Decimal(str(res.amount)), "f")
+        stmt = text("""
+            UPDATE budget_envelopes
+            SET reserved_amount = CASE
+                WHEN reserved_amount - CAST(:amount AS NUMERIC) > 0 THEN reserved_amount - CAST(:amount AS NUMERIC)
+                ELSE 0
+            END,
+            updated_at = :now
+            WHERE id = :envelope_id
+        """)
+        self.db.execute(stmt, {"amount": amount, "now": datetime.now(timezone.utc), "envelope_id": res.envelope_id})
+        res.status = "RELEASED"
+        res.resolved_at = datetime.now(timezone.utc)
+        self.db.flush()
+        return True
+
+    def consume_hr_hold(self, idempotency_key: str) -> bool:
+        res = self.db.query(BudgetReservation).filter_by(idempotency_key=idempotency_key, status="RESERVED").first()
+        if not res:
+            return False
+        amount = format(Decimal(str(res.amount)), "f")
+        stmt = text("""
+            UPDATE budget_envelopes
+            SET reserved_amount = CASE
+                WHEN reserved_amount - CAST(:amount AS NUMERIC) > 0 THEN reserved_amount - CAST(:amount AS NUMERIC)
+                ELSE 0
+            END,
+            consumed_amount = consumed_amount + CAST(:amount AS NUMERIC),
+            updated_at = :now
+            WHERE id = :envelope_id
+        """)
+        self.db.execute(stmt, {"amount": amount, "now": datetime.now(timezone.utc), "envelope_id": res.envelope_id})
+        res.status = "COMMITTED"
+        res.resolved_at = datetime.now(timezone.utc)
+        self.db.flush()
+        return True
+
     def _eval_ast_strict(
         self,
         expr: Dict[str, Any],
@@ -350,7 +446,10 @@ class DeterministicGovernanceKernel:
             return rate * units
         return 0.0
 
-    def _is_autonomy_sufficient(self, autonomy: str, risk: str) -> bool:
+    def _is_autonomy_sufficient(self, autonomy: str, risk: str, max_autonomy: str = "L3") -> bool:
+        ranks = {"L0": 0, "L1": 1, "L2": 2, "L3": 3}
+        if ranks.get(autonomy, 0) > ranks.get(max_autonomy, 3):
+            return False
         if risk in ["R3_EXTERNAL_IRREVERSIBLE", "R4_FINANCIAL_CRITICAL"]:
             return False
         if autonomy in ["L2", "L3"] and risk in ["R0_INFORMATIONAL", "R1_INTERNAL_REVERSIBLE", "R2_EXTERNAL_REVERSIBLE"]:

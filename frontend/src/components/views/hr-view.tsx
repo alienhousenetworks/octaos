@@ -1,6 +1,7 @@
 'use client';
 
 import { notify, confirmAction } from '@/lib/notify';
+import HRPipelinePanel from '@/components/views/hr-pipeline-panel';
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -40,6 +41,7 @@ import {
   Table,
   Download,
   FileSpreadsheet,
+  Kanban,
   ArrowUpDown,
   Copy,
   MapPin,
@@ -79,7 +81,7 @@ export default function HRView({
   const [hrModel, setHrModel] = useState('');
   
   // UI Tabs & Filters
-  const [activeTab, setActiveTab] = useState<'leaderboard' | 'sheet' | 'upload' | 'manual'>('leaderboard');
+  const [activeTab, setActiveTab] = useState<'leaderboard' | 'sheet' | 'upload' | 'manual' | 'pipeline'>('leaderboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [tierFilter, setTierFilter] = useState('all'); // all, top, strong, moderate
@@ -863,6 +865,17 @@ export default function HRView({
             Ranked Leaderboard ({candidates.length})
           </Button>
 
+          <Button
+            variant={activeTab === 'pipeline' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('pipeline')}
+            className={`rounded-xl h-10 px-4 font-semibold text-xs flex items-center gap-2 ${
+              activeTab === 'pipeline' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold' : 'border-gray-800 text-gray-300 hover:bg-gray-900'
+            }`}
+          >
+            <Kanban className="h-4 w-4" />
+            Pipeline
+          </Button>
+
           {/* Import Excel Dialog */}
           <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
             <DialogTrigger
@@ -1144,7 +1157,8 @@ export default function HRView({
                   <Select value={hrProvider} onValueChange={(val) => {
                     if (val) {
                       setHrProvider(val);
-                      if (val === 'openrouter') setHrModel('meta-llama/llama-3.3-70b-instruct');
+                      if (val === 'nvidia') setHrModel('meta/llama-3.3-70b-instruct');
+                      else if (val === 'openrouter') setHrModel('meta-llama/llama-3.3-70b-instruct');
                       else if (val === 'groq') setHrModel('llama-3.3-70b-versatile');
                       else if (val === 'gemini') setHrModel('gemini-2.5-flash');
                       else if (val === 'openai') setHrModel('gpt-4o-mini');
@@ -1155,11 +1169,12 @@ export default function HRView({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                      <SelectItem value="auto">Auto / System Default (.env)</SelectItem>
+                      <SelectItem value="nvidia">NVIDIA NIM (Llama 3.3 70B)</SelectItem>
                       <SelectItem value="openrouter">OpenRouter (Meta Llama 3.3 70B Instruct)</SelectItem>
                       <SelectItem value="groq">Groq (Llama 3.3 70B Versatile - Sub-second)</SelectItem>
                       <SelectItem value="gemini">Google Gemini 2.5 Flash ($0.0001)</SelectItem>
                       <SelectItem value="openai">OpenAI GPT-4o-mini</SelectItem>
-                      <SelectItem value="auto">Auto (Smart AI Gateway Router)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -2724,6 +2739,10 @@ export default function HRView({
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {activeTab === 'pipeline' && (
+        <HRPipelinePanel API_URL={API_URL} fetchWithAuth={fetchWithAuth} />
       )}
     </div>
   );

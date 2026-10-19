@@ -40,6 +40,7 @@ import {
   Star,
   Loader2,
 } from 'lucide-react';
+import SystemMcpView from '@/components/views/system-mcp-view';
 
 interface ApiManagementViewProps {
   token: string | null;
@@ -68,6 +69,7 @@ const PROVIDERS: ProviderDef[] = [
   { id: 'together', label: 'Together AI', category: 'ai', hint: 'together_api_key...', url: 'https://api.together.ai/settings/api-keys', placeholder: 'together_...', description: 'Ultra-fast open-weights inference engine' },
   { id: 'groq', label: 'Groq LPU Engine', category: 'ai', hint: 'gsk_...', url: 'https://console.groq.com/keys', placeholder: 'gsk_...', description: 'Sub-second real-time inference for interactive agents' },
   { id: 'gemini', label: 'Google Gemini Studio', category: 'ai', hint: 'AIzaSy...', url: 'https://aistudio.google.com/app/apikey', placeholder: 'AIzaSy...', description: 'Gemini 2.5 Flash & Pro models with 1M token context' },
+  { id: 'nvidia', label: 'NVIDIA NIM (Integrate API)', category: 'ai', hint: 'nvapi-...', url: 'https://build.nvidia.com/', placeholder: 'nvapi-...', description: 'Enterprise accelerated inference for Llama 3.3 70B and frontier open models' },
   { id: 'grok', label: 'xAI Grok', category: 'ai', hint: 'xai-...', url: 'https://console.x.ai/', placeholder: 'xai-...', description: 'Grok 2 model for unfiltered real-time web context' },
 
   // Social & Content
@@ -97,6 +99,7 @@ export default function ApiManagementView({
   fetchWithAuth,
   fetchData,
 }: ApiManagementViewProps) {
+  const [mainSection, setMainSection] = useState<'integrations' | 'mcp'>('integrations');
   const [configured, setConfigured] = useState<string[]>([]);
   const [mainProvider, setMainProvider] = useState<string>('openrouter');
   const [aiMode, setAiMode] = useState<'inbuilt' | 'byok'>('inbuilt');
@@ -328,6 +331,47 @@ export default function ApiManagementView({
         </div>
       </div>
 
+      {/* Top Navigation Tabs */}
+      <div className="flex border-b border-white/[0.08] gap-6 text-sm font-medium">
+        <button
+          onClick={() => setMainSection('integrations')}
+          className={`pb-3 transition-colors relative flex items-center gap-2 ${
+            mainSection === 'integrations'
+              ? 'text-white border-b-2 border-indigo-500 font-semibold'
+              : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <Server className="w-4 h-4 text-indigo-400" />
+          Outbound API Integrations
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300">
+            {configured.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setMainSection('mcp')}
+          className={`pb-3 transition-colors relative flex items-center gap-2 ${
+            mainSection === 'mcp'
+              ? 'text-white border-b-2 border-indigo-500 font-semibold'
+              : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-purple-400" />
+          OctaOS System MCP Hub
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+            One-Click Connect
+          </span>
+        </button>
+      </div>
+
+      {mainSection === 'mcp' ? (
+        <SystemMcpView
+          token={token}
+          API_URL={API_URL}
+          fetchWithAuth={fetchWithAuth}
+        />
+      ) : (
+        <>
       {/* AI Architecture Selector (Apple Style Segmented Card) */}
       <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -634,6 +678,8 @@ export default function ApiManagementView({
           </div>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   );
 }

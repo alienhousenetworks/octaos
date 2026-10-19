@@ -55,7 +55,7 @@ ROLE_PERMISSIONS: Dict[str, Dict[str, List[str]]] = {
         "videos": ["create", "read", "update", "delete", "execute"],
     },
     "manager": {
-        "leads": ["create", "read", "update", "execute"],
+        "leads": ["create", "read", "update", "delete", "execute"],
         "users": ["read"],
         "tickets": ["create", "read", "update", "execute"],
         "campaigns": ["create", "read", "update", "execute"],
@@ -72,7 +72,7 @@ ROLE_PERMISSIONS: Dict[str, Dict[str, List[str]]] = {
         "videos": ["create", "read", "update", "execute"],
     },
     "agent": {
-        "leads": ["create", "read", "update"],
+        "leads": ["create", "read", "update", "delete"],
         "users": ["read"],
         "tickets": ["create", "read", "update"],
         "campaigns": ["read", "create", "update"],
@@ -84,6 +84,18 @@ ROLE_PERMISSIONS: Dict[str, Dict[str, List[str]]] = {
         "ceo": ["read"],
         "finance": ["read"],
         "videos": ["read", "create"],
+    },
+    "hr_recruiter": {"hr": ["create", "read", "update"]},
+    "hr_hiring_manager": {"hr": ["create", "read", "update"]},
+    "hr_admin": {
+        "hr": ["create", "read", "update", "delete", "execute"],
+        "audit_logs": ["read"],
+    },
+    "executive": {
+        "hr": ["read", "execute"],
+        "audit_logs": ["read"],
+        "ceo": ["read", "execute"],
+        "finance": ["read"],
     },
     "read_only": {
         "leads": ["read"],

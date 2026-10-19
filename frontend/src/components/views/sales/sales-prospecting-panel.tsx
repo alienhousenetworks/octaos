@@ -276,15 +276,37 @@ export default function SalesProspectingPanel({
               </label>
               <select
                 value={selectedProvider}
-                onChange={(e) => setSelectedProvider(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedProvider(val);
+                  if (val === 'nvidia') {
+                    setSelectedModel?.('meta/llama-3.3-70b-instruct');
+                  } else if (val === 'openrouter') {
+                    setSelectedModel?.('meta-llama/llama-3.3-70b-instruct');
+                  } else if (val === 'together') {
+                    setSelectedModel?.('meta-llama/Llama-3.3-70B-Instruct-Turbo');
+                  } else if (val === 'openai') {
+                    setSelectedModel?.('gpt-4o');
+                  } else if (val === 'anthropic') {
+                    setSelectedModel?.('claude-sonnet-4-6');
+                  } else if (val === 'gemini') {
+                    setSelectedModel?.('gemini-2.5-flash');
+                  } else if (val === 'groq') {
+                    setSelectedModel?.('llama-3.3-70b-versatile');
+                  } else {
+                    setSelectedModel?.('');
+                  }
+                }}
                 className="w-full h-8 text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 text-slate-800 focus:bg-white focus:border-blue-500 outline-none"
               >
-                <option value="auto">Auto Selection (High Complexity)</option>
+                <option value="auto">System Default (Environment / .env)</option>
+                <option value="nvidia">NVIDIA NIM (Llama 3.3 70B)</option>
                 <option value="openrouter">OpenRouter (Llama 3.3 70B)</option>
                 <option value="openai">OpenAI (GPT-4o / Mini)</option>
                 <option value="anthropic">Anthropic (Claude 3.5 Sonnet)</option>
                 <option value="gemini">Google Gemini 2.0</option>
                 <option value="groq">Groq Llama 3 70B (High Speed)</option>
+                <option value="together">Together AI (Llama 3.3 70B)</option>
               </select>
             </div>
           </div>

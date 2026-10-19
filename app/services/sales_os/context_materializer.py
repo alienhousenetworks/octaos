@@ -115,7 +115,9 @@ Return only valid JSON."""
         except Exception:
             synthesized = {}
 
-        if not synthesized or not synthesized.get("icp_definitions"):
+        icp_definitions = synthesized.get("icp_definitions") if isinstance(synthesized, dict) else None
+        industries = icp_definitions.get("industries") if isinstance(icp_definitions, dict) else None
+        if not isinstance(synthesized, dict) or not industries:
             ev_records = self.db.query(EvidenceRecord).filter(EvidenceRecord.tenant_id == self.tenant_id).all()
             inferred_industries = []
             for ev in ev_records:

@@ -15,6 +15,13 @@ def normalize_openrouter_model(raw: Dict[str, Any]) -> ModelInfo:
     supports_image_input = False
 
     # Check modalities from architecture
+    input_mods = [str(x).lower() for x in architecture.get("input_modalities", [])]
+    output_mods = [str(x).lower() for x in architecture.get("output_modalities", [])]
+    if "image" in output_mods:
+        modalities.append(ModalityType.TEXT_TO_IMAGE.value)
+        if "image" in input_mods:
+            modalities.append(ModalityType.IMAGE_TO_IMAGE.value)
+
     if "image->image" in raw_modality or "text+image->image" in raw_modality:
         modalities.extend([ModalityType.TEXT_TO_IMAGE.value, ModalityType.IMAGE_TO_IMAGE.value])
     elif "image" in raw_modality and "text" not in raw_modality:

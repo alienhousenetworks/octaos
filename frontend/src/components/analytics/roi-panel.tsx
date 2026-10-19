@@ -148,7 +148,7 @@ export default function RoiPanel({
             <p className="font-mono font-semibold text-foreground mt-0.5">
               {unitEconomics.blendedPerMillionOps !== undefined && unitEconomics.blendedPerMillionOps !== null
                 ? `$${unitEconomics.blendedPerMillionOps.toFixed(2)}`
-                : '$0.84'}
+                : '—'}
             </p>
           </div>
         </div>

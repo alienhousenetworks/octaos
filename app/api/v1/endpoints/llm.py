@@ -33,7 +33,7 @@ def get_optimization_metrics(
     
     # Pre-fill structure for all expected providers
     provider_metrics = {}
-    for p in ["openrouter", "together", "openai", "anthropic", "gemini", "grok", "groq", "mistral", "cohere", "local"]:
+    for p in ["openrouter", "together", "openai", "anthropic", "gemini", "grok", "groq", "nvidia", "mistral", "cohere", "local"]:
         provider_metrics[p] = {
             "spend": 0.0,
             "input_tokens": 0,
@@ -280,7 +280,7 @@ def get_available_models(
     mode = ai_gateway.get_tenant_ai_mode(db, tenant_id)
 
     catalogue = {}
-    all_supported = ["openrouter", "together", "groq", "grok", "anthropic", "openai", "gemini"]
+    all_supported = ["openrouter", "together", "groq", "grok", "anthropic", "openai", "gemini", "nvidia"]
     for p in all_supported:
         models = get_provider_models(p)
         catalogue[p] = {

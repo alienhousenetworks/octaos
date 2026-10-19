@@ -4,6 +4,7 @@ from app.api.v1.endpoints import (
     coordination, google, meta_oauth, linkedin_oauth, ceo, system_admin, audit, usage, videos,
     enterprise, manager, federated_learning,
     deal_rooms, sales_manager, sales_os, automations, schedules,
+    knowledge_connectors, mcp,
 )
 
 from app.api.v1.orchestrator import router as orchestrator_router
@@ -36,6 +37,9 @@ api_router.include_router(sales_manager.router, prefix="/sales-manager", tags=["
 api_router.include_router(sales_os.router, prefix="/sales-os", tags=["sales-os"])
 api_router.include_router(automations.router, prefix="/automations", tags=["automations"])
 api_router.include_router(schedules.router, prefix="/schedules", tags=["schedules"])
+api_router.include_router(knowledge_connectors.router, prefix="/knowledge/connectors", tags=["knowledge-connectors"])
+api_router.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
+
 
 
 

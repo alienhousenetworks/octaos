@@ -44,7 +44,7 @@ class LLMGateway:
         configured = ai_gateway._get_configured_providers(self.db, self.tenant_id)
         if configured:
             return True
-        for p in ["openrouter", "anthropic", "openai", "groq", "gemini", "together"]:
+        for p in ["openrouter", "anthropic", "openai", "groq", "gemini", "together", "nvidia"]:
             if ai_gateway._get_api_key(self.db, self.tenant_id, p):
                 return True
         return False

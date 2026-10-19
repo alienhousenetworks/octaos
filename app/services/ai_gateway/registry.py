@@ -15,6 +15,7 @@ from app.services.ai_gateway.providers.base import (
 )
 from app.services.ai_gateway.providers.openrouter import OpenRouterAdapter
 from app.services.ai_gateway.providers.together import TogetherAdapter
+from app.services.ai_gateway.providers.nvidia import NvidiaAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class ModelRegistry:
         self.adapters: Dict[str, ProviderAdapter] = {
             "openrouter": OpenRouterAdapter(),
             "together": TogetherAdapter(),
+            "nvidia": NvidiaAdapter(),
         }
 
     @classmethod
@@ -42,6 +44,8 @@ class ModelRegistry:
         p = (provider or "").lower().strip()
         if p in ("togetherai", "together_ai", "togetherapi"):
             p = "together"
+        elif p in ("nim", "nvidia_nim"):
+            p = "nvidia"
         return self.adapters.get(p)
 
     def _get_api_key(self, db: Session, tenant_id: str, provider: str) -> str:
@@ -101,12 +105,14 @@ class ModelRegistry:
         provider_norm = provider.lower().strip()
         if provider_norm in ("togetherai", "together_ai", "togetherapi"):
             provider_norm = "together"
+        elif provider_norm in ("nim", "nvidia_nim"):
+            provider_norm = "nvidia"
 
         adapter = self.get_adapter(provider_norm)
         if not adapter:
             return {
                 "status": "incompatible",
-                "message": f"Provider '{provider}' is not supported. Use OpenRouter or Together AI.",
+                "message": f"Provider '{provider}' is not supported. Use OpenRouter, Together AI, or NVIDIA NIM.",
                 "capabilities": {},
                 "pricing": {},
                 "suggestions": [],
@@ -157,17 +163,33 @@ class ModelRegistry:
                 "pricing": {},
             }
 
-        # Check modality compatibility
-        target_modality = modality.lower()
-        if target_modality not in matched_model.modalities:
+        # Check modality compatibility (support both short names 'text', 'image', 'video' and full enum values)
+        target_raw = modality.lower().strip()
+        modality_aliases = {
+            "text": {ModalityType.TEXT_TO_TEXT.value, "text", "text_to_text"},
+            "image": {ModalityType.TEXT_TO_IMAGE.value, ModalityType.IMAGE_TO_IMAGE.value, "image", "text_to_image"},
+            "video": {ModalityType.TEXT_TO_VIDEO.value, ModalityType.IMAGE_TO_VIDEO.value, "video", "text_to_video"},
+            "text_to_text": {ModalityType.TEXT_TO_TEXT.value, "text", "text_to_text"},
+            "text_to_image": {ModalityType.TEXT_TO_IMAGE.value, "text_to_image"},
+            "image_to_image": {ModalityType.IMAGE_TO_IMAGE.value, "image_to_image"},
+            "text_to_video": {ModalityType.TEXT_TO_VIDEO.value, "text_to_video"},
+            "image_to_video": {ModalityType.IMAGE_TO_VIDEO.value, "image_to_video"},
+        }
+
+        expected_modalities = modality_aliases.get(target_raw, {target_raw})
+        is_compatible = any(m in expected_modalities for m in matched_model.modalities)
+        if not is_compatible and mode:
+            is_compatible = mode.lower().strip() in matched_model.modalities
+
+        if not is_compatible:
             # Incompatible modality
             compatible_suggestions = [
-                m.slug for m in catalog if target_modality in m.modalities
+                m.slug for m in catalog if any(mod in expected_modalities for mod in m.modalities)
             ][:3]
             return {
                 "status": "incompatible",
                 "message": (
-                    f"Model '{model_slug}' does not support {target_modality}. "
+                    f"Model '{model_slug}' does not support {target_raw}. "
                     f"Supported modalities: {', '.join(matched_model.modalities)}."
                 ),
                 "capabilities": matched_model.capabilities,
@@ -254,12 +276,14 @@ class ModelRegistry:
         # Check tenant keys
         has_openrouter = bool(self._get_api_key(db, tenant_id, "openrouter"))
         has_together = bool(self._get_api_key(db, tenant_id, "together"))
+        has_nvidia = bool(self._get_api_key(db, tenant_id, "nvidia"))
 
         # Default fallbacks per modality
         defaults = {
             "text": {
-                "openrouter": "anthropic/claude-3.5-sonnet",
-                "together": "deepseek-ai/DeepSeek-V3",
+                "openrouter": "meta-llama/llama-3.3-70b-instruct",
+                "together": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                "nvidia": "meta/llama-3.2-11b-vision-instruct",
             },
             "image": {
                 "openrouter": "recraft/recraft-v3",
@@ -272,7 +296,7 @@ class ModelRegistry:
         }
 
         # 1. If explicit provider and model specified
-        if p in ("openrouter", "together") and m:
+        if p in ("openrouter", "together", "nvidia") and m:
             api_key = self._get_api_key(db, tenant_id, p)
             if api_key:
                 # Fast check if model is usable
@@ -288,20 +312,32 @@ class ModelRegistry:
             fallback_reason = None
 
         # 2. Determine best provider
-        target_provider = p if p in ("openrouter", "together") and (has_openrouter if p == "openrouter" else has_together) else None
+        target_provider = None
+        if p in ("openrouter", "together", "nvidia"):
+            if p == "nvidia" and has_nvidia:
+                target_provider = "nvidia"
+            elif p == "together" and has_together:
+                target_provider = "together"
+            elif p == "openrouter" and has_openrouter:
+                target_provider = "openrouter"
+
         if not target_provider:
             if has_together and modality in ("image", "video"):
                 target_provider = "together"
+            elif has_nvidia and modality == "text":
+                target_provider = "nvidia"
             elif has_openrouter:
                 target_provider = "openrouter"
             elif has_together:
                 target_provider = "together"
+            elif has_nvidia:
+                target_provider = "nvidia"
             else:
                 # Last resort
                 target_provider = "openrouter"
 
         # 3. Pick default curated model for this provider and modality
         mod_defaults = defaults.get(modality, {})
-        resolved_model = mod_defaults.get(target_provider) or ("gpt-4o" if modality == "text" else "flux")
+        resolved_model = mod_defaults.get(target_provider) or ("meta-llama/llama-3.3-70b-instruct" if modality == "text" else "flux")
 
         return target_provider, resolved_model, fallback_reason

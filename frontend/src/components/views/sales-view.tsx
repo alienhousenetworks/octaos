@@ -85,8 +85,8 @@ export default function SalesView({
   const [promptRunning, setPromptRunning] = useState(false);
   const [promptLeadCount, setPromptLeadCount] = useState<number>(50);
   const [promptFreshness, setPromptFreshness] = useState('30_days');
-  const [selectedProvider, setSelectedProvider] = useState('openrouter');
-  const [selectedModel, setSelectedModel] = useState('meta-llama/llama-3.3-70b-instruct');
+  const [selectedProvider, setSelectedProvider] = useState('auto');
+  const [selectedModel, setSelectedModel] = useState('');
 
   // Business Profile State
   const [profile, setProfile] = useState<BusinessProfileData>({
@@ -172,9 +172,9 @@ export default function SalesView({
           case_studies: data.case_studies || '',
           offer_details: data.offer_details || '',
           extra_context: data.extra_context || '',
-          primary_source: data.primary_source || 'auto',
-          calendars: Array.isArray(data.calendars) ? data.calendars.join(', ') : data.calendars || '',
-          communication_channels: data.communication_channels || ['email', 'whatsapp'],
+          calendars: Array.isArray(data.calendars)
+            ? data.calendars.filter((c: any) => typeof c === 'string').join(', ')
+            : (typeof data.calendars === 'string' ? data.calendars : ''),
           sales_emails: Array.isArray(data.sales_emails) ? data.sales_emails.join(', ') : data.sales_emails || '',
           support_emails: Array.isArray(data.support_emails) ? data.support_emails.join(', ') : data.support_emails || '',
           lead_freshness: data.lead_freshness || '30_days',
@@ -465,19 +465,82 @@ export default function SalesView({
     }
   };
 
-  const handleDeleteLead = async (leadId: string) => {
+  const handleDeleteLead = async (leadId: string, skipConfirm = false) => {
+    if (!skipConfirm) {
+      const ok = await confirmAction(
+        'Permanently delete this prospect lead and remove it from your pipeline? This action cannot be undone.',
+        {
+          title: 'Delete Lead Account',
+          confirmLabel: 'Delete Lead',
+          destructive: true,
+        }
+      );
+      if (!ok) return;
+    }
+
+    setSalesActionLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/${leadId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        notify('Lead deleted successfully.');
+        setSalesLeads((prev) => prev.filter((l) => l.id !== leadId));
+        if (selectedLead?.id === leadId) {
+          setSelectedLead(null);
+        }
+        fetchLeads();
+        fetchData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        notify(err.detail || 'Failed to delete lead.');
+      }
+    } catch (e) {
+      console.error('Error deleting lead:', e);
+      notify('An error occurred while deleting the lead.');
+    } finally {
+      setSalesActionLoading(false);
+    }
+  };
+
+  const handleBulkDeleteLeads = async (leadIds: string[]) => {
+    if (!leadIds || leadIds.length === 0) return;
     const ok = await confirmAction(
-      'Mark this prospect account as closed-lost and archive from active pipeline?',
+      `Permanently delete ${leadIds.length} selected leads? This action cannot be undone.`,
       {
-        title: 'Disqualify & Archive Account',
-        confirmLabel: 'Archive Account',
+        title: 'Delete Selected Leads',
+        confirmLabel: `Delete ${leadIds.length} Leads`,
         destructive: true,
       }
     );
     if (!ok) return;
 
-    await handleUpdateStatus(leadId, 'closed_lost');
-    setSelectedLead(null);
+    setSalesActionLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_ids: leadIds }),
+      });
+      if (res.ok) {
+        notify(`${leadIds.length} leads deleted successfully.`);
+        const idSet = new Set(leadIds);
+        setSalesLeads((prev) => prev.filter((l) => !idSet.has(l.id)));
+        if (selectedLead && idSet.has(selectedLead.id)) {
+          setSelectedLead(null);
+        }
+        fetchLeads();
+        fetchData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        notify(err.detail || 'Failed to delete leads.');
+      }
+    } catch (e) {
+      console.error('Error bulk deleting leads:', e);
+      notify('An error occurred while deleting leads.');
+    } finally {
+      setSalesActionLoading(false);
+    }
   };
 
   const handleSendSalesOutreach = async (leadId: string) => {
@@ -741,6 +804,7 @@ export default function SalesView({
                 onSelectLead={(l) => setSelectedLead(l)}
                 selectedLeadId={selectedLead?.id}
                 onDeleteLead={handleDeleteLead}
+                onBulkDeleteLeads={handleBulkDeleteLeads}
                 onUpdateStatus={handleUpdateStatus}
                 onOpenCreateLead={() => setIsCreateLeadModalOpen(true)}
                 onOpenProspecting={() => selectSalesSection('prospecting')}

@@ -91,6 +91,7 @@ export default function WorkspaceScreen() {
   if (pathname === '/app/home') {
     return (
       <DashboardView
+        {...shared}
         metrics={workspace.metrics}
         timeline={workspace.timeline}
         queue={workspace.queue}

@@ -326,13 +326,15 @@ export default function OrchestratorView({
                     onValueChange={(val) => {
                       if (val) {
                         setOrchProvider(val);
-                        if (val === 'openrouter') setOrchModel('google/gemini-2.5-flash');
+                        if (val === 'openrouter') setOrchModel('meta-llama/llama-3.3-70b-instruct');
                         else if (val === 'together') setOrchModel('meta-llama/Llama-3.3-70B-Instruct-Turbo');
                         else if (val === 'groq') setOrchModel('llama-3.3-70b-versatile');
                         else if (val === 'grok') setOrchModel('grok-2-latest');
                         else if (val === 'anthropic') setOrchModel('claude-sonnet-4-6');
                         else if (val === 'openai') setOrchModel('gpt-4o');
                         else if (val === 'gemini') setOrchModel('gemini-2.5-pro');
+                        else if (val === 'nvidia') setOrchModel('meta/llama-3.3-70b-instruct');
+                        else if (val === 'auto') setOrchModel('');
                       }
                     }}
                   >
@@ -340,6 +342,8 @@ export default function OrchestratorView({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-popover border-border text-popover-foreground">
+                      <SelectItem value="auto">Auto / Default (.env)</SelectItem>
+                      <SelectItem value="nvidia">NVIDIA NIM</SelectItem>
                       <SelectItem value="openrouter">OpenRouter</SelectItem>
                       <SelectItem value="together">Together AI</SelectItem>
                       <SelectItem value="groq">Groq</SelectItem>
@@ -360,6 +364,7 @@ export default function OrchestratorView({
                     <SelectContent className="bg-popover border-border text-popover-foreground">
                       {orchProvider === 'openrouter' && (
                         <>
+                          <SelectItem value="meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B (Default)</SelectItem>
                           <SelectItem value="google/gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
                           <SelectItem value="google/gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
                           <SelectItem value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</SelectItem>
@@ -367,8 +372,15 @@ export default function OrchestratorView({
                           <SelectItem value="openai/gpt-4o-mini">GPT-4o-mini</SelectItem>
                           <SelectItem value="deepseek/deepseek-chat">DeepSeek Chat</SelectItem>
                           <SelectItem value="deepseek/deepseek-r1">DeepSeek R1</SelectItem>
-                          <SelectItem value="meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B</SelectItem>
                           <SelectItem value="qwen/qwen-2.5-72b-instruct">Qwen 2.5 72B</SelectItem>
+                        </>
+                      )}
+                      {orchProvider === 'nvidia' && (
+                        <>
+                          <SelectItem value="meta/llama-3.3-70b-instruct">Llama 3.3 70B (Default)</SelectItem>
+                          <SelectItem value="meta/llama-3.1-405b-instruct">Llama 3.1 405B</SelectItem>
+                          <SelectItem value="meta/llama-3.1-70b-instruct">Llama 3.1 70B</SelectItem>
+                          <SelectItem value="meta/llama-3.1-8b-instruct">Llama 3.1 8B</SelectItem>
                         </>
                       )}
                       {orchProvider === 'together' && (

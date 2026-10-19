@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 
 from app.services.sales_os.agents.base import BaseSalesAgent, AgentResult, EvidenceItem
 from app.models.deal_room import DealRoom, CompanySalesContext
+from app.services.sales_os.aso.qualification import qualify_account
+from app.services.sales_os.aso.state_machine import apply_transition
 
 
 class QualifierAgent(BaseSalesAgent):
@@ -46,85 +48,57 @@ class QualifierAgent(BaseSalesAgent):
             .first()
         )
         icp = ctx.icp_definitions if ctx else {}
-        target_industries = [i.lower() for i in icp.get("industries", ["saas", "technology", "manufacturing", "healthcare"])]
-
-        missing_info = []
-        scores = {}
-
-        # 1. Industry Fit
-        if deal_room.industry:
-            ind_lower = deal_room.industry.lower()
-            if any(ti in ind_lower or ind_lower in ti for ti in target_industries):
-                scores["industry_fit"] = 1.0
-            else:
-                scores["industry_fit"] = 0.4
-        else:
-            missing_info.append("industry_unknown")
-            scores["industry_fit"] = 0.2
-
-        # 2. Company Size Fit
-        if deal_room.employee_count:
-            if 20 <= deal_room.employee_count <= 2000:
-                scores["size_fit"] = 1.0
-            elif 5 <= deal_room.employee_count < 20:
-                scores["size_fit"] = 0.6
-            else:
-                scores["size_fit"] = 0.5
-        else:
-            missing_info.append("employee_count_unknown")
-            scores["size_fit"] = 0.3
-
-        # 3. Budget Fit
-        if deal_room.annual_revenue_usd:
-            if deal_room.annual_revenue_usd >= 1_000_000:
-                scores["budget_fit"] = 1.0
-            else:
-                scores["budget_fit"] = 0.6
-        else:
-            missing_info.append("revenue_unknown")
-            scores["budget_fit"] = 0.5
-
-        # Weighted ICP Fit (0.0 to 1.0)
-        icp_fit = (
-            scores["industry_fit"] * 0.40
-            + scores["size_fit"] * 0.35
-            + scores["budget_fit"] * 0.25
+        target_industries = list(icp.get("industries") or ["saas", "technology", "manufacturing", "healthcare"])
+        decision_record = qualify_account(
+            industry=deal_room.industry,
+            employee_count=deal_room.employee_count,
+            annual_revenue_usd=deal_room.annual_revenue_usd,
+            target_industries=target_industries,
+            timing_score=deal_room.timing_score,
         )
-
-        evidence_cov = 1.0 - (len(missing_info) * 0.25)
-        evidence_cov = max(0.2, evidence_cov)
-
-        if deal_room.timing_score:
-            timing = deal_room.timing_score
+        missing_info = list(decision_record.unknowns)
+        scores = decision_record.inputs
+        icp_fit = decision_record.fit_score
+        timing = deal_room.timing_score
+        evidence_cov = decision_record.confidence or 0.0
+        if icp_fit is None:
+            priority = 0.0
+        elif timing:
             priority = round(icp_fit * timing * evidence_cov, 3)
         else:
-            timing = None
-            missing_info.append("timing_unknown")
             priority = round(icp_fit * evidence_cov, 3)
-        deal_room.icp_fit_score = round(icp_fit, 3)
+        deal_room.icp_fit_score = 0.0 if icp_fit is None else round(icp_fit, 3)
         deal_room.priority_index = priority
 
-        is_qualified = icp_fit >= 0.55
-        deal_room.stage = "qualified" if is_qualified else "nurtured"
+        if decision_record.decision == "qualified":
+            event = "qualify_pass"
+        elif decision_record.decision == "needs_review":
+            event = "qualify_review"
+        else:
+            event = "qualify_fail"
+        transition = apply_transition(
+            deal_room,
+            event,
+            actor="sales.qualifier",
+            reason=decision_record.rationale,
+        )
         self.db.commit()
 
-        decision = "qualified" if is_qualified else "disqualified"
-        reasoning = (
-            f"Evaluated against ICP: Industry fit={scores['industry_fit']:.1f}, "
-            f"Size fit={scores['size_fit']:.1f}, Budget fit={scores['budget_fit']:.1f}. "
-            f"Composite ICP Score: {icp_fit:.2f}, Priority Index: {priority:.2f}."
-        )
+        decision = decision_record.decision
+        reasoning = decision_record.rationale
+        fit_text = "unknown" if icp_fit is None else f"{icp_fit:.2f}"
 
         elapsed = int((time.time() - start_time) * 1000)
         return AgentResult(
             agent_id=self.agent_id,
             tenant_id=self.tenant_id,
             deal_room_id=deal_room.id,
+            contract_id="sales.qualifier",
             decision=decision,
             confidence=round(evidence_cov, 2),
             evidence=[
                 EvidenceItem(
-                    claim=f"Company {deal_room.company_name} matches ICP criteria with score {icp_fit:.2f}",
+                    claim=f"Company {deal_room.company_name} ICP fit is {fit_text}. {reasoning}",
                     source="icp_evaluator",
                     confidence=evidence_cov,
                 )
@@ -132,12 +106,14 @@ class QualifierAgent(BaseSalesAgent):
             source="deal_room_evaluator",
             reasoning_summary=reasoning,
             missing_information=missing_info,
-            recommended_next_step="account_research" if is_qualified else "enrich_further",
+            recommended_next_step="account_research" if decision == "qualified" else "enrich_further",
             data={
-                "icp_fit_score": round(icp_fit, 3),
+                "icp_fit_score": None if icp_fit is None else round(icp_fit, 3),
                 "timing_score": None if timing is None else round(timing, 3),
                 "priority_index": priority,
                 "dimension_scores": scores,
+                "qualification": decision_record.model_dump(),
+                "transition": transition,
             },
             execution_time_ms=elapsed,
         )

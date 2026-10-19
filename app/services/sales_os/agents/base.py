@@ -38,6 +38,8 @@ class AgentResult(BaseModel, Generic[T]):
     recommended_next_step: str
     data: Optional[T] = None
     execution_time_ms: int = 0
+    contract_id: Optional[str] = None
+    prompt_version: Optional[str] = None
 
 
 class BaseSalesAgent:

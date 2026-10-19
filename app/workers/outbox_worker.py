@@ -15,7 +15,7 @@ class OutboxWorker:
         self.db = db
         self.worker_id = worker_id
 
-    async def process_batch(self, batch_size: int = 20) -> int:
+    async def process_batch(self, batch_size: int = 20, capability_prefix: str | None = None) -> int:
         """
         Fetches staged outbox rows using FOR UPDATE SKIP LOCKED with short lease.
         Prevents dual dispatch and handles unacked crash recovery safely.
@@ -23,29 +23,36 @@ class OutboxWorker:
         """
         now = datetime.now(timezone.utc)
         lease_window = now + timedelta(seconds=60)
+        prefix_clause = ""
+        params = {"now": now, "batch_size": batch_size}
+        if capability_prefix:
+            prefix_clause = " AND capability_id LIKE :prefix"
+            params["prefix"] = f"{capability_prefix}%"
 
         # 1. Acquire leased rows
         if self.db.bind and self.db.bind.dialect.name == "postgresql":
-            stmt = text("""
+            stmt = text(f"""
                 SELECT id FROM side_effect_outbox
                 WHERE status IN ('STAGED', 'FAILED')
                   AND (lease_expires_at IS NULL OR lease_expires_at < :now)
                   AND retry_count < max_retries
+                  {prefix_clause}
                 ORDER BY staged_at ASC
                 LIMIT :batch_size
                 FOR UPDATE SKIP LOCKED;
             """)
         else:
-            stmt = text("""
+            stmt = text(f"""
                 SELECT id FROM side_effect_outbox
                 WHERE status IN ('STAGED', 'FAILED')
                   AND (lease_expires_at IS NULL OR lease_expires_at < :now)
                   AND retry_count < max_retries
+                  {prefix_clause}
                 ORDER BY staged_at ASC
                 LIMIT :batch_size;
             """)
 
-        rows = self.db.execute(stmt, {"now": now, "batch_size": batch_size}).fetchall()
+        rows = self.db.execute(stmt, params).fetchall()
         if not rows:
             return 0
 

@@ -405,7 +405,16 @@ def update_business_profile(
         db.add(profile)
     
     for field, value in profile_in.dict(exclude_unset=True).items():
-        setattr(profile, field, value)
+        if field == "calendars" and value is not None and isinstance(profile.calendars, list):
+            existing_events = [c for c in profile.calendars if isinstance(c, dict)]
+            if isinstance(value, list):
+                new_urls = [c for c in value if isinstance(c, str)]
+                new_events = [c for c in value if isinstance(c, dict)]
+                setattr(profile, field, new_urls + (new_events or existing_events))
+            else:
+                setattr(profile, field, value)
+        else:
+            setattr(profile, field, value)
         
     db.commit()
     db.refresh(profile)
@@ -482,7 +491,7 @@ async def run_prompt_agent(
 
     actual_provider = req.provider
     actual_model = req.model
-    if not actual_provider or actual_provider.lower() in ("auto", "none"):
+    if not actual_provider or actual_provider.lower() in ("auto", "none", "default", "env_default", "system_default"):
         from app.services.ai_gateway import ai_gateway
         configured_providers = ai_gateway._get_configured_providers(db, tenant_id)
         if configured_providers:
@@ -493,6 +502,8 @@ async def run_prompt_agent(
             except Exception:
                 actual_provider = None
                 actual_model = None
+    elif actual_provider.lower() in ("nvidia", "nim", "nvidia_nim") and not actual_model:
+        actual_model = "meta/llama-3.3-70b-instruct"
 
     actual_freshness = req.freshness or "30_days"
 
@@ -574,7 +585,7 @@ async def run_v3_workflow(
     # Check if provider is auto
     actual_provider = req.provider
     actual_model = req.model
-    if not actual_provider or actual_provider.lower() in ("auto", "none"):
+    if not actual_provider or actual_provider.lower() in ("auto", "none", "default", "env_default", "system_default"):
         from app.services.ai_gateway import ai_gateway
         configured_providers = ai_gateway._get_configured_providers(db, tenant_id)
         if configured_providers:
@@ -585,6 +596,8 @@ async def run_v3_workflow(
             except Exception:
                 actual_provider = None
                 actual_model = None
+    elif actual_provider.lower() in ("nvidia", "nim", "nvidia_nim") and not actual_model:
+        actual_model = "meta/llama-3.3-70b-instruct"
     
     actual_freshness = req.freshness or getattr(profile, "lead_freshness", "30_days") or "30_days"
     
@@ -1001,4 +1014,61 @@ async def clarify_and_reply(
     if result.get("status") == "error":
         raise HTTPException(status_code=404, detail=result.get("message", "Error submitting clarification"))
     return result
+
+
+class BulkDeleteLeadsRequest(BaseModel):
+    lead_ids: List[str]
+
+
+@router.delete("/{lead_id}")
+def delete_lead(
+    lead_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.LEADS, Action.DELETE)),
+) -> Any:
+    """Permanently delete a lead by ID."""
+    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    try:
+        from app.models.sales_intelligence import SourceOutcome
+        db.query(SourceOutcome).filter(SourceOutcome.lead_id == lead_id).update(
+            {SourceOutcome.lead_id: None}, synchronize_session=False
+        )
+    except Exception:
+        pass
+
+    db.delete(lead)
+    db.commit()
+    return {"status": "success", "message": "Lead deleted successfully", "id": lead_id}
+
+
+@router.post("/bulk-delete")
+def bulk_delete_leads(
+    payload: BulkDeleteLeadsRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.LEADS, Action.DELETE)),
+) -> Any:
+    """Permanently delete multiple leads by IDs in a single operation."""
+    if not payload.lead_ids:
+        return {"status": "success", "deleted_count": 0}
+
+    try:
+        from app.models.sales_intelligence import SourceOutcome
+        db.query(SourceOutcome).filter(SourceOutcome.lead_id.in_(payload.lead_ids)).update(
+            {SourceOutcome.lead_id: None}, synchronize_session=False
+        )
+    except Exception:
+        pass
+
+    deleted_count = db.query(models.Lead).filter(
+        models.Lead.id.in_(payload.lead_ids),
+        models.Lead.tenant_id == tenant_id
+    ).delete(synchronize_session=False)
+
+    db.commit()
+    return {"status": "success", "deleted_count": deleted_count}
 

@@ -9,7 +9,7 @@ Enforces deterministic business guardrails in pure Python code:
 """
 import logging
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 
 from app.services.sales_os.governance.policy_engine import SalesPolicyEngine
@@ -26,6 +26,32 @@ class PolicyDecision(BaseModel):
     violations: List[str] = Field(default_factory=list)
     groundedness_score: Optional[float] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    canonical: str = ""
+    rule_ids: List[str] = Field(default_factory=list)
+    scope: str = "tenant"
+    llm_may_override: bool = False
+
+    @model_validator(mode="after")
+    def bind_contract(self) -> "PolicyDecision":
+        mapping = {
+            "auto_execute": "allow",
+            "allow": "allow",
+            "blocked": "deny",
+            "deny": "deny",
+            "queue_for_approval": "require_approval",
+            "require_approval": "require_approval",
+        }
+        self.canonical = mapping.get(self.decision, "require_approval")
+        self.llm_may_override = False
+        if not self.rule_ids:
+            defaults = {
+                "BLOCKED": ["policy.blocked"],
+                "APPROVAL_REQUIRED_L1": ["policy.approval_required"],
+                "ESCALATE_L0": ["pricing.discount_hard_cap"],
+                "AUTO_APPROVED_L2": ["policy.authorized"],
+            }
+            self.rule_ids = defaults.get(self.status, ["policy.unspecified"])
+        return self
 
 
 class EnterpriseSalesPolicyEngine(SalesPolicyEngine):
@@ -111,6 +137,7 @@ class EnterpriseSalesPolicyEngine(SalesPolicyEngine):
                 reason=f"Outreach blocked by suppression registry: {supp_reason}",
                 requires_approval=False,
                 violations=violations,
+                rule_ids=["suppression.precedence"],
             )
 
         # 2. Frequency Limit Check
@@ -176,11 +203,16 @@ class EnterpriseSalesPolicyEngine(SalesPolicyEngine):
             is_enterprise_tier=is_enterprise_tier,
         )
 
-        status = "AUTO_APPROVED_L2" if base_decision["decision"] == "auto_execute" else "APPROVAL_REQUIRED_L1"
+        status = {
+            "auto_execute": "AUTO_APPROVED_L2",
+            "queue_for_approval": "APPROVAL_REQUIRED_L1",
+            "blocked": "BLOCKED",
+        }.get(base_decision["decision"], "APPROVAL_REQUIRED_L1")
         return PolicyDecision(
             status=status,
             decision=base_decision["decision"],
             reason=base_decision["reason"],
             requires_approval=base_decision["requires_approval"],
             groundedness_score=groundedness_score,
+            rule_ids=list(base_decision.get("rule_ids") or []),
         )

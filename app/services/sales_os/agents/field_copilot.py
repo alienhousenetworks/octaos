@@ -20,6 +20,8 @@ from app.schemas.sales_swarm import (
     StructuredMeetingNote,
 )
 from app.services.knowledge_os.entity_extractor import extract_json_safe
+from app.services.sales_os.aso.field_extract import extract_field_note, grounded_in_transcript
+from app.services.sales_os.contracts.registry import render_prompts
 
 logger = logging.getLogger(__name__)
 
@@ -52,53 +54,45 @@ class FieldCopilotAgent(BaseSalesAgent):
             )
 
         if not raw_transcript:
-            raw_transcript = (
-                "Met with Vikram Sharma and the VP of Operations today on-site. They are really struggling with "
-                "manual dispatch tracking and drivers complaining about bad routes. They currently evaluate a local competitor "
-                "RouteFleet but find their software slow. Budget is around $35,000 for the year. They want a demo next Tuesday. "
-                "I promised to send our route efficiency benchmark and a draft pilot quote by tomorrow morning."
+            empty = FieldVisitSummary(
+                deal_room_id=deal_room.id,
+                rep_id=rep_id,
+                audio_language_detected=lang,
+                raw_transcript="",
+                structured_note=StructuredMeetingNote(),
+                follow_up_draft_email="",
+                follow_up_draft_whatsapp="",
+            )
+            return AgentResult(
+                agent_id=self.agent_id,
+                tenant_id=self.tenant_id,
+                deal_room_id=deal_room.id,
+                contract_id="sales.field_copilot",
+                decision="insufficient_evidence",
+                confidence=0.0,
+                reasoning_summary="No voice transcript was supplied.",
+                recommended_next_step="collect_transcript",
+                data=empty,
+                execution_time_ms=int((time.time() - start_time) * 1000),
             )
 
-        prompt = f"""You are the Field Copilot AI for enterprise sales reps.
-Analyze this voice note from an on-site client visit at {deal_room.company_name}.
-Extract structured CRM facts and draft follow-up messages.
-
-VOICE NOTE TRANSCRIPT:
-\"\"\"{raw_transcript}\"\"\"
-
-Respond with a JSON object containing:
-- "attendees": list of strings (names and titles mentioned)
-- "client_pain_points": list of strings (problems mentioned)
-- "competitor_mentions": list of strings (rival tools mentioned)
-- "budget_discussed": float or null (numeric amount in USD if mentioned)
-- "timeline_stated": string or null (e.g. "next Tuesday")
-- "commitments_made_by_rep": list of strings (what rep promised)
-- "commitments_made_by_client": list of strings (what client agreed to)
-- "recommended_stage": string (e.g. "qualified", "proposal", "meeting_booked")
-- "email_subject": string
-- "email_body": string (warm, concise follow-up under 150 words referencing mutual commitments)
-- "whatsapp_body": string (brief mobile check-in under 50 words)
-
-Only return valid JSON."""
-
+        rendered = render_prompts(
+            "sales.field_copilot",
+            {"company_name": deal_room.company_name, "transcript": raw_transcript},
+        )
+        data = extract_field_note(raw_transcript)
         try:
-            llm_resp = await self.llm.complete(prompt)
-            data = extract_json_safe(llm_resp)
+            llm_resp = await self.llm.complete(
+                prompt=rendered["task_prompt"],
+                system_prompt=rendered["system_prompt"],
+            )
+            model_data = extract_json_safe(llm_resp)
+            if isinstance(model_data, dict):
+                data = grounded_in_transcript(model_data, raw_transcript)
+                if not data.get("client_pain_points") and not data.get("budget_discussed"):
+                    data = extract_field_note(raw_transcript)
         except Exception as e:
-            logger.warning("LLM extraction fallback in FieldCopilotAgent: %s", e)
-            data = {
-                "attendees": ["Operations Team"],
-                "client_pain_points": ["Manual dispatch tracking", "Suboptimal routing"],
-                "competitor_mentions": ["RouteFleet"],
-                "budget_discussed": 35000.0,
-                "timeline_stated": "Next Tuesday",
-                "commitments_made_by_rep": ["Send benchmark study", "Draft pilot quote"],
-                "commitments_made_by_client": ["Attend Tuesday demo"],
-                "recommended_stage": "proposal",
-                "email_subject": f"Great meeting today regarding {deal_room.company_name}'s logistics workflow",
-                "email_body": f"Hi Team,\n\nIt was a pleasure meeting on-site today. As discussed, I'll share our routing benchmark and pilot proposal tomorrow morning.\n\nBest,\nField Team",
-                "whatsapp_body": f"Hi Vikram, great catching up at your office today! Shared the notes via email, looking forward to Tuesday.",
-            }
+            logger.warning("Field copilot used transcript extraction: %s", e)
 
         note = StructuredMeetingNote(
             attendees=data.get("attendees", []),
@@ -147,6 +141,8 @@ Only return valid JSON."""
             agent_id=self.agent_id,
             tenant_id=self.tenant_id,
             deal_room_id=deal_room.id,
+            contract_id="sales.field_copilot",
+            prompt_version=rendered["prompt_version"],
             decision="ready",
             confidence=0.92,
             evidence=[

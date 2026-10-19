@@ -122,6 +122,34 @@ def tier4_compliance(
     return _tier(4, "unknown", "permission", "permission_unknown", channel=channel)
 
 
+def tier5_scoring(
+    components: dict[str, float | None],
+    *,
+    weights: dict[str, float] | None = None,
+    flags: dict[str, bool] | None = None,
+    convergence_bonus: float = 0.0,
+) -> dict:
+    from app.services.sales_os.scoring.engine import score_opportunity
+    result = score_opportunity(
+        components,
+        weights=weights,
+        flags=flags,
+        convergence_bonus=convergence_bonus,
+    )
+    score = result.get("score")
+    status = "passed" if score is not None and score >= NURTURE_SCORE else ("nurture" if score is not None else "unknown")
+    return _tier(
+        5,
+        status,
+        "opportunity_scoring",
+        score=score,
+        score_version=result.get("score_version"),
+        components=result.get("components"),
+        explanation=result.get("explanation"),
+        details=result,
+    )
+
+
 def tier6_state(
     *,
     tiers: list[dict],

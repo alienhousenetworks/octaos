@@ -42,6 +42,29 @@ def test_dynamic_routing_bulk():
     assert provider == "gemini"
     assert "flash" in model
 
+def test_default_model_selection_llama_70b():
+    from unittest.mock import patch
+    from app.core.config import settings
+    with patch.object(settings, "DEFAULT_AI_PROVIDER", "openrouter"), patch.object(settings, "DEFAULT_AI_MODEL", "meta-llama/llama-3.3-70b-instruct"):
+        provider, model = AIRoutingEngine.selectProvider(
+            configured_providers=["openrouter", "openai", "anthropic"],
+            complexity="medium",
+            realtime=False,
+            bulk=False
+        )
+        assert provider == "openrouter"
+        assert model == "meta-llama/llama-3.3-70b-instruct"
+
+    with patch.object(settings, "DEFAULT_AI_PROVIDER", "nvidia"), patch.object(settings, "DEFAULT_AI_MODEL", "meta/llama-3.3-70b-instruct"):
+        provider_nv, model_nv = AIRoutingEngine.selectProvider(
+            configured_providers=["nvidia", "openrouter"],
+            complexity="medium",
+            realtime=False,
+            bulk=False
+        )
+        assert provider_nv == "nvidia"
+        assert model_nv == "meta/llama-3.3-70b-instruct"
+
 def test_prompt_caching_hashing():
     prompt = "Generate a daily special post for a restaurant."
     sys_prompt = "You are a marketing AI."

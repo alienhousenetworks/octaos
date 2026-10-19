@@ -37,6 +37,10 @@ class MetricsPayload(BaseModel):
     raw_ticket_distribution: Dict[str, int] = Field(default_factory=dict)
     raw_channel_performance: List[Dict[str, Any]] = Field(default_factory=list)
     raw_agent_activity: Dict[str, int] = Field(default_factory=dict)
+    raw_support_metrics: Dict[str, Any] = Field(default_factory=dict)
+    raw_hr_metrics: Dict[str, Any] = Field(default_factory=dict)
+    raw_deltas: Dict[str, Optional[float]] = Field(default_factory=dict)
+
 
 
 class Finding(BaseModel):

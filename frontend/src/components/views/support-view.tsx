@@ -25,7 +25,10 @@ import {
   Eye, 
   RefreshCw,
   ExternalLink,
-  ShieldAlert
+  ShieldAlert,
+  Sliders,
+  History,
+  X
 } from 'lucide-react';
 import SupportWidget from '@/components/support-widget';
 
@@ -44,7 +47,7 @@ export default function SupportView({
   fetchData,
   tenantId,
 }: SupportViewProps) {
-  const [activeMainTab, setActiveMainTab] = useState<'tickets' | 'widget'>('tickets');
+  const [activeMainTab, setActiveMainTab] = useState<'tickets' | 'widget' | 'studio'>('tickets');
   const [ticketFilter, setTicketFilter] = useState<'all' | 'pending_human' | 'human_handling' | 'resolved'>('all');
   
   // Support states
@@ -58,6 +61,27 @@ export default function SupportView({
   // Agent Presence States
   const [isAgentOnline, setIsAgentOnline] = useState<boolean>(true);
   const [presenceSaving, setPresenceSaving] = useState(false);
+
+  // Support Agent Studio States
+  const [studioConfig, setStudioConfig] = useState({
+    agent_name: 'Ava',
+    company_name: 'Acme Technologies',
+    agent_avatar: 'bot',
+    tone: 'professional_friendly',
+    support_email: 'support@acme.com',
+    email_signature: 'Best regards,\nAva & Support Team',
+    whatsapp_welcome: 'Hello! Welcome to Support. How can we help you today?',
+    handoff_trigger_message: 'Connecting you with our support team specialist...',
+    sla_timeout_seconds: 300,
+    sla_escalation_message: 'Our human agents are currently assisting other clients. We have escalated your request to a high-priority ticket (#{ticket_id}). Our team will reach out shortly.',
+  });
+  const [studioLoading, setStudioLoading] = useState(false);
+  const [studioSaving, setStudioSaving] = useState(false);
+
+  // Unified Customer History State
+  const [customerHistory, setCustomerHistory] = useState<any | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
 
   // Widget & Support Settings
   const [supportSettings, setSupportSettings] = useState({
@@ -78,6 +102,7 @@ export default function SupportView({
       fetchTickets();
       fetchSupportSettings();
       fetchAgentPresence();
+      fetchStudioConfig();
     }
   }, [token]);
 
@@ -217,6 +242,64 @@ export default function SupportView({
       console.error(e);
     } finally {
       setSettingsSaving(false);
+    }
+  };
+
+  const fetchStudioConfig = async () => {
+    if (!token) return;
+    setStudioLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/support/studio/config`);
+      if (res.ok) {
+        const data = await res.json();
+        setStudioConfig(prev => ({ ...prev, ...data }));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setStudioLoading(false);
+    }
+  };
+
+  const saveStudioConfig = async () => {
+    if (!token) return;
+    setStudioSaving(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/support/studio/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(studioConfig),
+      });
+      if (res.ok) {
+        notify('Support Agent Studio configuration saved successfully!');
+      } else {
+        const err = await res.json();
+        notify(`Failed to save: ${err.detail || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      notify('Failed to save Studio configuration.');
+    } finally {
+      setStudioSaving(false);
+    }
+  };
+
+  const fetchCustomerHistory = async (customerId: string) => {
+    if (!token || !customerId) return;
+    setLoadingHistory(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/support/customers/${customerId}/history`);
+      if (res.ok) {
+        const data = await res.json();
+        setCustomerHistory(data);
+        setHistoryDrawerOpen(true);
+      } else {
+        notify('Could not load unified customer history.');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
@@ -381,6 +464,16 @@ export default function SupportView({
             >
               <Code size={13} /> Embed Widget
             </button>
+            <button
+              onClick={() => setActiveMainTab('studio')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 ${
+ activeMainTab === 'studio'
+ ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+ : 'text-gray-400 hover:text-white'
+ }`}
+            >
+              <Sliders size={13} /> Support Agent Studio
+            </button>
           </div>
         </div>
       </div>
@@ -522,7 +615,7 @@ export default function SupportView({
                         {selectedTicket.channel}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-400 mt-1 flex flex-wrap gap-3">
+                    <div className="text-xs text-gray-400 mt-1 flex flex-wrap gap-3 items-center">
                       {selectedTicket.customer_name && (
                         <span>👤 <strong className="text-gray-300">{selectedTicket.customer_name}</strong></span>
                       )}
@@ -531,6 +624,14 @@ export default function SupportView({
                       )}
                       {selectedTicket.customer_phone && (
                         <span>📱 {selectedTicket.customer_phone}</span>
+                      )}
+                      {selectedTicket.customer_id && (
+                        <button
+                          onClick={() => fetchCustomerHistory(selectedTicket.customer_id)}
+                          className="px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30 text-xs font-semibold hover:bg-blue-500/25 flex items-center gap-1 transition-colors"
+                        >
+                          <History size={11} /> Unified History
+                        </button>
                       )}
                     </div>
                   </div>
@@ -599,13 +700,14 @@ export default function SupportView({
  }`}
                         >
                           <p className="whitespace-pre-wrap">{m.content}</p>
-                          <span
-                            className={`text-xs mt-1 block text-right font-medium ${
- isAgent ? 'text-blue-200' : 'text-gray-500'
- }`}
-                          >
-                            {m.created_at ? new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                          </span>
+                          <div className="flex items-center justify-between gap-3 mt-1.5 pt-1 border-t border-white/10 text-xs">
+                            <span className={isAgent ? 'text-blue-200' : 'text-gray-400'}>
+                              {m.channel ? `${m.channel.toUpperCase()}` : ''} {m.delivery_status ? `· ${m.delivery_status}` : ''}
+                            </span>
+                            <span className={isAgent ? 'text-blue-200 font-medium' : 'text-gray-500'}>
+                              {m.created_at ? new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     );
@@ -791,6 +893,252 @@ export default function SupportView({
             </Card>
           </div>
 
+        </div>
+      )}
+
+      {/* VIEW 3: SUPPORT AGENT STUDIO */}
+      {activeMainTab === 'studio' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0 overflow-y-auto">
+          {/* Left Panel: Agent Persona & Brand Customization - 7 Cols */}
+          <div className="lg:col-span-7 space-y-5">
+            <Card className="glass-panel border-white/5 p-6 rounded-3xl space-y-5">
+              <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Sliders size={18} className="text-blue-400" /> Support Agent Persona & Branding
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Configure your tenant's dedicated AI support agent persona, communication tone, and channel signatures.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={saveStudioConfig}
+                    disabled={studioSaving}
+                    className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold h-8 px-4 rounded-xl shadow-lg shadow-blue-500/20"
+                  >
+                    {studioSaving ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                    {studioSaving ? 'Saving...' : 'Save Studio Config'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Form Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">Agent Name</label>
+                  <Input
+                    type="text"
+                    value={studioConfig.agent_name}
+                    onChange={e => setStudioConfig({ ...studioConfig, agent_name: e.target.value })}
+                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl"
+                    placeholder="e.g. Ava, Maya, Nova"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">Company / Brand Name</label>
+                  <Input
+                    type="text"
+                    value={studioConfig.company_name}
+                    onChange={e => setStudioConfig({ ...studioConfig, company_name: e.target.value })}
+                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl"
+                  />
+                </div>
+              </div>
+
+              {/* Tone & Avatar Selector */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">Communication Tone</label>
+                  <select
+                    value={studioConfig.tone}
+                    onChange={e => setStudioConfig({ ...studioConfig, tone: e.target.value })}
+                    className="w-full h-9 bg-gray-900 border border-gray-800 text-white text-xs rounded-xl px-3 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="professional_friendly">Professional & Friendly</option>
+                    <option value="concise_technical">Concise & Technical</option>
+                    <option value="empathetic_support">Empathetic & Caring</option>
+                    <option value="formal_enterprise">Formal Enterprise</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">Agent Avatar Icon</label>
+                  <select
+                    value={studioConfig.agent_avatar}
+                    onChange={e => setStudioConfig({ ...studioConfig, agent_avatar: e.target.value })}
+                    className="w-full h-9 bg-gray-900 border border-gray-800 text-white text-xs rounded-xl px-3 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="bot">Bot / Assistant</option>
+                    <option value="sparkles">AI Sparkles</option>
+                    <option value="headphones">Support Specialist</option>
+                    <option value="user">Human Representative</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Email Support Display & Signature */}
+              <div className="space-y-3 border-t border-gray-800 pt-3">
+                <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wider">Email Channel Identity</h4>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Inbound / Reply-to Email</label>
+                  <Input
+                    type="email"
+                    value={studioConfig.support_email}
+                    onChange={e => setStudioConfig({ ...studioConfig, support_email: e.target.value })}
+                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl"
+                    placeholder="support@company.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Email Outbound Signature</label>
+                  <Textarea
+                    value={studioConfig.email_signature}
+                    onChange={e => setStudioConfig({ ...studioConfig, email_signature: e.target.value })}
+                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl min-h-[70px] resize-none"
+                    placeholder="Best regards,\nYour Support Team"
+                  />
+                </div>
+              </div>
+
+              {/* WhatsApp Welcome */}
+              <div className="space-y-3 border-t border-gray-800 pt-3">
+                <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wider">WhatsApp Channel Greeting</h4>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Welcome Greeting Message</label>
+                  <Textarea
+                    value={studioConfig.whatsapp_welcome}
+                    onChange={e => setStudioConfig({ ...studioConfig, whatsapp_welcome: e.target.value })}
+                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl min-h-[60px] resize-none"
+                  />
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Right Panel: Human Handoff & SLA Escalation Policies - 5 Cols */}
+          <div className="lg:col-span-5 space-y-5">
+            <Card className="glass-panel border-white/5 p-6 rounded-3xl space-y-5">
+              <div className="border-b border-gray-800 pb-3">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Headphones size={18} className="text-emerald-400" /> Human Escalation & SLA
+                </h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  Control how the AI transitions ownership to humans across WhatsApp, Email, and Web Widget.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">Handoff Acknowledgment Message</label>
+                  <p className="text-xs text-gray-500 mb-1.5">Sent immediately when `/human` is typed or handoff is triggered.</p>
+                  <Textarea
+                    value={studioConfig.handoff_trigger_message}
+                    onChange={e => setStudioConfig({ ...studioConfig, handoff_trigger_message: e.target.value })}
+                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl min-h-[60px] resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">Escalation SLA Timeout (Seconds)</label>
+                  <p className="text-xs text-gray-500 mb-1.5">Default 300s (5 minutes). If no human agent claims the ticket before timeout, it automatically escalates to a priority ticket.</p>
+                  <Input
+                    type="number"
+                    value={studioConfig.sla_timeout_seconds}
+                    onChange={e => setStudioConfig({ ...studioConfig, sla_timeout_seconds: parseInt(e.target.value) || 300 })}
+                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">SLA Timeout Escalation Notice</label>
+                  <p className="text-xs text-gray-500 mb-1.5">Sent to the customer when the 5-minute timer expires and team is alerted.</p>
+                  <Textarea
+                    value={studioConfig.sla_escalation_message}
+                    onChange={e => setStudioConfig({ ...studioConfig, sla_escalation_message: e.target.value })}
+                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl min-h-[70px] resize-none"
+                  />
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-blue-950/20 border border-blue-800/30 text-xs text-blue-300 space-y-1.5">
+                  <div className="font-bold flex items-center gap-1.5 text-blue-200">
+                    <ShieldAlert size={14} /> Telegram & Priority Ticket Escalation
+                  </div>
+                  <p className="text-xs leading-relaxed text-blue-300/80">
+                    When escalation triggers, OctaOS broadcasts ticket details and conversation transcript to your configured Telegram Operations Group and sets the ticket priority to <span className="text-rose-400 font-bold">HIGH</span>.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* Customer Unified Cross-Channel History Modal */}
+      {historyDrawerOpen && customerHistory && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-gray-950 border border-gray-800 rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <History size={18} className="text-blue-400" />
+                <h3 className="font-bold text-white text-sm">Unified Customer Profile & Cross-Channel History</h3>
+              </div>
+              <button
+                onClick={() => setHistoryDrawerOpen(false)}
+                className="text-gray-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-5">
+              {/* Profile Card */}
+              <div className="p-4 rounded-2xl bg-gray-900/60 border border-gray-800 space-y-2">
+                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Canonical Profile</h4>
+                <div className="text-sm font-bold text-white">{customerHistory.customer?.name || 'Customer'}</div>
+                <div className="flex flex-wrap gap-3 text-xs text-gray-300">
+                  {customerHistory.customer?.primary_email && <span>✉️ {customerHistory.customer.primary_email}</span>}
+                  {customerHistory.customer?.primary_phone && <span>📱 {customerHistory.customer.primary_phone}</span>}
+                </div>
+              </div>
+
+              {/* Verified Identities */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Linked Channels & Identities</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {customerHistory.identities?.map((id: any) => (
+                    <div key={id.id} className="p-3 rounded-xl bg-gray-900/40 border border-gray-800 text-xs">
+                      <div className="font-bold text-white flex items-center gap-1.5 uppercase">
+                        {id.channel === 'whatsapp' ? '🟢 WhatsApp' : id.channel === 'email' ? '✉️ Email' : '🌐 Widget'}
+                      </div>
+                      <div className="text-gray-400 text-xs mt-0.5 truncate">{id.identifier}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Unified Timeline */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Cross-Channel Tickets ({customerHistory.tickets?.length || 0})</h4>
+                <div className="space-y-2">
+                  {customerHistory.tickets?.map((t: any) => (
+                    <div key={t.id} className="p-3.5 rounded-xl bg-gray-900/30 border border-gray-800 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white text-xs">{t.subject}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 uppercase font-bold border border-blue-500/20">
+                          {t.channel}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-400">
+                        <span>Status: <strong className="text-gray-300">{t.status}</strong> · Owner: {t.owner_type || 'ai'}</span>
+                        <span>{new Date(t.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

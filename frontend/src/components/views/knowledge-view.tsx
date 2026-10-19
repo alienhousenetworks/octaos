@@ -30,6 +30,10 @@ import {
   Trash2,
   Upload,
   X,
+  Database,
+  ShieldCheck,
+  Key,
+  Server,
 } from 'lucide-react';
 
 interface KnowledgeViewProps {
@@ -43,7 +47,7 @@ interface KnowledgeViewProps {
 type Kind = 'file' | 'web' | 'text' | 'directive';
 type KindFilter = 'all' | Kind;
 type RightPane = 'read' | 'add';
-type AddTab = 'upload' | 'website' | 'text' | 'directives';
+type AddTab = 'upload' | 'website' | 'text' | 'directives' | 'connectors';
 
 const DEPARTMENTS = ['General', 'Marketing', 'Sales', 'HR', 'Support'];
 
@@ -198,6 +202,17 @@ export default function KnowledgeView({ token, API_URL, fetchWithAuth, fetchData
   const [sources, setSources] = useState<any[]>([]);
   const [isLoadingSources, setIsLoadingSources] = useState(false);
 
+  const [connectors, setConnectors] = useState<any[]>([]);
+  const [isLoadingConnectors, setIsLoadingConnectors] = useState(false);
+  const [connName, setConnName] = useState('');
+  const [connSlug, setConnSlug] = useState('');
+  const [connType, setConnType] = useState('rest_api');
+  const [connEndpoint, setConnEndpoint] = useState('');
+  const [connSecret, setConnSecret] = useState('');
+  const [connDept, setConnDept] = useState('General');
+  const [isTestingConnector, setIsTestingConnector] = useState(false);
+  const [testResult, setTestResult] = useState<any>(null);
+
   const toast = pushToast;
 
   const fetchSources = useCallback(async () => {
@@ -213,9 +228,133 @@ export default function KnowledgeView({ token, API_URL, fetchWithAuth, fetchData
     }
   }, [fetchWithAuth, API_URL, token]);
 
+  const fetchConnectors = useCallback(async () => {
+    if (!token) return;
+    setIsLoadingConnectors(true);
+    try {
+      const response = await fetchWithAuth(`${API_URL}/knowledge/connectors`);
+      if (response.ok) setConnectors(await response.json());
+    } catch {
+      /* ignore */
+    } finally {
+      setIsLoadingConnectors(false);
+    }
+  }, [fetchWithAuth, API_URL, token]);
+
   useEffect(() => {
     fetchSources();
-  }, [fetchSources]);
+    fetchConnectors();
+  }, [fetchSources, fetchConnectors]);
+
+  const handleCreateConnector = async () => {
+    if (!connName.trim() || !connSlug.trim()) {
+      toast('error', 'Validation error', 'Please enter connector name and slug');
+      return;
+    }
+    try {
+      const createRes = await fetchWithAuth(`${API_URL}/knowledge/connectors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: connName,
+          slug: connSlug.toLowerCase().replace(/[^a-z0-9_]/g, '_'),
+          connector_type: connType,
+          description: `Live data access for ${connDept}`,
+        }),
+      });
+      if (!createRes.ok) {
+        const err = await createRes.json();
+        toast('error', 'Create failed', err.detail || 'Failed to create connector');
+        return;
+      }
+      const created = await createRes.json();
+
+      await fetchWithAuth(`${API_URL}/knowledge/connectors/${created.id}/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint_template: connEndpoint,
+          http_method: 'GET',
+          allowed_query_templates: connType === 'postgres' ? [connEndpoint] : [],
+        }),
+      });
+
+      if (connSecret.trim()) {
+        await fetchWithAuth(`${API_URL}/knowledge/connectors/${created.id}/secrets`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            secrets: connType === 'postgres' ? { connection_string: connSecret } : { bearer_token: connSecret },
+          }),
+        });
+      }
+
+      await fetchWithAuth(`${API_URL}/knowledge/connectors/${created.id}/permissions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ department: connDept }),
+      });
+
+      toast('success', 'Connector registered', 'Test it to activate for agent queries.');
+      setConnName('');
+      setConnSlug('');
+      setConnEndpoint('');
+      setConnSecret('');
+      fetchConnectors();
+    } catch (e: any) {
+      toast('error', 'Error', e.message || 'Error creating connector');
+    }
+  };
+
+  const handleTestConnector = async (id: string) => {
+    setIsTestingConnector(true);
+    setTestResult(null);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/knowledge/connectors/${id}/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sample_params: {} }),
+      });
+      const data = await res.json();
+      setTestResult(data);
+      if (data.status === 'success' || data.status === 'partial') {
+        toast('success', 'Test successful', 'Schema fingerprint generated. Connector activated.');
+        fetchConnectors();
+      } else {
+        toast('error', 'Test probe failed', `Returned status: ${data.status} (${data.safe_error_code || 'error'})`);
+      }
+    } catch (e: any) {
+      toast('error', 'Probe failed', e.message || 'Test probe failed');
+    } finally {
+      setIsTestingConnector(false);
+    }
+  };
+
+  const handleActivateConnector = async (id: string) => {
+    try {
+      const res = await fetchWithAuth(`${API_URL}/knowledge/connectors/${id}/activate`, { method: 'POST' });
+      if (res.ok) {
+        toast('success', 'Activated', 'Connector activated for agent queries');
+        fetchConnectors();
+      }
+    } catch {
+      toast('error', 'Activation failed', 'Failed to activate connector');
+    }
+  };
+
+  const handleDeleteConnector = async (id: string) => {
+    const ok = await confirmAction('Are you sure you want to delete this connector?');
+    if (!ok) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/knowledge/connectors/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast('success', 'Deleted', 'Connector deleted');
+        fetchConnectors();
+      }
+    } catch {
+      toast('error', 'Delete failed', 'Failed to delete connector');
+    }
+  };
 
   const counts = useMemo(() => {
     const next = { all: knowledge.length, file: 0, web: 0, text: 0, directive: 0 };
@@ -626,6 +765,26 @@ export default function KnowledgeView({ token, API_URL, fetchWithAuth, fetchData
               onRefreshSources={fetchSources}
               onRecrawl={handleRecrawlSource}
               onDeleteSource={handleDeleteSource}
+              connectors={connectors}
+              isLoadingConnectors={isLoadingConnectors}
+              connName={connName}
+              setConnName={setConnName}
+              connSlug={connSlug}
+              setConnSlug={setConnSlug}
+              connType={connType}
+              setConnType={setConnType}
+              connEndpoint={connEndpoint}
+              setConnEndpoint={setConnEndpoint}
+              connSecret={connSecret}
+              setConnSecret={setConnSecret}
+              connDept={connDept}
+              setConnDept={setConnDept}
+              isTestingConnector={isTestingConnector}
+              testResult={testResult}
+              onCreateConnector={handleCreateConnector}
+              onTestConnector={handleTestConnector}
+              onActivateConnector={handleActivateConnector}
+              onDeleteConnector={handleDeleteConnector}
             />
           )}
         </section>
@@ -1247,12 +1406,33 @@ function AddPanel(props: {
   onRefreshSources: () => void;
   onRecrawl: (id: string) => void;
   onDeleteSource: (id: string) => void;
+  connectors: any[];
+  isLoadingConnectors: boolean;
+  connName: string;
+  setConnName: (v: string) => void;
+  connSlug: string;
+  setConnSlug: (v: string) => void;
+  connType: string;
+  setConnType: (v: string) => void;
+  connEndpoint: string;
+  setConnEndpoint: (v: string) => void;
+  connSecret: string;
+  setConnSecret: (v: string) => void;
+  connDept: string;
+  setConnDept: (v: string) => void;
+  isTestingConnector: boolean;
+  testResult: any;
+  onCreateConnector: () => void;
+  onTestConnector: (id: string) => void;
+  onActivateConnector: (id: string) => void;
+  onDeleteConnector: (id: string) => void;
 }) {
   const tabs: { id: AddTab; label: string }[] = [
     { id: 'upload', label: 'File' },
     { id: 'website', label: 'Website' },
     { id: 'text', label: 'Note' },
     { id: 'directives', label: 'Directive' },
+    { id: 'connectors', label: 'Live Data' },
   ];
 
   return (
@@ -1438,6 +1618,211 @@ function AddPanel(props: {
             <BookOpen />
             {props.activeTab === 'directives' ? 'Save directive' : 'Save note'}
           </Button>
+        </div>
+      )}
+
+      {props.activeTab === 'connectors' && (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold flex items-center gap-1.5">
+                <ShieldCheck className="size-4 text-emerald-500" />
+                Governed Live Connectors
+              </span>
+              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                SSRF Guarded
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Connect external REST APIs, PostgreSQL databases, and Google Workspace. Agents query verified live business data on-demand with schema drift tracking and policy-enforced field redaction.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Register New Live Source</h4>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground block mb-1">Connector Name</label>
+                <Input
+                  placeholder="e.g. Customer CRM API"
+                  value={props.connName}
+                  onChange={(e) => props.setConnName(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground block mb-1">Slug / Identifier</label>
+                <Input
+                  placeholder="e.g. customer_crm"
+                  value={props.connSlug}
+                  onChange={(e) => props.setConnSlug(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground block mb-1">Source Type</label>
+                <select
+                  aria-label="Source Type"
+                  value={props.connType}
+                  onChange={(e) => props.setConnType(e.target.value)}
+                  className="w-full h-8 px-2 text-xs rounded-md border border-input bg-background"
+                >
+                  <option value="rest_api">REST GET API (HTTPS)</option>
+                  <option value="postgres">PostgreSQL / Supabase (Read-Only SQL)</option>
+                  <option value="google_sheets">Google Sheets (Live Sync)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground block mb-1">Authorized Department</label>
+                <select
+                  aria-label="Authorized Department"
+                  value={props.connDept}
+                  onChange={(e) => props.setConnDept(e.target.value)}
+                  className="w-full h-8 px-2 text-xs rounded-md border border-input bg-background"
+                >
+                  {DEPARTMENTS.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground block mb-1">
+                {props.connType === 'postgres' ? 'Approved SQL Query or Table' : 'Endpoint URL Template'}
+              </label>
+              <Input
+                placeholder={props.connType === 'postgres' ? 'SELECT id, name, email, plan FROM customers WHERE email = :email LIMIT 50' : 'https://api.acme.com/v1/customers?email={email}'}
+                value={props.connEndpoint}
+                onChange={(e) => props.setConnEndpoint(e.target.value)}
+                className="h-8 text-xs font-mono"
+              />
+              <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                Parameters in <code className="text-primary font-mono">&#123;param&#125;</code> are bound dynamically by agents.
+              </span>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground block mb-1">
+                {props.connType === 'postgres' ? 'Database URI / Connection String' : 'Auth Token / Bearer Key (Encrypted in Vault)'}
+              </label>
+              <Input
+                type="password"
+                placeholder={props.connType === 'postgres' ? 'postgresql://ro_user:***@db.host.com:5432/acme' : 'sk-live-**** or Bearer token'}
+                value={props.connSecret}
+                onChange={(e) => props.setConnSecret(e.target.value)}
+                className="h-8 text-xs font-mono"
+              />
+            </div>
+
+            <Button size="sm" className="w-full" onClick={props.onCreateConnector} disabled={!props.connName || !props.connSlug}>
+              <Database className="size-3.5 mr-1" />
+              Register Connector
+            </Button>
+          </div>
+
+          {props.testResult && (
+            <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold">Test Probe Evidence</span>
+                <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${
+                  props.testResult.status === 'success' ? 'bg-emerald-500/10 text-emerald-500' :
+                  props.testResult.status === 'partial' ? 'bg-amber-500/10 text-amber-500' : 'bg-destructive/10 text-destructive'
+                }`}>
+                  {props.testResult.status}
+                </span>
+              </div>
+              {props.testResult.provenance?.[0]?.schema_fingerprint && (
+                <div className="text-[11px] text-muted-foreground">
+                  Fingerprint: <code className="font-mono text-primary">{props.testResult.provenance[0].schema_fingerprint.slice(0, 16)}...</code>
+                </div>
+              )}
+              {props.testResult.records_returned !== undefined && (
+                <div className="text-[11px] text-muted-foreground">
+                  Records retrieved: <span className="font-semibold text-foreground">{props.testResult.records_returned}</span>
+                  {props.testResult.truncated && <span className="ml-1 text-amber-500">(Truncated by byte budget)</span>}
+                </div>
+              )}
+              {props.testResult.data && (
+                <pre className="max-h-36 overflow-auto rounded bg-muted/40 p-2 text-[10px] font-mono text-muted-foreground">
+                  {JSON.stringify(props.testResult.data, null, 2)}
+                </pre>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Active Connectors ({props.connectors.length})</h4>
+            {props.isLoadingConnectors ? (
+              <div className="flex items-center justify-center py-6 text-muted-foreground">
+                <Loader2 className="size-4 animate-spin mr-2" /> Loading connectors...
+              </div>
+            ) : props.connectors.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-lg">
+                No live connectors registered yet. Add one above.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {props.connectors.map((conn) => (
+                  <li key={conn.id} className="rounded-lg border border-border bg-card p-3 flex flex-col gap-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-xs text-foreground">{conn.name}</span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{conn.slug}</span>
+                          <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.2 rounded-full ${
+                            conn.state === 'active' ? 'bg-emerald-500/10 text-emerald-500' :
+                            conn.state === 'testing' ? 'bg-amber-500/10 text-amber-500' :
+                            conn.state === 'draft' ? 'bg-blue-500/10 text-blue-500' : 'bg-muted text-muted-foreground'
+                          }`}>
+                            {conn.state}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Type: <span className="uppercase font-mono text-foreground">{conn.connector_type}</span>
+                          {conn.schema_fingerprint && (
+                            <span className="ml-2 font-mono text-[10px]">FP: {conn.schema_fingerprint.slice(0, 10)}</span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs px-2"
+                          onClick={() => props.onTestConnector(conn.id)}
+                          disabled={props.isTestingConnector}
+                        >
+                          {props.isTestingConnector ? <Loader2 className="size-3 animate-spin" /> : 'Test'}
+                        </Button>
+                        {conn.state !== 'active' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs px-2 text-emerald-600"
+                            onClick={() => props.onActivateConnector(conn.id)}
+                          >
+                            Activate
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => props.onDeleteConnector(conn.id)}
+                          aria-label="Delete connector"
+                        >
+                          <Trash2 className="size-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
     </div>

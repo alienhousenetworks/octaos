@@ -117,6 +117,15 @@ class SalesReplyHandler(BaseAgent):
             lead.status = "replied"
         self.db.commit()
         self.db.refresh(lead)
+
+        # Atomic Stop-on-Reply: cancel all pending outbox touches for this prospect
+        try:
+            from app.services.sales.outbox_service import SalesOutboxService
+            outbox = SalesOutboxService(self.db, self.tenant_id)
+            outbox.cancel_pending_for_lead(lead_id=lead.id, recipient_email=lead.email, reason="prospect_replied")
+        except Exception as e:
+            self.logger.warning(f"Error cancelling outbox items for lead {lead.id}: {e}")
+
         return True
 
     async def process_inbound(
@@ -157,6 +166,11 @@ class SalesReplyHandler(BaseAgent):
         lead.data = data
         self.db.commit()
 
+        # Unify state across Lead, DealRoom, and SalesOpportunity
+        from app.services.sales.sync_bridge import SalesSyncBridge
+        sync_bridge = SalesSyncBridge(self.db, self.tenant_id)
+        sync_bridge.sync_reply_received(lead, parsed.get("intent", "neutral"), content, auto_commit=True)
+
         # Check if the prospect's query requires human clarification
         if parsed.get("requires_human_clarification"):
             data["awaiting_user_clarification"] = True
@@ -190,14 +204,32 @@ class SalesReplyHandler(BaseAgent):
             and lead.status != "meeting_scheduled"
             and sales_auto_book_meetings(self.db, self.tenant_id)
         ):
-            booked = book_meeting_for_lead(
-                self.db,
-                self.tenant_id,
-                lead,
-                tool="google_calendar",
-                suggested_time=parsed.get("suggested_time"),
-                log_activity=self.log_activity,
+            suggested_time = parsed.get("suggested_time")
+            # Require explicit time proposal/agreement from prospect before booking
+            has_agreed_time = bool(
+                suggested_time and any(
+                    tok in str(suggested_time).lower()
+                    for tok in ("am", "pm", ":", "morning", "afternoon", "monday", "tuesday", "wednesday", "thursday", "friday", "tomorrow", "confirmed")
+                )
             )
+            if has_agreed_time:
+                try:
+                    booked = book_meeting_for_lead(
+                        self.db,
+                        self.tenant_id,
+                        lead,
+                        tool="google_calendar",
+                        suggested_time=suggested_time,
+                        log_activity=self.log_activity,
+                    )
+                    if booked:
+                        sync_bridge.sync_meeting_booked(lead, auto_commit=True)
+                except Exception as book_exc:
+                    self.log_activity("Meeting Booking Deferred", f"Auto-booking deferred ({book_exc}); coordinating slots.", "warning")
+            else:
+                data["meeting_coordination_status"] = "coordinating_slots"
+                lead.data = data
+                self.db.commit()
 
         auto_reply = parsed.get("should_auto_reply", True)
         suggested = parsed.get("suggested_reply")

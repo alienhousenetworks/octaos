@@ -22,18 +22,18 @@ class MetricsService:
         self.db = db
         self.tenant_id = tenant_id
 
-    def harvest(self) -> MetricsPayload:
+    def harvest(self, period_days: int = 7) -> MetricsPayload:
         now = datetime.now(timezone.utc)
-        one_week_ago = now - timedelta(days=7)
-        two_weeks_ago = now - timedelta(days=14)
+        current_start = now - timedelta(days=period_days)
+        prior_start = current_start - timedelta(days=period_days)
 
         # 1. LEADS AGGREGATION
         leads_query = self.db.query(Lead).filter(Lead.tenant_id == self.tenant_id)
         all_leads = leads_query.all()
         total_leads = len(all_leads)
         
-        leads_current_week = [l for l in all_leads if self._to_utc(l.created_at) and self._to_utc(l.created_at) >= one_week_ago]
-        leads_prev_week = [l for l in all_leads if self._to_utc(l.created_at) and two_weeks_ago <= self._to_utc(l.created_at) < one_week_ago]
+        leads_current_period = [l for l in all_leads if self._to_utc(l.created_at) and self._to_utc(l.created_at) >= current_start]
+        leads_prior_period = [l for l in all_leads if self._to_utc(l.created_at) and prior_start <= self._to_utc(l.created_at) < current_start]
         
         lead_statuses: Dict[str, int] = {}
         unassigned_leads = 0
@@ -55,13 +55,23 @@ class MetricsService:
                 converted_leads += 1
 
         conv_rate = (converted_leads / total_leads * 100.0) if total_leads > 0 else 0.0
-        leads_wow_delta = self._calc_pct_delta(len(leads_current_week), len(leads_prev_week))
+        leads_delta = self._calc_pct_delta(len(leads_current_period), len(leads_prior_period))
 
         # 2. DEAL ROOM AGGREGATION
         deals = self.db.query(DealRoom).filter(DealRoom.tenant_id == self.tenant_id).all()
         total_deals = len(deals)
-        pipeline_val = sum(float(d.annual_revenue_usd or 0.0) for d in deals if d.stage not in ["lost"])
-        won_val = sum(float(d.annual_revenue_usd or 0.0) for d in deals if d.stage == "won")
+        pipeline_val = sum(float(d.annual_revenue_usd or 0.0) for d in deals if (d.stage or "").lower() not in ["lost"])
+        won_val = sum(float(d.annual_revenue_usd or 0.0) for d in deals if (d.stage or "").lower() == "won")
+
+        deals_current = [d for d in deals if self._to_utc(d.created_at) and self._to_utc(d.created_at) >= current_start]
+        deals_prior = [d for d in deals if self._to_utc(d.created_at) and prior_start <= self._to_utc(d.created_at) < current_start]
+        revenue_current = sum(float(d.annual_revenue_usd or 0.0) for d in deals_current if (d.stage or "").lower() == "won")
+        revenue_prior = sum(float(d.annual_revenue_usd or 0.0) for d in deals_prior if (d.stage or "").lower() == "won")
+        revenue_delta = self._calc_pct_delta(int(revenue_current), int(revenue_prior))
+
+        pipeline_current = sum(float(d.annual_revenue_usd or 0.0) for d in deals_current if (d.stage or "").lower() not in ["lost"])
+        pipeline_prior = sum(float(d.annual_revenue_usd or 0.0) for d in deals_prior if (d.stage or "").lower() not in ["lost"])
+        pipeline_delta = self._calc_pct_delta(int(pipeline_current), int(pipeline_prior))
 
         deal_stages: Dict[str, Dict[str, Any]] = {}
         for d in deals:
@@ -78,6 +88,8 @@ class MetricsService:
         resolved_tickets = 0
         pending_human_tickets = 0
         stalled_tickets = 0
+        ai_resolved_tickets = 0
+        latencies: List[float] = []
 
         for t in tickets:
             st = (t.status or "open").lower()
@@ -87,11 +99,22 @@ class MetricsService:
                 pending_human_tickets += 1
             elif st in ["resolved", "closed"]:
                 resolved_tickets += 1
+                if (t.mode or "").lower() == "ai":
+                    ai_resolved_tickets += 1
+                if t.created_at and t.resolved_at:
+                    c_dt = self._to_utc(t.created_at)
+                    r_dt = self._to_utc(t.resolved_at)
+                    if c_dt and r_dt and r_dt >= c_dt:
+                        latencies.append((r_dt - c_dt).total_seconds() / 60.0)
 
             # Tickets created >48h ago still open
             ticket_created = self._to_utc(t.created_at)
             if ticket_created and ticket_created < (now - timedelta(hours=48)) and st not in ["resolved", "closed"]:
                 stalled_tickets += 1
+
+        tickets_current = [t for t in tickets if self._to_utc(t.created_at) and self._to_utc(t.created_at) >= current_start]
+        tickets_prior = [t for t in tickets if self._to_utc(t.created_at) and prior_start <= self._to_utc(t.created_at) < current_start]
+        tickets_delta = self._calc_pct_delta(len(tickets_current), len(tickets_prior))
 
         ticket_dist = {
             "open": open_tickets,
@@ -100,6 +123,8 @@ class MetricsService:
         }
         sla_compliance = ((total_tickets - stalled_tickets) / total_tickets * 100.0) if total_tickets > 0 else 100.0
         sla_breach_rate = (stalled_tickets / total_tickets * 100.0) if total_tickets > 0 else 0.0
+        autonomous_deflection_rate = round((ai_resolved_tickets / resolved_tickets * 100.0), 1) if resolved_tickets > 0 else 0.0
+        avg_resolution_latency_min = round(sum(latencies) / len(latencies), 1) if latencies else 0.0
 
         # 4. CONTENT & MARKETING POSTS
         posts = self.db.query(ContentPost).filter(ContentPost.tenant_id == self.tenant_id).all()
@@ -108,6 +133,13 @@ class MetricsService:
         total_reach = sum(float(p.reach or 0.0) for p in posts)
         avg_eng = (sum(float(p.engagement_rate or 0.0) for p in posts) / total_posts) if total_posts > 0 else 0.0
         avg_ctr = (sum(float(p.ctr or 0.0) for p in posts) / total_posts) if total_posts > 0 else 0.0
+
+        posts_current = [p for p in posts if self._to_utc(p.created_at) and self._to_utc(p.created_at) >= current_start]
+        posts_prior = [p for p in posts if self._to_utc(p.created_at) and prior_start <= self._to_utc(p.created_at) < current_start]
+        posts_delta = self._calc_pct_delta(len(posts_current), len(posts_prior))
+
+        posts_with_citation = sum(1 for p in posts if p.external_url or (p.impressions or 0) > 0 or (p.engagement or 0) > 0)
+        brand_citation_rate = round((posts_with_citation / total_posts * 100.0), 1) if total_posts > 0 else 0.0
 
         channel_map: Dict[str, Dict[str, Any]] = {}
         for p in posts:
@@ -130,7 +162,24 @@ class MetricsService:
 
         # 5. HR CANDIDATES & FINANCE ANOMALIES
         candidates = self.db.query(Candidate).filter(Candidate.tenant_id == self.tenant_id).all()
+        candidates_current = [c for c in candidates if self._to_utc(c.created_at) and self._to_utc(c.created_at) >= current_start]
+        candidates_prior = [c for c in candidates if self._to_utc(c.created_at) and prior_start <= self._to_utc(c.created_at) < current_start]
+        candidates_delta = self._calc_pct_delta(len(candidates_current), len(candidates_prior))
+
+        screened_candidates = sum(1 for c in candidates if (c.status or "").lower() in ["screened", "interviewed", "offered", "hired"])
+        screening_pass_rate = round((screened_candidates / len(candidates) * 100.0), 1) if candidates else 0.0
+        interviews_scheduled = sum(1 for c in candidates if (c.status or "").lower() in ["interviewed", "offered", "hired"])
         hired_count = sum(1 for c in candidates if (c.status or "").lower() == "hired")
+        hiring_value_created = round(hired_count * 3500.0, 2)
+
+        screen_hours_list = []
+        for c in candidates:
+            if (c.status or "").lower() != "sourced" and c.created_at:
+                c_dt = self._to_utc(c.created_at)
+                if c_dt:
+                    hours = max(0.5, (now - c_dt).total_seconds() / 3600.0)
+                    screen_hours_list.append(min(hours, 72.0))
+        time_to_screen_hours = round(sum(screen_hours_list) / len(screen_hours_list), 1) if screen_hours_list else 0.0
 
         transactions = self.db.query(Transaction).filter(Transaction.tenant_id == self.tenant_id).all()
         tx_anomalies = sum(1 for tx in transactions if tx.is_anomaly)
@@ -144,7 +193,7 @@ class MetricsService:
             agent_acts[name] = agent_acts.get(name, 0) + 1
 
         # Check empty state
-        is_empty = (total_leads == 0 and total_deals == 0 and total_tickets == 0 and total_posts == 0)
+        is_empty = (total_leads == 0 and total_deals == 0 and total_tickets == 0 and total_posts == 0 and len(candidates) == 0)
 
         # Build typed MetricValues
         items: Dict[str, MetricValue] = {
@@ -154,8 +203,8 @@ class MetricsService:
                 value=float(total_leads),
                 formatted=str(total_leads),
                 unit="count",
-                change_pct_wow=leads_wow_delta,
-                direction="up" if (leads_wow_delta or 0) >= 0 else "down",
+                change_pct_wow=leads_delta,
+                direction="up" if (leads_delta or 0) >= 0 else "down",
                 category="sales",
             ),
             "leads.conversion_rate": MetricValue(
@@ -191,6 +240,7 @@ class MetricsService:
                 value=round(pipeline_val, 2),
                 formatted=f"${int(pipeline_val):,}",
                 unit="USD",
+                change_pct_wow=pipeline_delta,
                 direction="up" if pipeline_val > 0 else "neutral",
                 category="finance",
             ),
@@ -200,6 +250,7 @@ class MetricsService:
                 value=round(won_val, 2),
                 formatted=f"${int(won_val):,}",
                 unit="USD",
+                change_pct_wow=revenue_delta,
                 direction="up" if won_val > 0 else "neutral",
                 category="finance",
             ),
@@ -236,6 +287,7 @@ class MetricsService:
                 value=float(total_posts),
                 formatted=str(total_posts),
                 unit="count",
+                change_pct_wow=posts_delta,
                 direction="neutral",
                 category="marketing",
             ),
@@ -263,6 +315,7 @@ class MetricsService:
                 value=float(len(candidates)),
                 formatted=str(len(candidates)),
                 unit="count",
+                change_pct_wow=candidates_delta,
                 direction="neutral",
                 category="hr",
             ),
@@ -294,6 +347,29 @@ class MetricsService:
             "converted": converted_leads,
         }
 
+        raw_support_dict = {
+            "deflection_rate": autonomous_deflection_rate,
+            "avg_latency_min": avg_resolution_latency_min,
+            "tickets_delta": tickets_delta,
+        }
+
+        raw_hr_dict = {
+            "screening_pass_rate": screening_pass_rate,
+            "interviews_scheduled": interviews_scheduled,
+            "time_to_screen_hours": time_to_screen_hours,
+            "hiring_value_created": hiring_value_created,
+            "candidates_delta": candidates_delta,
+        }
+
+        raw_deltas_dict = {
+            "leads": leads_delta,
+            "posts": posts_delta,
+            "tickets": tickets_delta,
+            "revenue": revenue_delta,
+            "pipeline": pipeline_delta,
+            "candidates": candidates_delta,
+        }
+
         return MetricsPayload(
             tenant_id=self.tenant_id,
             harvested_at=now.isoformat(),
@@ -305,6 +381,9 @@ class MetricsService:
             raw_ticket_distribution=ticket_dist,
             raw_channel_performance=channel_perf,
             raw_agent_activity=agent_acts,
+            raw_support_metrics=raw_support_dict,
+            raw_hr_metrics=raw_hr_dict,
+            raw_deltas=raw_deltas_dict,
         )
 
     def _calc_pct_delta(self, current: int, previous: int) -> Optional[float]:
@@ -318,4 +397,5 @@ class MetricsService:
         if dt.tzinfo is None:
             return dt.replace(tzinfo=timezone.utc)
         return dt.astimezone(timezone.utc)
+
 

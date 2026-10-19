@@ -63,22 +63,21 @@ def list_autodiscovered_skills(level: int = Query(1, ge=1, le=3)) -> Dict[str, A
     """
     Lists auto-discovered SKILL.md packages according to progressive token disclosure level.
     """
-    import os
-    skills_dir = skill_synthesizer.base_skills_dir
+    skill_names = skill_synthesizer.list_all_skills()
     discovered_skills = []
     
-    if os.path.exists(skills_dir):
-        for entry in os.listdir(skills_dir):
-            if os.path.isdir(os.path.join(skills_dir, entry)):
-                skill_info = skill_synthesizer.get_skill_disclosure(entry, level=level)
-                discovered_skills.append({
-                    "skill_name": entry,
-                    "disclosure_level": level,
-                    "content": skill_info
-                })
+    for name in skill_names:
+        skill_info = skill_synthesizer.get_skill_disclosure(name, level=level)
+        discovered_skills.append({
+            "skill_name": name,
+            "disclosure_level": level,
+            "content": skill_info
+        })
 
     return {
-        "skills_directory": skills_dir,
+        "skills_directory": skill_synthesizer.base_skills_dir,
+        "builtin_directory": skill_synthesizer.builtin_skills_dir,
         "total_skills": len(discovered_skills),
         "skills": discovered_skills
     }
+

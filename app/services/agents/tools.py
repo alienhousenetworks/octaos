@@ -125,6 +125,14 @@ class ToolRegistry:
             return await self._exec_webhook_post(payload)
         elif name == "knowledge.search":
             return await self._exec_knowledge_search(payload, db, tenant_id)
+        elif name == "knowledge.search_sources":
+            return await self._exec_knowledge_search_sources(payload, db, tenant_id, context)
+        elif name == "knowledge.describe_source":
+            return await self._exec_knowledge_describe_source(payload, db, tenant_id, context)
+        elif name == "knowledge.live_fetch":
+            return await self._exec_knowledge_live_fetch(payload, db, tenant_id, context)
+        elif name == "knowledge.get_execution_status":
+            return await self._exec_knowledge_get_execution_status(payload, db, tenant_id, context)
         else:
             raise NotImplementedError(f"Tool '{name}' execution handler not implemented.")
 
@@ -240,6 +248,129 @@ class ToolRegistry:
                 })
 
         return {"query": query_text, "matches": matches, "total": len(matches)}
+
+    async def _exec_knowledge_search_sources(
+        self, payload: Dict[str, Any], db: Session, tenant_id: str, context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        from app.models.knowledge_connectors import KnowledgeConnector, ConnectorPermission
+
+        query_text = (payload.get("query") or "").lower().strip()
+        dept = payload.get("department") or (context.get("department") if context else "general")
+        acting_agent_id = context.get("agent_id") if context else None
+
+        connectors = db.query(KnowledgeConnector).filter(
+            KnowledgeConnector.tenant_id == tenant_id,
+            KnowledgeConnector.state == "active",
+        ).all()
+
+        results = []
+        for c in connectors:
+            perms = db.query(ConnectorPermission).filter_by(connector_id=c.id).all()
+            if perms:
+                allowed = any(
+                    (p.department.lower() in ("general", dept.lower(), "*"))
+                    and (p.agent_id is None or p.agent_id == acting_agent_id)
+                    for p in perms
+                )
+                if not allowed:
+                    continue
+
+            if not query_text or query_text in c.name.lower() or (c.description and query_text in c.description.lower()):
+                results.append({
+                    "connector_id": c.id,
+                    "slug": c.slug,
+                    "name": c.name,
+                    "type": c.connector_type,
+                    "description": c.description,
+                })
+
+        return {"query": query_text, "sources": results, "total": len(results)}
+
+    async def _exec_knowledge_describe_source(
+        self, payload: Dict[str, Any], db: Session, tenant_id: str, context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        from app.models.knowledge_connectors import KnowledgeConnector, ConnectorConfigVersion, ConnectorSchemaVersion
+
+        conn_id = payload.get("connector_id") or payload.get("slug")
+        connector = db.query(KnowledgeConnector).filter(
+            (KnowledgeConnector.id == conn_id) | (KnowledgeConnector.slug == conn_id),
+            KnowledgeConnector.tenant_id == tenant_id,
+        ).first()
+
+        if not connector:
+            return {"error": f"Connector '{conn_id}' not found."}
+
+        active_config = db.query(ConnectorConfigVersion).filter_by(
+            connector_id=connector.id,
+            version=connector.current_config_version,
+        ).first()
+
+        latest_schema = db.query(ConnectorSchemaVersion).filter_by(
+            connector_id=connector.id
+        ).order_by(ConnectorSchemaVersion.observed_at.desc()).first()
+
+        return {
+            "connector_id": connector.id,
+            "name": connector.name,
+            "slug": connector.slug,
+            "type": connector.connector_type,
+            "parameter_schema": active_config.parameter_schema if active_config else {},
+            "observed_fields": latest_schema.observed_fields if latest_schema else {},
+            "schema_fingerprint": latest_schema.schema_fingerprint if latest_schema else None,
+        }
+
+    async def _exec_knowledge_live_fetch(
+        self, payload: Dict[str, Any], db: Session, tenant_id: str, context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        import uuid
+        from app.services.knowledge_connectors.service import ConnectorService
+        from app.services.knowledge_connectors.contracts import ConnectorInvocation, ExecutionContext
+
+        conn_id = payload.get("connector_id") or payload.get("slug")
+        params = payload.get("params", {})
+        force_refresh = payload.get("force_refresh", False)
+
+        exec_context = ExecutionContext(
+            tenant_id=tenant_id,
+            acting_agent_id=context.get("agent_id") if context else None,
+            department=context.get("department", "general") if context else "general",
+            request_id=context.get("flow_run_id") or f"agent_req_{uuid.uuid4().hex[:8]}",
+        )
+
+        invocation = ConnectorInvocation(
+            connector_id=conn_id,
+            operation="read",
+            params=params,
+            force_refresh=force_refresh,
+        )
+
+        result = await ConnectorService.execute_query(db, conn_id, exec_context, invocation)
+        return result.model_dump(mode="json")
+
+    async def _exec_knowledge_get_execution_status(
+        self, payload: Dict[str, Any], db: Session, tenant_id: str, context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        from app.models.knowledge_connectors import ConnectorExecution
+
+        req_id = payload.get("request_id")
+        exec_record = db.query(ConnectorExecution).filter_by(
+            request_id=req_id,
+            tenant_id=tenant_id,
+        ).order_by(ConnectorExecution.executed_at.desc()).first()
+
+        if not exec_record:
+            return {"error": f"Execution '{req_id}' not found."}
+
+        return {
+            "request_id": exec_record.request_id,
+            "connector_id": exec_record.connector_id,
+            "status": exec_record.status,
+            "records_returned": exec_record.records_returned,
+            "truncated": exec_record.truncated,
+            "duration_ms": exec_record.duration_ms,
+            "executed_at": exec_record.executed_at.isoformat() if exec_record.executed_at else None,
+            "provenance": exec_record.provenance,
+        }
 
     def _register_default_tools(self):
         # 1. web_search (External READ, low risk)
@@ -390,6 +521,89 @@ class ToolRegistry:
                 risk_level="HIGH",
                 side_effect="WRITE",
                 approval_required=True,
+            )
+        )
+
+        # 8. Governed Knowledge Connector: search_sources
+        self.register(
+            ToolDefinition(
+                name="knowledge.search_sources",
+                description="Discovers active external data sources (APIs, Google Sheets, databases) matching query intent and permitted for this agent.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search keyword or intent, e.g. 'customer orders' or 'billing'"},
+                        "department": {"type": "string", "description": "Target department scope, e.g. 'sales' or 'support'"},
+                    },
+                },
+                output_schema={"type": "object", "properties": {"sources": {"type": "array"}}},
+                required_scopes=["knowledge:read"],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+            )
+        )
+
+        # 9. Governed Knowledge Connector: describe_source
+        self.register(
+            ToolDefinition(
+                name="knowledge.describe_source",
+                description="Inspects schema, declared parameters, and data classification of an external source without executing a live query.",
+                input_schema={
+                    "type": "object",
+                    "required": ["connector_id"],
+                    "properties": {
+                        "connector_id": {"type": "string", "description": "The connector ID or slug"},
+                    },
+                },
+                output_schema={"type": "object", "properties": {"parameter_schema": {"type": "object"}}},
+                required_scopes=["knowledge:read"],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+            )
+        )
+
+        # 10. Governed Knowledge Connector: live_fetch
+        self.register(
+            ToolDefinition(
+                name="knowledge.live_fetch",
+                description="Fetches verified live business data from an authorized external source with bounded streaming and policy controls.",
+                input_schema={
+                    "type": "object",
+                    "required": ["connector_id"],
+                    "properties": {
+                        "connector_id": {"type": "string", "description": "Connector ID or slug to query"},
+                        "params": {"type": "object", "description": "Declared query parameters, e.g. {'email': 'user@domain.com'}"},
+                        "force_refresh": {"type": "boolean", "description": "Bypass policy cache and force live network fetch"},
+                    },
+                },
+                output_schema={"type": "object", "properties": {"status": {"type": "string"}, "data": {"type": "object"}}},
+                required_scopes=["knowledge:read"],
+                risk_level="MEDIUM",
+                side_effect="READ",
+                approval_required=False,
+                timeout_seconds=15,
+            )
+        )
+
+        # 11. Governed Knowledge Connector: get_execution_status
+        self.register(
+            ToolDefinition(
+                name="knowledge.get_execution_status",
+                description="Retrieves the result and execution provenance of a prior live fetch request without re-executing.",
+                input_schema={
+                    "type": "object",
+                    "required": ["request_id"],
+                    "properties": {
+                        "request_id": {"type": "string", "description": "Execution request ID to check"},
+                    },
+                },
+                output_schema={"type": "object", "properties": {"status": {"type": "string"}}},
+                required_scopes=["knowledge:read"],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
             )
         )
 

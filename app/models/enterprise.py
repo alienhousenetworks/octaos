@@ -310,6 +310,10 @@ class DataRetentionPolicy(Base):
     audit_days = Column(Integer, default=2555)  # ~7 years
     messages_days = Column(Integer, default=365)
     auto_purge_enabled = Column(Boolean, default=False)
+    candidates_days = Column(Integer, nullable=True)
+    applications_days = Column(Integer, nullable=True)
+    recruiting_docs_days = Column(Integer, nullable=True)
+    identity_docs_days = Column(Integer, nullable=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 

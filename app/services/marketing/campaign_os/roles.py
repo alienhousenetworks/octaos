@@ -390,18 +390,25 @@ Output JSON format:
         reference_image_url: Optional[str] = None,
     ) -> CreativeIntentJSON:
         """Emit structured creative intent JSON decomposing concepts into photographic tokens via AI."""
+        from app.services.marketing.visual_creative.analyzer import VisualIntentAnalyzer
+        from app.services.marketing.visual_creative.creative_director import DynamicCreativeDirector
+
+        # Extract specialist guidance dynamically
+        archetype = VisualIntentAnalyzer.classify_archetype(draft.formatted_full_post, deliverable="image")
         ref_context = (
             f"Reference Asset URL: {reference_image_url}. Maintain brand subject consistency and styling cues."
             if reference_image_url else ""
         )
         system_prompt = (
-            "You are an Art Director. Translate post copy into structured visual creative intent JSON. "
+            f"You are a Senior Creative Director specializing in {archetype}. "
+            "Translate post copy into structured visual creative intent JSON. "
             "Do NOT write generic corporate clip-art. Describe concrete physical subjects, authentic textures, "
-            "and realistic lighting. Output valid JSON matching the schema exactly."
+            "and realistic lighting matching the creative discipline. Output valid JSON matching the schema exactly."
         )
         prompt = f"""Post Copy:
 {draft.formatted_full_post[:300]}
 
+Creative Archetype: {archetype}
 Brand Mood: {visual_tokens.aesthetic_mood}
 Primary Color: {visual_tokens.primary_color}
 {ref_context}
@@ -427,7 +434,7 @@ Output JSON format:
             logger.warning(f"[ImageConceptDirector] LLM call failed ({e}), creating contextual intent from hook.")
 
         return CreativeIntentJSON(
-            subject=f"Professional modern workspace scene representing {draft.hook[:80]}",
+            subject=f"Professional editorial scene representing {draft.hook[:80]}",
             action_or_state="evaluating architectural systems and data workflows",
             environment_setting="minimalist modern enterprise studio",
             emotional_mood=visual_tokens.aesthetic_mood or "composed and authoritative",
@@ -448,15 +455,20 @@ Output JSON format:
         reference_image_url: Optional[str] = None,
     ) -> VideoShotPlan:
         """Design structured video shot plan with camera kinematics using AI."""
+        from app.services.marketing.visual_creative.analyzer import VisualIntentAnalyzer
+
         ar = "9:16" if platform in ("instagram", "reels", "tiktok", "shorts") else "16:9"
+        archetype = VisualIntentAnalyzer.classify_archetype(draft.formatted_full_post, deliverable="video")
         system_prompt = (
-            "You are a Cinematic Director. Design a realistic 5-second video shot plan for this marketing post. "
+            f"You are a Cinematic Director and DP specializing in {archetype}. "
+            "Design a realistic 5-second video shot plan with motivated camera kinetics for this marketing post. "
             "Output JSON only."
         )
         prompt = f"""Post Hook: {draft.hook}
 Platform: {platform}
 Aspect Ratio: {ar}
 Aesthetic: {visual_tokens.aesthetic_mood}
+Archetype: {archetype}
 
 Output JSON format:
 {{
@@ -483,6 +495,7 @@ Output JSON format:
             atmosphere_notes=f"volumetric lighting complementing {visual_tokens.aesthetic_mood}",
             aspect_ratio=ar,
         )
+
 
     # ── Role 9: Critic / Judge with Self-Repair Loop ──────────────────────
     async def execute_critic_judge(

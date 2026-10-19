@@ -1,19 +1,24 @@
 import os
+import re
+import difflib
+import asyncio
 import httpx
 import smtplib
+from datetime import datetime, timezone, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from app.services.agents.base import BaseAgent
-from app.models.verticals import Ticket, TicketMessage
+from app.models.verticals import Ticket, TicketMessage, SupportCustomer
 from app.models.base import APICredential
 from app.core.security import decrypt_api_key
 from app.services.credentials import get_decrypted_credential
 from app.core.celery_app import celery_app
 from app.services.notifications.telegram import send_telegram_notification
-import asyncio
 from app.core.http_utils import with_retry
+from app.services.support_identity_service import SupportIdentityService
+from app.services.support_outbound_service import SupportOutboundService
 
 
 class SupportAgent(BaseAgent):
@@ -61,7 +66,7 @@ class SupportAgent(BaseAgent):
                 return cred.settings.get("email_auto_reply", True)
             elif channel in ("widget", "chat"):
                 return cred.settings.get("widget_auto_reply", True)
-        return True # Default to True
+        return True
 
     def validate_credentials(self, channel: str):
         if channel == "whatsapp":
@@ -78,6 +83,75 @@ class SupportAgent(BaseAgent):
             ).first()
             if not cred or not cred.encrypted_key or not cred.settings or not cred.settings.get("smtp_server"):
                 raise ValueError("SMTP/Email credentials (Server, Port, Username, Password) are required but not configured.")
+
+    def detect_human_handoff_intent(self, message: str) -> bool:
+        """Detect explicit /human command or natural user requests to speak with a human."""
+        if not message:
+            return False
+        clean = message.lower().strip()
+        if clean in ("/human", "/agent", "human", "agent") or clean.startswith(("/human ", "/agent ")):
+            return True
+        patterns = [
+            r"\b(talk|speak|connect|chat|transfer)\s+(me\s+)?(to|with)?\s*(a\s+)?(live\s+|real\s+)?(human|person|agent|representative|specialist|support|team)\b",
+            r"\b(want|need|get)\s+(a\s+)?(human|real\s+person|support\s+agent|live\s+agent|live\s+representative|representative)\b",
+            r"\b(live\s+(chat|agent|support|person|rep|representative))\b",
+            r"\b(human\s+(please|agent|support|help|now))\b",
+            r"\b(real\s+(person|human))\b",
+            r"\b(customer\s+(service|care|support))\b",
+            r"\b(hand\s*off|escalate\s+to\s+human)\b",
+            r"\b(agent\s+please)\b",
+        ]
+        for p in patterns:
+            if re.search(p, clean):
+                return True
+        return False
+
+    def detect_loop(self, recent_messages: List[TicketMessage], current_message: str) -> bool:
+        """Detect if conversation is looping, repeating, or user is expressing frustration."""
+        clean = current_message.lower().strip()
+        frustration_triggers = [
+            "stuck", "in a loop", "looping", "you keep repeating", "you already said that",
+            "already asked that", "not helpful", "not answering my question", "doesn't help",
+            "repeat", "useless", "same answer", "don't understand"
+        ]
+        for trig in frustration_triggers:
+            if trig in clean:
+                return True
+
+        if not recent_messages:
+            return False
+
+        user_msgs = [m.content.strip().lower() for m in recent_messages if m.sender == "customer" and m.content]
+        if len(user_msgs) >= 2:
+            for prev in user_msgs[-2:]:
+                ratio = difflib.SequenceMatcher(None, clean, prev).ratio()
+                if ratio > 0.85:
+                    return True
+
+        agent_msgs = [m.content.strip().lower() for m in recent_messages if m.sender == "agent" and m.content]
+        if len(agent_msgs) >= 2:
+            if difflib.SequenceMatcher(None, agent_msgs[-1], agent_msgs[-2]).ratio() > 0.8:
+                return True
+
+        return False
+
+    def extract_customer_details(self, content: str) -> Dict[str, Optional[str]]:
+        """Extract email, phone number, and probable name from customer message."""
+        details: Dict[str, Optional[str]] = {"email": None, "phone": None, "name": None}
+        if not content:
+            return details
+        email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", content)
+        if email_match:
+            details["email"] = email_match.group(0).lower()
+        phone_match = re.search(r"(\+?\d[\d\s\-\(\)]{8,15}\d)", content)
+        if phone_match:
+            digits = re.sub(r"[^\d+]", "", phone_match.group(0))
+            if len(digits) >= 9:
+                details["phone"] = digits
+        name_match = re.search(r"\b(?:my\s+name\s+is|name:?|i\s+am)\s+([A-Za-z\s]{2,30})\b", content, re.IGNORECASE)
+        if name_match:
+            details["name"] = name_match.group(1).strip().title()
+        return details
 
     async def handle_incoming_message(
         self,
@@ -109,25 +183,40 @@ class SupportAgent(BaseAgent):
         # 1. Validation check for credentials
         self.validate_credentials(channel)
 
-        # 2. Look for existing open ticket for sender on this channel
+        # 2. Unified Customer Identity Resolution
+        id_svc = SupportIdentityService(self.db, self.tenant_id)
+        customer = id_svc.resolve_or_create_customer(
+            channel=channel,
+            sender=sender,
+            email=sender if channel == "email" else None,
+            phone=sender if channel == "whatsapp" else None,
+        )
+
+        # 3. Look for existing active ticket for sender on this channel
         ticket = self.db.query(Ticket).filter(
             Ticket.tenant_id == self.tenant_id,
             Ticket.channel == channel,
             Ticket.customer_contact == sender,
-            Ticket.status == "open"
+            Ticket.status.in_(["open", "pending_human", "human_handling", "waiting_customer", "escalated"])
         ).order_by(Ticket.created_at.desc()).first()
 
         if not ticket:
-            # Create a new ticket
             ticket = Ticket(
                 tenant_id=self.tenant_id,
-                subject=subject or f"New {channel.capitalize()} support request from {sender}",
+                customer_id=customer.id,
+                subject=subject or f"New {channel.capitalize()} support request from {customer.display_name or sender}",
                 description=content,
                 status="open",
                 priority="medium",
                 channel=channel,
                 customer_contact=sender,
-                approval_status="pending"
+                customer_name=customer.display_name,
+                customer_email=customer.primary_email,
+                customer_phone=customer.primary_phone,
+                owner_type="ai",
+                mode="ai",
+                approval_status="pending",
+                extra_data={"email_message_id": external_id} if external_id and channel == "email" else {}
             )
             self.db.add(ticket)
             self.db.commit()
@@ -135,41 +224,140 @@ class SupportAgent(BaseAgent):
             self.log_activity("Ticket Created", f"New ticket #{ticket.id[:8]} opened for {sender} via {channel}.")
             
             # Send Telegram Notification
-            msg = f"🎫 *New Support Ticket*\nFrom: {sender}\nSubject: {ticket.subject}\nChannel: {channel}"
+            msg = f"🎫 *New Support Ticket*\nFrom: {sender}\nCustomer: {customer.display_name or 'N/A'}\nSubject: {ticket.subject}\nChannel: {channel}"
             asyncio.create_task(send_telegram_notification(self.db, self.tenant_id, msg))
 
-            # Context Engineering Check: determine if boardroom meeting is needed
+            # Context Engineering Check
             try:
                 celery_app.send_task("check_ticket_coordination_task", args=[self.tenant_id, ticket.id])
             except Exception as e:
                 print(f"Failed to queue ticket check task: {e}")
 
-        # 3. Create TicketMessage
+        # 4. Ingest customer message to conversation transcript immediately
         message = TicketMessage(
             ticket_id=ticket.id,
             sender="customer",
-            content=content
+            content=content,
+            direction="inbound",
+            channel=channel,
+            provider_message_id=external_id,
+            delivery_status="received"
         )
         self.db.add(message)
         self.db.commit()
         self.db.refresh(message)
 
-        # 4. If auto-reply is enabled, queue celery task with human-like delay
-        if self.is_auto_reply_enabled(channel):
-            # WhatsApp ~4–5 min; Email ~20 min (product SLA)
-            delay_seconds = 270 if channel == "whatsapp" else 1200 if channel == "email" else 180
-            if ticket.status in ("human_handling", "pending_human"):
-                self.log_activity("Auto-Reply Skipped", f"Ticket #{ticket.id[:8]} under human takeover or pending queue.")
+        # 5. Extract customer details if provided in message body
+        extracted = self.extract_customer_details(content)
+        changed_details = False
+        if extracted.get("name") and not ticket.customer_name:
+            ticket.customer_name = extracted["name"]
+            customer.display_name = extracted["name"]
+            changed_details = True
+        if extracted.get("email") and not ticket.customer_email:
+            ticket.customer_email = extracted["email"]
+            if not customer.primary_email:
+                customer.primary_email = extracted["email"]
+            changed_details = True
+        if extracted.get("phone") and not ticket.customer_phone:
+            ticket.customer_phone = extracted["phone"]
+            if not customer.primary_phone:
+                customer.primary_phone = extracted["phone"]
+            changed_details = True
+        if changed_details:
+            self.db.commit()
+
+        # 6. Check for Explicit /human Command or Natural Human Handoff Intent
+        is_handoff_requested = self.detect_human_handoff_intent(content)
+        if is_handoff_requested:
+            now = datetime.now(timezone.utc)
+            ticket.status = "pending_human"
+            ticket.owner_type = "pending_human"
+            ticket.mode = "human"
+            ticket.handoff_generation = (ticket.handoff_generation or 0) + 1
+            ticket.handoff_started_at = now
+            ticket.handoff_deadline_at = now + timedelta(seconds=300)
+            self.db.commit()
+
+            if channel == "whatsapp":
+                ack_text = (
+                    "Connecting you with our live support team now! A human representative has been notified "
+                    "and will connect with you shortly. If an agent is not available within a few minutes, "
+                    "we will register a priority ticket with your details."
+                )
+            elif channel == "email":
+                ack_text = (
+                    "Thank you for contacting support. Your request has been transferred to our human support team. "
+                    "A representative will review your message and reply shortly."
+                )
             else:
+                ack_text = "Connecting you with our live support team now! An agent will be with you shortly."
+
+            outbound = SupportOutboundService(self.db, self.tenant_id)
+            try:
+                await outbound.send(
+                    ticket_id=ticket.id,
+                    channel=channel,
+                    recipient=ticket.customer_contact,
+                    content=ack_text,
+                    sender_type="system",
+                    is_ai_caller=False,
+                )
+            except Exception as e:
+                print(f"Failed to send handoff acknowledgment: {e}")
+
+            alert_msg = (
+                f"💬 *Live Human Handoff Requested*\n"
+                f"Ticket: #{ticket.id[:8]}\n"
+                f"Channel: {channel}\n"
+                f"From: {sender}\n"
+                f"Customer: {customer.display_name or 'N/A'}\n"
+                f"Message: {content}\n"
+                f"⏱ 5-Minute Claim SLA active."
+            )
+            asyncio.create_task(send_telegram_notification(self.db, self.tenant_id, alert_msg))
+
+            try:
                 celery_app.send_task(
-                    "auto_reply_task",
-                    args=[self.tenant_id, ticket.id, message.id, channel],
-                    countdown=delay_seconds,
+                    "check_human_handoff_timeout_task",
+                    args=[self.tenant_id, ticket.id, ticket.handoff_generation],
+                    countdown=300,
                 )
-                self.log_activity(
-                    "Auto-Reply Queued",
-                    f"Queued support response for ticket #{ticket.id[:8]} in {delay_seconds}s.",
-                )
+                self.log_activity("Handoff SLA Queued", f"Ticket #{ticket.id[:8]} scheduled for 300s escalation check.")
+            except Exception as e:
+                print(f"Failed to queue handoff timeout task: {e}")
+
+            return {
+                "status": "handoff_queued",
+                "ticket_id": ticket.id,
+                "message_id": message.id,
+                "owner_type": "pending_human"
+            }
+
+        # 7. Check Ownership: Suppress AI if conversation is owned by a human or handoff queue
+        if ticket.owner_type in ("human_handling", "pending_human", "waiting_customer", "escalated"):
+            self.log_activity("AI Response Suppressed", f"Ticket #{ticket.id[:8]} is currently owned by {ticket.owner_type}.")
+            msg_update = f"💬 *Customer reply on live ticket*\nTicket: #{ticket.id[:8]}\nChannel: {channel}\nFrom: {sender}\nMessage: {content}"
+            asyncio.create_task(send_telegram_notification(self.db, self.tenant_id, msg_update))
+            return {
+                "status": "human_owned",
+                "ticket_id": ticket.id,
+                "message_id": message.id,
+                "owner_type": ticket.owner_type
+            }
+
+        # 8. If auto-reply is enabled and AI owns the ticket, queue celery task with delay
+        if self.is_auto_reply_enabled(channel):
+            delay_seconds = 270 if channel == "whatsapp" else 1200 if channel == "email" else 180
+            celery_app.send_task(
+                "auto_reply_task",
+                args=[self.tenant_id, ticket.id, message.id, channel],
+                countdown=delay_seconds,
+            )
+            self.log_activity(
+                "Auto-Reply Queued",
+                f"Queued support response for ticket #{ticket.id[:8]} in {delay_seconds}s.",
+            )
 
         return {
             "status": "success",
@@ -182,8 +370,8 @@ class SupportAgent(BaseAgent):
         if not ticket:
             return
 
-        if ticket.status in ("resolved", "closed", "human_handling"):
-            self.log_activity("Auto-Reply Cancelled", f"Ticket #{ticket.id[:8]} status is {ticket.status}.")
+        if ticket.status in ("resolved", "closed") or ticket.owner_type in ("human_handling", "pending_human", "escalated"):
+            self.log_activity("Auto-Reply Cancelled", f"Ticket #{ticket.id[:8]} owner is {ticket.owner_type or ticket.status}.")
             return
 
         trigger_msg = self.db.query(TicketMessage).filter(TicketMessage.id == trigger_msg_id).first()
@@ -201,6 +389,24 @@ class SupportAgent(BaseAgent):
             self.log_activity("Auto-Reply Cancelled", f"A reply has already been sent by agent for ticket #{ticket.id[:8]}.")
             return
 
+        # Fetch conversation history
+        messages = self.db.query(TicketMessage).filter(
+            TicketMessage.ticket_id == ticket_id
+        ).order_by(TicketMessage.created_at.asc()).all()
+
+        last_customer = trigger_msg.content or ""
+
+        # Check for loop / frustration -> Trigger Human Handoff
+        if self.detect_loop(messages[:-1], last_customer):
+            self.log_activity("Loop Detected", f"AI stuck looping on ticket #{ticket.id[:8]}. Escalating to human.")
+            await self._trigger_ai_escalation(
+                ticket,
+                channel,
+                transfer_reason="loop_detected",
+                customer_message="I'm having trouble resolving this for you. I am transferring your request to our human support team now. A representative will connect with you shortly."
+            )
+            return
+
         # KB-gated answer with citations / refuse mode
         from app.services.kb_rag import KnowledgeRAGService
         from app.services.policy_engine import PolicyEngine
@@ -211,47 +417,48 @@ class SupportAgent(BaseAgent):
             self.log_activity("Auto-Reply Blocked", f"Budget/quota: {budget.get('reason')}")
             return
 
-        last_customer = trigger_msg.content or ""
         kb = KnowledgeRAGService(self.db, self.tenant_id).answer_context(
             last_customer, department="Support"
         )
-        if not kb.get("answer_allowed"):
-            reply_content = kb.get("message") or (
-                "Thank you for reaching out. I'm escalating this to a specialist who can help."
+        if not kb.get("answer_allowed") or kb.get("mode") == "refuse":
+            # Knowledge base cannot answer safely -> Escalate to human
+            self.log_activity("KB Refusal", f"Ticket #{ticket.id[:8]} requires human escalation.")
+            await self._trigger_ai_escalation(
+                ticket,
+                channel,
+                transfer_reason="kb_refusal",
+                customer_message="I don't have enough verified information in my knowledge base to answer this accurately. I am escalating your request to our human support team. A representative will connect with you shortly."
             )
-            citations = []
-        else:
-            knowledge = kb.get("context") or self.get_knowledge_context("Support")
-            citations = kb.get("citations") or []
-            messages = self.db.query(TicketMessage).filter(
-                TicketMessage.ticket_id == ticket_id
-            ).order_by(TicketMessage.created_at.asc()).all()
+            return
 
-            history_str = ""
-            for m in messages:
-                history_str += f"{m.sender.upper()}: {m.content}\n"
+        knowledge = kb.get("context") or self.get_knowledge_context("Support")
+        citations = kb.get("citations") or []
 
-            system_prompt = (
-                "You are a helpful, professional, and empathetic customer support agent. "
-                "Your replies should be concise, human-like, and natural. Do not mention that you are an AI or bot. "
-                "Rely strictly on the provided Company Guidelines & Knowledge Base. "
-                "If the information is not in the knowledge base, say you will escalate to a specialist. "
-                "When you use knowledge, you may cite sources by their citation tags."
-            )
-            prompt = (
-                f"Customer Conversation History:\n{history_str}\n"
-                f"Knowledge Base (with citations):\n{knowledge}\n"
-                "Draft the final response from the agent to the customer."
-            )
+        history_str = ""
+        for m in messages:
+            history_str += f"{m.sender.upper()}: {m.content}\n"
 
-            reply_content = await self.llm.complete(
-                prompt=prompt,
-                model=None,
-                provider="gemini",
-                system_prompt=system_prompt,
-            )
-            if citations:
-                reply_content = f"{reply_content}\n\nSources: " + "; ".join(citations[:3])
+        system_prompt = (
+            "You are a helpful, professional, and empathetic customer support agent. "
+            "Your replies should be concise, human-like, and natural. Do not mention that you are an AI or bot. "
+            "Rely strictly on the provided Company Guidelines & Knowledge Base. "
+            "If the information is not in the knowledge base, say you will escalate to a specialist. "
+            "When you use knowledge, you may cite sources by their citation tags."
+        )
+        prompt = (
+            f"Customer Conversation History:\n{history_str}\n"
+            f"Knowledge Base (with citations):\n{knowledge}\n"
+            "Draft the final response from the agent to the customer."
+        )
+
+        reply_content = await self.llm.complete(
+            prompt=prompt,
+            model=None,
+            provider="gemini",
+            system_prompt=system_prompt,
+        )
+        if citations:
+            reply_content = f"{reply_content}\n\nSources: " + "; ".join(citations[:3])
 
         # Policy: support replies go through HITL unless auto_with_rules
         decision = PolicyEngine(self.db, self.tenant_id).evaluate(
@@ -270,10 +477,10 @@ class SupportAgent(BaseAgent):
             self.log_activity("Auto-Reply Blocked", decision.get("reason", "policy"))
             return
         if decision.get("decision") == "queue_approval":
-            # Save draft as internal note without sending
             draft_msg = TicketMessage(
                 ticket_id=ticket.id,
                 sender="agent",
+                direction="internal_note",
                 content=f"[PENDING APPROVAL {decision.get('approval_id')}]\n{reply_content}",
             )
             self.db.add(draft_msg)
@@ -281,72 +488,148 @@ class SupportAgent(BaseAgent):
             self.log_activity("Auto-Reply Queued for Approval", f"Ticket #{ticket.id[:8]}")
             return
 
-        # Save + send
-        reply_message = TicketMessage(
+        outbound = SupportOutboundService(self.db, self.tenant_id)
+        await outbound.send(
             ticket_id=ticket.id,
-            sender="agent",
+            channel=channel,
+            recipient=ticket.customer_contact,
             content=reply_content,
+            sender_type="agent",
+            is_ai_caller=True,
         )
-        self.db.add(reply_message)
-        self.db.commit()
-        self.db.refresh(reply_message)
-
-        await self.send_message(channel, ticket.customer_contact, reply_content)
         SubscriptionService(self.db).record_action(self.tenant_id, cost_usd=0.0, count=1)
         self.log_activity("Auto-Reply Sent", f"Auto-reply sent for ticket #{ticket.id[:8]} via {channel}.")
 
+    async def _trigger_ai_escalation(self, ticket: Ticket, channel: str, transfer_reason: str, customer_message: str):
+        now = datetime.now(timezone.utc)
+        ticket.status = "pending_human"
+        ticket.owner_type = "pending_human"
+        ticket.mode = "human"
+        ticket.handoff_generation = (ticket.handoff_generation or 0) + 1
+        ticket.handoff_started_at = now
+        ticket.handoff_deadline_at = now + timedelta(seconds=300)
+        if not ticket.extra_data:
+            ticket.extra_data = {}
+        ticket.extra_data["handoff_reason"] = transfer_reason
+        self.db.commit()
+
+        outbound = SupportOutboundService(self.db, self.tenant_id)
+        try:
+            await outbound.send(
+                ticket_id=ticket.id,
+                channel=channel,
+                recipient=ticket.customer_contact,
+                content=customer_message,
+                sender_type="system",
+                is_ai_caller=False,
+            )
+        except Exception as e:
+            print(f"Failed to dispatch escalation message: {e}")
+
+        alert_msg = (
+            f"⚠️ *Support AI Triggered Human Handoff*\n"
+            f"Ticket: #{ticket.id[:8]}\n"
+            f"Channel: {channel}\n"
+            f"Reason: {transfer_reason}\n"
+            f"Contact: {ticket.customer_contact}\n"
+            f"⏱ 5-Minute Claim SLA active."
+        )
+        await send_telegram_notification(self.db, self.tenant_id, alert_msg)
+
+        try:
+            celery_app.send_task(
+                "check_human_handoff_timeout_task",
+                args=[self.tenant_id, ticket.id, ticket.handoff_generation],
+                countdown=300,
+            )
+        except Exception as e:
+            print(f"Failed to queue handoff timeout task: {e}")
+
+    async def process_handoff_timeout(self, ticket_id: str, expected_generation: int):
+        ticket = self.db.query(Ticket).filter(Ticket.id == ticket_id, Ticket.tenant_id == self.tenant_id).first()
+        if not ticket:
+            return
+
+        # Verify generation and state to avoid claim-versus-timeout races
+        if ticket.owner_type == "pending_human" and ticket.claimed_by is None and ticket.handoff_generation == expected_generation:
+            ticket.owner_type = "escalated"
+            ticket.status = "escalated"
+            ticket.priority = "high"
+            if not ticket.extra_data:
+                ticket.extra_data = {}
+            ticket.extra_data["escalated_at"] = datetime.now(timezone.utc).isoformat()
+            ticket.extra_data["escalation_reason"] = "sla_5min_timeout_unclaimed"
+            self.db.commit()
+
+            if ticket.channel == "whatsapp":
+                fallback_text = (
+                    f"Our live agents are currently assisting other customers. "
+                    f"We have formally registered priority support ticket #{ticket.id[:8]} with your contact information. "
+                    f"To help us resolve this faster, please reply with your Full Name and Email Address, or any additional details."
+                )
+            elif ticket.channel == "email":
+                fallback_text = (
+                    f"Our live support agents are currently assisting other customers. "
+                    f"We have registered priority support ticket #{ticket.id[:8]} with your email address. "
+                    f"A dedicated specialist has been assigned and will reply to this thread shortly."
+                )
+            else:
+                fallback_text = f"Live agents are currently busy. Priority support ticket #{ticket.id[:8]} has been registered."
+
+            outbound = SupportOutboundService(self.db, self.tenant_id)
+            try:
+                await outbound.send(
+                    ticket_id=ticket.id,
+                    channel=ticket.channel,
+                    recipient=ticket.customer_contact,
+                    content=fallback_text,
+                    sender_type="system",
+                    is_ai_caller=False,
+                )
+            except Exception as e:
+                print(f"Failed to send timeout fallback message: {e}")
+
+            msg = (
+                f"🚨 *Support SLA Timeout*\n"
+                f"No agent claimed ticket #{ticket.id[:8]} within 5 minutes.\n"
+                f"Channel: {ticket.channel}\n"
+                f"Contact: {ticket.customer_contact}\n"
+                f"Status: ESCALATED HIGH PRIORITY"
+            )
+            await send_telegram_notification(self.db, self.tenant_id, msg)
+            self.log_activity("Handoff Timeout: Priority Ticket Raised", f"Ticket #{ticket.id[:8]}")
+
     @with_retry
     async def send_message(self, channel: str, recipient: str, content: str):
-        if channel == "whatsapp":
-            cred = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id, provider="meta").first()
-            token, _ = get_decrypted_credential(self.db, self.tenant_id, "meta")
-            if not cred or not token or not cred.settings or not cred.settings.get("phone_number_id"):
-                raise ValueError("WhatsApp Meta API credentials are not configured.")
+        """Backward-compatible wrapper for direct message dispatch."""
+        outbound = SupportOutboundService(self.db, self.tenant_id)
+        # Note: ticket might not be provided in legacy callers
+        ticket = self.db.query(Ticket).filter(
+            Ticket.tenant_id == self.tenant_id,
+            Ticket.customer_contact == recipient,
+        ).order_by(Ticket.created_at.desc()).first()
 
-            phone_number_id = cred.settings.get("phone_number_id")
+        ticket_id = ticket.id if ticket else "temp"
+        if not ticket:
+            # Create a lightweight shell ticket for standalone outbound
+            temp_ticket = Ticket(
+                tenant_id=self.tenant_id,
+                customer_contact=recipient,
+                channel=channel,
+                subject=f"Outbound {channel.capitalize()} message",
+                description=content,
+                status="open",
+            )
+            self.db.add(temp_ticket)
+            self.db.commit()
+            self.db.refresh(temp_ticket)
+            ticket_id = temp_ticket.id
 
-            async with httpx.AsyncClient() as client:
-                url = f"https://graph.facebook.com/v21.0/{phone_number_id}/messages"
-                headers = {
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                }
-                payload = {
-                    "messaging_product": "whatsapp",
-                    "recipient_type": "individual",
-                    "to": recipient,
-                    "type": "text",
-                    "text": {"preview_url": False, "body": content},
-                }
-                response = await client.post(url, json=payload, headers=headers, timeout=20.0)
-                if response.status_code not in (200, 201):
-                    raise Exception(f"Failed to send WhatsApp message via Meta API: {response.text}")
-                self.log_activity("WhatsApp Sent (Official)", f"Successfully sent WhatsApp message to {recipient}.")
-
-        elif channel == "email":
-            cred = self.db.query(APICredential).filter(
-                APICredential.tenant_id == self.tenant_id,
-                APICredential.provider == "smtp"
-            ).first()
-            
-            if not cred or not cred.encrypted_key or not cred.settings or not cred.settings.get("smtp_server"):
-                raise ValueError("SMTP/Email credentials are not configured.")
-            
-            smtp_server = cred.settings.get("smtp_server")
-            smtp_port = int(cred.settings.get("smtp_port", 587))
-            smtp_user = cred.settings.get("smtp_username")
-            smtp_pass = decrypt_api_key(cred.encrypted_key)
-            from_email = cred.settings.get("from_email", smtp_user)
-            
-            msg = MIMEMultipart()
-            msg["From"] = from_email
-            msg["To"] = recipient
-            msg["Subject"] = f"Re: OctaOS Customer Support Inquiry"
-            msg.attach(MIMEText(content, "plain"))
-            
-            server = smtplib.SMTP(smtp_server, smtp_port)
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(from_email, recipient, msg.as_string())
-            server.quit()
-            self.log_activity("Email Sent (Official)", f"Successfully sent email to {recipient}.")
+        await outbound.send(
+            ticket_id=ticket_id,
+            channel=channel,
+            recipient=recipient,
+            content=content,
+            sender_type="agent",
+            is_ai_caller=False,
+        )

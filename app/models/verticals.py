@@ -195,13 +195,15 @@ class Transaction(Base):
 class Candidate(Base):
     __tablename__ = "candidates"
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
-    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     organization_id = Column(String, nullable=True, index=True)
     name = Column(String)
     email = Column(String)
+    phone = Column(String, nullable=True)
     role = Column(String)
     scorecard = Column(JSON)
     status = Column(String, default="sourced") # sourced, screened, interviewed, offered, hired
+    merged_into_candidate_id = Column(String, ForeignKey("candidates.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class HRResumeIngestionJob(Base):
@@ -244,7 +246,15 @@ class Ticket(Base):
     approval_status = Column(String, default="pending")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    # Conversation Ownership & Multi-Channel Handoff
+    owner_type = Column(String, default="ai") # "ai", "pending_human", "human_handling", "waiting_customer", "escalated", "resolved"
+    handoff_started_at = Column(DateTime(timezone=True), nullable=True)
+    handoff_deadline_at = Column(DateTime(timezone=True), nullable=True)
+    handoff_generation = Column(Integer, default=0)
+    customer_id = Column(String, ForeignKey("support_customers.id"), nullable=True, index=True)
+
     messages = relationship("TicketMessage", back_populates="ticket", cascade="all, delete-orphan")
+    customer = relationship("SupportCustomer", back_populates="tickets", foreign_keys=[customer_id])
 
 class TicketMessage(Base):
     __tablename__ = "ticket_messages"
@@ -252,9 +262,41 @@ class TicketMessage(Base):
     ticket_id = Column(String, ForeignKey("tickets.id"), nullable=False)
     sender = Column(String) # "customer", "agent", or "system"
     content = Column(Text)
+    direction = Column(String, default="inbound") # "inbound", "outbound", "internal_note"
+    channel = Column(String, nullable=True) # "whatsapp", "email", "widget"
+    provider_message_id = Column(String, nullable=True, index=True)
+    delivery_status = Column(String, default="sent") # "received", "queued", "sent_to_provider", "delivered", "failed"
+    extra_data = Column(JSON, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     ticket = relationship("Ticket", back_populates="messages")
+
+class SupportCustomer(Base):
+    __tablename__ = "support_customers"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    display_name = Column(String, nullable=True)
+    primary_email = Column(String, nullable=True, index=True)
+    primary_phone = Column(String, nullable=True, index=True)
+    verified = Column(Boolean, default=False)
+    extra_data = Column(JSON, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    tickets = relationship("Ticket", back_populates="customer", cascade="all, delete-orphan")
+    identities = relationship("SupportCustomerIdentity", back_populates="customer", cascade="all, delete-orphan")
+
+class SupportCustomerIdentity(Base):
+    __tablename__ = "support_customer_identities"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    customer_id = Column(String, ForeignKey("support_customers.id"), nullable=False, index=True)
+    channel = Column(String, nullable=False) # "whatsapp", "email", "widget"
+    normalized_identifier = Column(String, nullable=False, index=True) # E.164 phone or lowercase email
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    customer = relationship("SupportCustomer", back_populates="identities")
 
 class SupportAgentPresence(Base):
     __tablename__ = "support_agent_presences"
@@ -381,4 +423,5 @@ class AuditLog(Base):
 # Lead foreign keys point at sales_* tables. Importing them here registers those
 # tables on Base.metadata before create_all or Alembic autogenerate runs.
 import app.models.sales_intelligence  # noqa: E402, F401
+import app.models.hr  # noqa: E402, F401
 

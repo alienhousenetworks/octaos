@@ -13,7 +13,9 @@ from sqlalchemy.orm import Session
 from app.services.sales_os.agents.base import BaseSalesAgent, AgentResult, EvidenceItem
 from app.models.deal_room import DealRoom, BuyingCommitteeMember, AccountSignal, CompanySalesContext, EvidenceRecord
 from app.services.sales_os.evals.groundedness import GroundednessEvaluator
+from app.services.sales_os.governance.gatekeeper import PreSendGatekeeper
 from app.services.knowledge_os.entity_extractor import extract_json_safe
+from app.services.sales_os.contracts.registry import render_prompts
 
 
 class ComposerAgent(BaseSalesAgent):
@@ -98,40 +100,56 @@ class ComposerAgent(BaseSalesAgent):
         ev_records = self.db.query(EvidenceRecord).filter(EvidenceRecord.tenant_id == self.tenant_id).all()
         proof_claims = [e.claim for e in ev_records]
 
-        prompt = f"""You are the OctaOS Evidence-Backed Sales Composer.
-Write an authentic, highly targeted cold outreach {channel} from {our_company} to {recipient_name} ({recipient_title}) at {deal_room.company_name}.
-
-Recipient Role Type: {recipient_role}
-Verified Company Signals: {', '.join(signals) if signals else 'None recent'}
-Identified Pain Hypotheses: {', '.join(pain_points) if pain_points else 'General efficiency and growth'}
-Our Core Value Proposition: {our_usp}
-
-Strict Guardrails:
-1. Under 120 words. Concise, respectful, zero fluff.
-2. Ground every claim strictly in the signals and pain hypotheses above. Do NOT invent struggle or unverified claims.
-3. Soft, specific Call to Action (e.g. asking for perspective or brief chat).
-4. No placeholders, no brackets.
-5. Sender Context: {sender_rule} Do NOT invent or use any fake human personas.
-
-Output a JSON object:
-{{
-  "subject": "string",
-  "body": "string"
-}}"""
-
+        rendered = render_prompts(
+            "sales.composer",
+            {
+                "channel": channel,
+                "sender_rule": sender_rule,
+                "recipient_name": recipient_name,
+                "recipient_title": recipient_title,
+                "recipient_role": recipient_role,
+                "company_name": deal_room.company_name,
+                "signals": ", ".join(signals) if signals else "none",
+                "pain_points": ", ".join(pain_points) if pain_points else "none",
+                "usp": our_usp,
+            },
+        )
         try:
-            resp = await self.llm.complete(prompt=prompt, model="claude-3-haiku-20240307", provider="anthropic")
-            msg_data = extract_json_safe(resp)
-            subject = msg_data.get("subject", f"Quick question regarding {deal_room.company_name}")
-            body = msg_data.get("body", "").strip()
+            resp = await self.llm.complete(
+                prompt=rendered["task_prompt"],
+                system_prompt=rendered["system_prompt"],
+                model=rendered["model_id"],
+                provider=rendered["provider"],
+            )
+            msg_data = extract_json_safe(resp) or {}
+            if not isinstance(msg_data, dict):
+                msg_data = {}
+            subject = msg_data.get("subject") or f"Question for {recipient_name}"
+            body = str(msg_data.get("body") or "").strip()
+            if not body:
+                raise ValueError("composer returned an empty draft")
         except Exception:
             subject = f"Question for {recipient_name}"
-            proof_snippet = proof_claims[0] if proof_claims else f"{our_company} helps leadership teams automate enterprise sales operations with verified reliability."
             signoff = f"Best regards,\n{employee_name}\n{our_company}" if employee_name else f"Best regards,\nThe {our_company} Team\n{our_company}"
             if signals:
-                body = f"Hi {recipient_name},\n\nNoticed {deal_room.company_name}'s recent update: {signals[0]}. {proof_snippet}\n\nOpen to a brief conversation this week?\n\n{signoff}"
+                body = f"Hi {recipient_name},\n\nNoticed {deal_room.company_name}'s recent update: {signals[0]}.\n\nOpen to a brief conversation this week?\n\n{signoff}"
+            elif proof_claims:
+                body = f"Hi {recipient_name},\n\n{proof_claims[0]}\n\nOpen to a brief conversation this week?\n\n{signoff}"
             else:
-                body = f"Hi {recipient_name},\n\n{proof_snippet}\n\nOpen to a brief conversation this week?\n\n{signoff}"
+                body = f"Hi {recipient_name},\n\nOpen to a brief conversation this week?\n\n{signoff}"
+
+        # Evaluate Pre-Send Deliverability & Anti-Spam Gate
+        gatekeeper_report = PreSendGatekeeper.evaluate(
+            subject=subject,
+            body=body,
+            step_number=params.get("step_number", 1),
+            max_words=params.get("max_words"),
+            max_links=params.get("max_links", 1),
+        )
+        if gatekeeper_report.cleaned_body:
+            body = gatekeeper_report.cleaned_body
+        if gatekeeper_report.cleaned_subject:
+            subject = gatekeeper_report.cleaned_subject
 
         # Evaluate Groundedness
         evidence_records = [
@@ -143,25 +161,39 @@ Output a JSON object:
         ]
         report = self.evaluator.evaluate(body, evidence_records, strict_mode=False)
 
-        decision = "ready" if (report.is_fully_grounded or report.groundedness_score >= 0.85) else "review_required"
-        reasoning = (
-            f"Drafted {channel} message ({len(body.split())} words). "
-            f"Groundedness score: {report.groundedness_score:.2f}. "
-            f"{'Approved for dispatch.' if report.is_fully_grounded else 'Flagged for review due to ungrounded claims.'}"
-        )
+        is_grounded = report.is_fully_grounded or report.groundedness_score >= 0.85
+        is_gate_clean = gatekeeper_report.is_valid
+
+        if is_grounded and is_gate_clean:
+            decision = "ready"
+            reasoning = (
+                f"Drafted {channel} message ({gatekeeper_report.word_count} words). "
+                f"Groundedness score: {report.groundedness_score:.2f}. Passed deliverability gatekeeper. Ready for outbox."
+            )
+        elif not is_gate_clean:
+            decision = "review_required"
+            reasoning = f"Flagged by deliverability gatekeeper: {'; '.join(gatekeeper_report.violations)}"
+        else:
+            decision = "review_required"
+            reasoning = "Flagged for review due to ungrounded claims. Not sent."
 
         elapsed = int((time.time() - start_time) * 1000)
+        report_data = report.model_dump() if hasattr(report, "model_dump") else report.dict()
+        gate_data = gatekeeper_report.model_dump() if hasattr(gatekeeper_report, "model_dump") else gatekeeper_report.dict()
+
         return AgentResult(
             agent_id=self.agent_id,
             tenant_id=self.tenant_id,
             deal_room_id=deal_room.id,
+            contract_id="sales.composer",
+            prompt_version=rendered["prompt_version"],
             decision=decision,
-            confidence=report.groundedness_score,
+            confidence=report.groundedness_score if is_gate_clean else min(report.groundedness_score, 0.4),
             evidence=[EvidenceItem(claim=c.claim_text, source=c.source_type, confidence=c.confidence) for c in report.claims if c.is_grounded] or [EvidenceItem(claim="Grounded in verified context", source="evidence_record", confidence=1.0)],
             source="composer_evaluator",
             reasoning_summary=reasoning,
-            missing_information=report.ungrounded_claims,
-            recommended_next_step="policy_governance_check",
+            missing_information=report.ungrounded_claims + gatekeeper_report.violations,
+            recommended_next_step="outbox_stage" if decision == "ready" else "policy_governance_check",
             data={
                 "subject": subject,
                 "body": body,
@@ -169,7 +201,10 @@ Output a JSON object:
                 "recipient_email": member.email if member else None,
                 "channel": channel,
                 "groundedness_score": report.groundedness_score,
-                "groundedness_report": report.dict(),
+                "groundedness_report": report_data,
+                "gatekeeper_report": gate_data,
+                "policy_status": "not_submitted",
+                "sent": False,
             },
             execution_time_ms=elapsed,
         )

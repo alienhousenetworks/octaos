@@ -52,15 +52,17 @@ class Settings(BaseSettings):
     GROQ_API_KEY: Optional[str] = None
     GROK_API_KEY: Optional[str] = None
     XAI_API_KEY: Optional[str] = None
+    NVIDIA_API_KEY: Optional[str] = None
 
     # VENDOR ROUTING & MODEL SELECTION
-    DEFAULT_AI_PROVIDER: str = "openrouter"  # openrouter | together | groq | grok | anthropic | openai | gemini
-    DEFAULT_AI_MODEL: Optional[str] = None
+    DEFAULT_AI_PROVIDER: str = "openrouter"  # openrouter | together | groq | grok | anthropic | openai | gemini | nvidia
+    DEFAULT_AI_MODEL: Optional[str] = "meta-llama/llama-3.3-70b-instruct"
     DEFAULT_AI_MODE: str = "inbuilt"  # inbuilt | byok
     OPENROUTER_MODELS: Optional[str] = None  # Comma-separated custom models from env
     TOGETHER_MODELS: Optional[str] = None
     GROQ_MODELS: Optional[str] = None
     GROK_MODELS: Optional[str] = None
+    NVIDIA_MODELS: Optional[str] = None
 
     # PILOT CONFIG
     SHARED_CLAUDE_KEY: Optional[str] = None

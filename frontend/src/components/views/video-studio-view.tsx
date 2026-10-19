@@ -55,7 +55,7 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
   const [prompt, setPrompt] = useState('');
   const [title, setTitle] = useState('');
   const [provider, setProvider] = useState('auto');
-  const [model, setModel] = useState('gemini-2.5-flash');
+  const [model, setModel] = useState('meta-llama/llama-3.3-70b-instruct');
   const [selectedProject, setSelectedProject] = useState<any | null>(null);
 
   const fetchProjects = async () => {
@@ -197,12 +197,13 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
                 <Select value={provider} onValueChange={(val) => {
                   if (!val) return;
                   setProvider(val);
-                  if (val === 'openrouter') setModel('google/gemini-2.5-flash');
+                  if (val === 'openrouter') setModel('meta-llama/llama-3.3-70b-instruct');
                   else if (val === 'together') setModel('meta-llama/Llama-3.3-70B-Instruct-Turbo');
                   else if (val === 'groq') setModel('llama-3.3-70b-versatile');
                   else if (val === 'gemini') setModel('gemini-2.5-flash');
                   else if (val === 'openai') setModel('gpt-4o');
                   else if (val === 'anthropic') setModel('claude-sonnet-4-6');
+                  else if (val === 'nvidia') setModel('meta/llama-3.3-70b-instruct');
                 }}>
                   <SelectTrigger className="bg-gray-900/50 border-gray-800 text-white h-9 text-xs">
                     <SelectValue />
@@ -212,6 +213,7 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
                     <SelectItem value="openrouter">OpenRouter (Meta-Hub)</SelectItem>
                     <SelectItem value="together">Together AI (Meta-Hub)</SelectItem>
                     <SelectItem value="groq">Groq (Ultra-Fast)</SelectItem>
+                    <SelectItem value="nvidia">NVIDIA NIM (Llama 3.3 70B)</SelectItem>
                     <SelectItem value="gemini">Google Gemini</SelectItem>
                     <SelectItem value="openai">OpenAI GPT</SelectItem>
                     <SelectItem value="anthropic">Anthropic Claude</SelectItem>
@@ -229,9 +231,18 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
                     <SelectContent className="bg-gray-900 border-gray-800 text-white">
                       {provider === 'openrouter' && (
                         <>
+                          <SelectItem value="meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B (Default)</SelectItem>
                           <SelectItem value="google/gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
                           <SelectItem value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</SelectItem>
                           <SelectItem value="openai/gpt-4o">GPT-4o</SelectItem>
+                        </>
+                      )}
+                      {provider === 'nvidia' && (
+                        <>
+                          <SelectItem value="meta/llama-3.3-70b-instruct">Llama 3.3 70B (Default)</SelectItem>
+                          <SelectItem value="meta/llama-3.1-405b-instruct">Llama 3.1 405B</SelectItem>
+                          <SelectItem value="meta/llama-3.1-70b-instruct">Llama 3.1 70B</SelectItem>
+                          <SelectItem value="meta/llama-3.1-8b-instruct">Llama 3.1 8B</SelectItem>
                         </>
                       )}
                       {provider === 'together' && (

@@ -108,7 +108,7 @@ class CampaignOSOrchestrator:
         video_sel = params.get("video", {}) if isinstance(params.get("video"), dict) else {}
 
         pref_text_p = text_sel.get("provider") or params.get("text_provider") or "auto"
-        pref_text_m = text_sel.get("model") or params.get("text_model")
+        pref_text_m = text_sel.get("model") or params.get("text_model") or "meta-llama/llama-3.3-70b-instruct"
 
         pref_img_p = image_sel.get("provider") or params.get("image_provider") or "together"
         pref_img_m = image_sel.get("model") or params.get("image_model")

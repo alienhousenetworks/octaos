@@ -111,6 +111,8 @@ class ProviderUsage(Base):
     status = Column(String, default="success") # success, failed, failover
     error_message = Column(String, nullable=True)
     failover_from = Column(String, nullable=True)
+    resource_id = Column(String, nullable=True)
+    correlation_id = Column(String, nullable=True)
 
 class AIBatchJob(Base):
     __tablename__ = "ai_batch_jobs"

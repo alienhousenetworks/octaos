@@ -30,10 +30,10 @@ def seed_system_agents(db: Session):
             "role": "Outbound & Inbound Sales Specialist",
             "description": "Prospect qualification, automated research, lead scoring, and personalized outreach sequencing.",
             "avatar_icon": "TrendingUp",
-            "provider": "anthropic",
-            "model": "claude-sonnet-4-6",
-            "system_prompt": "You are Sales AI, an expert enterprise sales representative. You evaluate prospect companies, extract intent, score buying likelihood, and craft irresistible cold emails.",
-            "tools": ["web_search", "lead.create", "lead.update", "lead.score", "email.send"],
+            "provider": "openrouter",
+            "model": "meta-llama/llama-3.3-70b-instruct",
+            "system_prompt": "You are the OctaOS Sales AI orchestrator. You interpret a campaign and recommend the next sales step. You do not send email, change a price, or override suppression. Scoring, policy, and delivery are deterministic controls outside this prompt. Use only supplied evidence. Unknown is an allowed answer. If evidence is missing, say insufficient_evidence instead of inventing a fact, a person, or a metric.",
+            "tools": ["web_search", "lead.create", "lead.update", "lead.score"],
         },
         {
             "name": "Marketing AI",
@@ -42,8 +42,8 @@ def seed_system_agents(db: Session):
             "role": "Content Strategist & Viral Copywriter",
             "description": "Brand storytelling, social media strategy, multi-channel copywriting, and campaign scheduling.",
             "avatar_icon": "Calendar",
-            "provider": "gemini",
-            "model": "gemini-2.5-flash",
+            "provider": "openrouter",
+            "model": "meta-llama/llama-3.3-70b-instruct",
             "system_prompt": "You are Marketing AI, an elite brand strategist and copywriter. You write compelling hooks, educational social posts, and coordinate multi-platform growth campaigns.",
             "tools": ["web_search", "post.create", "post.publish", "knowledge.search"],
         },
@@ -54,8 +54,8 @@ def seed_system_agents(db: Session):
             "role": "Customer Experience & Resolution Specialist",
             "description": "Ticket sentiment analysis, technical triage, instant verified troubleshooting, and escalation routing.",
             "avatar_icon": "MessageSquare",
-            "provider": "gemini",
-            "model": "gemini-2.5-flash",
+            "provider": "openrouter",
+            "model": "meta-llama/llama-3.3-70b-instruct",
             "system_prompt": "You are Support AI, an empathetic, technically astute customer support specialist. You resolve client inquiries accurately based on verified company documentation.",
             "tools": ["ticket.reply", "ticket.close", "knowledge.search"],
         },
@@ -66,8 +66,8 @@ def seed_system_agents(db: Session):
             "role": "Financial Analyst & Risk Auditor",
             "description": "Invoice verification, transaction anomaly auditing, budget optimization, and burn-rate tracking.",
             "avatar_icon": "DollarSign",
-            "provider": "anthropic",
-            "model": "claude-sonnet-4-6",
+            "provider": "openrouter",
+            "model": "meta-llama/llama-3.3-70b-instruct",
             "system_prompt": "You are Finance AI, an analytical corporate finance controller. You detect billing discrepancies, verify transaction legitimacy, and optimize resource allocation.",
             "tools": ["knowledge.search", "webhook_post"],
         },
@@ -78,8 +78,8 @@ def seed_system_agents(db: Session):
             "role": "Talent Acquisition & People Operations Agent",
             "description": "Candidate CV parsing, job requirement matching, applicant scorecarding, and onboarding coordination.",
             "avatar_icon": "Briefcase",
-            "provider": "openai",
-            "model": "gpt-4o",
+            "provider": "openrouter",
+            "model": "meta-llama/llama-3.3-70b-instruct",
             "system_prompt": "You are HR AI, a perceptive talent scout and human resources coordinator. You screen candidates against role criteria, craft fair scorecards, and streamline hiring.",
             "tools": ["applicant.create", "applicant.score", "email.send"],
         },
@@ -90,8 +90,8 @@ def seed_system_agents(db: Session):
             "role": "Chief Executive Officer & Cross-Team Orchestrator",
             "description": "Autonomous business goal decomposition, inter-agent delegation, boardroom synthesis, and governance.",
             "avatar_icon": "Target",
-            "provider": "anthropic",
-            "model": "claude-sonnet-4-6",
+            "provider": "openrouter",
+            "model": "meta-llama/llama-3.3-70b-instruct",
             "system_prompt": "You are CEO AI, the executive orchestrator of OctaOS. You synthesize insights across Sales, Marketing, HR, and Support to execute strategic initiatives.",
             "tools": ["web_search", "knowledge.search", "lead.score", "email.send"],
         },
@@ -124,6 +124,18 @@ def seed_system_agents(db: Session):
                 max_tokens=4096,
             )
             db.add(version)
+        else:
+            # Sync default system agent version to preferred Llama 70B if using older defaults
+            latest_v = db.query(AgentVersion).filter_by(agent_id=existing.id).order_by(AgentVersion.version.desc()).first()
+            if latest_v and latest_v.model in ["claude-sonnet-4-6", "gemini-2.5-flash", "gpt-4o", "claude-haiku-4-5-20251001"]:
+                latest_v.provider = item["provider"]
+                latest_v.model = item["model"]
+            old_sales_prompt = "You are Sales AI, an expert enterprise sales representative. You evaluate prospect companies, extract intent, score buying likelihood, and craft irresistible cold emails."
+            if item["slug"] == "sales_ai" and latest_v and latest_v.system_prompt == old_sales_prompt:
+                latest_v.system_prompt = item["system_prompt"]
+                grants = list(latest_v.tool_grants or [])
+                if "email.send" in grants:
+                    latest_v.tool_grants = [tool for tool in grants if tool != "email.send"]
     db.commit()
 
 

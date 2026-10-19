@@ -221,3 +221,32 @@ class CompanySalesContext(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SalesOutboxItem(Base):
+    """Outbox queue for scheduled, staged cold outreach and multi-touch follow-ups."""
+    __tablename__ = "sales_outbox_items"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    lead_id = Column(String, ForeignKey("leads.id", ondelete="CASCADE"), nullable=True, index=True)
+    deal_room_id = Column(String, ForeignKey("deal_rooms.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    step_number = Column(Integer, default=1)
+    channel = Column(String, default="email")  # email | linkedin | whatsapp | call
+    recipient_email = Column(String, nullable=True, index=True)
+    recipient_name = Column(String, nullable=True)
+
+    subject = Column(String, nullable=True)
+    body = Column(Text, nullable=False)
+
+    status = Column(String, default="scheduled", index=True)  # scheduled | approved | pending_review | sent | cancelled | failed
+    scheduled_for = Column(DateTime(timezone=True), nullable=False, index=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+
+    cancellation_reason = Column(String, nullable=True)  # prospect_replied | unsubscribed | bounce_detected | manual
+    error_message = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+

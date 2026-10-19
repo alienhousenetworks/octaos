@@ -1091,3 +1091,7 @@ async def import_candidates_excel(
     }
 
 
+from app.api.v1.endpoints.hr_lifecycle import router as hr_lifecycle_router
+router.include_router(hr_lifecycle_router)
+
+

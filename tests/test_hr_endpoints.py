@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from app.api import deps
 from app.models.base import Base, User, Tenant, APICredential
 from app.models import verticals as models
+import app.models.deal_room  # noqa: F401  # sales_companies FK target
 from app.api.v1.endpoints.hr import router as hr_router
 
 import os

@@ -862,3 +862,80 @@ class LocalAdapter(BaseProviderAdapter):
                 "cached_tokens": 0,
                 "raw_response": data
             }
+
+
+class NvidiaAdapter(BaseProviderAdapter):
+    """NVIDIA NIM API adapter (OpenAI-compatible endpoint at https://integrate.api.nvidia.com/v1)."""
+    base_url: str = "https://integrate.api.nvidia.com/v1"
+
+    async def execute_request(self, prompt: str, model: str = "meta/llama-3.3-70b-instruct", system_prompt: str = None, **kwargs) -> Dict[str, Any]:
+        images = kwargs.pop("images", None)
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+
+        if images:
+            user_content = [{"type": "text", "text": prompt}]
+            for img in images:
+                mime = img.get("mime_type", "image/png")
+                b64 = img.get("data", "")
+                url_val = img.get("url")
+                if url_val:
+                    user_content.append({"type": "image_url", "image_url": {"url": url_val}})
+                elif b64:
+                    user_content.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}})
+            messages.append({"role": "user", "content": user_content})
+        else:
+            messages.append({"role": "user", "content": prompt})
+
+        clean_model = model or "meta/llama-3.3-70b-instruct"
+        if clean_model.startswith("nvidia/"):
+            clean_model = clean_model[len("nvidia/"):]
+        if not ("/" in clean_model) and "llama-3.3-70b" in clean_model:
+            clean_model = "meta/llama-3.3-70b-instruct"
+        elif clean_model.startswith("meta-llama/"):
+            clean_model = clean_model.replace("meta-llama/", "meta/")
+
+        temperature = kwargs.pop("temperature", 0.2)
+        top_p = kwargs.pop("top_p", 0.7)
+        max_tokens = kwargs.pop("max_tokens", 1024)
+
+        payload = {
+            "model": clean_model,
+            "messages": messages,
+            "temperature": temperature,
+            "top_p": top_p,
+            "max_tokens": max_tokens,
+            "stream": False,
+            **kwargs
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=45.0
+            )
+            if response.status_code != 200:
+                raise Exception(f"NVIDIA NIM API error ({response.status_code}): {response.text}")
+
+            data = response.json()
+            choices = data.get("choices", [])
+            if not choices:
+                raise Exception(f"NVIDIA NIM returned no choices: {data}")
+            content = choices[0]["message"]["content"]
+            usage = data.get("usage", {})
+            input_tokens = usage.get("prompt_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0)
+
+            return {
+                "content": content,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "cached_tokens": 0,
+                "raw_response": data
+            }

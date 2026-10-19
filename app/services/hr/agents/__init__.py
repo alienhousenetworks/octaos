@@ -1,0 +1,1 @@
+"""HR copilot package."""

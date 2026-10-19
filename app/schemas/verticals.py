@@ -122,7 +122,7 @@ class CampaignCreate(BaseModel):
     budget_cap_usd: Optional[float] = None
     # Backward compatibility fields
     text_provider: Optional[str] = "auto"
-    text_model: Optional[str] = None
+    text_model: Optional[str] = "meta-llama/llama-3.3-70b-instruct"
     image_provider: Optional[str] = "together"
     video_provider: Optional[str] = "together"
     generate_images: bool = True
@@ -264,7 +264,7 @@ class BusinessProfileBase(BaseModel):
     usp: Optional[str] = None
     case_studies: Optional[str] = None
     offer_details: Optional[str] = None
-    calendars: Optional[List[str]] = None
+    calendars: Optional[List[Union[str, Dict[str, Any]]]] = None
     communication_channels: Optional[List[str]] = None
     extra_context: Optional[str] = None
     v3_workflow_status: Optional[dict] = None

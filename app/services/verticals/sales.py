@@ -1,6 +1,9 @@
+from typing import Optional
 from sqlalchemy.orm import Session
 from app.models.verticals import Lead
 from app.services.llm_gateway import LLMGateway
+from app.services.sales_os.governance.gatekeeper import PreSendGatekeeper
+
 
 class SalesService:
     def __init__(self, db: Session, tenant_id: str):
@@ -11,25 +14,44 @@ class SalesService:
     async def score_lead(self, lead_id: str):
         lead = self.db.query(Lead).filter(Lead.id == lead_id, Lead.tenant_id == self.tenant_id).first()
         if not lead:
-            return
+            return None
         
-        # Scoring logic using AI
-        prompt = f"Score this lead from 0-100 based on quality: Name: {lead.name}, Company: {lead.company}, Source: {lead.source}. Just return the number."
-        score_str = await self.llm.complete(prompt, model="claude-3-haiku-20240307")
-        try:
-            lead.score = int(score_str.strip())
-        except:
-            lead.score = 50 # Default if AI fails
-        
-        lead.status = "scored"
+        # Name, company, and source do not support a qualification score.
+        data = dict(lead.data or {})
+        data["qualification"] = {
+            "decision": "needs_review",
+            "rationale": "Name, company, and source are not enough evidence to score this lead.",
+            "unknowns": ["industry", "size", "revenue", "intent", "evidence"],
+            "contract_id": "sales.lightweight_score",
+        }
+        lead.data = data
+        lead.status = "needs_review"
         self.db.commit()
-        return lead.score
+        return None
 
-    async def generate_outreach(self, lead_id: str, instructions: str = ""):
+    async def generate_outreach(self, lead_id: str, instructions: str = "") -> Optional[str]:
         lead = self.db.query(Lead).filter(Lead.id == lead_id, Lead.tenant_id == self.tenant_id).first()
         if not lead:
-            return
+            return None
         
+        # Try routing to DealRoom ComposerAgent if a DealRoom exists for this lead
+        try:
+            from app.models.deal_room import DealRoom
+            from app.services.sales_os.discovery.identity import canonical_domain, domain_from_email
+            from app.services.sales_os.agents.composer import ComposerAgent
+
+            domain = canonical_domain(lead.company) or domain_from_email(lead.email or "")
+            if domain:
+                room = self.db.query(DealRoom).filter_by(tenant_id=self.tenant_id, domain=domain).first()
+                if room:
+                    composer = ComposerAgent(self.db, self.tenant_id)
+                    result = await composer.execute(room.id, {"channel": "email"})
+                    if result and result.data and result.data.get("body"):
+                        return result.data.get("body")
+        except Exception:
+            pass
+
+        # Fallback to direct prompt with strict gatekeeper sanitization
         data = lead.data or {}
         title = (data.get("contact") or {}).get("title") or ""
 
@@ -46,15 +68,18 @@ class SalesService:
             sender_rule = f"Write on behalf of {company_name}. Do NOT invent any employee or sender name. Sign off strictly with: Best regards, The {company_name} Team."
 
         prompt = (
-            f"Write a personalized short outreach email (under 120 words, body only, no placeholders) "
+            f"Write a personalized short outreach email (under 120 words, body only, no placeholders, no clichés) "
             f"for {lead.name} {f'({title}) ' if title else ''}at {lead.company}. Found via {lead.source}.\n"
             f"Why now: {lead.why or data.get('why_now') or 'n/a'}\n"
             f"Pain points: {data.get('pain_points') or 'n/a'}\n"
             f"Our offer: {lead.need_of_what or 'n/a'}\n"
             f"Sender & Context: {sender_rule}\n"
-            f"Use only the facts above; do not invent any fake human personas."
+            f"Never use clichés like 'hope this finds you well' or 'in today's fast-paced world'.\n"
+            f"Use only verified facts; do not invent any fake human personas."
         )
         if instructions:
             prompt += f"\nUser instructions to follow: {instructions}"
-        message = await self.llm.complete(prompt, model="claude-3-sonnet-20240229")
-        return message
+        
+        raw_message = await self.llm.complete(prompt, model="claude-3-sonnet-20240229")
+        cleaned_body = PreSendGatekeeper.strip_html(raw_message or "")
+        return cleaned_body

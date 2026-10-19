@@ -202,7 +202,7 @@ export default function CampaignsView({
   const [modelsLoading, setModelsLoading] = useState(false);
 
   const [textProvider, setTextProvider] = useState('openrouter');
-  const [textModel, setTextModel] = useState<string>('google/gemini-2.5-flash');
+  const [textModel, setTextModel] = useState<string>('meta-llama/llama-3.3-70b-instruct');
   const [textValidation, setTextValidation] = useState<ValidationResult>({ status: 'idle' });
 
   const [generateImages, setGenerateImages] = useState(true);
@@ -1899,17 +1899,20 @@ export default function CampaignsView({
                     <Select value={textProvider} onValueChange={(value) => {
                       if (!value) return;
                       setTextProvider(value);
-                      if (value === 'openrouter') setTextModel('google/gemini-2.5-flash');
+                      if (value === 'openrouter') setTextModel('meta-llama/llama-3.3-70b-instruct');
                       else if (value === 'together') setTextModel('meta-llama/Llama-3.3-70B-Instruct-Turbo');
                       else if (value === 'groq') setTextModel('llama-3.3-70b-versatile');
                       else if (value === 'gemini') setTextModel('gemini-2.5-flash');
                       else if (value === 'openai') setTextModel('gpt-4o');
                       else if (value === 'anthropic') setTextModel('claude-sonnet-4-6');
+                      else if (value === 'nvidia') setTextModel('meta/llama-3.3-70b-instruct');
                       else if (value === 'grok') setTextModel('grok-2');
                       else if (value === 'auto') setTextModel('');
                     }}>
                       <SelectTrigger className="w-full" aria-label="Copy provider"><SelectValue /></SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="auto">Auto / Default (.env)</SelectItem>
+                        <SelectItem value="nvidia">NVIDIA NIM</SelectItem>
                         <SelectItem value="openrouter">OpenRouter</SelectItem>
                         <SelectItem value="together">Together</SelectItem>
                         <SelectItem value="groq">Groq</SelectItem>
@@ -1917,7 +1920,6 @@ export default function CampaignsView({
                         <SelectItem value="openai">OpenAI</SelectItem>
                         <SelectItem value="anthropic">Anthropic</SelectItem>
                         <SelectItem value="grok">Grok</SelectItem>
-                        <SelectItem value="auto">Automatic</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

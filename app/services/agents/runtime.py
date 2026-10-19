@@ -112,7 +112,11 @@ class AgentRuntime:
                         payload=tool_args,
                         db=db,
                         tenant_id=tenant_id,
-                        context={"agent_id": agent.id, "flow_run_id": flow_run_id},
+                        context={
+                            "agent_id": agent.id,
+                            "flow_run_id": flow_run_id,
+                            "department": agent.department,
+                        },
                     )
                     executed_tools.append({"tool": tool_name, "args": tool_args, "result": tool_result})
                 except Exception as tool_err:

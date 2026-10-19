@@ -41,6 +41,14 @@ celery_app.conf.beat_schedule = {
         "task": "poll_and_execute_workflows",
         "schedule": crontab(minute="*"),
     },
+    "drain-hr-outbox": {
+        "task": "drain_hr_outbox",
+        "schedule": crontab(minute="*"),
+    },
+    "expire-hr-approvals": {
+        "task": "expire_hr_approvals",
+        "schedule": crontab(minute="*/5"),
+    },
     "poll-scheduled-triggers": {
         "task": "poll_scheduled_triggers",
         "schedule": crontab(minute="*"),
@@ -56,6 +64,10 @@ celery_app.conf.beat_schedule = {
     "poll-gmail-sales-inbox": {
         "task": "poll_gmail_sales_inbox",
         "schedule": crontab(minute="*/3"),
+    },
+    "execute-sales-cadence-touches": {
+        "task": "execute_sales_cadence_touches",
+        "schedule": crontab(minute="*/10"),
     },
     "sync-marketing-insights": {
         "task": "sync_marketing_insights_task",

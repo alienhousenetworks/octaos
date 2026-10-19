@@ -143,24 +143,22 @@ def handle_lead_with_ai_task(tenant_id: str, lead_id: str):
             
             message = async_to_sync(service.generate_outreach)(lead_id)
             if message:
-                lead.status = "contacted"
-                conv = list((lead.data or {}).get("conversation") or [])
-                conv.append({
-                    "direction": "outbound",
-                    "channel": "smtp",
-                    "content": message,
-                    "subject": f"Partnership Opportunity - {lead.company}",
-                    "at": datetime.utcnow().isoformat()
-                })
-                lead.data = {
-                    **(lead.data or {}),
-                    "outreach_channel": "smtp",
-                    "outbound_subject": f"Partnership Opportunity - {lead.company}",
-                    "outbound_body": message,
-                    "outreach_sent_at": datetime.utcnow().isoformat(),
-                    "conversation": conv
-                }
-                db.commit()
+                from app.services.sales.outbox_service import SalesOutboxService
+                recipient_email = lead.email or lead.company_email or lead.personal_email
+                if recipient_email:
+                    outbox = SalesOutboxService(db, tenant_id)
+                    outbox.stage_touch(
+                        lead_id=lead.id,
+                        recipient_email=recipient_email,
+                        subject=f"Partnership Opportunity - {lead.company}",
+                        body=message,
+                        step_number=1,
+                        channel="email",
+                        scheduled_for=datetime.utcnow(),
+                        recipient_name=lead.name,
+                    )
+                    # Drain immediately with safety checks
+                    outbox.drain_due_items(limit=1, max_jitter_sec=0)
     finally:
         db.close()
 
@@ -239,6 +237,11 @@ def generate_campaign_task(tenant_id: str, params: dict, job_id: str = None, *ar
             .all()
         )
 
+        from app.services.marketing.visual_creative.critic import VisualCritic
+        from app.services.marketing.visual_creative.analyzer import VisualIntentAnalyzer
+        from app.services.marketing.visual_creative.creative_director import DynamicCreativeDirector
+        critic = VisualCritic(db, tenant_id)
+
         for post in created_posts:
             # Image Rendering Dispatch
             if generate_images and post.image_prompt and not post.image_url:
@@ -252,6 +255,16 @@ def generate_campaign_task(tenant_id: str, params: dict, job_id: str = None, *ar
                     if raw and not raw.startswith("error:"):
                         post.image_url = async_to_sync(ensure_public_url)(raw, prefix="img")
                         post.used_model = f"{image_provider}/{image_model or 'default'}"
+                        # Visual Quality Gate Inspection
+                        try:
+                            intent = VisualIntentAnalyzer.analyze(post.content or post.image_prompt, deliverable="image", platform=post.platform)
+                            brief = DynamicCreativeDirector.create_brief(intent)
+                            scorecard = async_to_sync(critic.inspect)(post.image_url, intent, brief)
+                            insights = dict(post.insights_raw or {})
+                            insights["quality_scorecard"] = scorecard.model_dump()
+                            post.insights_raw = insights
+                        except Exception as q_err:
+                            task_logger.debug(f"Critic check bypassed for post {post.id}: {q_err}")
                     elif raw and raw.startswith("error:"):
                         post.image_url = raw  # Keep error sentinel for UI warning
                 except Exception as img_err:
@@ -271,6 +284,16 @@ def generate_campaign_task(tenant_id: str, params: dict, job_id: str = None, *ar
                     if v_raw and not str(v_raw).startswith("error:"):
                         post.video_url = async_to_sync(ensure_public_url)(v_raw, prefix="vid", default_mime="video/mp4")
                         post.used_model = f"{video_provider}/{video_model or 'default'}"
+                        # Visual Quality Gate Inspection
+                        try:
+                            intent = VisualIntentAnalyzer.analyze(post.content or post.video_prompt, deliverable="video", platform=post.platform)
+                            brief = DynamicCreativeDirector.create_brief(intent)
+                            scorecard = async_to_sync(critic.inspect)(post.video_url, intent, brief)
+                            insights = dict(post.insights_raw or {})
+                            insights["quality_scorecard"] = scorecard.model_dump()
+                            post.insights_raw = insights
+                        except Exception as q_err:
+                            task_logger.debug(f"Critic check bypassed for video post {post.id}: {q_err}")
                 except Exception as vid_err:
                     task_logger.warning(f"Video generation failed gracefully for post {post.id}: {vid_err}")
 
@@ -428,6 +451,19 @@ def auto_reply_task(tenant_id: str, ticket_id: str, trigger_msg_id: str, channel
         async_to_sync(agent.process_auto_reply)(ticket_id, trigger_msg_id, channel)
     except Exception as e:
         print(f"Error in auto_reply_task: {e}")
+        raise e
+    finally:
+        db.close()
+
+@celery_app.task(name="check_human_handoff_timeout_task")
+def check_human_handoff_timeout_task(tenant_id: str, ticket_id: str, expected_generation: int = 0):
+    from app.services.agents.support import SupportAgent
+    db = SessionLocal()
+    try:
+        agent = SupportAgent(db, tenant_id)
+        async_to_sync(agent.process_handoff_timeout)(ticket_id, expected_generation)
+    except Exception as e:
+        print(f"Error in check_human_handoff_timeout_task: {e}")
         raise e
     finally:
         db.close()
@@ -730,10 +766,14 @@ def poll_and_execute_workflows():
     
     db = SessionLocal()
     try:
+        from sqlalchemy import or_
+        from app.models.workflows import Workflow
         now = datetime.now(timezone.utc)
-        tasks_to_run = db.query(WorkflowTask).filter(
+        tasks_to_run = db.query(WorkflowTask).join(Workflow, Workflow.id == WorkflowTask.workflow_id).filter(
             WorkflowTask.status == "pending",
-            WorkflowTask.scheduled_at <= now
+            WorkflowTask.scheduled_at <= now,
+            or_(Workflow.vertical.is_(None), Workflow.vertical != "hr"),
+            or_(WorkflowTask.task_type.is_(None), ~WorkflowTask.task_type.like("hr.%")),
         ).all()
         
         if tasks_to_run:
@@ -743,6 +783,48 @@ def poll_and_execute_workflows():
                 
     except Exception as e:
         print(f"Error polling workflows: {e}")
+    finally:
+        db.close()
+
+
+@celery_app.task(name="drain_hr_outbox")
+def drain_hr_outbox():
+    import asyncio
+    import app.services.hr.capabilities  # noqa: F401 — registers hr.* capabilities
+    from app.workers.outbox_worker import OutboxWorker
+
+    db = SessionLocal()
+    try:
+        worker = OutboxWorker(db, "hr-drain")
+        asyncio.run(worker.process_batch(capability_prefix="hr."))
+    except Exception as e:
+        print(f"Error draining HR outbox: {e}")
+    finally:
+        db.close()
+
+
+@celery_app.task(name="expire_hr_approvals")
+def expire_hr_approvals():
+    from datetime import datetime, timezone
+    from app.models.executive import ExecutiveApprovalRequest
+    from app.core.governance import DeterministicGovernanceKernel
+
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        rows = db.query(ExecutiveApprovalRequest).filter(
+            ExecutiveApprovalRequest.status == "PENDING",
+            ExecutiveApprovalRequest.capability_id.like("hr.%"),
+            ExecutiveApprovalRequest.expires_at < now,
+        ).all()
+        for row in rows:
+            row.status = "EXPIRED"
+            if row.idempotency_key:
+                DeterministicGovernanceKernel(db, row.tenant_id).release_hr_hold(row.idempotency_key)
+        db.commit()
+    except Exception as e:
+        print(f"Error expiring HR approvals: {e}")
+        db.rollback()
     finally:
         db.close()
 
@@ -1309,6 +1391,88 @@ def execute_media_generation_job_task(job_id: str):
             job.status = "failed"
             job.error = str(e)
             db.commit()
+    finally:
+        db.close()
+
+
+@celery_app.task(name="execute_sales_cadence_touches")
+def execute_sales_cadence_touches():
+    """Processes pending multi-channel cadence touches (Email, LinkedIn, WhatsApp) for contacted leads."""
+    from datetime import datetime, timezone
+    from app.models.base import Tenant
+    from app.models.verticals import Lead
+    from app.services.sales_os.governance.suppression import SuppressionService
+    from app.services.email.sender import send_email
+
+    db = SessionLocal()
+    try:
+        tenants = db.query(Tenant).filter(Tenant.is_active == True).all()
+        now = datetime.now(timezone.utc)
+        for tenant in tenants:
+            # 1. Drain autonomous Sales Outbox items due for delivery
+            from app.services.sales.outbox_service import SalesOutboxService
+            try:
+                outbox = SalesOutboxService(db, tenant.id)
+                outbox.drain_due_items(limit=25, max_jitter_sec=2)
+            except Exception as outbox_err:
+                logger.error(f"Error draining sales outbox for tenant {tenant.id}: {outbox_err}")
+
+            # 2. Legacy cadence touches fallback
+            suppression = SuppressionService(db, tenant.id)
+            leads = (
+                db.query(Lead)
+                .filter(
+                    Lead.tenant_id == tenant.id,
+                    Lead.status == "contacted",
+                )
+                .all()
+            )
+            for lead in leads:
+                data = dict(lead.data or {})
+                schedule = list(data.get("outreach_schedule") or [])
+                sent_at_str = data.get("outreach_sent_at")
+                if not schedule or not sent_at_str:
+                    continue
+                try:
+                    sent_at = datetime.fromisoformat(sent_at_str)
+                    if sent_at.tzinfo is None:
+                        sent_at = sent_at.replace(tzinfo=timezone.utc)
+                except Exception:
+                    continue
+
+                days_elapsed = (now - sent_at).total_seconds() / 86400.0
+                updated_schedule = False
+
+                for step in schedule:
+                    if step.get("status") == "pending" and step.get("day", 1) > 1:
+                        if days_elapsed >= step.get("day", 1):
+                            # Pre-send suppression check
+                            is_supp, _ = suppression.is_suppressed(email=lead.email, phone=lead.phone)
+                            if is_supp:
+                                step["status"] = "suppressed"
+                                updated_schedule = True
+                                break
+
+                            channel = (step.get("channel") or "").lower()
+                            content = step.get("content", "")
+                            if channel == "email" and lead.email:
+                                subject = f"Following up: {lead.company}"
+                                res = send_email(db, tenant.id, lead.email, subject, content)
+                                if (isinstance(res, dict) and res.get("sent")) or res is True:
+                                    step["status"] = "sent"
+                                    step["sent_at"] = now.isoformat()
+                                    updated_schedule = True
+                            elif channel in ("linkedin", "whatsapp", "follow-up call"):
+                                step["status"] = "logged"
+                                step["logged_at"] = now.isoformat()
+                                updated_schedule = True
+
+                if updated_schedule:
+                    data["outreach_schedule"] = schedule
+                    lead.data = data
+                    db.commit()
+    except Exception as e:
+        logger.error(f"Error in execute_sales_cadence_touches: {e}", exc_info=True)
     finally:
         db.close()
 

@@ -627,7 +627,7 @@ class CalendarEngine:
             if not isinstance(existing_cals, list):
                 existing_cals = []
 
-            retained = [c for c in existing_cals if isinstance(c, dict) and c.get("source") != "agentic_radar"]
+            retained = [c for c in existing_cals if (isinstance(c, dict) and c.get("source") != "agentic_radar") or isinstance(c, str)]
             updated = retained + discovered_events
 
             profile.calendars = updated

@@ -15,6 +15,9 @@ from app.models.deal_room import DealRoom, DealObjection, CompanySalesContext, B
 from app.services.sales_os.governance.suppression import SuppressionService
 from app.services.knowledge_os.entity_extractor import extract_json_safe
 from app.services.rag.hybrid_engine import HybridRAGEngine
+from app.services.sales_os.aso.reply_taxonomy import normalize_reply_intent
+from app.services.sales_os.aso.state_machine import apply_transition
+from app.services.sales_os.contracts.registry import render_prompts
 
 
 class ConversationAgent(BaseSalesAgent):
@@ -54,11 +57,23 @@ class ConversationAgent(BaseSalesAgent):
                 recommended_next_step="discover_account",
             )
 
-        # Heuristic fast-path
         lower_inbound = inbound_text.lower()
+        parsed: dict = {}
         if any(w in lower_inbound for w in ["unsubscribe", "remove me", "stop emailing", "take me off"]):
             intent = "unsubscribe"
             parsed = {"intent": "unsubscribe"}
+        elif any(w in lower_inbound for w in ["out of office", "automatic reply", "i am away"]):
+            intent = "out_of_office"
+            parsed = {"intent": "out_of_office"}
+        elif any(w in lower_inbound for w in ["not interested", "no thanks", "not a fit"]):
+            intent = "decline"
+            parsed = {"intent": "decline"}
+        elif any(w in lower_inbound for w in ["wrong person", "no longer at", "talk to someone else"]):
+            intent = "wrong_person"
+            parsed = {"intent": "wrong_person"}
+        elif any(w in lower_inbound for w in ["next quarter", "next month", "next year", "circle back"]):
+            intent = "timing_later"
+            parsed = {"intent": "timing_later"}
         elif any(w in lower_inbound for w in ["expensive", "cost", "pricing", "budget"]):
             intent = "objection"
             parsed = {"intent": "objection", "objection_category": "pricing"}
@@ -66,36 +81,41 @@ class ConversationAgent(BaseSalesAgent):
             intent = "objection"
             parsed = {"intent": "objection", "objection_category": "competitor"}
         else:
-            prompt = f"""You are the OctaOS Inbound Sales Conversation Agent.
-Analyze this reply from a prospect at {deal_room.company_name}.
-
-Prospect Reply:
-\"\"\"{inbound_text}\"\"\"
-
-Classify the intent into exactly ONE of:
-- "interested" (wants demo, call, pricing, or next steps)
-- "objection" (pushes back on price, competitor, timing, or need)
-- "unsubscribe" (explicitly asks to be removed, not interested, stop emailing)
-- "wrong_person" (directs to someone else)
-- "timing_later" (asks to follow up in Q3, next month, next year)
-- "question" (asks a specific feature/technical question)
-
-If it is an objection, categorize it into: "pricing", "competitor", "timing", "authority", or "security".
-
-Output a JSON object:
-{{
-  "intent": "string",
-  "objection_category": "string or null",
-  "suggested_reply": "string (professional, empathetic response under 80 words)"
-}}"""
-
+            rendered = render_prompts(
+                "sales.conversation",
+                {"company_name": deal_room.company_name, "inbound_text": inbound_text or "empty"},
+            )
             try:
-                resp = await self.llm.complete(prompt=prompt, model="claude-3-haiku-20240307", provider="anthropic")
-                parsed = extract_json_safe(resp)
-                intent = parsed.get("intent", "question")
+                resp = await self.llm.complete(
+                    prompt=rendered["task_prompt"],
+                    system_prompt=rendered["system_prompt"],
+                    model=rendered["model_id"],
+                    provider=rendered["provider"],
+                )
+                parsed = extract_json_safe(resp) or {}
+                if not isinstance(parsed, dict):
+                    parsed = {}
+                intent = parsed.get("intent")
             except Exception:
-                intent = "question"
-                parsed = {"intent": "question", "suggested_reply": "Thanks for getting back to me. How can I best assist?"}
+                intent = None
+                parsed = {}
+
+        assessment = normalize_reply_intent(intent, parsed.get("objection_category"))
+        intent = assessment.intent
+        if intent == "needs_human_review":
+            return AgentResult(
+                agent_id=self.agent_id,
+                tenant_id=self.tenant_id,
+                deal_room_id=deal_room.id,
+                contract_id="sales.conversation",
+                decision="needs_human_review",
+                confidence=0.0,
+                source="inbound_reply",
+                reasoning_summary="The reply did not match the canonical taxonomy.",
+                recommended_next_step="human_review",
+                data=assessment.model_dump(),
+                execution_time_ms=int((time.time() - start_time) * 1000),
+            )
 
         # 2. Action based on intent
         if intent == "unsubscribe":
@@ -108,7 +128,12 @@ Output a JSON object:
                     origin="conversation_agent",
                     notes=f"Unsubscribed via inbound message: {inbound_text[:80]}",
                 )
-            deal_room.stage = "lost"
+            apply_transition(
+                deal_room,
+                "suppress",
+                actor="sales.conversation",
+                reason="Explicit unsubscribe.",
+            )
             self.db.commit()
 
             return AgentResult(

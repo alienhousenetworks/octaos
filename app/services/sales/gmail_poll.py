@@ -106,6 +106,16 @@ def poll_gmail_inbox_for_sales(db: Session, tenant_id: str) -> int:
         headers = msg.get("payload", {}).get("headers") or []
         from_hdr = _header(headers, "From")
         subject = _header(headers, "Subject")
+        body = _decode_body(msg.get("payload") or {})
+
+        # Check for NDR / Delivery Status Notification Bounces
+        from app.services.sales.bounce_sentinel import BounceSentinel
+        if BounceSentinel.is_bounce(from_hdr, subject):
+            bounced_email = BounceSentinel.extract_bounced_email(body, known_candidate_emails=lead_emails)
+            if bounced_email:
+                BounceSentinel.record_bounce(db, tenant_id, bounced_email)
+            continue
+
         sender_email = normalize_email(from_hdr)
         if sender_email not in lead_emails:
             continue
@@ -115,7 +125,6 @@ def poll_gmail_inbox_for_sales(db: Session, tenant_id: str) -> int:
         if "SENT" in label_ids and "INBOX" not in label_ids:
             continue
 
-        body = _decode_body(msg.get("payload") or {})
         if not body.strip():
             continue
 

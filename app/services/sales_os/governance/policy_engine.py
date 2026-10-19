@@ -43,6 +43,8 @@ class SalesPolicyEngine:
                 "decision": "blocked",
                 "reason": f"Recipient is suppressed: {reason}",
                 "requires_approval": False,
+                "rule_ids": ["suppression.precedence"],
+                "llm_may_override": False,
             }
 
         # 2. Frequency Check
@@ -54,6 +56,8 @@ class SalesPolicyEngine:
                 "decision": "blocked",
                 "reason": f"Frequency limit exceeded: {freq_reason}",
                 "requires_approval": False,
+                "rule_ids": ["cadence.frequency_cap"],
+                "llm_may_override": False,
             }
 
         # 3. Groundedness Gate
@@ -62,6 +66,8 @@ class SalesPolicyEngine:
                 "decision": "queue_for_approval",
                 "reason": f"Groundedness score ({groundedness_score:.2f}) below threshold (0.85). Human review required to verify claims.",
                 "requires_approval": True,
+                "rule_ids": ["evidence.groundedness_threshold"],
+                "llm_may_override": False,
             }
 
         # 4. Fetch Tenant Policy
@@ -78,6 +84,8 @@ class SalesPolicyEngine:
                 "decision": "queue_for_approval",
                 "reason": "Tenant is in Assist Mode. All outreach drafts require human approval.",
                 "requires_approval": True,
+                "rule_ids": ["autonomy.assist"],
+                "llm_may_override": False,
             }
 
         # Copilot Mode: Cold first touches & enterprise require approval, follow-ups can auto-execute
@@ -87,11 +95,15 @@ class SalesPolicyEngine:
                     "decision": "queue_for_approval",
                     "reason": "Cold first-touch to enterprise account requires human review in Copilot mode.",
                     "requires_approval": True,
+                    "rule_ids": ["autonomy.copilot_first_touch"],
+                    "llm_may_override": False,
                 }
             return {
                 "decision": "auto_execute",
                 "reason": "Low-risk follow-up approved for automated dispatch in Copilot mode.",
                 "requires_approval": False,
+                "rule_ids": ["autonomy.authorized_follow_up"],
+                "llm_may_override": False,
             }
 
         # Autonomous Mode: Auto-execute if groundedness and safety checks pass
@@ -99,6 +111,8 @@ class SalesPolicyEngine:
             "decision": "auto_execute",
             "reason": "All safety and groundedness criteria met. Approved for autonomous dispatch.",
             "requires_approval": False,
+            "rule_ids": ["autonomy.authorized_follow_up"],
+            "llm_may_override": False,
         }
 
     def get_autonomy_mode(self, rolling_edit_rate: float = 0.0, completed_actions: int = 0) -> str:

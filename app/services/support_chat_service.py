@@ -366,7 +366,8 @@ class SupportChatService:
         elif kb_result.get("mode") == "refuse":
             from app.models.enterprise import TenantPolicy
             policy = self.db.query(TenantPolicy).filter(TenantPolicy.tenant_id == self.tenant_id).first()
-            if policy and policy.support_refuse_if_not_in_kb:
+            refuse_allowed = bool(policy.support_refuse_if_not_in_kb) if policy else True
+            if refuse_allowed:
                 avail = self.check_agent_availability()
                 reply_text = (
                     "I don't have this specific information in my knowledge base. "
@@ -522,6 +523,7 @@ class SupportChatService:
 
         agent_name = user.name or user.email.split("@")[0]
         ticket.status = "human_handling"
+        ticket.owner_type = "human_handling"
         ticket.mode = "human"
         ticket.claimed_by = user.id
         ticket.claimed_at = datetime.now(timezone.utc)
@@ -554,6 +556,7 @@ class SupportChatService:
 
         agent_name = user.name or user.email.split("@")[0]
         ticket.status = "resolved"
+        ticket.owner_type = "resolved"
         ticket.mode = "ai"
         ticket.resolved_at = datetime.now(timezone.utc)
 

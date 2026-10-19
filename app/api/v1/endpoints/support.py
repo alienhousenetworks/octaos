@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional, Any
+from datetime import datetime, timezone
 from pydantic import BaseModel
 
 from app.api import deps
@@ -59,6 +60,21 @@ class EmailWebhookRequest(BaseModel):
     subject: str
     content: str
 
+class StudioConfigRequest(BaseModel):
+    agent_name: Optional[str] = "Ava"
+    company_name: Optional[str] = "Acme Technologies"
+    agent_avatar: Optional[str] = "bot"
+    tone: Optional[str] = "professional_friendly"
+    default_language: Optional[str] = "en"
+    signature: Optional[str] = "Warm regards,\nAva & The Support Team"
+    greeting_message: Optional[str] = "Hello! I'm Ava from customer support. How can I assist you today?"
+    escalation_message: Optional[str] = "I'm connecting you with a live specialist now. A representative will be with you shortly."
+    fallback_message: Optional[str] = "Our live agents are currently assisting other customers. A priority support ticket has been registered."
+    handoff_timeout_seconds: Optional[int] = 300
+
+from app.services.support_identity_service import SupportIdentityService
+from app.services.support_outbound_service import SupportOutboundService
+
 def _iso(dt) -> Optional[str]:
     return dt.isoformat() if dt else None
 
@@ -75,6 +91,11 @@ def _ticket_to_dict(t: Ticket) -> dict:
         "customer_name": t.customer_name,
         "customer_email": t.customer_email,
         "customer_phone": t.customer_phone,
+        "customer_id": t.customer_id,
+        "owner_type": t.owner_type or ("human_handling" if t.status == "human_handling" else ("pending_human" if t.status == "pending_human" else "ai")),
+        "handoff_started_at": _iso(t.handoff_started_at),
+        "handoff_deadline_at": _iso(t.handoff_deadline_at),
+        "handoff_generation": t.handoff_generation or 0,
         "claimed_by": t.claimed_by,
         "claimed_at": _iso(t.claimed_at),
         "resolved_at": _iso(t.resolved_at),
@@ -91,6 +112,9 @@ def _message_to_dict(m: TicketMessage) -> dict:
         "ticket_id": m.ticket_id,
         "sender": m.sender,
         "content": m.content,
+        "direction": m.direction or ("outbound" if m.sender == "agent" else "inbound"),
+        "channel": m.channel,
+        "delivery_status": m.delivery_status or "delivered",
         "created_at": _iso(m.created_at),
     }
 
@@ -129,54 +153,114 @@ async def manual_reply(
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
     
-    msg = TicketMessage(
-        ticket_id=ticket.id,
-        sender="agent",
-        content=payload.content
-    )
-    db.add(msg)
-    if ticket.status in ("pending_human", "open"):
-        ticket.status = "human_handling"
-        ticket.mode = "human"
+    # Human agent owns the ticket
+    ticket.status = "human_handling"
+    ticket.owner_type = "human_handling"
+    ticket.mode = "human"
     if not ticket.claimed_by:
         ticket.claimed_by = user.id
+    if not ticket.claimed_at:
+        ticket.claimed_at = datetime.now(timezone.utc)
     db.commit()
-    db.refresh(msg)
-    
-    msg_dict = {
-        "id": msg.id,
-        "ticket_id": msg.ticket_id,
-        "sender": msg.sender,
-        "content": msg.content,
-        "created_at": msg.created_at.isoformat() if msg.created_at else None,
-    }
 
-    # Widget and chat channels are delivered in real-time via REST polling / web widget
-    if ticket.channel in ("widget", "chat", None):
-        return {"status": "success", "message": msg_dict}
-    
-    from app.services.agents.support import SupportAgent
-    agent = SupportAgent(db, tenant_id)
+    outbound = SupportOutboundService(db, tenant_id)
     try:
-        await agent.send_message(ticket.channel, ticket.customer_contact, payload.content)
+        res = await outbound.send(
+            ticket_id=ticket.id,
+            channel=ticket.channel or "widget",
+            recipient=ticket.customer_contact or "customer",
+            content=payload.content,
+            sender_type="agent",
+            is_ai_caller=False,
+        )
+        msg_dict = {
+            "id": res.get("message_id"),
+            "ticket_id": ticket.id,
+            "sender": "agent",
+            "content": payload.content,
+            "direction": "outbound",
+            "channel": ticket.channel,
+            "delivery_status": res.get("delivery_status", "delivered"),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        return {"status": "success", "message": msg_dict}
     except ValueError as e:
         ve_str = str(e)
         provider = None
-        for p in ["linkedin", "meta", "facebook", "instagram", "twitter", "gmail", "whatsapp", "apollo", "hunter", "google_places", "google_calendar", "smtp", "greenhouse", "lever", "openai", "anthropic", "gemini"]:
+        for p in ["linkedin", "meta", "facebook", "instagram", "twitter", "gmail", "whatsapp", "apollo", "hunter", "google_places", "google_calendar", "smtp"]:
             if p in ve_str.lower():
                 provider = p
                 break
         if provider:
-            if provider == "smtp":
-                msg_text = "I need your SMTP outgoing mail credentials. Please reply with: 'My smtp credential is: smtp://username:password@smtp.mailtrap.io:2525'."
-            else:
-                msg_text = f"I need your {provider} API key to complete this task. Please reply with 'My {provider} key is: [YOUR_KEY]'."
+            msg_text = f"I need your {provider} credentials to complete this action."
             return {"status": "action_required", "message": msg_text}
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/customers/{customer_id}/history")
+def get_customer_history(
+    customer_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.TICKETS, Action.READ)),
+) -> Any:
+    service = SupportIdentityService(db, tenant_id)
+    return service.get_customer_history(customer_id)
+
+@router.get("/studio/config")
+def get_studio_config(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.TICKETS, Action.READ)),
+) -> Any:
+    cred = db.query(APICredential).filter(
+        APICredential.tenant_id == tenant_id,
+        APICredential.provider == "support_studio"
+    ).first()
+    if cred and cred.settings:
+        return cred.settings
     
-    return {"status": "success", "message": msg_dict}
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    t_name = tenant.name if tenant else "Acme Technologies"
+    return {
+        "agent_name": "Ava",
+        "company_name": t_name,
+        "agent_avatar": "bot",
+        "tone": "professional_friendly",
+        "default_language": "en",
+        "signature": f"Warm regards,\nAva & The {t_name} Support Team",
+        "greeting_message": f"Hello! I'm Ava from {t_name} customer support. How can I assist you today?",
+        "escalation_message": "Connecting you with our live support team now! A representative will connect with you shortly.",
+        "fallback_message": f"Our live support agents are currently assisting other customers. A priority support ticket has been registered.",
+        "handoff_timeout_seconds": 300,
+    }
+
+@router.post("/studio/config")
+def save_studio_config(
+    payload: StudioConfigRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.TICKETS, Action.UPDATE)),
+) -> Any:
+    config_dict = payload.model_dump()
+    cred = db.query(APICredential).filter(
+        APICredential.tenant_id == tenant_id,
+        APICredential.provider == "support_studio"
+    ).first()
+    if not cred:
+        cred = APICredential(
+            tenant_id=tenant_id,
+            provider="support_studio",
+            encrypted_key="studio_config",
+            settings=config_dict
+        )
+        db.add(cred)
+    else:
+        cred.settings = config_dict
+    db.commit()
+    db.refresh(cred)
+    return {"status": "success", "config": cred.settings}
 
 def _default_support_settings() -> dict:
     return {

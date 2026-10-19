@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
-from typing import List, Any, Optional
-from pydantic import BaseModel
+from typing import List, Any, Optional, Dict
+from pydantic import BaseModel, Field
 from datetime import datetime, timedelta, timezone
 from asgiref.sync import async_to_sync
 
@@ -21,6 +21,20 @@ class GenerateMediaRequest(BaseModel):
     sub_model: Optional[str] = None
     reference_image_url: Optional[str] = None
     aspect_ratio: Optional[str] = None
+    creative_mode: Optional[str] = "visual_director"  # "visual_director" or "standard"
+
+
+class VisualDirectorGenerateRequest(BaseModel):
+    prompt: str
+    deliverable: str = "image"
+    platform: Optional[str] = "instagram"
+    reference_assets: List[str] = Field(default_factory=list)
+    brand_tokens: Dict[str, Any] = Field(default_factory=dict)
+    preferred_provider: Optional[str] = None
+    preferred_model: Optional[str] = None
+    inspect_quality: bool = True
+    max_revisions: int = 2
+
 
 
 class AnimateVideoRequest(BaseModel):
@@ -500,7 +514,51 @@ async def generate_media_for_post(
     from app.services.llm_gateway import LLMGateway
     gateway = LLMGateway(db, tenant_id)
 
-    if req.media_type == "video":
+    if req.creative_mode == "visual_director" and req.media_type != "remotion":
+        from app.services.marketing.visual_creative.orchestrator import VisualCreativeOrchestrator
+        orchestrator = VisualCreativeOrchestrator(db, tenant_id)
+        run_record = await orchestrator.execute(
+            raw_prompt=req.prompt,
+            deliverable=req.media_type,
+            platform=post.platform or "instagram",
+            reference_assets=[req.reference_image_url] if req.reference_image_url else [],
+            preferred_provider=req.provider,
+            preferred_model=req.sub_model,
+            inspect_quality=True,
+        )
+        if run_record.status == "failed" and not run_record.primary_asset_url:
+            raise HTTPException(status_code=400, detail="; ".join(run_record.limitations) or "Generation failed")
+
+        if req.media_type == "video":
+            post.video_url = run_record.primary_asset_url
+            post.image_url = None
+            post.video_prompt = run_record.creative_brief.positive_prompt_blueprint if run_record.creative_brief else req.prompt
+            post.video_prompt_enabled = True
+        else:
+            post.image_url = run_record.primary_asset_url
+            post.video_url = None
+            post.image_prompt = run_record.creative_brief.positive_prompt_blueprint if run_record.creative_brief else req.prompt
+            post.image_prompt_enabled = True
+
+        post.used_model = f"{run_record.selected_adapter}/{run_record.selected_model or 'default'}"
+        post.is_manual_media = False
+        insights = dict(post.insights_raw or {})
+        insights["visual_run_record"] = run_record.model_dump()
+        insights["quality_scorecard"] = run_record.quality_review.model_dump()
+        post.insights_raw = insights
+
+        current_tags = list(post.learning_tags or [])
+        for sp in run_record.selected_specialists:
+            tag = f"specialist:{sp}"
+            if tag not in current_tags:
+                current_tags.append(tag)
+        post.learning_tags = current_tags
+
+        db.commit()
+        db.refresh(post)
+        return post
+
+    elif req.media_type == "video":
         provider = req.provider or "together"
         video_url = await gateway.generate_video(
             req.prompt,
@@ -584,6 +642,32 @@ async def generate_media_for_post(
     db.commit()
     db.refresh(post)
     return post
+
+
+@router.post("/visual-director/generate", response_model=Dict[str, Any])
+async def generate_with_visual_director(
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.CREATE)),
+    req: VisualDirectorGenerateRequest,
+) -> Any:
+    """Generate professional visual asset via the 7-stage Universal Visual Creative Director."""
+    from app.services.marketing.visual_creative.orchestrator import VisualCreativeOrchestrator
+    orchestrator = VisualCreativeOrchestrator(db, tenant_id)
+    run_record = await orchestrator.execute(
+        raw_prompt=req.prompt,
+        deliverable=req.deliverable,
+        platform=req.platform,
+        reference_assets=req.reference_assets,
+        brand_tokens=req.brand_tokens,
+        preferred_provider=req.preferred_provider,
+        preferred_model=req.preferred_model,
+        inspect_quality=req.inspect_quality,
+        max_revisions=req.max_revisions,
+    )
+    return run_record.model_dump()
+
 
 
 @router.get("/models")

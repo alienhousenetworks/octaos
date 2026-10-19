@@ -14,6 +14,8 @@ from sqlalchemy.orm import Session
 from app.services.sales_os.agents.base import BaseSalesAgent, AgentResult, EvidenceItem
 from app.models.deal_room import DealRoom, AccountSignal, BuyingCommitteeMember, CompanySalesContext
 from app.services.knowledge_os.entity_extractor import extract_json_safe
+from app.services.sales_os.aso.state_machine import apply_transition
+from app.services.sales_os.contracts.registry import render_prompts
 
 
 class AccountResearcherAgent(BaseSalesAgent):
@@ -43,6 +45,33 @@ class AccountResearcherAgent(BaseSalesAgent):
             .filter(AccountSignal.deal_room_id == deal_room_id, AccountSignal.is_active == True)
             .all()
         )
+
+        # Zero-cost direct web profiling if unprofiled
+        target_web = deal_room.website or deal_room.domain
+        if target_web and not signals:
+            try:
+                from app.services.sales_os.discovery.direct_profiler import DirectProfiler
+                profile_res = await DirectProfiler.profile_url(target_web, timeout_sec=5.0)
+                for sig in profile_res.signals:
+                    acc_sig = AccountSignal(
+                        tenant_id=self.tenant_id,
+                        deal_room_id=deal_room.id,
+                        signal_type=sig["signal_type"],
+                        headline=sig["headline"],
+                        confidence=sig["confidence"],
+                        evidence_snippet=sig.get("evidence"),
+                        is_active=True,
+                    )
+                    self.db.add(acc_sig)
+                if profile_res.signals:
+                    self.db.commit()
+                    signals = (
+                        self.db.query(AccountSignal)
+                        .filter(AccountSignal.deal_room_id == deal_room_id, AccountSignal.is_active == True)
+                        .all()
+                    )
+            except Exception:
+                pass
         committee = (
             self.db.query(BuyingCommitteeMember)
             .filter(BuyingCommitteeMember.deal_room_id == deal_room_id)
@@ -63,88 +92,106 @@ class AccountResearcherAgent(BaseSalesAgent):
         offer_usp = ctx.company_overview.get("usp", "Enterprise automation platform") if ctx else "Sales Intelligence Platform"
         proof_points = ctx.proof_points if ctx else []
 
-        prompt = f"""You are the OctaOS Executive Account Researcher.
-Generate a sub-60s Account Intelligence Brief for:
+        rendered = render_prompts(
+            "sales.account_researcher",
+            {
+                "company_name": deal_room.company_name,
+                "domain": deal_room.domain,
+                "industry": deal_room.industry or "unknown",
+                "employee_count": "unknown" if deal_room.employee_count is None else str(deal_room.employee_count),
+                "signals": signals_text,
+                "committee": committee_text,
+                "value_proposition": offer_usp,
+            },
+        )
 
-Company: {deal_room.company_name} ({deal_room.domain})
-Industry: {deal_room.industry or 'Technology'}
-Size: {deal_room.employee_count or 'Unknown'} employees
-Signals:
-{signals_text}
-Buying Committee:
-{committee_text}
-Our Value Proposition:
-{offer_usp}
-
-Instructions:
-1. Provide a 2-sentence executive summary of what they do and their business model.
-2. Formulate 2 evidence-backed pain hypotheses using strict format:
-   - signal: what was observed
-   - inference: likely operational pain point (e.g. "This may indicate...")
-   - confidence: float between 0.7 and 0.95
-3. Recommend the best matching sales angle.
-
-Output valid JSON only with keys:
-{{
-  "executive_summary": "string",
-  "business_model": "string",
-  "pain_hypotheses": [
-    {{
-      "signal": "string",
-      "inference": "string",
-      "confidence": 0.85
-    }}
-  ],
-  "recommended_angle": "string"
-}}"""
-
+        brief_data = None
         try:
-            resp = await self.llm.complete(prompt=prompt, model="claude-3-haiku-20240307", provider="anthropic")
-            brief_data = extract_json_safe(resp)
+            resp = await self.llm.complete(
+                prompt=rendered["task_prompt"],
+                system_prompt=rendered["system_prompt"],
+                model=rendered["model_id"],
+                provider=rendered["provider"],
+            )
+            parsed = extract_json_safe(resp)
+            if isinstance(parsed, dict):
+                brief_data = parsed
         except Exception:
+            brief_data = None
+
+        hypotheses = []
+        if isinstance(brief_data, dict):
+            raw_hypotheses = brief_data.get("pain_hypotheses") or []
+            if isinstance(raw_hypotheses, list):
+                for item in raw_hypotheses:
+                    if not isinstance(item, dict):
+                        continue
+                    signal = str(item.get("signal") or "")
+                    if signal and signal.lower() in signals_text.lower():
+                        hypotheses.append(item)
+            brief_data["pain_hypotheses"] = hypotheses
+            brief_data["company_name"] = deal_room.company_name
+
+        status = "insufficient_evidence"
+        if isinstance(brief_data, dict) and brief_data.get("executive_summary") and hypotheses:
+            status = str(brief_data.get("status") or "complete")
+            if status not in {"complete", "conflicting_evidence"}:
+                status = "complete"
+        elif isinstance(brief_data, dict):
+            brief_data["status"] = "insufficient_evidence"
+            brief_data["company_name"] = deal_room.company_name
+        else:
             brief_data = {
-                "executive_summary": f"{deal_room.company_name} operates in the {deal_room.industry or 'commercial'} sector.",
-                "business_model": "B2B commercial enterprise",
-                "pain_hypotheses": [
-                    {
-                        "signal": "Observed market and hiring expansion",
-                        "inference": "May indicate scaling outbound pipeline and sales productivity requirements.",
-                        "confidence": 0.80,
-                    }
-                ],
-                "recommended_angle": "Scaling revenue pipeline automation",
+                "status": "insufficient_evidence",
+                "company_name": deal_room.company_name,
+                "executive_summary": "",
+                "business_model": "",
+                "pain_hypotheses": [],
+                "recommended_angle": "",
             }
 
-        brief_data["company_name"] = deal_room.company_name
+        if status == "complete":
+            transition = apply_transition(
+                deal_room,
+                "research_complete",
+                actor="sales.account_researcher",
+                reason="Account brief is grounded in supplied signals.",
+            )
+            decision = "ready" if transition["applied"] else "blocked"
+        else:
+            transition = {"applied": False, "current_state": deal_room.stage, "reason": "insufficient_evidence"}
+            decision = "insufficient_evidence"
 
-        # Update Deal Room state
         deal_room.account_brief = brief_data
-        deal_room.pain_hypotheses = brief_data.get("pain_hypotheses", [])
-        deal_room.stage = "outreach_ready"
+        deal_room.pain_hypotheses = hypotheses
         self.db.commit()
 
         elapsed = int((time.time() - start_time) * 1000)
-        evidence_items = [
-            EvidenceItem(
-                claim=f"{deal_room.company_name} Brief: {brief_data.get('executive_summary', '')[:100]}",
-                source="account_researcher",
-                confidence=0.90,
-            )
-        ]
-
+        summary = brief_data.get("executive_summary") or "Insufficient evidence for an account brief."
         return AgentResult(
             agent_id=self.agent_id,
             tenant_id=self.tenant_id,
             deal_room_id=deal_room.id,
-            decision="ready",
-            confidence=0.90,
-            evidence=evidence_items,
+            contract_id="sales.account_researcher",
+            prompt_version=rendered["prompt_version"],
+            decision=decision,
+            confidence=0.0 if decision != "ready" else 0.7,
+            evidence=[
+                EvidenceItem(
+                    claim=f"{deal_room.company_name}: {summary[:160]}",
+                    source="account_researcher",
+                    confidence=0.0 if decision != "ready" else 0.7,
+                )
+            ],
             source="account_researcher",
-            reasoning_summary=f"Sub-60s Executive Brief compiled for {deal_room.company_name} in {elapsed}ms. 2 pain hypotheses generated.",
-            recommended_next_step="strategist_cadence",
+            reasoning_summary=summary[:240],
+            missing_information=[] if hypotheses else ["pain_hypothesis"],
+            recommended_next_step="strategist_cadence" if decision == "ready" else "collect_evidence",
             data={
                 "brief": brief_data,
-                "pain_hypotheses": brief_data.get("pain_hypotheses", []),
+                "pain_hypotheses": hypotheses,
+                "status": brief_data.get("status"),
+                "transition": transition,
                 **brief_data,
             },
             execution_time_ms=elapsed,

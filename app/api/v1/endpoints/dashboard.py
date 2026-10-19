@@ -151,18 +151,27 @@ def get_dashboard_metrics(
     metrics = db.query(AgentMetric).filter(AgentMetric.tenant_id == tenant_id).all()
     res = {m.metric_name: m.value for m in metrics}
 
+    # Determine date window from period query
+    days = 30 if period == "30d" else (14 if period == "14d" else 7)
+    now = datetime.now(timezone.utc)
+    current_start = now - timedelta(days=days)
+    prior_start = current_start - timedelta(days=days)
+
     # Harvest deterministic verified cross-vertical aggregates
     harvester = MetricsService(db, tenant_id)
-    harvested = harvester.harvest()
+    harvested = harvester.harvest(period_days=days)
 
-    # 1. Real Provider Usage & Token Aggregations
+    # 1. Real Provider Usage & Token Aggregations for current period
     pu_stats = db.query(
         func.count(ProviderUsage.id),
         func.coalesce(func.sum(ProviderUsage.input_tokens), 0),
         func.coalesce(func.sum(ProviderUsage.output_tokens), 0),
         func.coalesce(func.sum(ProviderUsage.cached_tokens), 0),
         func.coalesce(func.sum(ProviderUsage.cost), 0.0),
-    ).filter(ProviderUsage.tenant_id == tenant_id).first()
+    ).filter(
+        ProviderUsage.tenant_id == tenant_id,
+        ProviderUsage.timestamp >= current_start
+    ).first()
 
     total_requests = int(pu_stats[0] or 0)
     prompt_tokens = int(pu_stats[1] or 0)
@@ -171,14 +180,53 @@ def get_dashboard_metrics(
     total_tokens = prompt_tokens + completion_tokens
     total_provider_cost = float(pu_stats[4] or 0.0)
 
+    # Prior period totals for real deltas
+    prior_pu_stats = db.query(
+        func.count(ProviderUsage.id),
+        func.coalesce(func.sum(ProviderUsage.input_tokens), 0),
+        func.coalesce(func.sum(ProviderUsage.output_tokens), 0),
+        func.coalesce(func.sum(ProviderUsage.cached_tokens), 0),
+        func.coalesce(func.sum(ProviderUsage.cost), 0.0),
+    ).filter(
+        ProviderUsage.tenant_id == tenant_id,
+        ProviderUsage.timestamp >= prior_start,
+        ProviderUsage.timestamp < current_start
+    ).first()
+
+    prior_requests = int(prior_pu_stats[0] or 0)
+    prior_tokens = int(prior_pu_stats[1] or 0) + int(prior_pu_stats[2] or 0)
+    prior_cost = float(prior_pu_stats[4] or 0.0)
+
     # Cache hit metrics
     cache_hits_count = db.query(func.count(ProviderUsage.id)).filter(
         ProviderUsage.tenant_id == tenant_id,
-        ProviderUsage.cache_hit == True
+        ProviderUsage.cache_hit == True,
+        ProviderUsage.timestamp >= current_start
+    ).scalar() or 0
+
+    prior_cache_hits = db.query(func.count(ProviderUsage.id)).filter(
+        ProviderUsage.tenant_id == tenant_id,
+        ProviderUsage.cache_hit == True,
+        ProviderUsage.timestamp >= prior_start,
+        ProviderUsage.timestamp < current_start
     ).scalar() or 0
 
     cache_hit_rate = round((cache_hits_count / max(1, total_requests)) * 100.0, 1) if total_requests > 0 else 0.0
+    prior_cache_hit_rate = round((prior_cache_hits / max(1, prior_requests)) * 100.0, 1) if prior_requests > 0 else 0.0
+
     blended_cost_per_m = round((total_provider_cost / max(1, total_tokens)) * 1_000_000.0, 2) if total_tokens > 0 else 0.0
+    prior_blended = round((prior_cost / max(1, prior_tokens)) * 1_000_000.0, 2) if prior_tokens > 0 else 0.0
+
+    def calc_delta(curr: float, prev: float) -> Optional[float]:
+        if prev == 0:
+            return 100.0 if curr > 0 else 0.0
+        return round(((curr - prev) / prev) * 100.0, 1)
+
+    req_delta_pct = calc_delta(total_requests, prior_requests)
+    tok_delta_pct = calc_delta(total_tokens, prior_tokens)
+    cost_delta_pct = calc_delta(total_provider_cost, prior_cost)
+    cache_hit_delta_pct = round(cache_hit_rate - prior_cache_hit_rate, 1)
+    blended_delta_pct = round(blended_cost_per_m - prior_blended, 1)
 
     # 2. Daily Time-Series Grouped by Actual Dates in DB
     daily_usage_rows = db.query(
@@ -188,7 +236,10 @@ def get_dashboard_metrics(
         func.coalesce(func.sum(ProviderUsage.output_tokens), 0).label("output_tok"),
         func.coalesce(func.sum(ProviderUsage.cached_tokens), 0).label("cached_tok"),
         func.coalesce(func.sum(ProviderUsage.cost), 0.0).label("cost")
-    ).filter(ProviderUsage.tenant_id == tenant_id).group_by(func.date(ProviderUsage.timestamp)).order_by("d").all()
+    ).filter(
+        ProviderUsage.tenant_id == tenant_id,
+        ProviderUsage.timestamp >= current_start
+    ).group_by(func.date(ProviderUsage.timestamp)).order_by("d").all()
 
     active_dates = [r[0].strftime("%b %d") for r in daily_usage_rows] if daily_usage_rows else []
     daily_req_map = {r[0].strftime("%b %d"): int(r.requests) for r in daily_usage_rows}
@@ -203,7 +254,10 @@ def get_dashboard_metrics(
         func.date(ProviderUsage.timestamp).label("d"),
         ProviderUsage.task_type,
         func.count(ProviderUsage.id).label("cnt")
-    ).filter(ProviderUsage.tenant_id == tenant_id).group_by(
+    ).filter(
+        ProviderUsage.tenant_id == tenant_id,
+        ProviderUsage.timestamp >= current_start
+    ).group_by(
         func.date(ProviderUsage.timestamp), ProviderUsage.task_type
     ).order_by("d").all()
 
@@ -253,16 +307,22 @@ def get_dashboard_metrics(
         func.date(ProviderUsage.timestamp).label("d"),
         ProviderUsage.model,
         func.count(ProviderUsage.id).label("cnt")
-    ).filter(ProviderUsage.tenant_id == tenant_id).group_by(
+    ).filter(
+        ProviderUsage.tenant_id == tenant_id,
+        ProviderUsage.timestamp >= current_start
+    ).group_by(
         func.date(ProviderUsage.timestamp), ProviderUsage.model
     ).order_by("d").all()
 
-    # Identify top 5 models
     top_model_names = [
         m[0] for m in db.query(
             ProviderUsage.model,
             func.count(ProviderUsage.id).label("cnt")
-        ).filter(ProviderUsage.tenant_id == tenant_id).group_by(ProviderUsage.model).order_by(func.count(ProviderUsage.id).desc()).limit(5).all()
+        ).filter(
+            ProviderUsage.tenant_id == tenant_id,
+            ProviderUsage.timestamp >= current_start
+        ).group_by(ProviderUsage.model).order_by(func.count(ProviderUsage.id).desc()).limit(5).all()
+        if m[0]
     ]
 
     model_by_date: Dict[str, Dict[str, int]] = {}
@@ -281,39 +341,47 @@ def get_dashboard_metrics(
         for d in active_dates
     ]
 
-    # Calculate real percentage deltas (comparing first half vs second half of the date range)
-    n_days = len(active_dates)
-    half = n_days // 2
-    if n_days >= 2 and half > 0:
-        first_half_req = sum(daily_req_map[d] for d in active_dates[:half])
-        second_half_req = sum(daily_req_map[d] for d in active_dates[half:])
-        req_delta_pct = round(((second_half_req - first_half_req) / max(1, first_half_req)) * 100.0, 1)
-
-        first_half_tok = sum(daily_token_map[d] for d in active_dates[:half])
-        second_half_tok = sum(daily_token_map[d] for d in active_dates[half:])
-        tok_delta_pct = round(((second_half_tok - first_half_tok) / max(1, first_half_tok)) * 100.0, 1)
-
-        first_half_cost = sum(daily_cost_map[d] for d in active_dates[:half])
-        second_half_cost = sum(daily_cost_map[d] for d in active_dates[half:])
-        cost_delta_pct = round(((second_half_cost - first_half_cost) / max(0.001, first_half_cost)) * 100.0, 1)
-    else:
-        req_delta_pct = 0.0
-        tok_delta_pct = 0.0
-        cost_delta_pct = 0.0
-
     # 7. Workflow Executions & Reliability
-    total_runs = db.query(FlowRun).filter(FlowRun.tenant_id == tenant_id).count()
-    succeeded_runs = db.query(FlowRun).filter(FlowRun.tenant_id == tenant_id, FlowRun.status == "succeeded").count()
-    failed_runs = db.query(FlowRun).filter(FlowRun.tenant_id == tenant_id, FlowRun.status == "failed").count()
-    waiting_approval_runs = db.query(FlowRun).filter(FlowRun.tenant_id == tenant_id, FlowRun.status == "waiting_approval").count()
+    flow_query = db.query(FlowRun).filter(FlowRun.tenant_id == tenant_id)
+    total_runs = flow_query.count()
+    succeeded_runs = flow_query.filter(FlowRun.status == "succeeded").count()
+    failed_runs = flow_query.filter(FlowRun.status == "failed").count()
+    waiting_approval_runs = flow_query.filter(FlowRun.status == "waiting_approval").count()
 
-    recovered_on_retry = db.query(StepRun).join(FlowRun).filter(
-        FlowRun.tenant_id == tenant_id,
-        StepRun.attempt > 1,
-        StepRun.status == "succeeded"
-    ).count()
+    recovered_on_retry = 0
+    error_causes = []
+    try:
+        recovered_on_retry = db.query(StepRun).join(FlowRun).filter(
+            FlowRun.tenant_id == tenant_id,
+            StepRun.attempt > 1,
+            StepRun.status == "succeeded"
+        ).count()
 
-    automation_success_rate = round((succeeded_runs / total_runs) * 100.0, 2) if total_runs > 0 else 98.4
+        # Real Error Causes from StepRun
+        failed_step_errors = db.query(
+            StepRun.error_message,
+            func.count(StepRun.id).label("cnt")
+        ).join(FlowRun).filter(
+            FlowRun.tenant_id == tenant_id,
+            StepRun.status == "failed"
+        ).group_by(StepRun.error_message).limit(5).all()
+
+        for err in failed_step_errors:
+            raw_msg = (err[0] or "Unknown Error").strip()
+            label = (raw_msg[:28] + "..") if len(raw_msg) > 30 else raw_msg
+            error_causes.append({
+                "code": "step_failure",
+                "label": label,
+                "count": int(err.cnt),
+            })
+    except Exception:
+        pass
+
+    automation_success_rate = (
+        round((succeeded_runs / total_runs) * 100.0, 1)
+        if total_runs > 0
+        else (100.0 if total_requests == 0 else round((total_requests - failed_runs) / max(1, total_requests) * 100.0, 1))
+    )
 
     # Extract items safely from harvested metrics
     def item_val(metric_id: str, default: float = 0.0) -> float:
@@ -330,12 +398,16 @@ def get_dashboard_metrics(
     # Financial ROI & Labor Economics
     hours_saved = round((leads_total * 0.4) + (posts_total * 0.75) + (tickets_resolved_count * 0.35) + (total_runs * 0.12), 1)
     labor_value_usd = round(hours_saved * 25.0, 2)
-    net_roi_multiple = round(labor_value_usd / max(0.01, total_provider_cost), 1) if total_provider_cost > 0 else 18.5
+    net_roi_multiple = (
+        round(labor_value_usd / total_provider_cost, 1)
+        if total_provider_cost > 0
+        else (round(labor_value_usd, 1) if labor_value_usd > 0 else 0.0)
+    )
 
     unit_economics = {
-        "cost_per_lead": round(total_provider_cost / leads_total, 2) if leads_total > 0 else 0.42,
-        "cost_per_ticket": round(total_provider_cost / tickets_resolved_count, 2) if tickets_resolved_count > 0 else 0.14,
-        "cost_per_campaign": round(total_provider_cost / posts_total, 2) if posts_total > 0 else 0.38,
+        "cost_per_lead": round(total_provider_cost / leads_total, 2) if leads_total > 0 else None,
+        "cost_per_ticket": round(total_provider_cost / tickets_resolved_count, 2) if tickets_resolved_count > 0 else None,
+        "cost_per_campaign": round(total_provider_cost / posts_total, 2) if posts_total > 0 else None,
         "blended_per_million_ops": blended_cost_per_m,
     }
 
@@ -345,7 +417,10 @@ def get_dashboard_metrics(
         func.count(ProviderUsage.id).label("requests"),
         func.sum(ProviderUsage.input_tokens + ProviderUsage.output_tokens).label("tokens"),
         func.sum(ProviderUsage.cost).label("cost")
-    ).filter(ProviderUsage.tenant_id == tenant_id).group_by(ProviderUsage.model).order_by(func.sum(ProviderUsage.input_tokens + ProviderUsage.output_tokens).desc()).all()
+    ).filter(
+        ProviderUsage.tenant_id == tenant_id,
+        ProviderUsage.timestamp >= current_start
+    ).group_by(ProviderUsage.model).order_by(func.sum(ProviderUsage.input_tokens + ProviderUsage.output_tokens).desc()).all()
 
     color_palette = ["#10B981", "#EC4899", "#F59E0B", "#38BDF8", "#8B5CF6", "#F97316"]
     top_models_leaderboard = [
@@ -378,7 +453,10 @@ def get_dashboard_metrics(
         ProviderUsage.task_type,
         func.count(ProviderUsage.id).label("requests"),
         func.sum(ProviderUsage.input_tokens + ProviderUsage.output_tokens).label("tokens")
-    ).filter(ProviderUsage.tenant_id == tenant_id).group_by(ProviderUsage.task_type).order_by(func.count(ProviderUsage.id).desc()).all()
+    ).filter(
+        ProviderUsage.tenant_id == tenant_id,
+        ProviderUsage.timestamp >= current_start
+    ).group_by(ProviderUsage.task_type).order_by(func.count(ProviderUsage.id).desc()).all()
 
     top_apps_leaderboard = [
         {
@@ -391,14 +469,18 @@ def get_dashboard_metrics(
         for i, row in enumerate(task_type_agg)
     ]
 
+    raw_support = harvested.raw_support_metrics or {}
+    raw_hr = harvested.raw_hr_metrics or {}
+    raw_deltas = harvested.raw_deltas or {}
+
     return {
-        # Core & backwards-compatible keys
+        # Core metrics
         "leads_generated": res.get("leads_generated", leads_total),
         "posts_published": res.get("posts_published", posts_total),
         "tickets_resolved": res.get("tickets_resolved", tickets_resolved_count),
         "revenue_impact": res.get("revenue_impact", revenue_won),
         "candidates_sourced": res.get("candidates_sourced", candidates_total),
-        "interviews_scheduled": res.get("interviews_scheduled", 0.0),
+        "interviews_scheduled": raw_hr.get("interviews_scheduled", 0),
         "ai_cost": round(total_provider_cost, 4),
         "automation_success_rate": automation_success_rate,
 
@@ -416,23 +498,30 @@ def get_dashboard_metrics(
 
         # Real Sparklines directly from active dates in DB
         "sparklines": {
-            "requests": [daily_req_map[d] for d in active_dates] if active_dates else [total_requests],
-            "tokens": [daily_token_map[d] for d in active_dates] if active_dates else [total_tokens],
-            "cached": [daily_cached_map[d] for d in active_dates] if active_dates else [cached_tokens],
-            "cost": [daily_cost_map[d] for d in active_dates] if active_dates else [total_provider_cost],
+            "requests": [daily_req_map[d] for d in active_dates] if active_dates else [],
+            "tokens": [daily_token_map[d] for d in active_dates] if active_dates else [],
+            "cached": [daily_cached_map[d] for d in active_dates] if active_dates else [],
+            "cost": [daily_cost_map[d] for d in active_dates] if active_dates else [],
             "dates": active_dates,
         },
 
-        # Real Deltas
+        # Real Period-over-Period Deltas
         "deltas": {
             "requests": req_delta_pct,
             "tokens": tok_delta_pct,
             "cost": cost_delta_pct,
-            "cache_hit_rate": 4.7,
-            "blended_cost_per_m": -8.5,
+            "cache_hit_rate": cache_hit_delta_pct,
+            "blended_cost_per_m": blended_delta_pct,
+            "leads": raw_deltas.get("leads", 0.0),
+            "posts": raw_deltas.get("posts", 0.0),
+            "tickets": raw_deltas.get("tickets", 0.0),
+            "revenue": raw_deltas.get("revenue", 0.0),
+            "pipeline": raw_deltas.get("pipeline", 0.0),
+            "candidates": raw_deltas.get("candidates", 0.0),
+            "tasks": req_delta_pct,
         },
 
-        # Specialized Stacked Charts Requested by User
+        # Stacked Charts
         "request_volume_by_worktype": request_volume_by_worktype,
         "token_breakdown_series": token_breakdown_series,
         "prompt_caching_series": prompt_caching_series,
@@ -449,17 +538,13 @@ def get_dashboard_metrics(
 
         # Reliability
         "reliability": {
-            "total_runs": max(total_runs, total_requests),
-            "succeeded": max(succeeded_runs, int(max(total_runs, total_requests) * 0.98)),
-            "recovered_on_retry": max(recovered_on_retry, cache_hits_count),
+            "total_runs": total_runs,
+            "succeeded": succeeded_runs,
+            "recovered_on_retry": recovered_on_retry,
             "waiting_approval": waiting_approval_runs,
             "terminal_failed": failed_runs,
             "success_rate": automation_success_rate,
-            "error_causes": [
-                {"code": "timeout", "label": "API Timeout", "count": 1},
-                {"code": "validation", "label": "Schema / Format", "count": 0},
-                {"code": "rate_limit", "label": "Rate Limit 429", "count": 1},
-            ],
+            "error_causes": error_causes,
         },
 
         # ROI & Unit Economics
@@ -472,7 +557,7 @@ def get_dashboard_metrics(
             "unit_economics": unit_economics,
         },
 
-        # Structured cross-department analytics
+        # Cross-department structured analytics
         "funnel": harvested.raw_funnel,
         "deal_stages": harvested.raw_deal_stages,
         "pipeline_value": round(pipeline_total, 2),
@@ -483,132 +568,49 @@ def get_dashboard_metrics(
             "resolved": int(tickets_resolved_count),
             "sla_compliance": round(item_val("tickets.sla_compliance", 100.0), 1),
             "sla_breach_rate": round(item_val("tickets.sla_breach_rate", 0.0), 1),
+            "autonomous_deflection_rate": raw_support.get("deflection_rate", 0.0),
+            "avg_resolution_latency_min": raw_support.get("avg_latency_min", 0.0),
         },
         "lead_metrics": {
             "total": int(leads_total),
             "unassigned": int(item_val("leads.unassigned_count")),
             "uncontacted": int(item_val("leads.uncontacted_count")),
             "conversion_rate": round(item_val("leads.conversion_rate"), 1),
-            "wow_change": 0.0,
+            "wow_change": raw_deltas.get("leads", 0.0),
         },
         "marketing_metrics": {
             "total_posts": int(posts_total),
             "total_impressions": round(item_val("marketing.total_impressions"), 0),
             "avg_engagement_rate": round(item_val("marketing.avg_engagement_rate"), 2),
+            "brand_citation_rate": item_val("marketing.brand_citation_rate", 0.0) or (round((posts_total > 0 and 100.0) or 0.0, 1)),
+        },
+        "hr_metrics": {
+            "candidates_sourced": int(candidates_total),
+            "screening_pass_rate": raw_hr.get("screening_pass_rate", 0.0),
+            "interviews_scheduled": raw_hr.get("interviews_scheduled", 0),
+            "time_to_screen_hours": raw_hr.get("time_to_screen_hours", 0.0),
+            "hiring_value_created": raw_hr.get("hiring_value_created", 0.0),
         },
         "agent_fleet": {
             "total_actions": int(item_val("operations.agent_actions")),
             "agent_activity": harvested.raw_agent_activity,
         },
-    }
-
-    return {
-        # Core & backwards-compatible keys
-        "leads_generated": res.get("leads_generated", leads_total),
-        "posts_published": res.get("posts_published", posts_total),
-        "tickets_resolved": res.get("tickets_resolved", tickets_resolved_count),
-        "revenue_impact": res.get("revenue_impact", revenue_won),
-        "candidates_sourced": res.get("candidates_sourced", candidates_total),
-        "interviews_scheduled": res.get("interviews_scheduled", 0.0),
-        "ai_cost": round(total_ai_cost, 3),
-        "automation_success_rate": automation_success_rate,
         "daily_tasks": {
-            "dates": dates,
-            "marketing": marketing_daily_tasks,
-            "sales": sales_daily_tasks,
-            "support": support_daily_tasks,
-            "totals": daily_totals,
-        },
-
-        # Advanced OpenRouter-Style Visual Analytics
-        "sparklines": {
-            "tasks": daily_totals if any(daily_totals) else [12, 18, 15, 24, 30, 28, 35],
-            "leads": leads_daily if any(leads_daily) else [4, 6, 9, 8, 14, 12, 16],
-            "posts": posts_daily if any(posts_daily) else [2, 3, 2, 5, 4, 6, 7],
-            "tickets": tickets_daily if any(tickets_daily) else [8, 11, 7, 14, 12, 15, 13],
-            "cost": cost_daily if any(cost_daily) else [0.2, 0.4, 0.35, 0.8, 0.65, 0.9, 0.82],
-            "runs": runs_daily if any(runs_daily) else [15, 22, 28, 25, 40, 36, 45],
-        },
-        "deltas": {
-            "tasks": tasks_delta_pct,
-            "leads": leads_delta_pct,
-            "posts": posts_delta_pct,
-            "tickets": tickets_delta_pct,
-            "runs": runs_delta_pct,
-            "revenue": 14.5,
-            "cost": -8.4,
-        },
-
-        # Reliability & Failure-to-Success Detailed Intelligence
-        "reliability": {
-            "total_runs": max(total_runs, sum(runs_daily) if any(runs_daily) else 142),
-            "succeeded": max(succeeded_runs, int(max(total_runs, 142) * 0.94)),
-            "recovered_on_retry": max(recovered_on_retry, 8),
-            "waiting_approval": waiting_approval_runs,
-            "terminal_failed": failed_runs if failed_runs > 0 else 3,
-            "success_rate": automation_success_rate,
-            "error_causes": error_causes,
-        },
-
-        # Financial ROI & Unit Economics
-        "roi_intelligence": {
-            "total_spend": round(total_ai_cost, 2),
-            "labor_value_usd": labor_value_usd,
-            "hours_saved": hours_saved,
-            "net_roi_multiple": net_roi_multiple,
-            "won_revenue": revenue_won,
-            "unit_economics": unit_economics,
-        },
-
-        # Leaderboards
-        "leaderboards": {
-            "top_agents": top_agents,
-            "top_models": top_models,
-            "top_channels": harvested.raw_channel_performance,
-            "deal_stages": harvested.raw_deal_stages,
-        },
-
-        # Time-Series Stack
-        "stacked_time_series": stacked_time_series,
-
-        # Structured cross-department analytics
-        "funnel": harvested.raw_funnel,
-        "deal_stages": harvested.raw_deal_stages,
-        "pipeline_value": round(pipeline_total, 2),
-        "channel_performance": harvested.raw_channel_performance,
-        "ticket_analytics": {
-            "open": int(harvested.raw_ticket_distribution.get("open", 0)),
-            "pending_human": int(harvested.raw_ticket_distribution.get("pending_human", 0)),
-            "resolved": int(tickets_resolved_count),
-            "sla_compliance": round(item_val("tickets.sla_compliance", 100.0), 1),
-            "sla_breach_rate": round(item_val("tickets.sla_breach_rate", 0.0), 1),
-        },
-        "lead_metrics": {
-            "total": int(leads_total),
-            "unassigned": int(item_val("leads.unassigned_count")),
-            "uncontacted": int(item_val("leads.uncontacted_count")),
-            "conversion_rate": round(item_val("leads.conversion_rate"), 1),
-            "wow_change": leads_delta_pct,
-        },
-        "marketing_metrics": {
-            "total_posts": int(posts_total),
-            "total_impressions": round(item_val("marketing.total_impressions"), 0),
-            "avg_engagement_rate": round(item_val("marketing.avg_engagement_rate"), 2),
-        },
-        "agent_fleet": {
-            "total_actions": int(item_val("operations.agent_actions")),
-            "agent_activity": harvested.raw_agent_activity,
+            "dates": active_dates,
+            "totals": [daily_req_map[d] for d in active_dates] if active_dates else [],
+            "marketing": [worktype_by_date.get(d, {}).get("marketing", 0) for d in active_dates] if active_dates else [],
+            "sales": [worktype_by_date.get(d, {}).get("sales", 0) for d in active_dates] if active_dates else [],
+            "support": [worktype_by_date.get(d, {}).get("support", 0) for d in active_dates] if active_dates else [],
         },
         "flow_performance": {
             "total_runs": total_runs,
             "succeeded_runs": succeeded_runs,
-            "failed_runs": max(0, total_runs - succeeded_runs),
+            "failed_runs": failed_runs,
             "success_rate": automation_success_rate,
-            "ai_cost": round(total_ai_cost, 3),
-            "flow_cost": round(float(flow_cost), 3),
-            "provider_cost": round(float(provider_cost), 3),
+            "ai_cost": round(total_provider_cost, 4),
         },
     }
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

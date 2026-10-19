@@ -88,8 +88,8 @@ export default function TeamsView({
   const [agentFormDept, setAgentFormDept] = useState('sales');
   const [agentFormRole, setAgentFormRole] = useState('');
   const [agentFormDesc, setAgentFormDesc] = useState('');
-  const [agentFormProvider, setAgentFormProvider] = useState('anthropic');
-  const [agentFormModel, setAgentFormModel] = useState('claude-sonnet-4-6');
+  const [agentFormProvider, setAgentFormProvider] = useState('openrouter');
+  const [agentFormModel, setAgentFormModel] = useState('meta-llama/llama-3.3-70b-instruct');
   const [agentFormPrompt, setAgentFormPrompt] = useState('');
   const [agentFormTemp, setAgentFormTemp] = useState(0.7);
   const [agentFormTools, setAgentFormTools] = useState<string[]>(['web_search']);
@@ -114,8 +114,8 @@ export default function TeamsView({
   // Config Drawer in Team card
   const [configAgentName, setConfigAgentName] = useState<string | null>(null);
   const [configAgentTeamId, setConfigAgentTeamId] = useState<string | null>(null);
-  const [configAgentProvider, setConfigAgentProvider] = useState('anthropic');
-  const [configAgentModel, setConfigAgentModel] = useState('claude-sonnet-4-6');
+  const [configAgentProvider, setConfigAgentProvider] = useState('openrouter');
+  const [configAgentModel, setConfigAgentModel] = useState('meta-llama/llama-3.3-70b-instruct');
   const [configAgentInstructions, setConfigAgentInstructions] = useState('');
   const [savingConfigLoading, setSavingConfigLoading] = useState(false);
 
@@ -196,8 +196,8 @@ export default function TeamsView({
     setAgentFormDept('sales');
     setAgentFormRole('');
     setAgentFormDesc('');
-    setAgentFormProvider('anthropic');
-    setAgentFormModel('claude-sonnet-4-6');
+    setAgentFormProvider('openrouter');
+    setAgentFormModel('meta-llama/llama-3.3-70b-instruct');
     setAgentFormPrompt('');
     setAgentFormTemp(0.7);
     setAgentFormTools(['web_search']);
@@ -516,10 +516,10 @@ export default function TeamsView({
 
                                   <div className="flex gap-2 mt-2">
                                     <span className="text-xs font-bold px-1.5 py-0.5 rounded-md bg-gray-900 border border-gray-800 text-gray-400 uppercase">
-                                      Provider: {matchingAgent?.provider || 'anthropic'}
+                                      Provider: {matchingAgent?.provider || 'openrouter'}
                                     </span>
                                     <span className="text-xs font-bold px-1.5 py-0.5 rounded-md bg-gray-900 border border-gray-800 text-gray-400">
-                                      Model: {matchingAgent?.model || 'claude-sonnet-4-6'}
+                                      Model: {matchingAgent?.model || 'meta-llama/llama-3.3-70b-instruct'}
                                     </span>
                                   </div>
                                 </div>
@@ -860,11 +860,15 @@ export default function TeamsView({
                   onValueChange={(val) => {
                     if (val) {
                       setAgentFormProvider(val);
-                      if (val === 'anthropic') setAgentFormModel('claude-sonnet-4-6');
+                      if (val === 'openrouter') setAgentFormModel('meta-llama/llama-3.3-70b-instruct');
+                      else if (val === 'together') setAgentFormModel('meta-llama/Llama-3.3-70B-Instruct-Turbo');
+                      else if (val === 'groq') setAgentFormModel('llama-3.3-70b-versatile');
+                      else if (val === 'anthropic') setAgentFormModel('claude-sonnet-4-6');
                       else if (val === 'openai') setAgentFormModel('gpt-4o');
                       else if (val === 'gemini') setAgentFormModel('gemini-2.5-flash');
-                      else if (val === 'groq') setAgentFormModel('llama-3.3-70b-versatile');
+                      else if (val === 'nvidia') setAgentFormModel('meta/llama-3.3-70b-instruct');
                       else if (val === 'grok') setAgentFormModel('grok-2');
+                      else if (val === 'auto') setAgentFormModel('');
                     }
                   }}
                 >
@@ -872,10 +876,15 @@ export default function TeamsView({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                    <SelectItem value="auto">Auto / Default (.env)</SelectItem>
+                    <SelectItem value="nvidia">NVIDIA NIM (Llama 3.3 70B)</SelectItem>
+                    <SelectItem value="openrouter">OpenRouter (Llama 3.3 70B Default)</SelectItem>
+                    <SelectItem value="together">Together AI</SelectItem>
+                    <SelectItem value="groq">Groq (Ultra-Fast)</SelectItem>
+                    <SelectItem value="nvidia">NVIDIA NIM (Llama 3.3 70B)</SelectItem>
                     <SelectItem value="anthropic">Claude (Anthropic)</SelectItem>
                     <SelectItem value="openai">OpenAI (GPT-4o)</SelectItem>
                     <SelectItem value="gemini">Google Gemini</SelectItem>
-                    <SelectItem value="groq">Groq (Ultra-Fast)</SelectItem>
                     <SelectItem value="grok">xAI Grok</SelectItem>
                   </SelectContent>
                 </Select>
@@ -887,13 +896,16 @@ export default function TeamsView({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                    <SelectItem value="meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B (Default)</SelectItem>
+                    <SelectItem value="meta/llama-3.3-70b-instruct">meta/llama-3.3-70b-instruct (NVIDIA NIM)</SelectItem>
+                    <SelectItem value="meta-llama/Llama-3.3-70B-Instruct-Turbo">Llama 3.3 70B Turbo</SelectItem>
+                    <SelectItem value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile</SelectItem>
                     <SelectItem value="claude-sonnet-4-6">Claude 3.5 Sonnet</SelectItem>
                     <SelectItem value="claude-haiku-4-5-20251001">Claude 3.5 Haiku</SelectItem>
                     <SelectItem value="gpt-4o">GPT-4o</SelectItem>
                     <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
                     <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
                     <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
-                    <SelectItem value="llama-3.3-70b-versatile">Llama 3.3 70B</SelectItem>
                     <SelectItem value="grok-2">Grok 2</SelectItem>
                   </SelectContent>
                 </Select>
