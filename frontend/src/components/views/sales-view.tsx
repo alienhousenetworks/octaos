@@ -178,6 +178,8 @@ export default function SalesView({
           sales_emails: Array.isArray(data.sales_emails) ? data.sales_emails.join(', ') : data.sales_emails || '',
           support_emails: Array.isArray(data.support_emails) ? data.support_emails.join(', ') : data.support_emails || '',
           lead_freshness: data.lead_freshness || '30_days',
+          primary_source: data.primary_source || '',
+          communication_channels: data.communication_channels || [],
         });
         if (data.v3_workflow_status) {
           setWorkflowStatus(data.v3_workflow_status);
