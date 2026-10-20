@@ -6,7 +6,7 @@ Branches into: 'execution' | 'analytics' | 'hybrid'.
 from __future__ import annotations
 
 import re
-from typing import Dict, Any, Literal, Optional, Tuple
+from typing import Dict, Any, List, Literal, Optional, Tuple
 
 
 class IntentRouter:

@@ -9,7 +9,7 @@ import json
 import logging
 import re
 import uuid
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.services.automation.base import (
