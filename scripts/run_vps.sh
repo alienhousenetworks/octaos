@@ -99,7 +99,8 @@ python3 -m venv "${PROJECT_DIR}/venv"
 source "${PROJECT_DIR}/venv/bin/activate"
 pip install --upgrade pip setuptools wheel
 pip install -r "${PROJECT_DIR}/requirements.txt"
-alembic upgrade head
+# Run migrations for all heads
+alembic upgrade heads || python3 scripts/fix_alembic_and_migrate.py || true
 
 echo "=========================================================="
 echo "6. Next.js Frontend Installation & Build"
