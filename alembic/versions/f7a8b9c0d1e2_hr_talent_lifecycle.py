@@ -132,17 +132,22 @@ def upgrade() -> None:
             if name not in retention_cols:
                 op.add_column("data_retention_policies", sa.Column(name, sa.Integer(), nullable=True))
 
-    from sqlalchemy.orm import Session
-    from app.services.hr.migration_map import backfill_candidates
-    session = Session(bind=bind)
-    try:
-        backfill_candidates(session)
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
+    if "candidates" in tables:
+        try:
+            candidate_count = bind.execute(sa.text("SELECT count(*) FROM candidates")).scalar()
+            if candidate_count and candidate_count > 0:
+                from sqlalchemy.orm import Session
+                from app.services.hr.migration_map import backfill_candidates
+                session = Session(bind=bind)
+                try:
+                    backfill_candidates(session)
+                    session.commit()
+                except Exception:
+                    session.rollback()
+                finally:
+                    session.close()
+        except Exception:
+            pass
 
 
 def downgrade() -> None:

@@ -62,13 +62,46 @@ def backfill_candidates(db: Session) -> Dict[str, int]:
         Interview,
         JobRequisition,
     )
-    from app.models.verticals import Candidate
+    from sqlalchemy import text
 
-    rows: List[Candidate] = db.query(Candidate).order_by(Candidate.created_at.asc(), Candidate.id.asc()).all()
+    class CandidateRecord:
+        def __init__(self, d: dict):
+            self.id = d.get("id")
+            self.tenant_id = d.get("tenant_id")
+            self.organization_id = d.get("organization_id")
+            self.name = d.get("name")
+            self.email = d.get("email")
+            self.phone = d.get("phone")
+            self.role = d.get("role")
+            card = d.get("scorecard")
+            if isinstance(card, str):
+                try:
+                    import json
+                    card = json.loads(card)
+                except Exception:
+                    pass
+            self.scorecard = card
+            self.status = d.get("status")
+            self.merged_into_candidate_id = d.get("merged_into_candidate_id")
+            self.created_at = d.get("created_at")
+
+    try:
+        raw_rows = db.execute(text("""
+            SELECT id, tenant_id, organization_id, name, email, phone, role, scorecard, status, merged_into_candidate_id, created_at
+            FROM candidates
+            ORDER BY created_at ASC NULLS LAST, id ASC
+        """)).mappings().all()
+    except Exception:
+        return {"applications": 0, "assessments": 0, "people": 0}
+
+    if not raw_rows:
+        return {"applications": 0, "assessments": 0, "people": 0}
+
+    rows: List[CandidateRecord] = [CandidateRecord(dict(r)) for r in raw_rows]
     created_apps = 0
     created_assessments = 0
 
-    groups: Dict[tuple, List[Candidate]] = defaultdict(list)
+    groups: Dict[tuple, List[CandidateRecord]] = defaultdict(list)
     for row in rows:
         if is_real_email(row.email):
             key = (row.tenant_id, row.email.strip().lower())
@@ -81,10 +114,14 @@ def backfill_candidates(db: Session) -> Dict[str, int]:
         for other in members[1:]:
             if other.merged_into_candidate_id != survivor.id:
                 other.merged_into_candidate_id = survivor.id
+                db.execute(
+                    text("UPDATE candidates SET merged_into_candidate_id = :sid WHERE id = :oid"),
+                    {"sid": survivor.id, "oid": other.id}
+                )
             if (other.name or "") and other.name != survivor.name:
                 pass  # alias fact is written with the assessment below
 
-        by_role: Dict[tuple, List[Candidate]] = defaultdict(list)
+        by_role: Dict[tuple, List[CandidateRecord]] = defaultdict(list)
         for member in members:
             title = normalize_role(member.role)
             by_role[(member.tenant_id, member.organization_id, title.lower())].append(member)
