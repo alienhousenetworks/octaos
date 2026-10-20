@@ -85,49 +85,48 @@ def upgrade() -> None:
     all_tables = [Base.metadata.tables[name] for name in (PREREQ_TABLES + NEW_TABLES) if name in Base.metadata.tables]
     Base.metadata.create_all(bind=bind, tables=all_tables, checkfirst=True)
 
-    existing_candidate_cols = {c["name"] for c in inspector.get_columns("candidates")} if "candidates" in inspector.get_table_names() else set()
-    if "phone" not in existing_candidate_cols:
-        op.add_column("candidates", sa.Column("phone", sa.String(), nullable=True))
-    if "merged_into_candidate_id" not in existing_candidate_cols:
-        op.add_column("candidates", sa.Column("merged_into_candidate_id", sa.String(), nullable=True))
+    inspector = sa.inspect(bind)
+    tables = set(inspector.get_table_names())
 
-    indexes = {idx["name"] for idx in inspector.get_indexes("candidates")} if "candidates" in inspector.get_table_names() else set()
-    if "ix_candidates_tenant_id" not in indexes:
-        op.create_index("ix_candidates_tenant_id", "candidates", ["tenant_id"])
+    if "candidates" in tables:
+        existing_candidate_cols = {c["name"] for c in inspector.get_columns("candidates")}
+        if "phone" not in existing_candidate_cols:
+            op.add_column("candidates", sa.Column("phone", sa.String(), nullable=True))
+        if "merged_into_candidate_id" not in existing_candidate_cols:
+            op.add_column("candidates", sa.Column("merged_into_candidate_id", sa.String(), nullable=True))
+        indexes = {idx["name"] for idx in inspector.get_indexes("candidates")}
+        if "ix_candidates_tenant_id" not in indexes:
+            op.create_index("ix_candidates_tenant_id", "candidates", ["tenant_id"])
 
-    approval_cols = {c["name"] for c in inspector.get_columns("executive_approval_requests")} if "executive_approval_requests" in inspector.get_table_names() else set()
-    if approval_cols and "idempotency_key" not in approval_cols:
-        op.add_column("executive_approval_requests", sa.Column("idempotency_key", sa.String(length=64), nullable=True))
-    if approval_cols and bind.dialect.name == "postgresql":
-        try:
-            op.alter_column("executive_approval_requests", "plan_version_id", existing_type=sa.String(), nullable=True)
-        except Exception:
-            pass
-        try:
-            op.create_check_constraint(
-                "chk_hr_plan_version_nullable",
-                "executive_approval_requests",
-                "plan_version_id IS NOT NULL OR capability_id LIKE 'hr.%'",
-            )
-        except Exception:
-            pass
-        try:
-            op.create_check_constraint(
-                "chk_hr_idempotency_key",
-                "executive_approval_requests",
-                "capability_id NOT LIKE 'hr.%' OR idempotency_key IS NOT NULL",
-            )
-        except Exception:
-            pass
+    if "executive_approval_requests" in tables:
+        approval_cols = {c["name"]: c for c in inspector.get_columns("executive_approval_requests")}
+        if "idempotency_key" not in approval_cols:
+            op.add_column("executive_approval_requests", sa.Column("idempotency_key", sa.String(length=64), nullable=True))
+        if bind.dialect.name == "postgresql":
+            if approval_cols.get("plan_version_id", {}).get("nullable") is False:
+                op.alter_column("executive_approval_requests", "plan_version_id", existing_type=sa.String(), nullable=True)
+            existing_constraints = {c["name"] for c in inspector.get_check_constraints("executive_approval_requests")}
+            if "chk_hr_plan_version_nullable" not in existing_constraints:
+                op.create_check_constraint(
+                    "chk_hr_plan_version_nullable",
+                    "executive_approval_requests",
+                    "plan_version_id IS NOT NULL OR capability_id LIKE 'hr.%'",
+                )
+            if "chk_hr_idempotency_key" not in existing_constraints:
+                op.create_check_constraint(
+                    "chk_hr_idempotency_key",
+                    "executive_approval_requests",
+                    "capability_id NOT LIKE 'hr.%' OR idempotency_key IS NOT NULL",
+                )
 
-    if "provider_usage" in inspector.get_table_names():
+    if "provider_usage" in tables:
         usage_cols = {c["name"] for c in inspector.get_columns("provider_usage")}
         if "resource_id" not in usage_cols:
             op.add_column("provider_usage", sa.Column("resource_id", sa.String(), nullable=True))
         if "correlation_id" not in usage_cols:
             op.add_column("provider_usage", sa.Column("correlation_id", sa.String(), nullable=True))
 
-    if "data_retention_policies" in inspector.get_table_names():
+    if "data_retention_policies" in tables:
         retention_cols = {c["name"] for c in inspector.get_columns("data_retention_policies")}
         for name in ("candidates_days", "applications_days", "recruiting_docs_days", "identity_docs_days"):
             if name not in retention_cols:
