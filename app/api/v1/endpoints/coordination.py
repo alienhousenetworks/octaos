@@ -13,6 +13,7 @@ from sqlalchemy import func
 from app.api import deps
 from app.core.config import settings
 from app.core.celery_app import celery_app
+from app.models.base import User
 from app.models.verticals import AgentMeeting
 from app.models.boardroom_events import (
     MeetingEvent,
