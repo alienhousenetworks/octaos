@@ -192,44 +192,42 @@ class NewsRadar:
         return min(1.0, score)
 
     def _fetch_live_via_apify(self, industry: Optional[str], limit: int) -> List[Dict[str, Any]]:
-        """Fetch live news via Apify scraper if key is configured."""
-        from app.services.credentials import get_decrypted_credential
-        token, _ = get_decrypted_credential(self.db, self.tenant_id, "apify")
+        """Fetch live news via Apify transport client if token is configured."""
+        from app.integrations.apify.client import ApifyTransportClient
+        from asgiref.sync import async_to_sync
+
+        token = ApifyTransportClient.resolve_token(self.db, self.tenant_id)
         if not token:
             return []
 
-        import httpx
         search_query = f"{industry or 'technology'} innovation news 2026 latest"
-        # Use Apify's Google Search scraper (actor: apify/google-search-scraper)
-        payload = {
-            "queries": search_query,
-            "maxPagesPerQuery": 1,
-            "resultsPerPage": limit,
-            "countryCode": "us",
-            "languageCode": "en",
-        }
+        client = ApifyTransportClient(token=token)
         try:
-            with httpx.Client(timeout=20.0) as client:
-                resp = client.post(
-                    "https://api.apify.com/v2/acts/apify~google-search-scraper/run-sync-get-dataset-items",
-                    headers={"Authorization": f"Bearer {token}"},
-                    json=payload,
-                )
-                if resp.status_code == 200:
-                    items = resp.json()
-                    signals = []
-                    for item in items[:limit]:
-                        organic = item.get("organicResults", [])
-                        for result in organic[:1]:
-                            signals.append({
-                                "topic": result.get("title", "Industry News")[:80],
-                                "signal": result.get("description", "")[:300],
-                                "keywords": [],
-                                "relevance_score": 0.7,
-                                "source": "live_search",
-                                "url": result.get("url", ""),
-                            })
-                    return signals
+            res = async_to_sync(client.run_actor)(
+                actor_key="market_news",
+                raw_input={"queries": search_query, "resultsPerPage": limit},
+                max_charge_usd=1.00,
+                limit=limit,
+                db=self.db,
+                tenant_id=self.tenant_id,
+            )
+            if res.status != "succeeded":
+                logger.debug(f"[NewsRadar] Apify fetch returned status {res.status}: {res.error_message}")
+                return []
+
+            signals = []
+            for item in res.items[:limit]:
+                organic = item.get("organicResults", [])
+                for result in organic[:1]:
+                    signals.append({
+                        "topic": (result.get("title") or "Industry News")[:80],
+                        "signal": (result.get("description") or "")[:300],
+                        "keywords": [],
+                        "relevance_score": 0.75,
+                        "source": "live_search",
+                        "url": result.get("url", ""),
+                    })
+            return signals
         except Exception as exc:
             logger.debug(f"[NewsRadar] Apify fetch error: {exc}")
-        return []
+            return []

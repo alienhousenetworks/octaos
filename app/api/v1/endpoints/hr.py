@@ -33,6 +33,14 @@ from app.services.hr.contract_service import (
     render_contract_document,
     generate_offer_email_content,
 )
+from app.services.hr.document_lifecycle_service import DocumentLifecycleService
+from app.schemas.hr_documents import (
+    TemplateUploadRequest,
+    GeneratePacketRequest,
+    ArtifactApprovalRequest,
+    CandidateAcceptRequest,
+)
+
 
 router = APIRouter()
 
@@ -84,11 +92,23 @@ def read_candidates(
     tenant_id: str = Depends(deps.get_current_tenant_id),
     _: User = Depends(require_permission(Resource.HR, Action.READ)),
     skip: int = 0,
-    limit: int = 100
+    limit: int = 100,
+    room_id: Optional[str] = None,
+    room_slug: Optional[str] = None,
 ) -> Any:
-    candidates = db.query(models.Candidate).filter(
-        models.Candidate.tenant_id == tenant_id
-    ).order_by(models.Candidate.created_at.desc()).offset(skip).limit(limit).all()
+    q = db.query(models.Candidate).filter(models.Candidate.tenant_id == tenant_id)
+    if room_slug:
+        from app.models.rooms import SectionRoom
+        rm = db.query(SectionRoom).filter(
+            SectionRoom.tenant_id == tenant_id,
+            SectionRoom.section == "hr",
+            SectionRoom.slug == room_slug.lower(),
+        ).first()
+        if rm:
+            room_id = rm.id
+    if room_id:
+        q = q.filter(models.Candidate.room_id == room_id)
+    candidates = q.order_by(models.Candidate.created_at.desc()).offset(skip).limit(limit).all()
     return candidates
 
 @router.post("/", response_model=schemas.Candidate)
@@ -345,16 +365,24 @@ async def upload_resumes_batch(
     salary: str = Form("$120,000/year"),
     provider: str = Form("auto"),
     model: Optional[str] = Form(None),
+    room_id: Optional[str] = Form(None),
+    room_slug: Optional[str] = Form(None),
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
     _: User = Depends(require_permission(Resource.HR, Action.CREATE)),
 ) -> Any:
-    """Accepts multiple resume files or folder uploads, extracts text, computes zero-cost ATS match,
-
-    performs condensed semantic fit evaluation, and ranks all candidates.
-    """
     if not files:
         raise HTTPException(status_code=400, detail="No resume files uploaded.")
+
+    if not room_id and room_slug:
+        from app.models.rooms import SectionRoom
+        rm = db.query(SectionRoom).filter(
+            SectionRoom.tenant_id == tenant_id,
+            SectionRoom.section == "hr",
+            SectionRoom.slug == room_slug.lower(),
+        ).first()
+        if rm:
+            room_id = rm.id
 
     llm_gateway = LLMGateway(db, tenant_id)
     raw_candidates = []
@@ -439,7 +467,7 @@ async def upload_resumes_batch(
                 "text_excerpt": extracted_text[:1500]
             }
 
-            # Tier 3: Condensed Semantic Evaluation via Low-Cost / Fast LLM (<500 tokens)
+            # Tier 3: AI Understanding Layer
             try:
                 semantic_res = await evaluate_semantic_fit(
                     llm_gateway=llm_gateway,
@@ -452,9 +480,18 @@ async def upload_resumes_batch(
             except Exception as e:
                 rec = "Recommended" if ats_results.get("ats_score", 50) >= 70 else "Consider"
                 verdict = f"Assessed via deterministic heuristics. {len(ats_results.get('matched_skills', []))} core skills matched."
+                is_intern_fallback = condensed_profile.get("is_internship_only", False)
+                exp_yrs_fallback = 0 if is_intern_fallback else condensed_profile.get("experience_years", 0)
                 semantic_res = {
+                    "candidate_name": condensed_profile.get("name", "Candidate"),
+                    "verified_email": condensed_profile.get("email", ""),
+                    "verified_phone": condensed_profile.get("phone", ""),
+                    "verified_address": condensed_profile.get("address", "Not specified"),
+                    "is_internship_only": is_intern_fallback,
+                    "experience_years": exp_yrs_fallback,
+                    "experience_summary": condensed_profile.get("experience_summary") or ("Internship profile (< 1 yr)" if is_intern_fallback else f"{exp_yrs_fallback} years experience"),
+                    "extracted_skills": condensed_profile.get("skills", []),
                     "semantic_score": ats_results.get("ats_score", 50),
-                    "experience_summary": f"Candidate with {entities.get('experience_years', 0)} years experience.",
                     "strengths": [f"Skill match: {s}" for s in ats_results.get("matched_skills", [])[:3]],
                     "gaps": [f"Missing: {s}" for s in ats_results.get("missing_skills", [])[:2]],
                     "recommendation": rec,
@@ -462,17 +499,53 @@ async def upload_resumes_batch(
                     "extra_remarks": f"{rec}: {verdict}"
                 }
 
+            # Reconcile AI understanding with deterministic extraction
+            final_name = semantic_res.get("candidate_name") or entities.get("name") or "Candidate"
+            ai_email = semantic_res.get("verified_email")
+            final_email = entities.get("email") or (ai_email if (ai_email and "@" in ai_email) else "")
+            
+            ai_phone = semantic_res.get("verified_phone")
+            final_phone = entities.get("phone") or (ai_phone if (ai_phone and len(re.sub(r'\D', '', ai_phone)) >= 8) else "")
+
+            final_address = entities.get("address", "Not specified")
+            if final_address == "Not specified":
+                ai_addr = semantic_res.get("verified_address")
+                if ai_addr and ai_addr != "Not specified" and len(ai_addr) >= 3:
+                    final_address = ai_addr
+
+            # Isolate internship vs full-time professional experience
+            is_intern = bool(semantic_res.get("is_internship_only") or entities.get("is_internship_only"))
+            if is_intern:
+                final_exp_years = 0
+                final_exp_summary = semantic_res.get("experience_summary") or entities.get("experience_summary") or "Internship profile (< 1 yr)"
+            else:
+                ai_exp_val = semantic_res.get("experience_years")
+                final_exp_years = ai_exp_val if (ai_exp_val is not None and ai_exp_val > 0) else entities.get("experience_years", 0)
+                final_exp_summary = semantic_res.get("experience_summary") or entities.get("experience_summary") or f"{final_exp_years} years experience"
+
+            # Merge skills from both deterministic parsing and AI understanding
+            ai_skills = semantic_res.get("extracted_skills", [])
+            final_skills = sorted(list(set(entities.get("skills", [])).union(set(ai_skills))))
+
             candidate_data = {
                 **condensed_profile,
                 **semantic_res,
+                "name": final_name,
+                "email": final_email,
+                "phone": final_phone,
+                "address": final_address,
+                "skills": final_skills,
+                "is_internship_only": is_intern,
+                "experience_years": final_exp_years,
+                "experience_summary": final_exp_summary,
                 "filename": raw_filename,
                 "resume_link": resume_link,
                 "raw_text_excerpt": extracted_text[:800]
             }
             raw_candidates.append(candidate_data)
             logger.info(
-                f"[HR Ingestion] ({idx}/{total_files}) Candidate parsed: '{entities.get('name')}' | "
-                f"Phone: '{entities.get('phone')}' | ATS Score: {ats_results.get('ats_score')}%"
+                f"[HR Ingestion] ({idx}/{total_files}) Candidate parsed: '{final_name}' | "
+                f"Phone: '{final_phone}' | ATS Score: {ats_results.get('ats_score')}%"
             )
 
         # Compute composite rank across the batch
@@ -486,8 +559,9 @@ async def upload_resumes_batch(
         created_or_updated = []
         for item in ranked_candidates:
             cand_email = item.get("email")
+            cand_phone = item.get("phone")
             existing = None
-            if cand_email:
+            if cand_email and "@" in cand_email:
                 existing = db.query(models.Candidate).filter_by(
                     tenant_id=tenant_id, email=cand_email
                 ).first()
@@ -501,12 +575,15 @@ async def upload_resumes_batch(
                 "skills": item.get("skills", []),
                 "matched_skills": item.get("matched_skills", []),
                 "missing_skills": item.get("missing_skills", []),
+                "is_internship_only": item.get("is_internship_only", False),
                 "experience_years": item.get("experience_years", 0),
                 "experience_summary": item.get("experience_summary", ""),
                 "education": item.get("education", ""),
                 "address": item.get("address", "Not specified"),
                 "projects": item.get("projects", []),
-                "phone_number": item.get("phone", ""),
+                "phone_number": cand_phone or "",
+                "phone": cand_phone or "",
+                "email": cand_email or "",
                 "linkedin": item.get("linkedin", ""),
                 "github": item.get("github", ""),
                 "strengths": item.get("strengths", []),
@@ -523,16 +600,22 @@ async def upload_resumes_batch(
             }
 
             if existing:
+                existing.name = item.get("name") if item.get("name") and item.get("name") != "Candidate" else existing.name
+                existing.phone = cand_phone or existing.phone
                 existing.role = role
                 existing.scorecard = scorecard
                 existing.status = "sourced"
+                if room_id and not existing.room_id:
+                    existing.room_id = room_id
                 created_or_updated.append(existing)
             else:
                 new_cand = models.Candidate(
                     tenant_id=tenant_id,
-                    name=item.get("name") if item.get("name") and item.get("name") != "Candidate" else "N/A",
+                    name=item.get("name") if item.get("name") and item.get("name") != "Candidate" else "Candidate",
                     email=cand_email if cand_email else "N/A",
+                    phone=cand_phone if cand_phone else None,
                     role=role,
+                    room_id=room_id,
                     scorecard=scorecard,
                     status="sourced"
                 )
@@ -779,7 +862,218 @@ async def send_offer_email(
     }
 
 
+# --- GOVERNED HR DOCUMENT PLATFORM & DUAL-AGENT PIPELINE ---
+
+@router.post("/templates/register")
+def register_hr_template(
+    body: TemplateUploadRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    user: User = Depends(deps.get_current_user),
+    _: User = Depends(require_permission(Resource.HR, Action.CREATE)),
+) -> Any:
+    """Registers or updates a company document template with versioning and token detection."""
+    service = DocumentLifecycleService(db, tenant_id)
+    raw_content = body.raw_content or ""
+    template, version_row = service.register_template(
+        document_type=body.document_type,
+        name=body.name,
+        description=body.description,
+        file_format=body.format,
+        content=raw_content,
+        user_id=str(user.id),
+    )
+    return {
+        "status": "success",
+        "template_id": template.id,
+        "name": template.name,
+        "document_type": template.document_type,
+        "version": version_row.version,
+        "content_sha256": version_row.content_sha256,
+        "version_status": version_row.status,
+    }
+
+
+
+@router.get("/templates/list")
+def list_hr_templates(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.HR, Action.READ)),
+) -> Any:
+    """Lists all corporate document templates and their published versions."""
+    from app.models.hr import TenantDocumentTemplate, TemplateVersion
+    templates = db.query(TenantDocumentTemplate).filter_by(tenant_id=tenant_id).all()
+    results = []
+    for t in templates:
+        versions = db.query(TemplateVersion).filter_by(template_id=t.id, tenant_id=tenant_id).order_by(TemplateVersion.version.desc()).all()
+        results.append({
+            "id": t.id,
+            "name": t.name,
+            "document_type": t.document_type,
+            "description": t.description,
+            "is_active": t.is_active,
+            "versions": [
+                {
+                    "version": v.version,
+                    "format": v.format,
+                    "status": v.status,
+                    "content_sha256": v.content_sha256,
+                    "published_at": v.published_at.isoformat() if v.published_at else None,
+                }
+                for v in versions
+            ]
+        })
+    return results
+
+
+@router.post("/templates/{template_id}/publish")
+def publish_hr_template(
+    template_id: str,
+    version_num: int,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    user: User = Depends(deps.get_current_user),
+    _: User = Depends(require_permission(Resource.HR, Action.CREATE)),
+) -> Any:
+    """Publishes a template version after running synthetic test rendering."""
+    service = DocumentLifecycleService(db, tenant_id)
+    try:
+        pub = service.publish_template(template_id, version_num, str(user.id))
+        return {
+            "status": "success",
+            "message": f"Template {template_id} version {version_num} successfully published.",
+            "version": pub.version,
+            "version_status": pub.status,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/document-packets/generate")
+def generate_document_packet(
+    body: GeneratePacketRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.HR, Action.CREATE)),
+) -> Any:
+    """Assembles frozen snapshot and renders Offer, Appointment, and Contract with Assurance Audit."""
+    service = DocumentLifecycleService(db, tenant_id)
+    try:
+        result = service.generate_packet(
+            candidate_id=body.candidate_id,
+            requisition_id=body.requisition_id,
+            custom_vars=body.override_variables,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/document-packets/{packet_id}/approve")
+def approve_document_artifact(
+    packet_id: str,
+    body: ArtifactApprovalRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    user: User = Depends(deps.get_current_user),
+    _: User = Depends(require_permission(Resource.HR, Action.CREATE)),
+) -> Any:
+    """Authorizes an artifact cryptographically bound to its exact SHA-256 hash."""
+    service = DocumentLifecycleService(db, tenant_id)
+    try:
+        approval = service.approve_artifact(
+            packet_id=packet_id,
+            artifact_id=body.artifact_id,
+            expected_sha256=body.expected_artifact_sha256,
+            approver_id=str(user.id),
+            approver_role=getattr(user, "role", "hr_admin") or "hr_admin",
+            rationale=body.rationale,
+        )
+        return {
+            "status": "success",
+            "approval_id": approval.id,
+            "bound_sha256": approval.bound_artifact_sha256,
+            "decision": approval.decision,
+            "approved_at": approval.approved_at.isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/document-packets/{packet_id}/dispatch-offer")
+def dispatch_offer_packet(
+    packet_id: str,
+    channel: str = "smtp",
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    user: User = Depends(deps.get_current_user),
+    _: User = Depends(require_permission(Resource.HR, Action.CREATE)),
+) -> Any:
+    """Dispatches approved offer letter with single-use acceptance token."""
+    service = DocumentLifecycleService(db, tenant_id)
+    try:
+        res = service.dispatch_offer(packet_id, str(user.id), channel=channel)
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/public/accept-offer")
+def public_accept_offer(
+    body: CandidateAcceptRequest,
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """Public tokenized acceptance endpoint for candidates."""
+    service = DocumentLifecycleService(db, tenant_id="public")
+    try:
+        res = service.process_acceptance(
+            token=body.token,
+            ip_address="127.0.0.1",
+            user_agent="candidate_web_portal",
+        )
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/document-packets/{packet_id}/dispatch-appointment")
+def dispatch_appointment_letter(
+    packet_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    user: User = Depends(deps.get_current_user),
+    _: User = Depends(require_permission(Resource.HR, Action.CREATE)),
+) -> Any:
+    """Dispatches the official Appointment/Joining letter upon offer acceptance."""
+    service = DocumentLifecycleService(db, tenant_id)
+    try:
+        res = service.dispatch_appointment_letter(packet_id, str(user.id))
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/document-packets/{packet_id}/execute-contract")
+def execute_contract_and_provision(
+    packet_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    user: User = Depends(deps.get_current_user),
+    _: User = Depends(require_permission(Resource.HR, Action.CREATE)),
+) -> Any:
+    """Executes employment contract and provisions employee idempotently with preboarding tasks."""
+    service = DocumentLifecycleService(db, tenant_id)
+    try:
+        res = service.execute_contract_and_provision(packet_id, str(user.id))
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # --- EXCEL (.XLSX) EXPORT & IMPORT FOR HR CANDIDATES ---
+
 
 @router.get("/candidates/export-excel")
 def export_candidates_excel(
@@ -844,11 +1138,13 @@ def export_candidates_excel(
     for row_idx, cand in enumerate(candidates, start=2):
         scorecard = cand.scorecard or {}
         rank = scorecard.get("rank") or (row_idx - 1)
-        name = cand.name if cand.name and cand.name != "Candidate" else "N/A"
-        mobile = scorecard.get("phone_number") or scorecard.get("phone") or "N/A"
-        raw_email = cand.email or ""
-        email = raw_email if raw_email and raw_email != "N/A" and not raw_email.endswith("@applicant.internal") else "N/A"
+        name = cand.name if cand.name and cand.name != "Candidate" else (scorecard.get("name") or "N/A")
+        mobile = cand.phone or scorecard.get("phone_number") or scorecard.get("phone") or "N/A"
+        raw_email = cand.email or scorecard.get("email") or ""
+        email = raw_email if raw_email and raw_email != "N/A" and not raw_email.endswith("@applicant.internal") and not raw_email.endswith("@octaos.internal") else "N/A"
         address = scorecard.get("address") or "N/A"
+        if address == "Not specified" and scorecard.get("location"):
+            address = scorecard.get("location")
 
         # Skills list
         skills_list = scorecard.get("skills") or []
@@ -861,10 +1157,20 @@ def export_candidates_excel(
         else:
             proj_str = str(proj_list)
 
-        # Experiences
+        # Experiences - accurate handling of internship vs professional years
+        is_intern = scorecard.get("is_internship_only", False)
         exp_years = scorecard.get("experience_years", 0)
         exp_summary = scorecard.get("experience_summary") or ""
-        experiences_str = f"{exp_years} yrs" + (f" - {exp_summary}" if exp_summary else "")
+
+        if is_intern or exp_years == 0:
+            if exp_summary and "intern" in exp_summary.lower():
+                experiences_str = f"Internship (< 1 yr) - {exp_summary}"
+            elif exp_summary:
+                experiences_str = f"Internship / Fresher (< 1 yr) - {exp_summary}"
+            else:
+                experiences_str = "Internship / Fresher (< 1 yr)"
+        else:
+            experiences_str = f"{exp_years} yrs" + (f" - {exp_summary}" if exp_summary else "")
 
         # OctaOS resume link
         resume_link = scorecard.get("resume_link") or ""
@@ -1016,14 +1322,16 @@ async def import_candidates_excel(
         skills = [s.strip() for s in re.split(r"[,|;]", skills_raw) if s.strip()] if skills_raw else []
         projects = [p.strip() for p in re.split(r"[|;\n]", projects_raw) if p.strip()] if projects_raw else []
 
-        # Parse experience years number
+        # Parse experience years number & detect internship
+        is_intern = bool("intern" in exp_raw.lower() or "fresher" in exp_raw.lower())
         exp_years = 0
-        exp_num_match = re.search(r"(\d+)", exp_raw)
-        if exp_num_match:
-            try:
-                exp_years = int(exp_num_match.group(1))
-            except:
-                exp_years = 0
+        if not is_intern:
+            exp_num_match = re.search(r"(\d+)", exp_raw)
+            if exp_num_match:
+                try:
+                    exp_years = int(exp_num_match.group(1))
+                except Exception:
+                    exp_years = 0
 
         # Parse match score
         score = 70
@@ -1031,7 +1339,7 @@ async def import_candidates_excel(
         if score_match:
             try:
                 score = min(100, max(10, int(score_match.group(1))))
-            except:
+            except Exception:
                 score = 70
 
         # Normalize status
@@ -1050,9 +1358,12 @@ async def import_candidates_excel(
             "semantic_score": score,
             "match_score": score,
             "phone_number": mobile,
+            "phone": mobile,
+            "email": email,
             "address": address or "Not specified",
             "skills": skills,
             "projects": projects,
+            "is_internship_only": is_intern,
             "experience_years": exp_years,
             "experience_summary": exp_raw,
             "resume_link": resume_link,
@@ -1064,6 +1375,7 @@ async def import_candidates_excel(
 
         if existing:
             existing.name = name or existing.name
+            existing.phone = mobile or existing.phone
             existing.scorecard = {**(existing.scorecard or {}), **scorecard}
             existing.status = status
             updated_count += 1
@@ -1073,6 +1385,7 @@ async def import_candidates_excel(
                 tenant_id=tenant_id,
                 name=name or f"Candidate {imported_count + 1}",
                 email=cand_email,
+                phone=mobile if mobile else None,
                 role="Imported Applicant",
                 scorecard=scorecard,
                 status=status

@@ -50,9 +50,22 @@ def list_deal_rooms(
     tenant_id: str = Depends(deps.get_current_tenant_id),
     stage: Optional[str] = None,
     search: Optional[str] = None,
+    room_id: Optional[str] = None,
+    room_slug: Optional[str] = None,
     limit: int = 50,
 ) -> Any:
     q = db.query(DealRoom).filter(DealRoom.tenant_id == tenant_id)
+    if room_slug:
+        from app.models.rooms import SectionRoom
+        rm = db.query(SectionRoom).filter(
+            SectionRoom.tenant_id == tenant_id,
+            SectionRoom.section == "sales",
+            SectionRoom.slug == room_slug.lower(),
+        ).first()
+        if rm:
+            room_id = rm.id
+    if room_id:
+        q = q.filter(DealRoom.room_id == room_id)
     if stage and stage != "all":
         q = q.filter(DealRoom.stage == stage)
     if search:

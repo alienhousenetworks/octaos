@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     GROK_API_KEY: Optional[str] = None
     XAI_API_KEY: Optional[str] = None
     NVIDIA_API_KEY: Optional[str] = None
+    APIFY_TOKEN: Optional[str] = None
 
     # VENDOR ROUTING & MODEL SELECTION
     DEFAULT_AI_PROVIDER: str = "openrouter"  # openrouter | together | groq | grok | anthropic | openai | gemini | nvidia

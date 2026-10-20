@@ -357,3 +357,267 @@ class SkillEvidence(Base):
     skill_term_id = Column(String, ForeignKey("skill_terms.id"), nullable=False)
     evidence_fact_id = Column(String, ForeignKey("evidence_facts.id"), nullable=False)
     proficiency = Column(String, nullable=True)
+
+
+# --- GOVERNED HR DOCUMENT PLATFORM MODELS ---
+
+class TenantDocumentTemplate(Base):
+    """Tenant-scoped registry for HR document templates."""
+    __tablename__ = "tenant_document_templates"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    document_type = Column(String, nullable=False)  # arbitrary string: e.g. 'offer_letter', 'nda', 'joining_pack', 'tax_form', 'custom_policy'
+    category = Column(String, nullable=False, default="onboarding", index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    folder_path = Column(String, nullable=False, default="/")
+    tags = Column(JSON, nullable=False, default=list)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "document_type", "name", name="uq_tenant_doc_type_name"),
+    )
+
+
+class TemplateVersion(Base):
+    """Immutable versioned template source with checksum and lifecycle state."""
+    __tablename__ = "template_versions"
+    id = Column(String, primary_key=True, default=_id)
+    template_id = Column(String, ForeignKey("tenant_document_templates.id"), nullable=False, index=True)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    version = Column(Integer, nullable=False, default=1)
+    format = Column(String, nullable=False, default="html")  # 'html', 'markdown', 'docx'
+    status = Column(String, nullable=False, default="draft")  # 'draft', 'analyzed', 'reviewed', 'validated', 'published', 'retired'
+    storage_key = Column(String, nullable=False)
+    content_sha256 = Column(String(64), nullable=False)
+    raw_content = Column(Text, nullable=True)
+    docx_structure = Column(JSON, nullable=True, default=dict)
+    detected_clauses = Column(JSON, nullable=True, default=list)
+    proposed_mappings = Column(JSON, nullable=True, default=list)
+    published_at = Column(DateTime(timezone=True), nullable=True)
+    published_by_user_id = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("template_id", "version", name="uq_template_version_num"),
+    )
+
+
+class TemplateVariableSchema(Base):
+    """Typed schema definition for variables required by a template version."""
+    __tablename__ = "template_variable_schemas"
+    id = Column(String, primary_key=True, default=_id)
+    template_version_id = Column(String, ForeignKey("template_versions.id"), nullable=False, index=True)
+    variable_name = Column(String, nullable=False)  # e.g. 'candidate_legal_name', 'annual_ctc'
+    data_type = Column(String, nullable=False, default="string")  # 'string', 'money', 'date', 'integer', 'boolean'
+    is_required = Column(Boolean, nullable=False, default=True)
+    source_field = Column(String, nullable=False)  # e.g. 'candidate.name', 'compensation.base_amount'
+    sensitivity = Column(String, nullable=False, default="confidential")
+    editable_by_recruiter = Column(Boolean, nullable=False, default=False)
+
+
+class HRDocumentPacket(Base):
+    """Encapsulates a candidate's complete frozen hiring document package."""
+    __tablename__ = "hr_document_packets"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    application_id = Column(String, ForeignKey("applications.id"), nullable=False, index=True)
+    candidate_id = Column(String, ForeignKey("candidates.id"), nullable=False, index=True)
+    requisition_id = Column(String, ForeignKey("job_requisitions.id"), nullable=True)
+    data_snapshot = Column(JSON, nullable=False, default=dict)  # Frozen candidate, compensation, manager, role
+    data_snapshot_sha256 = Column(String(64), nullable=False)
+    current_lifecycle_state = Column(String, nullable=False, default="draft")  # 'draft', 'verified', 'approved', 'offered', 'accepted', 'appointed', 'contract_executed', 'hired'
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class HRDocumentArtifact(Base):
+    """Immutable rendered document artifact bound to cryptographic hash."""
+    __tablename__ = "hr_document_artifacts"
+    id = Column(String, primary_key=True, default=_id)
+    packet_id = Column(String, ForeignKey("hr_document_packets.id"), nullable=False, index=True)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    template_version_id = Column(String, ForeignKey("template_versions.id"), nullable=True)
+    document_type = Column(String, nullable=False)  # 'offer_letter', 'appointment_letter', 'employment_contract', 'nda', etc.
+    format = Column(String, nullable=False, default="html")  # 'html', 'pdf', 'docx'
+    storage_key = Column(String, nullable=False)
+    artifact_sha256 = Column(String(64), nullable=False, index=True)
+    byte_size = Column(Integer, nullable=False, default=0)
+    rendered_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class DocumentVerificationRun(Base):
+    """Audit record of verification runs and findings."""
+    __tablename__ = "document_verification_runs"
+    id = Column(String, primary_key=True, default=_id)
+    packet_id = Column(String, ForeignKey("hr_document_packets.id"), nullable=False, index=True)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    artifact_sha256 = Column(String(64), nullable=False)
+    overall_eligibility = Column(String, nullable=False, default="BLOCKED")  # 'BLOCKED', 'REVIEW_REQUIRED', 'ELIGIBLE_FOR_APPROVAL'
+    findings = Column(JSON, nullable=False, default=list)  # List of VerificationFinding dicts
+    agent_model_id = Column(String, nullable=True)
+    rule_version = Column(String, nullable=False, default="2026.1")
+    executed_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class HRArtifactApproval(Base):
+    """Human approval bound cryptographically to exact artifact SHA-256."""
+    __tablename__ = "hr_artifact_approvals"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    packet_id = Column(String, ForeignKey("hr_document_packets.id"), nullable=False)
+    artifact_id = Column(String, ForeignKey("hr_document_artifacts.id"), nullable=False)
+    bound_artifact_sha256 = Column(String(64), nullable=False)
+    approver_user_id = Column(String, nullable=False)
+    approver_role = Column(String, nullable=False)
+    decision = Column(String, nullable=False, default="approved")  # 'approved', 'rejected'
+    rationale = Column(Text, nullable=True)
+    approved_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class CandidateAcceptanceRecord(Base):
+    """Immutable audit record of candidate acceptance action."""
+    __tablename__ = "candidate_acceptance_records"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    packet_id = Column(String, ForeignKey("hr_document_packets.id"), nullable=False)
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    accepted_at = Column(DateTime(timezone=True), server_default=func.now())
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    status = Column(String, nullable=False, default="accepted")
+
+
+# --- DYNAMIC HR WORKFLOW PLATFORM ENTITIES ---
+
+class HRWorkflowDefinition(Base):
+    """Tenant-scoped dynamic onboarding workflow graph (DAG)."""
+    __tablename__ = "hr_workflow_definitions"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    version = Column(Integer, nullable=False, default=1)
+    graph_schema = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class HRWorkflowInstance(Base):
+    """Running execution of a dynamic workflow for a candidate and application."""
+    __tablename__ = "hr_workflow_instances"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    workflow_definition_id = Column(String, ForeignKey("hr_workflow_definitions.id"), nullable=False, index=True)
+    application_id = Column(String, ForeignKey("applications.id"), nullable=False, index=True)
+    candidate_id = Column(String, ForeignKey("candidates.id"), nullable=False, index=True)
+    current_state = Column(String, nullable=False, default="intake_pending")
+    candidate_token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    token_expires_at = Column(DateTime(timezone=True), nullable=False)
+    token_revoked = Column(Boolean, nullable=False, default=False)
+    context_data = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class HRWorkflowTask(Base):
+    """Granular task node inside a running workflow instance."""
+    __tablename__ = "hr_workflow_tasks"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    instance_id = Column(String, ForeignKey("hr_workflow_instances.id"), nullable=False, index=True)
+    node_id = Column(String, nullable=False)
+    task_type = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="pending")  # 'pending', 'in_progress', 'completed', 'blocked', 'skipped'
+    assigned_role = Column(String, nullable=True)
+    output_payload = Column(JSON, nullable=True, default=dict)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class CandidateEvidence(Base):
+    """Candidate uploaded document evidence item."""
+    __tablename__ = "candidate_evidence_items"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    instance_id = Column(String, ForeignKey("hr_workflow_instances.id"), nullable=False, index=True)
+    document_name = Column(String, nullable=False)
+    document_category = Column(String, nullable=False)  # 'passport', 'national_id', 'resume', 'tax_form', 'degree_certificate'
+    storage_key = Column(String, nullable=False)
+    file_sha256 = Column(String(64), nullable=False)
+    mime_type = Column(String, nullable=False)
+    extracted_data = Column(JSON, nullable=False, default=dict)  # {field_key: {value, confidence, page, snippet}}
+    uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class CandidateFieldValue(Base):
+    """Reconciled multi-source canonical value with provenance and conflict tracking."""
+    __tablename__ = "candidate_field_values"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    instance_id = Column(String, ForeignKey("hr_workflow_instances.id"), nullable=False, index=True)
+    canonical_key = Column(String, nullable=False, index=True)
+    resolved_value = Column(JSON, nullable=True)
+    candidate_provided_value = Column(JSON, nullable=True)
+    document_extracted_value = Column(JSON, nullable=True)
+    hr_approved_value = Column(JSON, nullable=True)
+    source_provenance = Column(JSON, nullable=True)  # {evidence_id, page, confidence}
+    has_conflict = Column(Boolean, nullable=False, default=False)
+    conflict_details = Column(JSON, nullable=True)
+    status = Column(String, nullable=False, default="pending")  # 'pending', 'reconciled', 'hr_overridden', 'conflict'
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class DocumentDraft(Base):
+    """Editable document draft in Review Studio with tracked changes and approval binding."""
+    __tablename__ = "hr_document_drafts"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    instance_id = Column(String, ForeignKey("hr_workflow_instances.id"), nullable=False, index=True)
+    template_version_id = Column(String, ForeignKey("template_versions.id"), nullable=False)
+    document_name = Column(String, nullable=False)
+    format = Column(String, nullable=False, default="docx")  # 'docx', 'html'
+    storage_key = Column(String, nullable=False)
+    content_sha256 = Column(String(64), nullable=False)
+    field_overrides = Column(JSON, nullable=False, default=dict)
+    editor_revisions = Column(JSON, nullable=False, default=list)  # [{timestamp, user_id, diff_summary}]
+    current_approval_status = Column(String, nullable=False, default="draft")  # 'draft', 'pending_approval', 'approved', 'rejected'
+    approved_by_user_id = Column(String, nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    bound_approval_sha256 = Column(String(64), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class DocumentReviewComment(Base):
+    """Paragraph-anchored or draft-level review comment."""
+    __tablename__ = "hr_document_review_comments"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    draft_id = Column(String, ForeignKey("hr_document_drafts.id"), nullable=False, index=True)
+    user_id = Column(String, nullable=False)
+    user_name = Column(String, nullable=False)
+    paragraph_index = Column(Integer, nullable=True)
+    comment_text = Column(Text, nullable=False)
+    is_resolved = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ScheduledDelivery(Base):
+    """Timezone-aware scheduled release of an approved draft."""
+    __tablename__ = "hr_scheduled_deliveries"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    draft_id = Column(String, ForeignKey("hr_document_drafts.id"), nullable=False, index=True)
+    scheduled_for = Column(DateTime(timezone=True), nullable=False)
+    timezone = Column(String, nullable=False, default="UTC")
+    recipient_email = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="scheduled")  # 'scheduled', 'dispatched', 'failed', 'cancelled'
+    retry_count = Column(Integer, nullable=False, default=0)
+    last_error = Column(Text, nullable=True)
+    dispatched_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+

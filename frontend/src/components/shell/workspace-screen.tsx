@@ -23,6 +23,8 @@ import ProfileView from '@/components/views/profile-view';
 import EnterpriseView from '@/components/views/enterprise-view';
 import ApprovalsView from '@/components/views/approvals-view';
 import AutomationsView from '@/components/views/automations-view';
+import AgentDirectoryView from '@/components/views/agent-directory-view';
+import AgentDetailView from '@/components/views/agent-detail-view';
 import AgentLockedScreen from '@/components/shell/agent-locked-screen';
 import { EmptyState } from '@/components/shell/states';
 import { allNavItems, canSeeItem, pathForView, isAgentAllowed } from '@/lib/navigation';
@@ -30,6 +32,7 @@ import { useWorkspace, useWorkspaceFeed } from '@/lib/workspace';
 
 const FEED_PATHS = [
   '/app/home',
+  '/app/agents',
   '/app/knowledge',
   '/app/campaigns',
   '/app/sales',
@@ -39,6 +42,8 @@ const FEED_PATHS = [
   '/app/ceo',
   '/app/costs',
   '/app/automations',
+  '/app/hiring',
+  '/app/support',
   '/app/settings/integrations',
   '/app/settings/guide',
 ];
@@ -70,7 +75,9 @@ export default function WorkspaceScreen() {
     return null;
   }
 
-  const match = allNavItems().find((item) => item.href === pathname);
+  const match = allNavItems().find(
+    (item) => item.href === pathname || (item.href !== '/app/home' && pathname.startsWith(`${item.href}/`))
+  );
   if (match && !canSeeItem(match, workspace.userProfile)) {
     return (
       <EmptyState
@@ -103,10 +110,33 @@ export default function WorkspaceScreen() {
       />
     );
   }
+  if (pathname === '/app/agents') {
+    return (
+      <AgentDirectoryView
+        API_URL={workspace.apiUrl}
+        fetchWithAuth={workspace.fetchWithAuth}
+        token={workspace.token}
+        onSelectAgent={(agentId) => router.push(`/app/agents/${agentId}`)}
+      />
+    );
+  }
+  if (pathname.startsWith('/app/agents/')) {
+    const rawId = pathname.replace('/app/agents/', '').split('/')[0];
+    if (rawId) {
+      return (
+        <AgentDetailView
+          agentId={rawId}
+          API_URL={workspace.apiUrl}
+          fetchWithAuth={workspace.fetchWithAuth}
+          token={workspace.token}
+        />
+      );
+    }
+  }
   if (pathname === '/app/knowledge') {
     return <KnowledgeView {...shared} knowledge={workspace.knowledge} />;
   }
-  if (pathname === '/app/campaigns') {
+  if (pathname === '/app/campaigns' || pathname.startsWith('/app/campaigns/')) {
     if (!isAgentAllowed('marketing', workspace.userProfile)) {
       return (
         <AgentLockedScreen
@@ -117,9 +147,19 @@ export default function WorkspaceScreen() {
         />
       );
     }
-    return <CampaignsView {...shared} activeView="campaigns" configuredProviders={workspace.configuredProviders} />;
+    const roomSlug = pathname.startsWith('/app/campaigns/rooms/')
+      ? pathname.replace('/app/campaigns/rooms/', '').split('/')[0]
+      : undefined;
+    return (
+      <CampaignsView
+        {...shared}
+        activeView="campaigns"
+        configuredProviders={workspace.configuredProviders}
+        initialRoomSlug={roomSlug}
+      />
+    );
   }
-  if (pathname === '/app/support') {
+  if (pathname === '/app/support' || pathname.startsWith('/app/support/')) {
     if (!isAgentAllowed('support', workspace.userProfile)) {
       return (
         <AgentLockedScreen
@@ -130,7 +170,10 @@ export default function WorkspaceScreen() {
         />
       );
     }
-    return <SupportView {...shared} tenantId={workspace.tenantId} />;
+    const roomSlug = pathname.startsWith('/app/support/rooms/')
+      ? pathname.replace('/app/support/rooms/', '').split('/')[0]
+      : undefined;
+    return <SupportView {...shared} tenantId={workspace.tenantId} initialRoomSlug={roomSlug} />;
   }
   if (pathname === '/app/orchestrator') {
     return (
@@ -154,7 +197,7 @@ export default function WorkspaceScreen() {
   if (pathname === '/app/automations') {
     return <AutomationsView {...shared} userProfile={workspace.userProfile} />;
   }
-  if (pathname === '/app/hiring') {
+  if (pathname === '/app/hiring' || pathname.startsWith('/app/hiring/')) {
     if (!isAgentAllowed('hr', workspace.userProfile)) {
       return (
         <AgentLockedScreen
@@ -165,7 +208,10 @@ export default function WorkspaceScreen() {
         />
       );
     }
-    return <HRView {...shared} />;
+    const roomSlug = pathname.startsWith('/app/hiring/rooms/')
+      ? pathname.replace('/app/hiring/rooms/', '').split('/')[0]
+      : undefined;
+    return <HRView {...shared} initialRoomSlug={roomSlug} />;
   }
   if (pathname === '/app/ceo') {
     return <CEOView {...shared} timeline={workspace.timeline} setActiveView={setActiveView} />;
@@ -173,7 +219,7 @@ export default function WorkspaceScreen() {
   if (pathname === '/app/boardroom') {
     return <CoordinationView {...shared} />;
   }
-  if (pathname === '/app/sales/intelligence' || pathname in SALES_SECTIONS) {
+  if (pathname === '/app/sales/intelligence' || pathname.startsWith('/app/sales/rooms/') || pathname in SALES_SECTIONS) {
     if (!isAgentAllowed('sales', workspace.userProfile)) {
       return (
         <AgentLockedScreen
@@ -187,16 +233,16 @@ export default function WorkspaceScreen() {
     if (pathname === '/app/sales/intelligence') {
       return <SalesIntelligenceView {...shared} />;
     }
-    const section = SALES_SECTIONS[pathname as keyof typeof SALES_SECTIONS];
+    const roomSlug = pathname.startsWith('/app/sales/rooms/')
+      ? pathname.replace('/app/sales/rooms/', '').split('/')[0]
+      : undefined;
+    const section = pathname in SALES_SECTIONS ? SALES_SECTIONS[pathname as keyof typeof SALES_SECTIONS] : 'pipeline';
     return (
       <SalesView
         {...shared}
         timeline={workspace.timeline}
         section={section}
-        onSectionChange={(next) => {
-          const href = Object.entries(SALES_SECTIONS).find(([, value]) => value === next)?.[0];
-          if (href) router.push(href);
-        }}
+        initialRoomSlug={roomSlug}
       />
     );
   }

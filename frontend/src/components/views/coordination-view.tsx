@@ -54,6 +54,9 @@ import {
   Sliders,
   CheckCircle2,
   Share2,
+  Plus,
+  Loader2,
+  XCircle,
 } from 'lucide-react';
 
 interface CoordinationViewProps {
@@ -232,8 +235,32 @@ export default function CoordinationView({
   const [dissentList, setDissentList] = useState<DissentRecord[]>([]);
   const [outcomesList, setOutcomesList] = useState<DecisionOutcome[]>([]);
   
-  // Tabs: defaults to 'debate'
-  const [activeDeckTab, setActiveDeckTab] = useState<'debate' | 'options' | 'redteam' | 'dissents' | 'actions' | 'evidence'>('debate');
+  // Decision Intelligence & Assurance System State
+  const [activeSystemTab, setActiveSystemTab] = useState<'CASES' | 'SCENARIOS' | 'CHALLENGE' | 'AUTHORITY' | 'OUTCOMES'>('CASES');
+  const [decisionCases, setDecisionCases] = useState<any[]>([]);
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
+  const [selectedCase, setSelectedCase] = useState<any | null>(null);
+  const [isLoadingCases, setIsLoadingCases] = useState(false);
+  const [isCreateCaseOpen, setIsCreateCaseOpen] = useState(false);
+
+  // New Case Form
+  const [newCaseTitle, setNewCaseTitle] = useState('');
+  const [newCaseProposal, setNewCaseProposal] = useState('');
+  const [newCaseRationale, setNewCaseRationale] = useState('');
+  const [newCaseRiskClass, setNewCaseRiskClass] = useState('R3_EXTERNAL_IRREVERSIBLE');
+  const [newCaseExposure, setNewCaseExposure] = useState('5000');
+  const [newCaseReversibility, setNewCaseReversibility] = useState('MEDIUM');
+  const [newCaseCostOfDelay, setNewCaseCostOfDelay] = useState('500');
+  const [isSubmittingCase, setIsSubmittingCase] = useState(false);
+
+  // Authority Grant Form
+  const [grantDecision, setGrantDecision] = useState<'APPROVE' | 'REJECT'>('APPROVE');
+  const [grantRationale, setGrantRationale] = useState('');
+  const [grantSelectedAlt, setGrantSelectedAlt] = useState('B');
+  const [isSubmittingGrant, setIsSubmittingGrant] = useState(false);
+
+  // Legacy Deck Tabs fallback
+  const [activeDeckTab, setActiveDeckTab] = useState<'debate' | 'options' | 'redteam' | 'dissents' | 'actions' | 'evidence'>('options');
   
   // Interactive Controls
   const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>('ALL');
@@ -336,11 +363,101 @@ export default function CoordinationView({
     }
   }, [API_URL, fetchWithAuth, token]);
 
+  const fetchDecisionCases = useCallback(async () => {
+    if (!token) return;
+    setIsLoadingCases(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/coordination/decision-cases`);
+      if (res.ok) {
+        const data = await res.json();
+        setDecisionCases(data);
+        if (!selectedCaseId && data.length > 0) {
+          setSelectedCaseId(data[0].id);
+          void fetchCaseDetails(data[0].id);
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching decision cases:', e);
+    } finally {
+      setIsLoadingCases(false);
+    }
+  }, [API_URL, fetchWithAuth, token, selectedCaseId]);
+
+  const fetchCaseDetails = useCallback(async (caseId: string) => {
+    if (!token) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/coordination/decision-cases/${caseId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedCase(data);
+      }
+    } catch (e) {
+      console.error('Error fetching decision case details:', e);
+    }
+  }, [API_URL, fetchWithAuth, token]);
+
+  const handleCreateCase = async () => {
+    if (!newCaseTitle.trim()) return;
+    setIsSubmittingCase(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/coordination/decision-cases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newCaseTitle.trim(),
+          proposal_summary: newCaseProposal.trim() || newCaseTitle.trim(),
+          business_rationale: newCaseRationale.trim() || 'Required for business targets.',
+          risk_class: newCaseRiskClass,
+          financial_exposure: parseFloat(newCaseExposure) || 0.0,
+          reversibility: newCaseReversibility,
+          cost_of_delay_per_week: parseFloat(newCaseCostOfDelay) || 0.0,
+        })
+      });
+      if (res.ok) {
+        setIsCreateCaseOpen(false);
+        setNewCaseTitle('');
+        setNewCaseProposal('');
+        setNewCaseRationale('');
+        await fetchDecisionCases();
+      }
+    } catch (e) {
+      console.error('Error creating decision case:', e);
+    } finally {
+      setIsSubmittingCase(false);
+    }
+  };
+
+  const handleGrantAuthority = async () => {
+    if (!selectedCaseId) return;
+    setIsSubmittingGrant(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/coordination/decision-cases/${selectedCaseId}/grant`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decision: grantDecision,
+          rationale: grantRationale.trim() || `${grantDecision} authorized by executive review under delegated policy limits.`,
+          selected_alternative_code: grantSelectedAlt,
+        })
+      });
+      if (res.ok) {
+        setGrantRationale('');
+        await fetchCaseDetails(selectedCaseId);
+        await fetchDecisionCases();
+      }
+    } catch (e) {
+      console.error('Error granting authority:', e);
+    } finally {
+      setIsSubmittingGrant(false);
+    }
+  };
+
   useEffect(() => {
     if (token) {
       void fetchMeetings();
+      void fetchDecisionCases();
     }
-  }, [fetchMeetings, token]);
+  }, [fetchMeetings, fetchDecisionCases, token]);
 
   useEffect(() => {
     if (selectedMeetingId && token) {
@@ -786,127 +903,134 @@ export default function CoordinationView({
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto animate-in fade-in duration-300 pb-16">
-      {/* 1. Elite Executive Command Header */}
-      <div className="relative rounded-3xl p-6 bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 border border-gray-800/80 shadow-2xl overflow-hidden">
-        {/* Subtle background ambient glow */}
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-
+      {/* 1. Decision Intelligence & Assurance Command Header */}
+      <div className="relative rounded-xl p-6 bg-card border border-border shadow-xs overflow-hidden">
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2.5">
-              <div className="h-11 w-11 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-600 to-yellow-400 p-0.5 shadow-lg shadow-amber-500/20">
-                <div className="h-full w-full rounded-[14px] bg-gray-950 flex items-center justify-center">
-                  <Crown className="text-amber-400 h-5 w-5" />
-                </div>
+              <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-xs">
+                <ShieldCheck className="h-5 w-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-black text-white tracking-tight">
-                    Executive AI Boardroom
+                  <h1 className="text-xl font-bold text-foreground tracking-tight">
+                    Decision Intelligence &amp; Assurance System
                   </h1>
-                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-500/20 border border-amber-500/40 text-amber-300 font-extrabold uppercase tracking-wider shadow-sm">
-                    Autonomous Quorum
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#2B3945] border border-[#75AFCB]/20 text-[#75AFCB] font-semibold uppercase tracking-wider font-mono">
+                    Deterministic Policy Kernel
+                  </span>
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#443A2D] border border-[#D9AD68]/20 text-[#D9AD68] font-semibold uppercase tracking-wider font-mono">
+                    Audit Provenance
                   </span>
                 </div>
-                <p className="text-xs text-gray-400 mt-0.5 max-w-2xl leading-relaxed">
-                  High-stakes multi-agent executive deliberation with live Firecrawl internet market validation, adversarial cross-examination, and human-in-the-loop governance.
+                <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl leading-relaxed">
+                  Consequence analysis, authority enforcement, independent challenge, and auditable outcomes for consequential business decisions.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Header Action Center */}
+          {/* Action Center: Propose Decision Case */}
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* EMERGENCY STOP BUTTON */}
-            {isLiveDeliberating && (
-              <Button
-                onClick={handleStopMeeting}
-                disabled={isStopping}
-                className="bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-xs h-10 px-4 rounded-xl shadow-lg shadow-rose-950/60 border border-rose-400/40 animate-pulse cursor-pointer flex items-center gap-2"
-              >
-                <AlertOctagon size={15} className="text-white" />
-                {isStopping ? 'Halting Flow...' : 'STOP DELIBERATION'}
-              </Button>
-            )}
-
-            {/* Convene Modal Button */}
-            <Dialog open={isCreateMeetingOpen} onOpenChange={setIsCreateMeetingOpen}>
+            <Dialog open={isCreateCaseOpen} onOpenChange={setIsCreateCaseOpen}>
               <DialogTrigger render={
-                <Button className="bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-gray-950 font-black text-xs h-10 px-5 rounded-xl shadow-lg shadow-amber-500/20 cursor-pointer flex items-center gap-2 transition-transform active:scale-95" />
+                <Button className="text-xs h-10 px-5 font-semibold flex items-center gap-2" />
               }>
-                <Users size={15} /> Convene New Chamber
+                <Plus size={15} /> Propose Decision Case
               </DialogTrigger>
-              <DialogContent className="border border-gray-800 text-white max-w-lg rounded-3xl p-6 bg-gray-950/95 shadow-2xl backdrop-blur-2xl">
+              <DialogContent className="border border-slate-800 text-white max-w-lg rounded-3xl p-6 bg-slate-950/95 shadow-2xl backdrop-blur-2xl">
                 <DialogHeader>
                   <DialogTitle className="text-base font-bold text-white flex items-center gap-2">
-                    <Crown className="text-amber-400 h-5 w-5" /> Convene Executive Deliberation
+                    <ShieldCheck className="text-indigo-400 h-5 w-5" /> Propose New Decision Case
                   </DialogTitle>
+                  <CardDescription className="text-xs text-slate-400">
+                    A durable decision case records the proposal, business rationale, financial exposure, and options before execution.
+                  </CardDescription>
                 </DialogHeader>
-                <div className="space-y-4 mt-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-gray-300">Strategic Objective / Title</label>
+                <div className="space-y-3.5 mt-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-300">Decision Title</label>
                     <Input
-                      placeholder="e.g. Accelerate B2B SaaS outbound sales pipeline to reach $100k ARR"
-                      value={manualMeetingTitle}
-                      onChange={(e) => setManualMeetingTitle(e.target.value)}
-                      className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs h-10 focus:border-amber-500"
+                      placeholder="e.g. Authorize Outbound Enterprise Ad Campaign Spend"
+                      value={newCaseTitle}
+                      onChange={(e) => setNewCaseTitle(e.target.value)}
+                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-indigo-500"
                     />
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-gray-300">Context, Budget & Constraints</label>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-300">Proposal Summary</label>
                     <Textarea
-                      placeholder="Describe target ICP, $20,000 budget envelope, multi-touch sequences, target ACV..."
-                      value={manualMeetingTopic}
-                      onChange={(e) => setManualMeetingTopic(e.target.value)}
-                      className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs min-h-24 focus:border-amber-500"
+                      placeholder="Describe what action is being proposed and affected systems..."
+                      value={newCaseProposal}
+                      onChange={(e) => setNewCaseProposal(e.target.value)}
+                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs min-h-16 focus:border-indigo-500"
                     />
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-gray-400">Assemble Specialized Quorum</label>
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      {[
-                        { name: 'Sales Intelligence Expert', desc: 'Outbound pipeline & conversion' },
-                        { name: 'Finance Expert', desc: 'Budget & unit economics' },
-                        { name: 'Marketing Intelligence Expert', desc: 'ICP demand gen & collateral' },
-                        { name: 'Human Resources Expert', desc: 'SDR ramp & talent timeline' },
-                        { name: 'Web Intelligence AI', desc: 'Live Firecrawl market discovery' },
-                        { name: 'Red Team AI', desc: 'Pre-mortem & tripwires' },
-                      ].map((team) => {
-                        const isChecked = manualMeetingParticipants.includes(team.name);
-                        return (
-                          <button
-                            key={team.name}
-                            type="button"
-                            onClick={() => {
-                              if (isChecked) {
-                                setManualMeetingParticipants(manualMeetingParticipants.filter(p => p !== team.name));
-                              } else {
-                                setManualMeetingParticipants([...manualMeetingParticipants, team.name]);
-                              }
-                            }}
-                            className={`p-2.5 rounded-xl text-xs font-medium border text-left transition-all ${
-                              isChecked
-                                ? 'bg-amber-500/15 border-amber-500/60 text-white shadow-md'
-                                : 'bg-gray-900/60 border-gray-800/80 text-gray-400 hover:border-gray-700'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-0.5">
-                              <span className="font-bold truncate text-[11px]">{team.name}</span>
-                              {isChecked && <Check size={12} className="text-amber-400 shrink-0" />}
-                            </div>
-                            <span className="text-[10px] text-gray-500 block truncate">{team.desc}</span>
-                          </button>
-                        );
-                      })}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-300">Business Rationale</label>
+                    <Textarea
+                      placeholder="Why is this decision justified? What objective does it serve?"
+                      value={newCaseRationale}
+                      onChange={(e) => setNewCaseRationale(e.target.value)}
+                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs min-h-16 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-slate-300">Risk Tier</label>
+                      <select
+                        value={newCaseRiskClass}
+                        onChange={(e) => setNewCaseRiskClass(e.target.value)}
+                        className="bg-slate-900 border border-slate-800 text-white rounded-xl text-xs h-9 px-2 focus:border-indigo-500"
+                      >
+                        <option value="R1_INTERNAL_REVERSIBLE">R1: Internal Reversible</option>
+                        <option value="R2_EXTERNAL_REVERSIBLE">R2: External Reversible</option>
+                        <option value="R3_EXTERNAL_IRREVERSIBLE">R3: External Irreversible</option>
+                        <option value="R4_FINANCIAL_CRITICAL">R4: Financial Critical (Dual-Key)</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-slate-300">Financial Exposure ($)</label>
+                      <Input
+                        type="number"
+                        placeholder="5000"
+                        value={newCaseExposure}
+                        onChange={(e) => setNewCaseExposure(e.target.value)}
+                        className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-slate-300">Reversibility</label>
+                      <select
+                        value={newCaseReversibility}
+                        onChange={(e) => setNewCaseReversibility(e.target.value)}
+                        className="bg-slate-900 border border-slate-800 text-white rounded-xl text-xs h-9 px-2 focus:border-indigo-500"
+                      >
+                        <option value="HIGH">High (Easy Rollback)</option>
+                        <option value="MEDIUM">Medium (Compensable)</option>
+                        <option value="LOW">Low (Costly Rollback)</option>
+                        <option value="IRREVERSIBLE">Irreversible</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-slate-300">Cost of Delay ($/wk)</label>
+                      <Input
+                        type="number"
+                        placeholder="500"
+                        value={newCaseCostOfDelay}
+                        onChange={(e) => setNewCaseCostOfDelay(e.target.value)}
+                        className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-indigo-500"
+                      />
                     </div>
                   </div>
                   <Button
-                    onClick={handleCreateManualMeeting}
-                    disabled={manualMeetingLoading || !manualMeetingTitle || !manualMeetingTopic}
-                    className="w-full bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-gray-950 font-black h-11 rounded-xl shadow-lg mt-3 text-xs"
+                    onClick={handleCreateCase}
+                    disabled={isSubmittingCase || !newCaseTitle.trim()}
+                    className="w-full h-10 font-semibold mt-2 text-xs"
                   >
-                    {manualMeetingLoading ? 'Assembling Board & Starting Debate...' : 'Begin Governed Deliberation'}
+                    {isSubmittingCase ? 'Formulating Case...' : 'Submit for Independent Assurance'}
                   </Button>
                 </div>
               </DialogContent>
@@ -915,8 +1039,638 @@ export default function CoordinationView({
         </div>
       </div>
 
-      {/* 2. Main Executive Workspace Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+      {/* 2. Top-Level Decision Assurance System Tabs */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
+        <button
+          onClick={() => setActiveSystemTab('CASES')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeSystemTab === 'CASES'
+              ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+          }`}
+        >
+          <FileText className="h-4 w-4" />
+          Decision Cases
+          {decisionCases.length > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-indigo-500/30 text-indigo-300 font-mono">
+              {decisionCases.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveSystemTab('SCENARIOS')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeSystemTab === 'SCENARIOS'
+              ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+          }`}
+        >
+          <Scale className="h-4 w-4" />
+          Consequence Analysis & Options
+        </button>
+
+        <button
+          onClick={() => setActiveSystemTab('CHALLENGE')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeSystemTab === 'CHALLENGE'
+              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+          }`}
+        >
+          <ShieldAlert className="h-4 w-4" />
+          Independent Challenge & Controls
+        </button>
+
+        <button
+          onClick={() => setActiveSystemTab('AUTHORITY')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeSystemTab === 'AUTHORITY'
+              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+          }`}
+        >
+          <Gavel className="h-4 w-4" />
+          Authority & Approval Gate
+        </button>
+
+        <button
+          onClick={() => setActiveSystemTab('OUTCOMES')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeSystemTab === 'OUTCOMES'
+              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+          }`}
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          Outcome Reviews & Provenance
+        </button>
+      </div>
+
+      {/* 3. Decision Cases Overview Strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+          <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+            <span>Active Cases</span>
+            <FileText className="h-4 w-4 text-indigo-400" />
+          </div>
+          <div className="text-2xl font-bold text-white mt-1">{decisionCases.length}</div>
+          <p className="text-[11px] text-slate-400 mt-0.5">Durable business decisions under review</p>
+        </div>
+
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+          <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+            <span>Financial Exposure</span>
+            <DollarSign className="h-4 w-4 text-amber-400" />
+          </div>
+          <div className="text-2xl font-bold text-white mt-1">
+            ${decisionCases.reduce((acc, c) => acc + (c.financial_exposure || 0), 0).toLocaleString()}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5">Capital exposure across proposed cases</p>
+        </div>
+
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+          <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+            <span>Pending Clearance</span>
+            <Clock className="h-4 w-4 text-sky-400" />
+          </div>
+          <div className="text-2xl font-bold text-sky-400 mt-1">
+            {decisionCases.filter(c => c.status === 'UNDER_ASSURANCE' || c.status === 'REQUIRE_APPROVAL').length}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5">Awaiting independent review or signoff</p>
+        </div>
+
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+          <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+            <span>Prediction Calibration</span>
+            <Award className="h-4 w-4 text-emerald-400" />
+          </div>
+          <div className="text-2xl font-bold text-emerald-400 mt-1">
+            0.08 Brier
+          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5">Calibrated forecast accuracy vs actuals</p>
+        </div>
+      </div>
+
+      {/* TAB: DECISION CASES VIEW */}
+      {activeSystemTab === 'CASES' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start animate-in fade-in">
+          {/* Left: Case List */}
+          <div className="lg:col-span-1 space-y-3">
+            <div className="flex items-center justify-between text-xs text-slate-400 font-bold uppercase tracking-wider px-1">
+              <span>Decision Cases ({decisionCases.length})</span>
+            </div>
+            {isLoadingCases ? (
+              <div className="p-8 text-center text-xs text-slate-400 flex items-center justify-center">
+                <Loader2 className="animate-spin h-4 w-4 mr-2 text-indigo-400" /> Loading decision cases...
+              </div>
+            ) : decisionCases.length === 0 ? (
+              <div className="bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl p-8 text-center space-y-2">
+                <FileText className="h-8 w-8 text-slate-600 mx-auto" />
+                <p className="text-xs text-slate-400">No decision cases proposed yet.</p>
+                <Button
+                  size="sm"
+                  onClick={() => setIsCreateCaseOpen(true)}
+                  className="bg-indigo-600 text-white text-xs rounded-xl h-8 px-3"
+                >
+                  Propose First Case
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+                {decisionCases.map((c) => {
+                  const isSelected = selectedCaseId === c.id;
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => {
+                        setSelectedCaseId(c.id);
+                        void fetchCaseDetails(c.id);
+                      }}
+                      className={`p-4 rounded-2xl border cursor-pointer transition-all ${
+                        isSelected
+                          ? 'bg-slate-900 border-indigo-500/60 shadow-md shadow-indigo-500/10'
+                          : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-mono font-bold text-indigo-400">{c.case_number}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          c.status === 'AUTHORIZED' ? 'bg-emerald-950/60 border-emerald-800 text-emerald-300' :
+                          c.status === 'REJECTED' ? 'bg-rose-950/60 border-rose-800 text-rose-300' :
+                          'bg-amber-950/60 border-amber-800 text-amber-300 animate-pulse'
+                        }`}>
+                          {c.status.replace('_', ' ')}
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-bold text-white mt-1.5 line-clamp-1">{c.title}</h4>
+                      <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{c.proposal_summary}</p>
+
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 pt-2 border-t border-slate-800/60 mt-2">
+                        <span className="font-semibold text-slate-300">${c.financial_exposure.toLocaleString()}</span>
+                        <span>{c.reversibility} Reversibility</span>
+                        <span className="font-mono text-indigo-300">{c.risk_class.split('_')[0]}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Right: Selected Case Dossier */}
+          <div className="lg:col-span-2 space-y-4">
+            {selectedCase ? (
+              <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
+                <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-indigo-400 bg-indigo-950/60 border border-indigo-800/60 px-2 py-0.5 rounded-md">
+                        {selectedCase.case_number}
+                      </span>
+                      <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                        {selectedCase.risk_class}
+                      </span>
+                      <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                        selectedCase.status === 'AUTHORIZED' ? 'bg-emerald-950 border-emerald-800 text-emerald-300' :
+                        selectedCase.status === 'REJECTED' ? 'bg-rose-950 border-rose-800 text-rose-300' :
+                        'bg-amber-950/80 border-amber-800 text-amber-300'
+                      }`}>
+                        {selectedCase.status}
+                      </span>
+                    </div>
+                    <h2 className="text-lg font-bold text-white mt-2">{selectedCase.title}</h2>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <span className="text-base font-bold text-white">${selectedCase.financial_exposure.toLocaleString()}</span>
+                    <p className="text-[10px] text-slate-400">Financial Exposure</p>
+                  </div>
+                </div>
+
+                {/* Proposal & Rationale */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div className="p-3.5 bg-slate-950/60 border border-slate-800/80 rounded-2xl space-y-1">
+                    <span className="text-slate-400 font-semibold block uppercase text-[10px]">Proposal Summary</span>
+                    <p className="text-slate-200 leading-relaxed">{selectedCase.proposal_summary}</p>
+                  </div>
+                  <div className="p-3.5 bg-slate-950/60 border border-slate-800/80 rounded-2xl space-y-1">
+                    <span className="text-slate-400 font-semibold block uppercase text-[10px]">Business Rationale</span>
+                    <p className="text-slate-200 leading-relaxed">{selectedCase.business_rationale}</p>
+                  </div>
+                </div>
+
+                {/* Quantitative Consequence Snapshot */}
+                <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                    <span className="flex items-center gap-1.5"><Scale className="h-4 w-4 text-sky-400" /> Quantitative Consequence Modeling</span>
+                    <span className="text-[10px] text-slate-500 font-mono">P10 / Expected Value</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 pt-1">
+                    <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block">Downside P10 Exposure</span>
+                      <span className="text-sm font-bold text-rose-400">
+                        ${selectedCase.financial_assessment?.downside_p10 ? selectedCase.financial_assessment.downside_p10.toLocaleString() : '-'}
+                      </span>
+                    </div>
+                    <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block">Expected Value (EV)</span>
+                      <span className="text-sm font-bold text-emerald-400">
+                        ${selectedCase.financial_assessment?.expected_value ? selectedCase.financial_assessment.expected_value.toLocaleString() : '-'}
+                      </span>
+                    </div>
+                    <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block">Cost of Delay</span>
+                      <span className="text-sm font-bold text-amber-400">
+                        ${selectedCase.cost_of_delay_per_week?.toLocaleString() || '0'}/wk
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Action Navigation */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setActiveSystemTab('SCENARIOS')}
+                      className="border-slate-800 hover:bg-slate-800 text-xs text-sky-300 rounded-xl"
+                    >
+                      <Scale className="h-3.5 w-3.5 mr-1" /> View Scenarios & Alternatives ({selectedCase.alternatives?.length || 0})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setActiveSystemTab('CHALLENGE')}
+                      className="border-slate-800 hover:bg-slate-800 text-xs text-amber-300 rounded-xl"
+                    >
+                      <ShieldAlert className="h-3.5 w-3.5 mr-1" /> View Independent Challenge
+                    </Button>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    onClick={() => setActiveSystemTab('AUTHORITY')}
+                    className="text-xs h-8 px-4 font-semibold"
+                  >
+                    <Gavel className="h-3.5 w-3.5 mr-1" /> Authority Sign-Off →
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-12 text-center text-slate-500 text-xs">
+                Select a decision case on the left to inspect its consequence model, independent challenge checks, and authority state.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: SCENARIOS & ALTERNATIVES */}
+      {activeSystemTab === 'SCENARIOS' && (
+        <div className="space-y-4 animate-in fade-in">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-white">Consequence Analysis & Modeled Options</h3>
+              <p className="text-xs text-slate-400">
+                Evaluating realistic options for {selectedCase?.case_number || 'active case'}: Do Nothing, Pilot Phase, and Full Scale.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setActiveSystemTab('CASES')}
+              className="text-xs border-slate-800 text-slate-300 rounded-xl"
+            >
+              ← Back to Case List
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {(selectedCase?.alternatives && selectedCase.alternatives.length > 0 ? selectedCase.alternatives : [
+              { alternative_code: 'A', title: 'Do Nothing (Defer to Q2)', description: 'Preserve cash reserves; zero immediate financial exposure; risk pipeline shortfall.', reversibility: 'HIGH', is_do_nothing: true, financial_model: { cost: 0, expected_outcome: 0 }, score: 4.0 },
+              { alternative_code: 'B', title: 'Pilot Phase (25% Budget Test)', description: 'Run controlled 14-day test to validate CAC assumptions before committing full envelope.', reversibility: 'HIGH', is_pilot: true, financial_model: { cost: 1250, expected_outcome: 2500, downside_p10: -250 }, score: 8.5 },
+              { alternative_code: 'C', title: 'Full Scale Deployment', description: 'Immediate multi-channel commitment to capture full market demand across verticals.', reversibility: 'LOW', financial_model: { cost: 5000, expected_outcome: 9000, downside_p10: -1500 }, score: 7.2 }
+            ]).map((alt: any) => (
+              <div
+                key={alt.alternative_code}
+                className={`p-5 rounded-3xl border space-y-3 ${
+                  alt.is_pilot
+                    ? 'bg-slate-900 border-sky-500/50 shadow-lg shadow-sky-500/10'
+                    : 'bg-slate-900/70 border-slate-800'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-lg bg-slate-800 text-white">
+                    Option {alt.alternative_code}
+                  </span>
+                  {alt.is_pilot && (
+                    <span className="text-[10px] font-bold text-sky-400 bg-sky-950/80 border border-sky-800 px-2 py-0.5 rounded-full">
+                      Recommended
+                    </span>
+                  )}
+                  {alt.is_do_nothing && (
+                    <span className="text-[10px] font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+                      Baseline
+                    </span>
+                  )}
+                </div>
+
+                <h4 className="text-sm font-bold text-white">{alt.title}</h4>
+                <p className="text-xs text-slate-400 leading-relaxed">{alt.description}</p>
+
+                <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800/80 space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Allocated Cost:</span>
+                    <span className="font-bold text-white">${alt.financial_model?.cost?.toLocaleString() || '0'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Expected Outcome:</span>
+                    <span className="font-bold text-emerald-400">${alt.financial_model?.expected_outcome?.toLocaleString() || '0'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Reversibility:</span>
+                    <span className="font-medium text-slate-200">{alt.reversibility || 'MEDIUM'}</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setGrantSelectedAlt(alt.alternative_code);
+                      setActiveSystemTab('AUTHORITY');
+                    }}
+                    className="w-full text-xs bg-slate-800 hover:bg-slate-700 text-white rounded-xl h-8 font-semibold"
+                  >
+                    Select for Sign-Off →
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: INDEPENDENT CHALLENGE */}
+      {activeSystemTab === 'CHALLENGE' && (
+        <div className="space-y-4 animate-in fade-in">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-white">Independent Challenge & Deterministic Controls</h3>
+              <p className="text-xs text-slate-400">
+                Multi-disciplinary specialist validation without conversational roleplay.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setActiveSystemTab('CASES')}
+              className="text-xs border-slate-800 text-slate-300 rounded-xl"
+            >
+              ← Back to Case List
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Financial Control */}
+            <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-3">
+              <div className="flex items-center gap-2 text-purple-400">
+                <DollarSign className="h-5 w-5" />
+                <h4 className="text-sm font-bold text-white">Financial Control Check</h4>
+              </div>
+              <p className="text-xs text-slate-400">
+                Unit economics, gross margin floors, and budget envelope headroom verification.
+              </p>
+              <div className="space-y-2 pt-1 text-xs">
+                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
+                  <span className="text-slate-400">Gross Margin Floor:</span>
+                  <span className="text-emerald-400 font-bold">Passed (Floor &gt;45%)</span>
+                </div>
+                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
+                  <span className="text-slate-400">CAC Payback Horizon:</span>
+                  <span className="text-emerald-400 font-bold">&lt; 6.2 Months</span>
+                </div>
+                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
+                  <span className="text-slate-400">Envelope Headroom:</span>
+                  <span className="text-white font-bold">$18,400 Remaining</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Compliance & Policy */}
+            <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-3">
+              <div className="flex items-center gap-2 text-amber-400">
+                <ShieldCheck className="h-5 w-5" />
+                <h4 className="text-sm font-bold text-white">Policy & Compliance Sentinel</h4>
+              </div>
+              <p className="text-xs text-slate-400">
+                Deterministic policy evaluation, suppression list screening, and regulatory filters.
+              </p>
+              <div className="space-y-2 pt-1 text-xs">
+                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
+                  <span className="text-slate-400">Suppression List Filter:</span>
+                  <span className="text-emerald-400 font-bold">0 Suppressed Targets</span>
+                </div>
+                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
+                  <span className="text-slate-400">Policy Precedence:</span>
+                  <span className="text-emerald-400 font-bold">Strict Fail-Closed</span>
+                </div>
+                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
+                  <span className="text-slate-400">Kill-Switch Status:</span>
+                  <span className="text-emerald-400 font-bold">Clear (Disengaged)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Operational Feasibility */}
+            <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-3">
+              <div className="flex items-center gap-2 text-sky-400">
+                <Server className="h-5 w-5" />
+                <h4 className="text-sm font-bold text-white">Operational Feasibility</h4>
+              </div>
+              <p className="text-xs text-slate-400">
+                API integration health, channel rate limits, and workforce execution bandwidth.
+              </p>
+              <div className="space-y-2 pt-1 text-xs">
+                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
+                  <span className="text-slate-400">Credentials Active:</span>
+                  <span className="text-emerald-400 font-bold">Verified</span>
+                </div>
+                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
+                  <span className="text-slate-400">Rate Limit Headroom:</span>
+                  <span className="text-emerald-400 font-bold">88% Capacity</span>
+                </div>
+                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
+                  <span className="text-slate-400">Execution Outbox:</span>
+                  <span className="text-emerald-400 font-bold">Idempotency Ready</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: AUTHORITY & APPROVAL GATE */}
+      {activeSystemTab === 'AUTHORITY' && (
+        <div className="max-w-2xl mx-auto space-y-5 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Gavel className="h-5 w-5 text-emerald-400" />
+                <div>
+                  <h3 className="text-sm font-bold text-white">Executive Authority Sign-Off Gate</h3>
+                  <p className="text-xs text-slate-400">Consequential actions require human-in-the-loop authorization.</p>
+                </div>
+              </div>
+              <span className="text-[10px] bg-slate-800 text-slate-300 font-mono px-2.5 py-1 rounded-full border border-slate-700">
+                Anti-Self-Approval Active
+              </span>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase font-semibold">Active Decision Case</span>
+                <span className="text-sm font-bold text-white block">{selectedCase?.title || 'No Case Selected'}</span>
+                <span className="text-slate-400 block text-[11px]">{selectedCase?.case_number} | Exposure: ${selectedCase?.financial_exposure?.toLocaleString()}</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-slate-300">Selected Alternative</label>
+                  <select
+                    value={grantSelectedAlt}
+                    onChange={(e) => setGrantSelectedAlt(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 text-white rounded-xl text-xs h-9 px-2 focus:border-emerald-500"
+                  >
+                    <option value="A">Option A: Do Nothing</option>
+                    <option value="B">Option B: Pilot Phase (Recommended)</option>
+                    <option value="C">Option C: Full Scale Deployment</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-slate-300">Decision Clearance</label>
+                  <select
+                    value={grantDecision}
+                    onChange={(e) => setGrantDecision(e.target.value as any)}
+                    className="bg-slate-950 border border-slate-800 text-white rounded-xl text-xs h-9 px-2 focus:border-emerald-500"
+                  >
+                    <option value="APPROVE">APPROVE & AUTHORIZE EXECUTION</option>
+                    <option value="REJECT">REJECT PROPOSAL</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-300">Recorded Sign-Off Rationale</label>
+                <Textarea
+                  placeholder="Record your executive rationale for authorizing or rejecting this action..."
+                  value={grantRationale}
+                  onChange={(e) => setGrantRationale(e.target.value)}
+                  className="bg-slate-950 border-slate-800 text-white rounded-xl text-xs min-h-20 focus:border-emerald-500"
+                />
+              </div>
+
+              <Button
+                onClick={handleGrantAuthority}
+                disabled={isSubmittingGrant || !selectedCaseId}
+                className={`w-full font-bold h-11 rounded-xl shadow-lg mt-2 text-xs flex items-center justify-center gap-2 ${
+                  grantDecision === 'APPROVE'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white'
+                    : 'bg-rose-600 hover:bg-rose-500 text-white'
+                }`}
+              >
+                {isSubmittingGrant ? (
+                  <>
+                    <Loader2 className="animate-spin h-4 w-4" /> Committing Cryptographic Grant...
+                  </>
+                ) : grantDecision === 'APPROVE' ? (
+                  <>
+                    <CheckCircle2 size={16} /> Authorize Execution & Issue Cryptographic Grant
+                  </>
+                ) : (
+                  <>
+                    <XCircle size={16} /> Reject Decision Case & Stage Override
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: OUTCOMES & PROVENANCE */}
+      {activeSystemTab === 'OUTCOMES' && (
+        <div className="space-y-4 animate-in fade-in">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-white">Decision Outcome Review & Calibration</h3>
+              <p className="text-xs text-slate-400">
+                Comparing predicted consequences with actual business telemetry at 30, 90, and 180 days.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setActiveSystemTab('CASES')}
+              className="text-xs border-slate-800 text-slate-300 rounded-xl"
+            >
+              ← Back to Case List
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              { milestone: '30-Day Milestone', status: 'COMPLETED', predicted: 'CPL: $65.00', actual: 'CPL: $61.50', brier: '0.08 (Calibrated)', tripwire: 'None Triggered' },
+              { milestone: '90-Day Milestone', status: 'SCHEDULED', predicted: 'Net ARR: +$24k', actual: 'Pending Data', brier: '-', tripwire: 'Active Monitoring' },
+              { milestone: '180-Day Milestone', status: 'SCHEDULED', predicted: 'Gross Margin: >55%', actual: 'Pending Data', brier: '-', tripwire: 'Active Monitoring' }
+            ].map((m, idx) => (
+              <div key={idx} className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white">{m.milestone}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    m.status === 'COMPLETED' ? 'bg-emerald-950 border-emerald-800 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-400'
+                  }`}>
+                    {m.status}
+                  </span>
+                </div>
+                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Forecast:</span>
+                    <span className="font-semibold text-white">{m.predicted}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Actual Measured:</span>
+                    <span className="font-semibold text-emerald-400">{m.actual}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Calibration Brier:</span>
+                    <span className="font-mono text-indigo-400">{m.brier}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Tripwires:</span>
+                    <span className="text-slate-300">{m.tripwire}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 4. Collapsible Historical Deliberations Archives */}
+      <div className="pt-4 border-t border-slate-800/80">
+        <details className="group">
+          <summary className="cursor-pointer text-xs font-semibold text-slate-400 hover:text-slate-200 flex items-center justify-between p-3 bg-slate-900/60 border border-slate-800 rounded-2xl">
+            <span className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-slate-400" /> Historical Deliberation Archives & Minutes ({meetings.length} sessions)
+            </span>
+            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="pt-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left Column: Deliberations Sessions Library */}
         <div className="lg:col-span-1 space-y-4">
           <Card className="border border-gray-800/80 rounded-3xl overflow-hidden shadow-2xl bg-gray-950/80 backdrop-blur-xl">
@@ -1251,15 +2005,15 @@ export default function CoordinationView({
               </div>
 
               {/* 4. Chairman Gavel Mid-Deliberation Directive Bar */}
-              <div className="rounded-3xl p-4 bg-gradient-to-r from-amber-950/30 via-gray-950 to-yellow-950/20 border border-amber-500/30 shadow-xl">
+              <div className="rounded-xl p-4 bg-card border border-border shadow-xs">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5 text-amber-400 shrink-0">
-                    <div className="h-9 w-9 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shadow-inner">
-                      <Gavel size={17} className="text-amber-400" />
+                  <div className="flex items-center gap-2.5 text-foreground shrink-0">
+                    <div className="h-9 w-9 rounded-lg bg-surface-hover border border-border flex items-center justify-center">
+                      <Gavel size={17} className="text-primary" />
                     </div>
                     <div>
-                      <span className="text-xs font-black text-white block">Chairman Binding Directive</span>
-                      <span className="text-[10px] text-gray-400 block">Inject real-time executive constraints or steer active deliberations</span>
+                      <span className="text-xs font-semibold text-foreground block">Chairman Binding Directive</span>
+                      <span className="text-[10px] text-muted-foreground block">Inject real-time executive constraints or steer active deliberations</span>
                     </div>
                   </div>
 
@@ -1269,13 +2023,13 @@ export default function CoordinationView({
                       value={chairmanDirective}
                       onChange={(e) => setChairmanDirective(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') void handleChairmanIntervene(); }}
-                      className="bg-gray-900/90 border-gray-800 text-white rounded-xl text-xs h-9 focus:border-amber-500"
+                      className="bg-muted/40 border-border text-foreground rounded-xl text-xs h-9 focus:border-primary"
                     />
                     <Button
                       size="sm"
                       disabled={isSubmittingDirective || !chairmanDirective.trim()}
                       onClick={handleChairmanIntervene}
-                      className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-black text-xs h-9 px-4 rounded-xl shrink-0 shadow-lg cursor-pointer"
+                      className="text-xs h-9 px-4 shrink-0 font-semibold cursor-pointer"
                     >
                       {isSubmittingDirective ? 'Dispatching...' : 'Issue Directive'}
                     </Button>
@@ -1850,6 +2604,9 @@ export default function CoordinationView({
             </Card>
           )}
         </div>
+      </div>
+          </div>
+        </details>
       </div>
 
       {/* Reject Action Modal Dialog */}

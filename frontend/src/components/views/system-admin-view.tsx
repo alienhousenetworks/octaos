@@ -209,10 +209,10 @@ export default function SystemAdminView({
     <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-300">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2">
-            <Zap className="text-yellow-400 h-8 w-8 animate-pulse" /> Global System Admin Panel
+          <h1 className="text-xl font-semibold text-foreground tracking-tight flex items-center gap-2">
+            <Zap className="text-primary h-6 w-6" /> Global System Admin Panel
           </h1>
-          <p className="text-gray-400 mt-1">Monitor tenant activities, manage user permissions, and control company status across the platform.</p>
+          <p className="text-muted-foreground mt-1 text-xs">Monitor tenant activities, manage user permissions, and control company status across the platform.</p>
         </div>
         <Button 
           onClick={loadAllData} 
@@ -225,89 +225,85 @@ export default function SystemAdminView({
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="glass-panel border-blue-500/20 relative overflow-hidden transition-all duration-300 hover:scale-[1.03] rounded-2xl shadow-lg">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-505" />
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Companies</CardTitle>
-            <Globe className="h-4 w-4 text-blue-400" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-card border border-border rounded-xl p-4 shadow-xs">
+          <CardHeader className="p-0 pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Companies</CardTitle>
+            <Globe className="h-4 w-4 text-primary" />
           </CardHeader>
-          <CardContent className="space-y-1">
-            <div className="text-xl font-semibold text-white">{stats.tenants_count}</div>
-            <p className="text-xs text-gray-500 font-medium">Registered business organizations</p>
+          <CardContent className="p-0 space-y-1">
+            <div className="text-2xl font-bold tracking-tight text-foreground">{stats.tenants_count}</div>
+            <p className="text-xs text-muted-foreground">Registered business organizations</p>
           </CardContent>
         </Card>
 
-        <Card className="glass-panel border-violet-500/20 relative overflow-hidden transition-all duration-300 hover:scale-[1.03] rounded-2xl shadow-lg">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-violet-505" />
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total System Users</CardTitle>
-            <Users className="h-4 w-4 text-violet-400" />
+        <Card className="bg-card border border-border rounded-xl p-4 shadow-xs">
+          <CardHeader className="p-0 pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total System Users</CardTitle>
+            <Users className="h-4 w-4 text-[#75AFCB]" />
           </CardHeader>
-          <CardContent className="space-y-1">
-            <div className="text-xl font-semibold text-white">{stats.users_count}</div>
-            <p className="text-xs text-gray-500 font-medium">Total active/verified user accounts</p>
+          <CardContent className="p-0 space-y-1">
+            <div className="text-2xl font-bold tracking-tight text-foreground">{stats.users_count}</div>
+            <p className="text-xs text-muted-foreground">Total active/verified user accounts</p>
           </CardContent>
         </Card>
 
-        <Card className="glass-panel border-emerald-500/20 relative overflow-hidden transition-all duration-300 hover:scale-[1.03] rounded-2xl shadow-lg">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-505" />
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Platform Spend</CardTitle>
-            <DollarSign className="h-4 w-4 text-emerald-450" />
+        <Card className="bg-card border border-border rounded-xl p-4 shadow-xs">
+          <CardHeader className="p-0 pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Platform Spend</CardTitle>
+            <DollarSign className="h-4 w-4 text-[#64B99A]" />
           </CardHeader>
-          <CardContent className="space-y-1">
-            <div className="text-xl font-semibold text-emerald-400">${stats.total_spend.toFixed(4)}</div>
-            <p className="text-xs text-gray-500 font-medium">Aggregated LLM gateway charges</p>
+          <CardContent className="p-0 space-y-1">
+            <div className="text-2xl font-bold tracking-tight text-[#64B99A]">${stats.total_spend.toFixed(4)}</div>
+            <p className="text-xs text-muted-foreground">Aggregated LLM gateway charges</p>
           </CardContent>
         </Card>
 
-        <Card className="glass-panel border-amber-500/20 relative overflow-hidden transition-all duration-300 hover:scale-[1.03] rounded-2xl shadow-lg">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-505" />
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total API calls</CardTitle>
-            <Activity className="h-4 w-4 text-amber-400" />
+        <Card className="bg-card border border-border rounded-xl p-4 shadow-xs">
+          <CardHeader className="p-0 pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total API calls</CardTitle>
+            <Activity className="h-4 w-4 text-primary" />
           </CardHeader>
-          <CardContent className="space-y-1">
-            <div className="text-xl font-semibold text-white">{stats.total_calls}</div>
-            <p className="text-xs text-gray-500 font-medium">All provider requests processed</p>
+          <CardContent className="p-0 space-y-1">
+            <div className="text-2xl font-bold tracking-tight text-foreground">{stats.total_calls}</div>
+            <p className="text-xs text-muted-foreground">All provider requests processed</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-4 border-b border-gray-800 pb-2">
+      <div className="flex gap-4 border-b border-border pb-2">
         <button
           onClick={() => setActiveTab('tenants')}
-          className={`px-4 py-2 font-bold text-sm border-b-2 transition-all ${
- activeTab === 'tenants' ? 'border-yellow-400 text-yellow-400' : 'border-transparent text-gray-400 hover:text-white'
- }`}
+          className={`px-4 py-2 font-semibold text-xs border-b-2 transition-all ${
+            activeTab === 'tenants' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
         >
           Tenants (Companies)
         </button>
         <button
           onClick={() => setActiveTab('users')}
-          className={`px-4 py-2 font-bold text-sm border-b-2 transition-all ${
- activeTab === 'users' ? 'border-yellow-400 text-yellow-400' : 'border-transparent text-gray-400 hover:text-white'
- }`}
+          className={`px-4 py-2 font-semibold text-xs border-b-2 transition-all ${
+            activeTab === 'users' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
         >
           Users List
         </button>
         <button
           onClick={() => setActiveTab('branding')}
-          className={`px-4 py-2 font-bold text-sm border-b-2 transition-all ${
- activeTab === 'branding' ? 'border-yellow-400 text-yellow-400' : 'border-transparent text-gray-400 hover:text-white'
- }`}
+          className={`px-4 py-2 font-semibold text-xs border-b-2 transition-all ${
+            activeTab === 'branding' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
         >
           System Branding
         </button>
       </div>
 
       {/* Content area */}
-      <Card className="glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+      <Card className="bg-card border border-border rounded-xl p-6 shadow-xs relative overflow-hidden">
         {loading && (
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 rounded-3xl">
-            <Loader2 className="animate-spin h-10 w-10 text-yellow-400" />
+          <div className="absolute inset-0 bg-background/50 backdrop-blur-xs flex items-center justify-center z-50 rounded-xl">
+            <Loader2 className="animate-spin h-8 w-8 text-primary" />
           </div>
         )}
 
@@ -407,11 +403,11 @@ export default function SystemAdminView({
                     <TableCell className="p-4 text-xs">{user.tenant_name}</TableCell>
                     <TableCell className="p-4">
                       {user.is_system_admin ? (
-                        <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-0.5 rounded text-xs font-bold">
+                        <span className="inline-flex items-center gap-1 bg-[#443A2D] text-[#D9AD68] border border-[#D9AD68]/20 px-2 py-0.5 rounded text-xs font-semibold">
                           <Shield size={10} /> System Admin
                         </span>
                       ) : (
-                        <span className="text-gray-500 text-xs">-</span>
+                        <span className="text-muted-foreground text-xs">-</span>
                       )}
                     </TableCell>
                     <TableCell className="p-4">

@@ -1,0 +1,225 @@
+"""Unit & Integration tests for Multi-Channel Sales Cadence Automation.
+Verifies real delivery logic for Email, WhatsApp, and LinkedIn touches.
+Ensures zero mocked/faked progression.
+"""
+import pytest
+from unittest.mock import patch, MagicMock
+from datetime import datetime, timezone
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.models.base import Base, Tenant, APICredential
+from app.models.enterprise import ApprovalRequest
+from app.models.verticals import Lead
+from app.models.deal_room import SalesOutboxItem
+from app.services.sales.touch_dispatcher import (
+    dispatch_sales_touch,
+    send_whatsapp_with_status,
+    dispatch_linkedin_touch,
+    extract_lead_phone,
+    extract_lead_linkedin_url,
+)
+from app.services.sales.outbox_service import SalesOutboxService
+from app.core.security import encrypt_api_key
+
+
+@pytest.fixture
+def db_session():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    # Create test tenant
+    tenant = Tenant(id="test_tenant_cadence", name="Cadence Tenant")
+    session.add(tenant)
+    session.commit()
+
+    yield session
+    session.close()
+
+
+def test_extract_phone_and_linkedin(db_session):
+    lead = Lead(
+        tenant_id="test_tenant_cadence",
+        name="Sarah Connor",
+        email="sarah@skynet.com",
+        phone="+1 (555) 019-2834",
+        company="Cyberdyne",
+        data={
+            "contact": {
+                "linkedin_url": "https://www.linkedin.com/in/sarah-connor",
+            }
+        }
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    phone = extract_lead_phone(lead)
+    assert phone == "15550192834"
+
+    url = extract_lead_linkedin_url(lead)
+    assert url == "https://www.linkedin.com/in/sarah-connor"
+
+
+def test_whatsapp_dispatch_unconfigured(db_session):
+    lead = Lead(
+        tenant_id="test_tenant_cadence",
+        name="Alex Smith",
+        email="alex@example.com",
+        phone="+1 555 123 4567",
+        company="Acme Corp",
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    # Meta credentials NOT configured
+    res = dispatch_sales_touch(
+        db_session,
+        "test_tenant_cadence",
+        lead,
+        channel="whatsapp",
+        body="Hi Alex, brief follow up on partnership.",
+    )
+
+    assert res["sent"] is False
+    assert res["channel"] == "whatsapp"
+    assert res["reason"] == "meta_whatsapp_not_configured"
+    assert "not configured" in res["message"].lower()
+
+
+def test_whatsapp_dispatch_with_mocked_meta_api(db_session):
+    lead = Lead(
+        tenant_id="test_tenant_cadence",
+        name="Jane Doe",
+        email="jane@acme.com",
+        phone="+91 98765 43210",
+        company="Acme Corp",
+    )
+    # Add Meta APICredential
+    cred = APICredential(
+        tenant_id="test_tenant_cadence",
+        provider="meta",
+        encrypted_key=encrypt_api_key("valid_meta_token_123"),
+        settings={"phone_number_id": "phone_id_99999"}
+    )
+    db_session.add(lead)
+    db_session.add(cred)
+    db_session.commit()
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"messages": [{"id": "wamid_HBgM12345678"}]}
+
+    with patch("httpx.Client.post", return_value=mock_resp) as mock_post:
+        res = dispatch_sales_touch(
+            db_session,
+            "test_tenant_cadence",
+            lead,
+            channel="whatsapp",
+            body="Hello Jane, touching base regarding our offer.",
+        )
+
+        assert res["sent"] is True
+        assert res["channel"] == "whatsapp"
+        assert res["message_id"] == "wamid_HBgM12345678"
+        assert mock_post.called
+        call_kwargs = mock_post.call_args
+        assert "phone_id_99999" in call_kwargs[0][0]
+
+
+def test_linkedin_dispatch_stages_approval_request(db_session):
+    lead = Lead(
+        tenant_id="test_tenant_cadence",
+        name="Michael Scott",
+        email="mscott@dundermifflin.com",
+        company="Dunder Mifflin",
+        data={
+            "contact": {
+                "linkedin_url": "https://www.linkedin.com/in/michael-scott-boss",
+            }
+        }
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    res = dispatch_sales_touch(
+        db_session,
+        "test_tenant_cadence",
+        lead,
+        channel="linkedin",
+        body="Hi Michael, would love to connect about paper supply chain AI.",
+        step_number=2,
+    )
+
+    assert res["sent"] is False
+    assert res["requires_action"] is True
+    assert res["channel"] == "linkedin"
+    assert res["linkedin_url"] == "https://www.linkedin.com/in/michael-scott-boss"
+    assert "approval_id" in res
+
+    # Verify ApprovalRequest in DB
+    approval = db_session.query(ApprovalRequest).filter_by(id=res["approval_id"]).first()
+    assert approval is not None
+    assert approval.action_type == "linkedin_outreach"
+    assert approval.payload["linkedin_url"] == "https://www.linkedin.com/in/michael-scott-boss"
+    assert approval.status == "pending"
+
+
+def test_outbox_drain_handles_multichannel_without_mocks(db_session):
+    lead = Lead(
+        id="lead_drain_1",
+        tenant_id="test_tenant_cadence",
+        name="Dwight Schrute",
+        email="dwight@beetfarm.com",
+        phone="+1 555 444 3333",
+        company="Schrute Farms",
+        data={
+            "contact": {
+                "linkedin_url": "https://www.linkedin.com/in/dwight-schrute",
+            }
+        }
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    # Stage a WhatsApp touch and a LinkedIn touch in SalesOutboxItem
+    now = datetime.now(timezone.utc)
+    outbox_wa = SalesOutboxItem(
+        id="outbox_wa_1",
+        tenant_id="test_tenant_cadence",
+        lead_id=lead.id,
+        channel="whatsapp",
+        recipient_email="dwight@beetfarm.com",
+        subject=None,
+        body="Dwight, following up via WhatsApp.",
+        status="scheduled",
+        scheduled_for=now,
+    )
+    outbox_li = SalesOutboxItem(
+        id="outbox_li_1",
+        tenant_id="test_tenant_cadence",
+        lead_id=lead.id,
+        channel="linkedin",
+        recipient_email="dwight@beetfarm.com",
+        subject=None,
+        body="Dwight, let's connect on LinkedIn.",
+        status="scheduled",
+        scheduled_for=now,
+    )
+    db_session.add(outbox_wa)
+    db_session.add(outbox_li)
+    db_session.commit()
+
+    outbox_svc = SalesOutboxService(db_session, "test_tenant_cadence")
+    result = outbox_svc.drain_due_items(limit=10, max_jitter_sec=0)
+
+    # WhatsApp without meta credentials should legitimately fail (not falsely mark sent/logged)
+    db_session.refresh(outbox_wa)
+    assert outbox_wa.status == "failed"
+    assert "meta whatsapp api credentials" in outbox_wa.error_message.lower()
+
+    # LinkedIn should be staged for operator review (status == pending_review)
+    db_session.refresh(outbox_li)
+    assert outbox_li.status == "pending_review"
+    assert "human-in-the-loop" in outbox_li.error_message.lower()

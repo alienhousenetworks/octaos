@@ -4,12 +4,16 @@ from app.api.v1.endpoints import (
     coordination, google, meta_oauth, linkedin_oauth, ceo, system_admin, audit, usage, videos,
     enterprise, manager, federated_learning,
     deal_rooms, sales_manager, sales_os, automations, schedules,
-    knowledge_connectors, mcp,
+    knowledge_connectors, mcp, rooms,
+    hr_workflow, candidate_portal,
+    data_collection,
+    automation_nodes, automation_documents,
 )
 
 from app.api.v1.orchestrator import router as orchestrator_router
 
 api_router = APIRouter()
+api_router.include_router(rooms.router, prefix="/rooms", tags=["section-rooms"])
 api_router.include_router(tenants.router, prefix="/tenants", tags=["tenants"])
 api_router.include_router(leads.router, prefix="/leads", tags=["leads"])
 api_router.include_router(marketing.router, prefix="/marketing", tags=["marketing"])
@@ -19,6 +23,8 @@ api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboar
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(support.router, prefix="/support", tags=["support"])
 api_router.include_router(hr.router, prefix="/hr", tags=["hr"])
+api_router.include_router(hr_workflow.router, prefix="/hr-workflows", tags=["hr-workflows"])
+api_router.include_router(candidate_portal.router, prefix="/public/candidate-portal", tags=["candidate-portal"])
 api_router.include_router(coordination.router, prefix="/coordination", tags=["coordination"])
 api_router.include_router(ceo.router, prefix="/ceo", tags=["ceo"])
 api_router.include_router(google.router, prefix="/google", tags=["google"])
@@ -39,6 +45,9 @@ api_router.include_router(automations.router, prefix="/automations", tags=["auto
 api_router.include_router(schedules.router, prefix="/schedules", tags=["schedules"])
 api_router.include_router(knowledge_connectors.router, prefix="/knowledge/connectors", tags=["knowledge-connectors"])
 api_router.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
+api_router.include_router(data_collection.router, prefix="/data-collection", tags=["data-collection"])
+api_router.include_router(automation_nodes.router, prefix="/automation-nodes", tags=["automation-nodes"])
+api_router.include_router(automation_documents.router, prefix="/automation-documents", tags=["automation-documents"])
 
 
 

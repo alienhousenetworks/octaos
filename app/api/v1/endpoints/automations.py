@@ -25,6 +25,13 @@ from app.services.automation.ai_service import AIAutomationService
 from app.services.automation.factory import get_automation_engine
 from app.services.automation.templates import ENTERPRISE_TEMPLATES
 from app.services.automation.event_bridge import AutomationEventBridge
+from app.schemas.automation.graph import (
+    AutomationGraph,
+    convert_graph_to_legacy_ir,
+    convert_legacy_ir_to_graph,
+)
+from app.services.automation.graph_validator import GraphValidator
+from app.services.automation.compiler import FlowCompiler
 
 logger = logging.getLogger(__name__)
 
@@ -480,3 +487,164 @@ async def test_dispatch_event(
     bridge = AutomationEventBridge(db, tenant_id)
     results = await bridge.dispatch_event(request.event_type, request.payload)
     return {"event": request.event_type, "triggered_workflows": results}
+
+
+# ─── Visual Canvas Graph Endpoints (n8n-Style Builder) ───────────────────────
+
+@router.get("/{workflow_id}/graph")
+def get_workflow_graph(
+    workflow_id: str,
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> Any:
+    """
+    Returns the canonical visual AutomationGraph for the canvas builder.
+    If only a legacy definition_ir exists, it is automatically converted into a structured graph.
+    """
+    wf = db.query(AutomationWorkflow).filter_by(id=workflow_id, tenant_id=tenant_id).first()
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    graph = wf.get_graph()
+    validation = GraphValidator.validate(graph)
+
+    return {
+        "workflow_id": wf.id,
+        "name": wf.name,
+        "slug": wf.slug,
+        "status": wf.status,
+        "current_version": wf.current_version,
+        "published_version": wf.published_version,
+        "graph": graph.model_dump(),
+        "graph_hash": wf.graph_hash or graph.calculate_hash(),
+        "validation": validation.to_dict(),
+    }
+
+
+@router.put("/{workflow_id}/graph")
+async def save_workflow_graph(
+    workflow_id: str,
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(require_permission(Resource.SETTINGS, Action.UPDATE)),
+    graph_payload: AutomationGraph,
+) -> Any:
+    """
+    Saves and persists an updated visual workflow canvas graph draft.
+    Validates graph DAG topology and compiles downstream Activepieces schemas.
+    """
+    wf = db.query(AutomationWorkflow).filter_by(id=workflow_id, tenant_id=tenant_id).first()
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    validation = GraphValidator.validate(graph_payload)
+    graph_dict = graph_payload.model_dump()
+    graph_hash = graph_payload.calculate_hash()
+
+    # Convert graph to legacy IR to maintain engine compatibility
+    legacy_ir = convert_graph_to_legacy_ir(graph_payload)
+
+    # Compile target Activepieces schema
+    try:
+        from app.services.automation.base import AutomationIR
+        ir_obj = AutomationIR(**legacy_ir)
+        compiled = FlowCompiler.compile_to_activepieces(ir_obj)
+    except Exception as e:
+        logger.warning(f"Could not compile Activepieces schema: {e}")
+        compiled = wf.compiled_schema or {}
+
+    # Update workflow draft
+    wf.name = graph_payload.name or wf.name
+    wf.description = graph_payload.description or wf.description
+    wf.graph_json = graph_dict
+    wf.graph_hash = graph_hash
+    wf.definition_ir = legacy_ir
+    wf.compiled_schema = compiled
+    wf.current_version = (wf.current_version or 1) + 1
+
+    # Record version snapshot
+    version_record = AutomationWorkflowVersion(
+        workflow_id=wf.id,
+        version=wf.current_version,
+        definition_ir=legacy_ir,
+        graph_json=graph_dict,
+        graph_hash=graph_hash,
+        compiled_schema=compiled,
+        change_reason="Visual canvas draft update",
+        created_by=current_user.email,
+    )
+    db.add(version_record)
+    db.commit()
+    db.refresh(wf)
+
+    return {
+        "status": "saved",
+        "workflow_id": wf.id,
+        "version": wf.current_version,
+        "graph_hash": graph_hash,
+        "validation": validation.to_dict(),
+    }
+
+
+@router.post("/{workflow_id}/validate")
+def validate_workflow_graph(
+    workflow_id: str,
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    graph_payload: AutomationGraph,
+) -> Any:
+    """Validates an in-memory graph without saving, returning cycle and port checks."""
+    wf = db.query(AutomationWorkflow).filter_by(id=workflow_id, tenant_id=tenant_id).first()
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    validation = GraphValidator.validate(graph_payload)
+    return validation.to_dict()
+
+
+@router.post("/{workflow_id}/publish")
+async def publish_workflow_graph(
+    workflow_id: str,
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(require_permission(Resource.SETTINGS, Action.UPDATE)),
+) -> Any:
+    """
+    Publishes the current graph version into active production.
+    Strictly enforces zero validation errors.
+    """
+    wf = db.query(AutomationWorkflow).filter_by(id=workflow_id, tenant_id=tenant_id).first()
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    graph = wf.get_graph()
+    validation = GraphValidator.validate(graph)
+
+    if not validation.is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot publish workflow with validation errors: {', '.join(validation.errors)}",
+        )
+
+    wf.published_version = wf.current_version
+    wf.status = "active"
+
+    # Activate in external engine if configured
+    if wf.external_flow_id:
+        adapter = get_automation_engine(tenant_id, db)
+        await adapter.activate_workflow(tenant_id, wf.external_flow_id, True)
+
+    db.commit()
+    db.refresh(wf)
+
+    return {
+        "status": "published",
+        "workflow_id": wf.id,
+        "published_version": wf.published_version,
+        "workflow_status": wf.status,
+    }
+

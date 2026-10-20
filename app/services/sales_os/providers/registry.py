@@ -25,10 +25,11 @@ IMPLEMENTATION = {
     "zendesk": "legacy",
     "gmail": "legacy",
     "google_calendar": "legacy",
-    "apify_google_places": "legacy",
+    "apify": "live",
+    "apify_google_places": "partial",
     "apify_instagram": "legacy",
     "apify_linkedin": "legacy",
-    "apify_crawler": "legacy",
+    "apify_crawler": "partial",
 }
 
 PAID_PROVIDERS = {
@@ -39,7 +40,7 @@ PAID_PROVIDERS = {
     "snov", "prospeo", "findymail", "dropcontact", "fullenrich", "dealroom", "tracxn",
     "yelp", "foursquare", "trustpilot", "securitytrails", "twitter_intent",
     "google_reviews", "google_business_profile",
-    "apify_google_places", "apify_instagram", "apify_linkedin", "apify_crawler",
+    "apify", "apify_google_places", "apify_instagram", "apify_linkedin", "apify_crawler",
 }
 
 # Estimated USD per call. None means the price is unknown and must not be treated as free.
@@ -52,6 +53,9 @@ ESTIMATED_COST = {
     "clearbit": 0.10,
     "crunchbase": 0.20,
     "google_places": 0.01,
+    "apify": 0.05,
+    "apify_google_places": 0.05,
+    "apify_crawler": 0.08,
     "hn_hiring": 0.0,
     "dns_mx_inspect": 0.0,
 }

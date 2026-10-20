@@ -20,6 +20,7 @@ class LeadBase(BaseModel):
     status: Optional[str] = "captured"
     score: Optional[int] = 0
     assigned_to: Optional[str] = "Sales AI Agent"
+    room_id: Optional[str] = None
     data: Optional[dict] = None
 
 class LeadCreate(LeadBase):
@@ -39,6 +40,7 @@ class Lead(LeadBase):
 class ContentPostBase(BaseModel):
     platform: str
     content: str
+    room_id: Optional[str] = None
     scheduled_at: Optional[datetime] = None
     image_url: Optional[str] = None
     video_url: Optional[str] = None
@@ -182,8 +184,10 @@ class JobStatusResponse(BaseModel):
 class CandidateBase(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
+    phone: Optional[str] = None
     role: Optional[str] = None
     status: Optional[str] = "sourced"
+    room_id: Optional[str] = None
     scorecard: Optional[dict] = None
 
 class CandidateCreate(CandidateBase):
@@ -195,6 +199,7 @@ class CandidateUpdate(BaseModel):
     role: Optional[str] = None
     status: Optional[str] = None
     phone: Optional[str] = None
+    room_id: Optional[str] = None
     address: Optional[str] = None
     skills: Optional[List[str]] = None
     projects: Optional[List[str]] = None

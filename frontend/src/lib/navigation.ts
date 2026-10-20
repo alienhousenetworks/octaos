@@ -20,6 +20,8 @@ import {
   Settings,
   Zap,
   GitFork,
+  Bot,
+  ShieldCheck,
 } from 'lucide-react';
 
 export type NavItem = {
@@ -51,9 +53,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Revenue',
     items: [
       { id: 'campaigns', name: 'Campaigns', href: '/app/campaigns', icon: Calendar, section: 'marketing' },
-      { id: 'sales', name: 'Sales pipeline', href: '/app/sales', icon: TrendingUp, section: 'sales', keywords: 'crm leads' },
-      { id: 'deal_rooms', name: 'Deal rooms', href: '/app/sales/deals', icon: Building2, section: 'sales' },
-      { id: 'sales_intelligence', name: 'Source intelligence', href: '/app/sales/intelligence', icon: Radar, section: 'sales', keywords: 'evidence sources roi scoring' },
+      { id: 'sales', name: 'Sales', href: '/app/sales', icon: TrendingUp, section: 'sales', keywords: 'crm leads pipeline deals accounts' },
     ],
   },
   {
@@ -71,10 +71,11 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Workforce',
     items: [
+      { id: 'agents', name: 'Agents', href: '/app/agents', icon: Bot, section: 'teams', keywords: 'workforce agents directory cockpit' },
       { id: 'teams', name: 'Teams', href: '/app/teams', icon: Users, section: 'teams' },
       { id: 'orchestrator', name: 'Orchestrator', href: '/app/orchestrator', icon: Activity, section: 'orchestrator' },
-      { id: 'coordination', name: 'Boardroom', href: '/app/boardroom', icon: Users, section: 'coordination' },
-      { id: 'ceo', name: 'CEO workspace', href: '/app/ceo', icon: Target, section: 'ceo' },
+      { id: 'ceo', name: 'Business Autonomy', href: '/app/ceo', icon: Target, section: 'ceo', keywords: 'business autonomy control plane objectives execution strategy' },
+      { id: 'coordination', name: 'Decision Assurance', href: '/app/boardroom', icon: ShieldCheck, section: 'coordination', keywords: 'decision assurance boardroom governance risk audit' },
       { id: 'marketplace', name: 'Marketplace', href: '/app/marketplace', icon: Store, section: 'marketplace' },
       { id: 'automations', name: 'Automations', href: '/app/automations', icon: GitFork, section: 'automations', keywords: 'workflows activepieces triggers' },
     ],
@@ -93,6 +94,8 @@ export const NAV_GROUPS: NavGroup[] = [
 ];
 
 export const EXTRA_ROUTES: NavItem[] = [
+  { id: 'deal_rooms', name: 'Deal rooms', href: '/app/sales/deals', icon: Building2, section: 'sales' },
+  { id: 'sales_intelligence', name: 'Source intelligence', href: '/app/sales/intelligence', icon: Radar, section: 'sales', keywords: 'evidence sources roi scoring' },
   { id: 'instructions', name: 'Setup guide', href: '/app/settings/guide', icon: Settings, section: 'system', keywords: 'api guide instructions' },
   { id: 'sales_prompt_agent', name: 'Prompt Sales Agent', href: '/app/sales/prompt-agent', icon: Zap, section: 'sales' },
   { id: 'sales_config', name: 'Configured Sales Engine', href: '/app/sales/configuration', icon: Settings, section: 'sales' },
@@ -124,6 +127,7 @@ const VIEW_PATHS: Record<string, string> = {
   deal_rooms: '/app/sales/deals',
   sales_intelligence: '/app/sales/intelligence',
   automations: '/app/automations',
+  agents: '/app/agents',
 };
 
 export function pathForView(viewId: string) {
@@ -154,6 +158,28 @@ export function visibleGroups(profile: any): NavGroup[] {
 }
 
 export function crumbForPath(pathname: string) {
+  if (pathname.startsWith('/app/agents/')) {
+    return { section: 'AI Workforce', name: 'Agent Cockpit' };
+  }
+  if (pathname === '/app/agents') {
+    return { section: 'AI Workforce', name: 'Agent Directory' };
+  }
+  if (pathname.startsWith('/app/hiring/rooms/')) {
+    const slug = pathname.replace('/app/hiring/rooms/', '').split('/')[0];
+    return { section: 'People', name: `Hiring Room (#${slug})` };
+  }
+  if (pathname.startsWith('/app/campaigns/rooms/')) {
+    const slug = pathname.replace('/app/campaigns/rooms/', '').split('/')[0];
+    return { section: 'Revenue', name: `Campaign Room (#${slug})` };
+  }
+  if (pathname.startsWith('/app/support/rooms/')) {
+    const slug = pathname.replace('/app/support/rooms/', '').split('/')[0];
+    return { section: 'Service', name: `Support Room (#${slug})` };
+  }
+  if (pathname.startsWith('/app/sales/rooms/')) {
+    const slug = pathname.replace('/app/sales/rooms/', '').split('/')[0];
+    return { section: 'Revenue', name: `Sales Room (#${slug})` };
+  }
   const item = allNavItems().find((entry) => entry.href === pathname);
   if (!item) return { section: 'Workspace', name: 'OctaOS' };
   const group = NAV_GROUPS.find((entry) => entry.items.some((nav) => nav.href === pathname));

@@ -98,6 +98,7 @@ export default function ApiManagementView({
   API_URL,
   fetchWithAuth,
   fetchData,
+  tenantId,
 }: ApiManagementViewProps) {
   const [mainSection, setMainSection] = useState<'integrations' | 'mcp'>('integrations');
   const [configured, setConfigured] = useState<string[]>([]);
@@ -118,6 +119,11 @@ export default function ApiManagementView({
   const [keyValue, setKeyValue] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [savingKey, setSavingKey] = useState(false);
+  const [providerSettings, setProviderSettings] = useState<Record<string, any>>({});
+  const [orgIdValue, setOrgIdValue] = useState('');
+  const [clientIdValue, setClientIdValue] = useState('');
+  const [clientSecretValue, setClientSecretValue] = useState('');
+  const [selectedScope, setSelectedScope] = useState<string>('openid profile w_member_social w_organization_social');
 
   // Delete Confirmation
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -142,6 +148,11 @@ export default function ApiManagementView({
         const data = await keysRes.value.json();
         const providers = data.configured_providers || [];
         setConfigured(providers.map((p: any) => p.provider));
+        const settingsMap: Record<string, any> = {};
+        providers.forEach((p: any) => {
+          if (p.settings) settingsMap[p.provider] = p.settings;
+        });
+        setProviderSettings(settingsMap);
         const main = providers.find((p: any) => p.is_main);
         if (main) setMainProvider(main.provider);
       }
@@ -162,7 +173,37 @@ export default function ApiManagementView({
 
   useEffect(() => {
     refresh();
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('linkedin') === 'connected') {
+        showToast('✓ LinkedIn account authorized and connected!');
+        window.history.replaceState({}, '', window.location.pathname);
+      } else if (params.get('linkedin_error')) {
+        const err = params.get('linkedin_error');
+        const desc = params.get('linkedin_error_description');
+        if (err === 'unauthorized_scope_error') {
+          showToast(
+            desc
+              ? `LinkedIn rejected a permission: ${desc}`
+              : 'LinkedIn rejected a requested permission. Enable Sign In with LinkedIn (OpenID) for personal posts, or the Community Management API for company pages.',
+            'err',
+          );
+        } else {
+          showToast(`LinkedIn error: ${err}`, 'err');
+        }
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
   }, [refresh]);
+
+  const parsedOrgUrn = useMemo(() => {
+    const clean = orgIdValue.trim();
+    if (!clean) return null;
+    if (clean.startsWith('urn:li:organization:')) return clean;
+    const match = clean.match(/company\/(\d+)/) || clean.match(/(\d+)/);
+    if (match) return `urn:li:organization:${match[1]}`;
+    return `urn:li:organization:${clean}`;
+  }, [orgIdValue]);
 
   const handleModeChange = async (newMode: 'inbuilt' | 'byok') => {
     if (newMode === aiMode || modeLoading) return;
@@ -198,32 +239,77 @@ export default function ApiManagementView({
     setDialogProvider(p);
     setKeyValue('');
     setShowKey(false);
+    if (p.id === 'linkedin') {
+      const s = providerSettings['linkedin'] || {};
+      const org = s.organization_urn || s.organization_id || '';
+      setOrgIdValue(org.replace('urn:li:organization:', ''));
+      setClientIdValue(s.client_id || '');
+      setClientSecretValue(s.client_secret || '');
+    } else {
+      setOrgIdValue('');
+      setClientIdValue('');
+      setClientSecretValue('');
+    }
     setDialogOpen(true);
   };
 
-  const handleSaveKey = async () => {
-    if (!dialogProvider || !keyValue.trim()) return;
+  const handleSaveKey = async (options?: { skipClose?: boolean; customKey?: string }): Promise<boolean> => {
+    if (!dialogProvider) return false;
+    const isLinkedIn = dialogProvider.id === 'linkedin';
+    const keyToSave = options?.customKey || keyValue.trim() || (isLinkedIn && configured.includes('linkedin') ? 'configured_token' : '');
+    if (!keyToSave && !isLinkedIn && !orgIdValue.trim() && !clientIdValue.trim()) return false;
+
     setSavingKey(true);
     try {
+      const payload: any = {
+        provider: dialogProvider.id,
+        key: keyToSave || 'oauth_connected',
+      };
+
+      if (isLinkedIn) {
+        payload.settings = {
+          ...(providerSettings['linkedin'] || {}),
+          ...(parsedOrgUrn ? { organization_urn: parsedOrgUrn, organization_id: parsedOrgUrn.replace('urn:li:organization:', '') } : {}),
+          ...(clientIdValue.trim() ? { client_id: clientIdValue.trim() } : {}),
+          ...(clientSecretValue.trim() ? { client_secret: clientSecretValue.trim() } : {}),
+        };
+      }
+
       const res = await fetchWithAuth(`${API_URL}/commands/keys`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: dialogProvider.id, key: keyValue.trim() }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         setConfigured((prev) => (prev.includes(dialogProvider.id) ? prev : [...prev, dialogProvider.id]));
-        setDialogOpen(false);
+        if (!options?.skipClose) {
+          setDialogOpen(false);
+        }
         fetchData();
-        showToast(`✓ ${dialogProvider.label} credential configured.`);
+        refresh();
+        showToast(`✓ ${dialogProvider.label} settings saved.`);
+        return true;
       } else {
         const err = await res.json().catch(() => ({}));
         showToast(err.detail || 'Invalid key format', 'err');
+        return false;
       }
     } catch {
-      showToast('Network error saving key', 'err');
+      showToast('Network error saving credentials', 'err');
+      return false;
     } finally {
       setSavingKey(false);
     }
+  };
+
+  const handleLinkedInOAuthConnect = async () => {
+    if (orgIdValue.trim() || clientIdValue.trim() || clientSecretValue.trim()) {
+      await handleSaveKey({ skipClose: true });
+    }
+    const params = new URLSearchParams();
+    if (tenantId) params.set('tenant_id', tenantId);
+    if (selectedScope) params.set('scope', selectedScope);
+    window.location.href = `${API_URL}/linkedin/auth?${params.toString()}`;
   };
 
   const handleDeleteKey = async (providerId: string) => {
@@ -542,6 +628,13 @@ export default function ApiManagementView({
                 <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
                   {p.description}
                 </p>
+
+                {p.id === 'linkedin' && (providerSettings['linkedin']?.organization_urn || providerSettings['linkedin']?.organization_id) && (
+                  <div className="mt-2 flex items-center gap-1.5 text-[11px] font-mono text-sky-400 bg-sky-950/40 border border-sky-800/40 px-2 py-0.5 rounded-md w-fit">
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                    <span>Page: {String(providerSettings['linkedin'].organization_urn || providerSettings['linkedin'].organization_id).replace('urn:li:organization:', '')}</span>
+                  </div>
+                )}
               </div>
 
               <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between gap-2">
@@ -575,6 +668,15 @@ export default function ApiManagementView({
                       <Button
                         size="sm"
                         variant="ghost"
+                        onClick={() => openConfigModal(p)}
+                        className="h-7 text-[11px] text-zinc-400 hover:text-white px-2 rounded-md font-mono"
+                        title="Edit Settings"
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         onClick={() => handleDeleteKey(p.id)}
                         disabled={isDeleting}
                         className="h-7 w-7 p-0 text-zinc-400 hover:text-rose-400 hover:bg-rose-950/20 rounded-md"
@@ -601,81 +703,284 @@ export default function ApiManagementView({
 
       {/* Key Configuration Modal */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md bg-[#12141a] border-white/[0.08] text-white p-6 rounded-2xl shadow-2xl">
+        <DialogContent className="sm:max-w-lg bg-[#12141a] border-white/[0.08] text-white p-6 rounded-2xl shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold tracking-tight text-white flex items-center gap-2">
               <Key className="w-4 h-4 text-zinc-300" />
               Configure {dialogProvider?.label}
             </DialogTitle>
             <DialogDescription className="text-xs text-zinc-400">
-              API tokens are stored in hardware-encrypted tenant secrets and never exposed in client logs.
+              Credentials and company page linkages are encrypted per-tenant and stored securely.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 mt-2">
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-zinc-300">API Secret Key / Token</label>
-                {dialogProvider?.url && (
+          {dialogProvider?.id === 'linkedin' ? (
+            <div className="space-y-4 mt-2">
+              {/* 1-Click OAuth Connect Card */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-[#0a66c2]/15 via-zinc-900 to-[#004182]/10 border border-[#0a66c2]/30 flex flex-col gap-3 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 text-xs font-semibold text-[#70b5f9]">
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>1-Click LinkedIn OAuth Authorization</span>
+                      {configured.includes('linkedin') && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                          ACTIVE
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+                      Instantly sign in with LinkedIn to authorize social post publishing permissions for your tenant.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleLinkedInOAuthConnect}
+                    disabled={savingKey}
+                    className="bg-[#0a66c2] hover:bg-[#004182] text-white text-xs font-medium h-8 shrink-0 shadow-md gap-1.5 self-start sm:self-auto"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    {configured.includes('linkedin') ? 'Re-authorize Account' : 'Authorize LinkedIn'}
+                  </Button>
+                </div>
+
+                <div className="pt-2.5 border-t border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="text-[11px] text-zinc-400 font-mono">Authorization Scope:</span>
+                  <div className="inline-flex items-center gap-1 bg-zinc-950/80 p-1 rounded-lg border border-white/[0.08]">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedScope('openid profile w_member_social w_organization_social')}
+                      className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${
+                        selectedScope.includes('w_organization_social')
+                          ? 'bg-[#0a66c2] text-white shadow-sm'
+                          : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      Company Page & Profile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedScope('openid profile w_member_social')}
+                      className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${
+                        !selectedScope.includes('w_organization_social')
+                          ? 'bg-zinc-800 text-white shadow-sm'
+                          : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      Personal Profile Only
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Company Page Note */}
+              <div className="text-[11px] text-zinc-400 bg-sky-950/20 border border-sky-800/30 rounded-xl p-3 leading-relaxed flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="text-sky-300">LinkedIn Company Page Requirement:</strong>
+                  <p className="mt-0.5 text-zinc-400">
+                    Personal posts need <strong>Sign In with LinkedIn using OpenID Connect</strong> and <strong>Share on LinkedIn</strong>. Company Page posts also need the <strong>Community Management API</strong> product, and the signed-in member must be a <strong>Super Admin</strong> or <strong>Content Admin</strong> of that page. A member-only token publishes to the personal profile.
+                  </p>
+                </div>
+              </div>
+
+              {/* LinkedIn Company Page URL or ID */}
+              <div className="space-y-1.5 p-3.5 rounded-xl bg-zinc-900/60 border border-white/[0.06]">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-zinc-200 flex items-center gap-1.5">
+                    <Briefcase className="w-3.5 h-3.5 text-sky-400" />
+                    LinkedIn Company Page ID or URL
+                  </label>
+                  <span className="text-[10px] text-sky-400 font-mono">Company Feed Target</span>
+                </div>
+                <Input
+                  type="text"
+                  value={orgIdValue}
+                  onChange={(e) => setOrgIdValue(e.target.value)}
+                  placeholder="e.g. 104858837 or https://www.linkedin.com/company/104858837/admin/dashboard/"
+                  className="h-9 text-xs font-mono bg-zinc-950/80 border-white/[0.08] focus:border-sky-500 rounded-md"
+                />
+                {parsedOrgUrn ? (
+                  <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-mono mt-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Target Author URN: <strong>{parsedOrgUrn}</strong></span>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-zinc-500 font-mono mt-0.5">
+                    Paste your admin URL (e.g. linkedin.com/company/<strong>104858837</strong>/admin) or page ID.
+                  </p>
+                )}
+              </div>
+
+              {/* Direct Access Token (Optional) */}
+              <div className="space-y-1.5 p-3.5 rounded-xl bg-zinc-900/60 border border-white/[0.06]">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-zinc-200 flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5 text-amber-400" />
+                    Direct Access Token
+                    {configured.includes('linkedin') && !keyValue && (
+                      <span className="text-[10px] text-emerald-400 font-mono">(Connected via OAuth)</span>
+                    )}
+                  </label>
                   <a
-                    href={dialogProvider.url}
+                    href="https://www.linkedin.com/developers/tools/oauth"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-[11px] text-indigo-400 hover:text-indigo-300 font-mono flex items-center gap-1"
                   >
-                    Obtain Key <ExternalLink className="w-3 h-3" />
+                    Token Generator <ExternalLink className="w-3 h-3" />
                   </a>
-                )}
+                </div>
+
+                <div className="relative">
+                  <Input
+                    type={showKey ? 'text' : 'password'}
+                    value={keyValue}
+                    onChange={(e) => setKeyValue(e.target.value)}
+                    placeholder={configured.includes('linkedin') ? '•••••••••••••••• (Leave blank to keep active OAuth token)' : 'AQXTs... (Optional if using 1-Click Authorize)'}
+                    className="h-9 pr-9 text-xs font-mono bg-zinc-950/80 border-white/[0.08] focus:border-zinc-500 rounded-md"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+                  >
+                    {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
-              <div className="relative">
-                <Input
-                  type={showKey ? 'text' : 'password'}
-                  value={keyValue}
-                  onChange={(e) => setKeyValue(e.target.value)}
-                  placeholder={dialogProvider?.placeholder || 'sk-...'}
-                  className="h-9 pr-9 text-xs font-mono bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKey(!showKey)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+              {/* Developer App BYOK (Optional) */}
+              <details className="text-xs text-zinc-400 bg-zinc-950/40 border border-white/[0.05] rounded-xl p-3" open={Boolean(clientIdValue || clientSecretValue)}>
+                <summary className="cursor-pointer hover:text-zinc-200 font-medium text-xs text-zinc-300 flex items-center justify-between select-none">
+                  <span className="flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5 text-purple-400" />
+                    Custom Developer App Credentials (BYOK)
+                  </span>
+                  <span className="text-[10px] font-mono text-zinc-500">
+                    {clientIdValue ? 'Custom App Set' : 'Using Default OctaOS App'}
+                  </span>
+                </summary>
+                <div className="space-y-3 mt-3 pt-3 border-t border-white/[0.05]">
+                  <p className="text-[11px] text-zinc-500">
+                    Optionally provide your own LinkedIn Developer App credentials. If left blank, OctaOS uses the pre-configured default app.
+                  </p>
+                  <div>
+                    <label className="text-[11px] text-zinc-400 font-mono">LinkedIn Client ID</label>
+                    <Input
+                      type="text"
+                      value={clientIdValue}
+                      onChange={(e) => setClientIdValue(e.target.value)}
+                      placeholder="e.g. 771xk6ipgiz4un"
+                      className="h-8 text-xs font-mono bg-zinc-900 border-white/[0.08] mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-zinc-400 font-mono">LinkedIn Primary Client Secret</label>
+                    <Input
+                      type="password"
+                      value={clientSecretValue}
+                      onChange={(e) => setClientSecretValue(e.target.value)}
+                      placeholder="e.g. WPL_AP1..."
+                      className="h-8 text-xs font-mono bg-zinc-900 border-white/[0.08] mt-1"
+                    />
+                  </div>
+                </div>
+              </details>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.08]">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDialogOpen(false)}
+                  className="h-8 border-white/[0.08] bg-zinc-900 text-zinc-300 text-xs rounded-md"
                 >
-                  {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                </button>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => handleSaveKey()}
+                  disabled={savingKey || (!keyValue.trim() && !orgIdValue.trim() && !clientIdValue.trim() && !configured.includes('linkedin'))}
+                  className="h-8 bg-zinc-100 hover:bg-white text-zinc-950 font-medium text-xs rounded-md px-4 shadow-sm"
+                >
+                  {savingKey ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                      Saving…
+                    </>
+                  ) : (
+                    'Save Settings'
+                  )}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 mt-2">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-zinc-300">API Secret Key / Token</label>
+                  {dialogProvider?.url && (
+                    <a
+                      href={dialogProvider.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-indigo-400 hover:text-indigo-300 font-mono flex items-center gap-1"
+                    >
+                      Obtain Key <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <Input
+                    type={showKey ? 'text' : 'password'}
+                    value={keyValue}
+                    onChange={(e) => setKeyValue(e.target.value)}
+                    placeholder={dialogProvider?.placeholder || 'sk-...'}
+                    className="h-9 pr-9 text-xs font-mono bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+                  >
+                    {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+
+                {dialogProvider?.hint && (
+                  <p className="text-[11px] text-zinc-500 font-mono">Format: {dialogProvider.hint}</p>
+                )}
               </div>
 
-              {dialogProvider?.hint && (
-                <p className="text-[11px] text-zinc-500 font-mono">Format: {dialogProvider.hint}</p>
-              )}
+              <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.08]">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDialogOpen(false)}
+                  className="h-8 border-white/[0.08] bg-zinc-900 text-zinc-300 text-xs rounded-md"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => handleSaveKey()}
+                  disabled={savingKey || !keyValue.trim()}
+                  className="h-8 bg-zinc-100 hover:bg-white text-zinc-950 font-medium text-xs rounded-md px-4 shadow-sm"
+                >
+                  {savingKey ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                      Encrypting & Storing…
+                    </>
+                  ) : (
+                    'Save Credential'
+                  )}
+                </Button>
+              </div>
             </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.08]">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDialogOpen(false)}
-                className="h-8 border-white/[0.08] bg-zinc-900 text-zinc-300 text-xs rounded-md"
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSaveKey}
-                disabled={savingKey || !keyValue.trim()}
-                className="h-8 bg-zinc-100 hover:bg-white text-zinc-950 font-medium text-xs rounded-md px-4 shadow-sm"
-              >
-                {savingKey ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
-                    Encrypting & Storing…
-                  </>
-                ) : (
-                  'Save Credential'
-                )}
-              </Button>
-            </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
         </>

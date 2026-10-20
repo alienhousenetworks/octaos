@@ -39,8 +39,11 @@ import {
   UploadCloud,
   X,
 } from 'lucide-react';
-import TriggerScheduleCard from '@/components/ui/trigger-schedule-card';
 import AutonomousMarketingRadar from '@/components/views/autonomous-marketing-radar';
+import RoomFolderExplorer from '@/components/rooms/room-folder-explorer';
+import RoomHeader from '@/components/rooms/room-header';
+import { SectionRoomData } from '@/components/rooms/room-access-modal';
+import TriggerScheduleCard from '@/components/ui/trigger-schedule-card';
 
 interface CuratedModelItem {
   provider: string;
@@ -180,6 +183,7 @@ interface CampaignsViewProps {
   fetchWithAuth: (url: string, options?: any) => Promise<Response>;
   fetchData: () => Promise<void>;
   configuredProviders: string[];
+  initialRoomSlug?: string;
 }
 
 export default function CampaignsView({
@@ -189,7 +193,15 @@ export default function CampaignsView({
   fetchWithAuth,
   fetchData,
   configuredProviders,
+  initialRoomSlug,
 }: CampaignsViewProps) {
+  // Section Room state
+  const [rooms, setRooms] = useState<SectionRoomData[]>([]);
+  const [roomsLoading, setRoomsLoading] = useState(false);
+  const [currentRoomSlug, setCurrentRoomSlug] = useState<string | null>(initialRoomSlug || null);
+  const [currentRoom, setCurrentRoom] = useState<SectionRoomData | null>(null);
+  const [isDirectoryView, setIsDirectoryView] = useState(!initialRoomSlug);
+
   // State variables relocated here
   const [campaignTopic, setCampaignTopic] = useState('');
   const [campaignDays, setCampaignDays] = useState(30);
@@ -482,9 +494,9 @@ export default function CampaignsView({
     }
   };
 
-  // Fetch campaign posts periodically when active
   useEffect(() => {
     if (token && activeView === 'campaigns') {
+      fetchRooms();
       fetchCampaignPosts(true);
       fetchAvailableModels();
       checkActiveCampaignJob();
@@ -495,11 +507,55 @@ export default function CampaignsView({
     }
   }, [token, activeView]);
 
+  const fetchRooms = async () => {
+    if (!token) return;
+    setRoomsLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/rooms/?section=marketing`);
+      if (res.ok) {
+        const data = await res.json();
+        setRooms(data);
+        if (currentRoomSlug) {
+          const match = data.find((r: any) => r.slug === currentRoomSlug);
+          if (match) {
+            setCurrentRoom(match);
+            if (match.data?.goal) setCampaignTopic(match.data.goal);
+          }
+        } else if (data.length > 0 && !isDirectoryView) {
+          const defaultRoom = data.find((r: any) => r.slug === 'default') || data[0];
+          setCurrentRoom(defaultRoom);
+          setCurrentRoomSlug(defaultRoom.slug);
+          if (defaultRoom.data?.goal) setCampaignTopic(defaultRoom.data.goal);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load marketing rooms:', err);
+    } finally {
+      setRoomsLoading(false);
+    }
+  };
+
+  const handleSelectRoom = (slug: string) => {
+    setCurrentRoomSlug(slug);
+    const match = rooms.find((r) => r.slug === slug);
+    if (match) {
+      setCurrentRoom(match);
+      if (match.data?.goal) setCampaignTopic(match.data.goal);
+    }
+    setIsDirectoryView(false);
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', `/app/campaigns/rooms/${slug}`);
+    }
+    fetchCampaignPosts(false, slug);
+  };
+
   // Handler functions
-  const fetchCampaignPosts = async (collapseIfHasData = false) => {
+  const fetchCampaignPosts = async (collapseIfHasData = false, slugOverride?: string) => {
     if (!token) return;
     try {
-      const res = await fetchWithAuth(`${API_URL}/marketing/`);
+      const targetSlug = slugOverride || currentRoomSlug;
+      const url = targetSlug ? `${API_URL}/marketing/?room_slug=${targetSlug}` : `${API_URL}/marketing/`;
+      const res = await fetchWithAuth(url);
       if (res.ok) {
         const data = await res.json();
         setCampaignPosts(data);
@@ -1431,8 +1487,39 @@ export default function CampaignsView({
     setIsBulkScheduleOpen(true);
   };
 
+  if (isDirectoryView || !currentRoom) {
+    return (
+      <RoomFolderExplorer
+        section="marketing"
+        sectionTitle="Campaigns & Marketing"
+        rooms={rooms}
+        loading={roomsLoading}
+        onSelectRoom={handleSelectRoom}
+        onRefresh={fetchRooms}
+        API_URL={API_URL}
+        fetchWithAuth={fetchWithAuth}
+      />
+    );
+  }
+
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-300 pb-16">
+      <RoomHeader
+        sectionTitle="Campaigns & Marketing"
+        activeRoom={currentRoom}
+        allRooms={rooms}
+        onSelectRoom={handleSelectRoom}
+        onOpenDirectory={() => setIsDirectoryView(true)}
+        onCreateNewRoom={() => setIsDirectoryView(true)}
+        API_URL={API_URL}
+        fetchWithAuth={fetchWithAuth}
+        onRoomUpdated={(updated) => {
+          setCurrentRoom(updated);
+          setRooms((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+        }}
+      />
+
+      <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6">
       <PageHeader
         title="Campaigns"
         description="Review drafts, set when they go out, and publish to LinkedIn, Instagram, or Facebook."
@@ -1457,9 +1544,9 @@ export default function CampaignsView({
                 }
                 setIsCreatePostOpen(true);
               }}
-              className="gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium shadow-sm"
+              className="gap-1.5 font-semibold"
             >
-              <Sparkles className="size-4" /> Compose & Automate
+              <Sparkles className="size-4" /> Compose &amp; Automate
             </Button>
             {campaignPosts.length > 0 && (
               <Button variant="outline" onClick={openBulkSchedule}>
@@ -1607,7 +1694,7 @@ export default function CampaignsView({
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted/60">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-600 transition-all duration-500 ease-out"
+                className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
                 style={{ width: `${Math.min(100, Math.max(5, activeCampaignJob.progressPct))}%` }}
               />
             </div>
@@ -2864,7 +2951,7 @@ export default function CampaignsView({
                 {/* Platform-Specific Mockup Header */}
                 <div className="p-3.5 border-b border-border/60">
                   <div className="flex items-center gap-2.5">
-                    <div className="size-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-xs">
+                    <div className="size-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
                       O
                     </div>
                     <div className="min-w-0 flex-1 leading-tight">
@@ -3016,6 +3103,7 @@ export default function CampaignsView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

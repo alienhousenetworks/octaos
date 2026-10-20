@@ -152,6 +152,22 @@ def get_widget_embed_js(default_api_base: str = "") -> str:
       background: rgba(255,255,255,0.1);
       color: #fff;
     }}
+    .octa-header-btn {{
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 6px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }}
+    .octa-header-btn:hover {{
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }}
     .octa-tabs-bar {{
       display: flex;
       background: #111827;
@@ -380,10 +396,14 @@ def get_widget_embed_js(default_api_base: str = "") -> str:
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           <span id="octa-title">Customer Support</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 6px;">
           <div class="octa-header-status" id="octa-status">
             <span class="octa-status-dot"></span> <span id="octa-status-text">AI Ready</span>
           </div>
+          <button class="octa-header-btn" id="octa-new-chat-btn" title="New Chat">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            <span style="font-size: 10px; font-weight: 500;">New Chat</span>
+          </button>
           <button class="octa-close-btn" id="octa-close-btn" title="Close">✕</button>
         </div>
       </div>
@@ -455,6 +475,7 @@ def get_widget_embed_js(default_api_base: str = "") -> str:
   const windowEl = document.getElementById('octa-window');
   const launcherBtn = document.getElementById('octa-launcher-btn');
   const closeBtn = document.getElementById('octa-close-btn');
+  const newChatBtn = document.getElementById('octa-new-chat-btn');
   const iconOpen = document.getElementById('octa-icon-open');
   const iconClose = document.getElementById('octa-icon-close');
   const titleEl = document.getElementById('octa-title');
@@ -477,6 +498,47 @@ def get_widget_embed_js(default_api_base: str = "") -> str:
   const formSubmit = document.getElementById('octa-form-submit');
   const formFeedback = document.getElementById('octa-form-feedback');
 
+  function applyBrandColor(color) {{
+    if (!color) return;
+    launcherBtn.style.background = `linear-gradient(135deg, ${{color}}, #1d4ed8)`;
+    launcherBtn.style.boxShadow = `0 8px 24px ${{color}}66`;
+    sendBtn.style.background = color;
+    let dynStyle = document.getElementById('octa-dyn-style');
+    if (!dynStyle) {{
+      dynStyle = document.createElement('style');
+      dynStyle.id = 'octa-dyn-style';
+      document.head.appendChild(dynStyle);
+    }}
+    dynStyle.textContent = `
+      .octa-bubble-customer {{ background: ${{color}} !important; box-shadow: 0 4px 12px ${{color}}40; }}
+      .octa-tab-btn.active {{ color: ${{color}} !important; border-bottom: 2px solid ${{color}}; }}
+    `;
+  }}
+
+  function startNewChat() {{
+    sessionId = 'sess_' + Math.random().toString(36).substring(2, 12) + '_' + Date.now();
+    localStorage.setItem('octaos_widget_session_' + tenantId, sessionId);
+    messages = [];
+    Object.keys(renderedIds).forEach(k => delete renderedIds[k]);
+    Object.keys(aiShown).forEach(k => delete aiShown[k]);
+    messagesWrap.innerHTML = `
+      <div class="octa-bubble octa-bubble-agent" id="octa-welcome-msg">
+        ${{widgetConfig.welcome_message || 'Hi there! How can we assist you today? Feel free to ask any question or request a live support agent.'}}
+      </div>
+    `;
+    ticketStatus = 'open';
+    statusText.textContent = widgetConfig.live_chat_available ? 'Live Support Available' : 'AI Support';
+    switchTab('chat');
+    inputEl.value = '';
+    if (isOpen) {{
+      startPolling();
+    }}
+  }}
+
+  if (newChatBtn) {{
+    newChatBtn.onclick = () => startNewChat();
+  }}
+
   // 6. Fetch Initial Config
   fetch(`${{apiPrefix}}/widget/config/${{tenantId}}`)
     .then(r => r.json())
@@ -490,7 +552,7 @@ def get_widget_embed_js(default_api_base: str = "") -> str:
         statusText.textContent = 'AI Support';
       }}
       if (data.brand_color) {{
-        launcherBtn.style.background = `linear-gradient(135deg, ${{data.brand_color}}, #1d4ed8)`;
+        applyBrandColor(data.brand_color);
       }}
     }})
     .catch(e => console.error('[OctaOS Support] Config error:', e));

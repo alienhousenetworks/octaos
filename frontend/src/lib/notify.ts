@@ -35,13 +35,26 @@ export function pushToast(variant: ToastVariant, title: string, message?: string
   });
 }
 
-export function notify(message: string) {
-  const clean = message.replace(/^✅\s*/, '').replace(/^🚀\s*/, '').replace(/^❌\s*/, '');
-  pushToast(inferVariant(message), clean);
+export interface NotifyFunction {
+  (message: string): void;
+  success: (message: string) => void;
+  error: (message: string) => void;
+  warning: (message: string) => void;
+  info: (message: string) => void;
 }
 
-notify.success = (message: string) => pushToast('success', message);
-notify.error = (message: string) => pushToast('error', message);
+export const notify: NotifyFunction = Object.assign(
+  (message: string) => {
+    const clean = message.replace(/^✅\s*/, '').replace(/^🚀\s*/, '').replace(/^❌\s*/, '');
+    pushToast(inferVariant(message), clean);
+  },
+  {
+    success: (message: string) => pushToast('success', message),
+    error: (message: string) => pushToast('error', message),
+    warning: (message: string) => pushToast('warning', message),
+    info: (message: string) => pushToast('info', message),
+  }
+);
 
 export type ConfirmRequest = {
   title: string;

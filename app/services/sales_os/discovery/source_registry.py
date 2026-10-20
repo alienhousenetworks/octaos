@@ -93,6 +93,23 @@ SOURCE_CATALOGUE: Dict[str, SourceDefinition] = {
         default_confidence=0.85,
         half_life_days=90
     ),
+    "apify": SourceDefinition(
+        id="apify",
+        name="Apify Web Automation & Lead Discovery",
+        tier=SourceTier.TIER_C_DIRECTORY,
+        category="Public Web Data Collection",
+        description="Public business discovery, market research, and web signals via approved Apify Actors.",
+        capabilities=[
+            SourceCapability.ACCOUNT_DISCOVERY,
+            SourceCapability.CONTACT_DISCOVERY,
+            SourceCapability.INTENT_SIGNAL,
+            SourceCapability.ENRICHMENT,
+        ],
+        hint="Apify API Token",
+        url="https://console.apify.com/",
+        default_confidence=0.85,
+        half_life_days=60
+    ),
     "apify_google_places": SourceDefinition(
         id="apify_google_places",
         name="Apify Google Places Scraper",

@@ -39,6 +39,7 @@ import StackedBarChart, { CategoryDef, StackedDataPoint } from '@/components/ana
 import LeaderboardCard, { LeaderboardItem } from '@/components/analytics/leaderboard-card';
 import ReliabilityGauge from '@/components/analytics/reliability-gauge';
 import RoiPanel from '@/components/analytics/roi-panel';
+import AgentDirectoryView from '@/components/views/agent-directory-view';
 
 interface DashboardViewProps {
   metrics: any;
@@ -51,6 +52,7 @@ interface DashboardViewProps {
   handleRejectPost: (postId: string) => Promise<void>;
   API_URL?: string;
   fetchWithAuth?: (url: string, options?: RequestInit) => Promise<Response>;
+  token?: string | null;
 }
 
 type DepartmentTab = 'executive' | 'sales' | 'marketing' | 'support' | 'ai_platform' | 'hr';
@@ -74,7 +76,9 @@ export default function DashboardView({
   handleRejectPost,
   API_URL,
   fetchWithAuth,
+  token,
 }: DashboardViewProps) {
+  const [homeView, setHomeView] = useState<'workforce' | 'analytics'>('workforce');
   const [selectedDept, setSelectedDept] = useState<DepartmentTab>('executive');
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodTab>('7d');
   const [hideRevenue, setHideRevenue] = useState(false);
@@ -231,34 +235,34 @@ export default function DashboardView({
 
   // Real Work-Type Stacked Chart Data
   const workTypeCategories: CategoryDef[] = [
-    { key: 'marketing', label: 'Marketing', color: '#EC4899' },
-    { key: 'finance', label: 'Finance', color: '#F59E0B' },
-    { key: 'sales', label: 'Sales', color: '#10B981' },
-    { key: 'general', label: 'General / Ops', color: '#8B5CF6' },
-    { key: 'support', label: 'Support', color: '#38BDF8' },
+    { key: 'marketing', label: 'Marketing', color: '#7888D9' },
+    { key: 'finance', label: 'Finance', color: '#64B99A' },
+    { key: 'sales', label: 'Sales', color: '#75AFCB' },
+    { key: 'general', label: 'General / Ops', color: '#AAB5C4' },
+    { key: 'support', label: 'Support', color: '#D9AD68' },
   ];
 
   const workTypeData: StackedDataPoint[] = currentMetrics?.request_volume_by_worktype || [];
 
   // Token Breakdown Data
   const tokenBreakdownCategories: CategoryDef[] = [
-    { key: 'prompt', label: 'Prompt Tokens', color: '#38BDF8' },
-    { key: 'completion', label: 'Completion Tokens', color: '#A855F7' },
-    { key: 'cached', label: 'Cached / Reasoning', color: '#F43F5E' },
+    { key: 'prompt', label: 'Prompt Tokens', color: '#75AFCB' },
+    { key: 'completion', label: 'Completion Tokens', color: '#7888D9' },
+    { key: 'cached', label: 'Cached / Reasoning', color: '#64B99A' },
   ];
 
   const tokenBreakdownData: StackedDataPoint[] = currentMetrics?.token_breakdown_series || [];
 
   // Prompt Token Caching Data
   const promptCachingCategories: CategoryDef[] = [
-    { key: 'uncached', label: 'Uncached', color: '#94A3B8' },
-    { key: 'cached', label: 'Cached', color: '#F59E0B' },
+    { key: 'uncached', label: 'Uncached', color: '#414C5A' },
+    { key: 'cached', label: 'Cached', color: '#64B99A' },
   ];
 
   const promptCachingData: StackedDataPoint[] = currentMetrics?.prompt_caching_series || [];
 
   // Request Volume by Model dynamically derived from active top models
-  const dynamicModelPalette = ['#10B981', '#EC4899', '#F59E0B', '#38BDF8', '#8B5CF6', '#F97316'];
+  const dynamicModelPalette = ['#7888D9', '#64B99A', '#75AFCB', '#D9AD68', '#AAB5C4', '#D9828B'];
   const modelCategories: CategoryDef[] =
     currentMetrics?.top_model_names && currentMetrics.top_model_names.length > 0
       ? currentMetrics.top_model_names.map((name: string, idx: number) => ({
@@ -286,8 +290,47 @@ export default function DashboardView({
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 animate-in fade-in duration-300">
-      {/* Header with Quick Actions & Live Indicator */}
-      <PageHeader
+      {/* Top Workforce vs Analytics Switcher */}
+      <div className="flex items-center justify-between border-b border-border/80 pb-4">
+        <div className="flex items-center gap-1.5 rounded-xl border border-border bg-card/60 p-1 text-xs backdrop-blur-md">
+          <button
+            type="button"
+            onClick={() => setHomeView('workforce')}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 font-semibold transition-all ${
+              homeView === 'workforce'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Bot className="size-4" />
+            AI Workforce
+          </button>
+          <button
+            type="button"
+            onClick={() => setHomeView('analytics')}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 font-semibold transition-all ${
+              homeView === 'analytics'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <BarChart3 className="size-4" />
+            Executive Analytics
+          </button>
+        </div>
+      </div>
+
+      {homeView === 'workforce' ? (
+        <AgentDirectoryView
+          API_URL={API_URL || ''}
+          fetchWithAuth={fetchWithAuth || (async () => new Response())}
+          token={token || null}
+          onSelectAgent={(agentId) => setActiveView(`agents/${agentId}`)}
+        />
+      ) : (
+        <>
+          {/* Header with Quick Actions & Live Indicator */}
+          <PageHeader
         title="Enterprise Intelligence Cockpit"
         description="Comprehensive real-time telemetry from token volume and task velocity to multi-channel execution and business ROI."
         actions={
@@ -943,6 +986,8 @@ export default function DashboardView({
           </div>
         )}
       </section>
+        </>
+      )}
     </div>
   );
 }

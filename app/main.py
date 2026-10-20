@@ -70,7 +70,7 @@ def startup_db_check():
     # Ensure Flow Engine tables and seeded agents/packages exist
     try:
         from app.models.base import Base
-        from app.models import enterprise, flow_engine, automations, schedules, verticals  # noqa: F401
+        from app.models import enterprise, flow_engine, automations, schedules, verticals, rooms  # noqa: F401
         from app.db.session import SessionLocal
         from app.services.agents.seeder import seed_system_agents, seed_system_packages
         # One failing CREATE (pgvector) must not roll back the other tables.
@@ -101,6 +101,11 @@ def startup_db_check():
                 conn.execute(text("ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS provider_message_id VARCHAR;"))
                 conn.execute(text("ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS delivery_status VARCHAR DEFAULT 'sent';"))
                 conn.execute(text("ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS extra_data JSON DEFAULT '{}'::json;"))
+                conn.execute(text("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS room_id VARCHAR;"))
+                conn.execute(text("ALTER TABLE content_posts ADD COLUMN IF NOT EXISTS room_id VARCHAR;"))
+                conn.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS room_id VARCHAR;"))
+                conn.execute(text("ALTER TABLE deal_rooms ADD COLUMN IF NOT EXISTS room_id VARCHAR;"))
+                conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS room_id VARCHAR;"))
             print("Schema column extensions verified.")
         except Exception as col_error:
             print(f"Skipped schema column alter: {col_error}")

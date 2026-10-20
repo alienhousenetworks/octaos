@@ -195,3 +195,90 @@ def test_generate_offer_and_send_email():
     assert send_json["status"] == "success"
     assert send_json["candidate"]["status"] == "offered"
     assert "offer_details" in send_json["candidate"]["scorecard"]
+
+def test_batch_resume_upload_internship_and_phone_persistence():
+    """Verify batch upload accurately classifies internship profiles and persists phone number."""
+    intern_resume = b"""
+    Aman Gupta
+    Bengaluru, India | aman.gupta@example.com | +91 98765 43210
+    GitHub: github.com/aman-dev
+
+    CAREER OBJECTIVE
+    Enthusiastic computer science graduate eager to apply skills in full stack development.
+
+    TECHNICAL SKILLS
+    Languages: Python, JavaScript, SQL
+    Frameworks: FastAPI, React, Node.js
+    Tools: Git, Docker, Postman
+
+    INTERNSHIPS & EXPERIENCE
+    Software Engineering Intern | NextGen Cloud Solutions | May 2023 - July 2023
+    - Built REST APIs using FastAPI and PostgreSQL for internal dashboards.
+
+    EDUCATION
+    Bachelor of Technology in Computer Science (B.Tech) | 2020 - 2024
+    Visvesvaraya Technological University, Bengaluru
+    """
+
+    files = [
+        ("files", ("Aman_Gupta_CV.txt", io.BytesIO(intern_resume), "text/plain"))
+    ]
+    data = {
+        "role": "Junior Full Stack Engineer",
+        "requirements": "Python, FastAPI, React",
+        "salary": "$70,000/year",
+        "provider": "auto"
+    }
+
+    response = client.post("/api/v1/hr/resumes/upload-batch", files=files, data=data)
+    assert response.status_code == 200
+    res_data = response.json()
+    assert res_data["status"] == "success"
+    cand = res_data["candidates"][0]
+    assert cand["name"] == "Aman Gupta"
+    assert cand["email"] == "aman.gupta@example.com"
+    # Verify phone was saved to Candidate.phone column
+    assert "98765" in (cand.get("phone") or "")
+    assert cand["scorecard"]["is_internship_only"] is True
+    assert cand["scorecard"]["experience_years"] == 0
+    assert "Bengaluru" in cand["scorecard"]["address"]
+
+def test_candidates_export_excel_with_accurate_intern_and_contact_data():
+    """Verify Excel export produces valid .xlsx with accurate phone, email, and internship experience strings."""
+    import openpyxl
+    response = client.get("/api/v1/hr/candidates/export-excel")
+    assert response.status_code == 200
+    assert "openxmlformats" in response.headers.get("content-type", "")
+
+    # Parse Excel binary in-memory
+    wb = openpyxl.load_workbook(io.BytesIO(response.content), data_only=True)
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    assert len(rows) >= 2  # At least header + 1 candidate
+
+    headers = [str(h) for h in rows[0]]
+    assert "Rank" in headers
+    assert "Name" in headers
+    assert "Mobile No" in headers
+    assert "Email" in headers
+    assert "Address" in headers
+    assert "Experiences" in headers
+
+    # Find row for Aman Gupta (intern profile)
+    aman_row = None
+    for r in rows[1:]:
+        if r[1] == "Aman Gupta":
+            aman_row = r
+            break
+
+    if aman_row:
+        exp_idx = headers.index("Experiences")
+        phone_idx = headers.index("Mobile No")
+        email_idx = headers.index("Email")
+        addr_idx = headers.index("Address")
+
+        assert "Internship" in str(aman_row[exp_idx])
+        assert "98765" in str(aman_row[phone_idx])
+        assert "aman.gupta@example.com" in str(aman_row[email_idx])
+        assert "Bengaluru" in str(aman_row[addr_idx])
+

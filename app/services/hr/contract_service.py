@@ -3,6 +3,106 @@ from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 
 CONTRACT_TEMPLATES: Dict[str, Dict[str, Any]] = {
+    "offer_letter_standard": {
+        "id": "offer_letter_standard",
+        "name": "Standard Corporate Offer Letter",
+        "description": "Official conditional employment offer letter outlining role, compensation, benefits, and acceptance terms.",
+        "default_employment_type": "Full-Time Permanent",
+        "default_probation_months": "3",
+        "default_notice_period_days": "30",
+        "content_template": """
+# FORMAL OFFER OF EMPLOYMENT
+
+Date: **{{current_date}}**
+
+Dear **{{candidate_name}}**,
+
+On behalf of **{{company_name}}**, we are thrilled to extend this formal offer of employment for the position of **{{job_title}}** within our **{{department}}** team!
+
+### 1. Position & Reporting Structure
+- **Designation / Title:** {{job_title}}
+- **Department:** {{department}}
+- **Reporting Manager:** {{reporting_manager}}
+- **Commencement / Joining Date:** {{start_date}}
+- **Work Mode:** {{work_mode}}
+
+### 2. Compensation & Benefits Package
+- **Annual Base Remuneration:** {{salary_currency}} {{salary_amount}} payable monthly in accordance with corporate payroll policies.
+- **Benefits Package:** {{benefits_summary}}
+- **Equity / Stock Award:** {{stock_options}}
+
+### 3. Terms of Acceptance
+This offer is contingent upon successful verification of references and execution of our standard Employee Confidentiality and Intellectual Property Agreement. 
+
+Please review this offer letter and confirm your acceptance by signing below or clicking the digital acceptance link. We request your confirmation by **{{start_date}}**.
+
+We are excited about the prospect of having you join our organization!
+
+---
+
+Sincerely,
+
+**{{signatory_name}}**  
+{{signatory_title}}, {{company_name}}  
+{{company_address}}  
+
+**Candidate Acceptance & Acknowledgement:**  
+I accept the offer of employment as outlined above:
+
+Signature: __________________________  
+Full Name: **{{candidate_name}}**  
+Date: __________________________
+"""
+    },
+    "appointment_letter_standard": {
+        "id": "appointment_letter_standard",
+        "name": "Official Appointment & Joining Letter",
+        "description": "Formal confirmation of appointment issued upon offer acceptance, detailing induction day guidelines and reporting requirements.",
+        "default_employment_type": "Full-Time Permanent",
+        "default_probation_months": "3",
+        "default_notice_period_days": "30",
+        "content_template": """
+# OFFICIAL APPOINTMENT & JOINING LETTER
+
+Date: **{{current_date}}**
+
+To,  
+**{{candidate_name}}**  
+{{candidate_address}}  
+
+Dear **{{candidate_name}}**,
+
+Following your formal acceptance of our Offer Letter, we take immense pleasure in officially appointing you as **{{job_title}}** at **{{company_name}}**.
+
+### 1. Appointment Confirmation
+- **Designation:** {{job_title}}
+- **Department:** {{department}}
+- **Reporting Manager:** {{reporting_manager}}
+- **Commencement Date:** {{start_date}}
+- **Work Location / Mode:** {{work_mode}}
+- **Probationary Period:** {{probation_months}} months
+
+### 2. Day-1 Induction & Document Checklist
+Please report at 10:00 AM on your joining date. Kindly ensure you submit the following documents to People Operations for HR verification:
+- Copy of government-issued photo ID & proof of address.
+- Degree certificates, marksheets, and professional certifications.
+- Relieving letter and prior employer experience certificates.
+- Direct-deposit bank details and tax documents.
+
+### 3. Governing Code of Conduct
+Your employment is governed by company rules, confidentiality guidelines, and the comprehensive Employment Agreement.
+
+Welcome to the team!
+
+---
+
+Warm regards,
+
+**{{signatory_name}}**  
+{{signatory_title}}  
+{{company_name}}  
+"""
+    },
     "full_time_standard": {
         "id": "full_time_standard",
         "name": "Standard Full-Time Employment Agreement",

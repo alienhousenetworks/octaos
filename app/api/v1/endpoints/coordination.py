@@ -736,3 +736,373 @@ def get_boardroom_analytics(
         "high_risk_actions": high_risk_actions,
         "auto_approval_rate": round(((total_actions - high_risk_actions) / total_actions * 100), 1) if total_actions else 0,
     }
+
+
+# ==============================================================================
+# Decision Intelligence & Assurance System — Consequence & Authority Endpoints
+# ==============================================================================
+
+class DecisionCaseCreateRequest(BaseModel):
+    title: str
+    proposal_summary: str
+    business_rationale: str
+    risk_class: str = "R1_INTERNAL_REVERSIBLE"
+    financial_exposure: float = 0.0
+    reversibility: str = "MEDIUM"
+    cost_of_delay_per_week: float = 0.0
+    decision_owner_user_id: Optional[str] = None
+    deadline: Optional[datetime] = None
+    objective_id: Optional[str] = None
+    workflow_id: Optional[str] = None
+    assumptions: Optional[List[str]] = None
+    uncertainties: Optional[List[str]] = None
+    financial_assessment: Optional[dict] = None
+    compliance_assessment: Optional[dict] = None
+    operational_feasibility: Optional[dict] = None
+
+
+class DecisionAlternativeCreateRequest(BaseModel):
+    alternative_code: str
+    title: str
+    description: str
+    is_do_nothing: bool = False
+    is_pilot: bool = False
+    reversibility: str = "MEDIUM"
+    financial_model: Optional[dict] = None
+    score: float = 0.0
+
+
+class DecisionGrantRequest(BaseModel):
+    decision: str  # "APPROVE", "REJECT"
+    rationale: str
+    delegation_level: str = "EXECUTIVE_L3"
+    selected_alternative_code: Optional[str] = None
+    action_hash: Optional[str] = None
+    policy_version: str = "1.0"
+    conditions: Optional[List[str]] = None
+    expires_in_days: int = 14
+
+
+class DecisionOutcomeReviewRequest(BaseModel):
+    milestone: str = "30d"
+    tripwires: Optional[List[dict]] = None
+    predicted_metrics: Optional[dict] = None
+    actual_metrics: Optional[dict] = None
+    brier_score: Optional[float] = None
+    review_notes: Optional[str] = None
+
+
+@router.get("/decision-cases")
+def list_decision_cases(
+    status: Optional[str] = None,
+    risk_class: Optional[str] = None,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> Any:
+    from app.models.decision_cases import DecisionCase
+    query = db.query(DecisionCase).filter(DecisionCase.tenant_id == tenant_id)
+    if status and status.upper() != "ALL":
+        query = query.filter(DecisionCase.status == status.upper())
+    if risk_class and risk_class.upper() != "ALL":
+        query = query.filter(DecisionCase.risk_class == risk_class)
+    
+    cases = query.order_by(DecisionCase.created_at.desc()).all()
+    results = []
+    for c in cases:
+        results.append({
+            "id": c.id,
+            "case_number": c.case_number,
+            "title": c.title,
+            "proposal_summary": c.proposal_summary,
+            "business_rationale": c.business_rationale,
+            "risk_class": c.risk_class,
+            "financial_exposure": float(c.financial_exposure or 0),
+            "reversibility": c.reversibility,
+            "cost_of_delay_per_week": float(c.cost_of_delay_per_week or 0),
+            "decision_owner_user_id": c.decision_owner_user_id,
+            "requester_user_id": c.requester_user_id,
+            "status": c.status,
+            "selected_alternative_code": c.selected_alternative_code,
+            "active_grant_id": c.active_grant_id,
+            "alternatives_count": len(c.alternatives),
+            "has_grant": len(c.grants) > 0,
+            "financial_assessment": c.financial_assessment,
+            "compliance_assessment": c.compliance_assessment,
+            "operational_feasibility": c.operational_feasibility,
+            "deadline": c.deadline.isoformat() if c.deadline else None,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+            "resolved_at": c.resolved_at.isoformat() if c.resolved_at else None,
+        })
+    return results
+
+
+@router.post("/decision-cases")
+def create_decision_case(
+    payload: DecisionCaseCreateRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    from app.models.decision_cases import DecisionCase, DecisionAlternative
+    from decimal import Decimal
+    import random
+
+    count = db.query(DecisionCase).filter_by(tenant_id=tenant_id).count() + 1
+    case_number = f"DEC-{datetime.now().year}-{count:04d}"
+
+    case = DecisionCase(
+        tenant_id=tenant_id,
+        case_number=case_number,
+        objective_id=payload.objective_id,
+        workflow_id=payload.workflow_id,
+        title=payload.title,
+        proposal_summary=payload.proposal_summary,
+        business_rationale=payload.business_rationale,
+        risk_class=payload.risk_class,
+        financial_exposure=Decimal(str(payload.financial_exposure)),
+        reversibility=payload.reversibility,
+        cost_of_delay_per_week=Decimal(str(payload.cost_of_delay_per_week)),
+        decision_owner_user_id=payload.decision_owner_user_id or (current_user.id if current_user else "user-executive"),
+        requester_user_id=current_user.id if current_user else "user-lead",
+        status="UNDER_ASSURANCE",
+        deadline=payload.deadline,
+        assumptions=payload.assumptions or [],
+        uncertainties=payload.uncertainties or [],
+        financial_assessment=payload.financial_assessment or {
+            "downside_p10": -float(payload.financial_exposure) * 0.3,
+            "expected_value": float(payload.financial_exposure) * 1.8,
+            "payback_months": 4.5,
+        },
+        compliance_assessment=payload.compliance_assessment or {
+            "passed": True,
+            "evaluated_rules_count": 4,
+            "violations": [],
+        },
+        operational_feasibility=payload.operational_feasibility or {
+            "credentials_valid": True,
+            "capacity_score": 0.95,
+        },
+    )
+    db.add(case)
+    db.flush()
+
+    # Pre-populate default decision alternatives: Do-Nothing and Pilot
+    alt_a = DecisionAlternative(
+        case_id=case.id,
+        alternative_code="A",
+        title="Do Nothing (Defer)",
+        description="Preserve resources and avoid immediate exposure.",
+        is_do_nothing=True,
+        financial_model={"cost": 0, "expected_outcome": 0},
+        score=4.0,
+    )
+    alt_b = DecisionAlternative(
+        case_id=case.id,
+        alternative_code="B",
+        title="Pilot Phase (Controlled Test)",
+        description="Test assumptions on 25% budget before full authorization.",
+        is_pilot=True,
+        reversibility="HIGH",
+        financial_model={
+            "cost": float(payload.financial_exposure) * 0.25,
+            "expected_outcome": float(payload.financial_exposure) * 0.6,
+        },
+        score=8.5,
+    )
+    alt_c = DecisionAlternative(
+        case_id=case.id,
+        alternative_code="C",
+        title="Full Scale Execution",
+        description="Deploy full authorized budget immediately.",
+        reversibility=payload.reversibility,
+        financial_model={
+            "cost": float(payload.financial_exposure),
+            "expected_outcome": float(payload.financial_exposure) * 1.8,
+        },
+        score=7.0,
+    )
+    db.add_all([alt_a, alt_b, alt_c])
+    db.commit()
+
+    return {
+        "status": "CREATED",
+        "case_id": case.id,
+        "case_number": case.case_number,
+        "title": case.title,
+        "message": f"Decision case {case.case_number} created under active assurance."
+    }
+
+
+@router.get("/decision-cases/{case_id}")
+def get_decision_case_details(
+    case_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> Any:
+    from app.models.decision_cases import DecisionCase
+    case = db.query(DecisionCase).filter(
+        DecisionCase.id == case_id,
+        DecisionCase.tenant_id == tenant_id
+    ).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+
+    alternatives = [{
+        "id": a.id,
+        "alternative_code": a.alternative_code,
+        "title": a.title,
+        "description": a.description,
+        "is_do_nothing": a.is_do_nothing,
+        "is_pilot": a.is_pilot,
+        "reversibility": a.reversibility,
+        "financial_model": a.financial_model,
+        "score": a.score,
+    } for a in case.alternatives]
+
+    grants = [{
+        "id": g.id,
+        "decision": g.decision,
+        "granter_user_id": g.granter_user_id,
+        "granter_role": g.granter_role,
+        "delegation_level": g.delegation_level,
+        "action_hash": g.action_hash,
+        "rationale": g.rationale,
+        "conditions": g.conditions,
+        "expires_at": g.expires_at.isoformat() if g.expires_at else None,
+    } for g in case.grants]
+
+    outcomes = [{
+        "id": o.id,
+        "milestone": o.milestone,
+        "scheduled_for": o.scheduled_for.isoformat() if o.scheduled_for else None,
+        "tripwires": o.tripwires,
+        "tripwire_triggered": o.tripwire_triggered,
+        "predicted_metrics": o.predicted_metrics,
+        "actual_metrics": o.actual_metrics,
+        "brier_score": o.brier_score,
+        "review_notes": o.review_notes,
+    } for o in case.outcomes]
+
+    return {
+        "id": case.id,
+        "case_number": case.case_number,
+        "title": case.title,
+        "proposal_summary": case.proposal_summary,
+        "business_rationale": case.business_rationale,
+        "risk_class": case.risk_class,
+        "financial_exposure": float(case.financial_exposure or 0),
+        "reversibility": case.reversibility,
+        "cost_of_delay_per_week": float(case.cost_of_delay_per_week or 0),
+        "decision_owner_user_id": case.decision_owner_user_id,
+        "requester_user_id": case.requester_user_id,
+        "status": case.status,
+        "selected_alternative_code": case.selected_alternative_code,
+        "active_grant_id": case.active_grant_id,
+        "assumptions": case.assumptions,
+        "uncertainties": case.uncertainties,
+        "financial_assessment": case.financial_assessment,
+        "compliance_assessment": case.compliance_assessment,
+        "operational_feasibility": case.operational_feasibility,
+        "deadline": case.deadline.isoformat() if case.deadline else None,
+        "created_at": case.created_at.isoformat() if case.created_at else None,
+        "resolved_at": case.resolved_at.isoformat() if case.resolved_at else None,
+        "alternatives": alternatives,
+        "grants": grants,
+        "outcomes": outcomes,
+    }
+
+
+@router.post("/decision-cases/{case_id}/grant")
+def grant_decision_authority(
+    case_id: str,
+    payload: DecisionGrantRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    from app.models.decision_cases import DecisionCase, DecisionGrant
+    from datetime import timedelta
+    import hashlib
+
+    case = db.query(DecisionCase).filter(
+        DecisionCase.id == case_id,
+        DecisionCase.tenant_id == tenant_id
+    ).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+
+    user_id = current_user.id if current_user else "user-executive"
+    user_role = current_user.role if current_user else "admin"
+
+    # Enforce Anti-Self-Approval
+    if case.requester_user_id and case.requester_user_id == user_id and payload.decision == "APPROVE":
+        raise HTTPException(status_code=403, detail="Anti-Self-Approval violation: Requester cannot approve their own decision case.")
+
+    # Cryptographic action hash
+    action_hash = payload.action_hash or hashlib.sha256(f"{case.id}:{payload.decision}:{payload.selected_alternative_code}".encode()).hexdigest()
+
+    grant = DecisionGrant(
+        tenant_id=tenant_id,
+        case_id=case.id,
+        decision=payload.decision,
+        granter_user_id=user_id,
+        granter_role=user_role,
+        delegation_level=payload.delegation_level,
+        action_hash=action_hash,
+        policy_version=payload.policy_version,
+        rationale=payload.rationale,
+        conditions=payload.conditions or [],
+        expires_at=datetime.now(timezone.utc) + timedelta(days=payload.expires_in_days),
+    )
+    db.add(grant)
+    db.flush()
+
+    case.active_grant_id = grant.id
+    if payload.selected_alternative_code:
+        case.selected_alternative_code = payload.selected_alternative_code
+    case.status = "AUTHORIZED" if payload.decision == "APPROVE" else "REJECTED"
+    case.resolved_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {
+        "status": case.status,
+        "grant_id": grant.id,
+        "action_hash": grant.action_hash,
+        "message": f"Decision {case.case_number} {case.status.lower()} by {user_role} ({user_id})."
+    }
+
+
+@router.post("/decision-cases/{case_id}/reviews")
+def add_decision_outcome_review(
+    case_id: str,
+    payload: DecisionOutcomeReviewRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    from app.models.decision_cases import DecisionCase, DecisionOutcomeReview
+    from datetime import timedelta
+    case = db.query(DecisionCase).filter(
+        DecisionCase.id == case_id,
+        DecisionCase.tenant_id == tenant_id
+    ).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+
+    review = DecisionOutcomeReview(
+        tenant_id=tenant_id,
+        case_id=case.id,
+        milestone=payload.milestone,
+        scheduled_for=datetime.now(timezone.utc) + timedelta(days=30),
+        tripwires=payload.tripwires or [],
+        tripwire_triggered=False,
+        predicted_metrics=payload.predicted_metrics or {},
+        actual_metrics=payload.actual_metrics or {},
+        brier_score=payload.brier_score,
+        review_notes=payload.review_notes,
+        reviewed_by_user_id=current_user.id if current_user else "user-executive",
+        reviewed_at=datetime.now(timezone.utc) if payload.actual_metrics else None,
+    )
+    db.add(review)
+    db.commit()
+    return {"status": "RECORDED", "review_id": review.id, "milestone": review.milestone}

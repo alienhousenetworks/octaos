@@ -31,46 +31,46 @@ const COLUMNS: ColumnDef[] = [
   {
     id: 'new',
     label: 'New Prospects',
-    color: 'border-slate-200 bg-slate-50/80',
-    accent: 'text-blue-600',
+    color: 'border-border bg-card/50',
+    accent: 'text-muted-foreground',
     nextStatus: 'qualified',
     nextLabel: 'Qualify',
   },
   {
     id: 'qualified',
     label: 'ICP Qualified',
-    color: 'border-slate-200 bg-slate-50/80',
-    accent: 'text-emerald-600',
+    color: 'border-border bg-card/50',
+    accent: 'text-[#75AFCB]',
     nextStatus: 'contacted',
     nextLabel: 'Send Outreach',
   },
   {
     id: 'contacted',
     label: 'In Outreach',
-    color: 'border-slate-200 bg-slate-50/80',
-    accent: 'text-amber-600',
+    color: 'border-border bg-card/50',
+    accent: 'text-[#A1AEF0]',
     nextStatus: 'meeting_scheduled',
     nextLabel: 'Book Meeting',
   },
   {
     id: 'meeting_scheduled',
     label: 'Meeting Booked',
-    color: 'border-slate-200 bg-slate-50/80',
-    accent: 'text-purple-600',
+    color: 'border-border bg-card/50',
+    accent: 'text-[#D9AD68]',
     nextStatus: 'closed_won',
     nextLabel: 'Close Won',
   },
   {
     id: 'closed_won',
     label: 'Closed Won',
-    color: 'border-emerald-200 bg-emerald-50/30',
-    accent: 'text-emerald-700',
+    color: 'border-[#64B99A]/30 bg-[#263D38]/30',
+    accent: 'text-[#64B99A]',
   },
   {
     id: 'closed_lost',
     label: 'Closed Lost',
-    color: 'border-slate-200 bg-slate-50/80',
-    accent: 'text-rose-600',
+    color: 'border-border bg-card/50',
+    accent: 'text-[#D9828B]',
   },
 ];
 
@@ -85,12 +85,12 @@ export default function SalesKanbanView({
   return (
     <div className="space-y-4">
       {/* Top Toolbar with View Switcher */}
-      <div className="flex items-center justify-between bg-white border border-slate-200/90 rounded-2xl p-3 shadow-xs">
+      <div className="flex items-center justify-between bg-card border border-border rounded-xl p-3 shadow-xs">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-900">
+          <span className="text-xs font-semibold text-foreground">
             Pipeline Kanban Board
           </span>
-          <span className="text-[11px] text-slate-500 font-medium">
+          <span className="text-[11px] text-muted-foreground font-medium">
             · {leads.length} accounts across 6 stages
           </span>
         </div>
@@ -99,20 +99,20 @@ export default function SalesKanbanView({
           <Button
             size="sm"
             onClick={onOpenCreateLead}
-            className="h-8 px-3 text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-xs"
+            className="h-8 px-3 text-xs font-semibold"
           >
             <Plus size={13} className="mr-1" /> Add Lead
           </Button>
 
           {onViewModeChange && (
-            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+            <div className="flex items-center gap-1 bg-card p-0.5 rounded-lg border border-border">
               <button
                 type="button"
                 onClick={() => onViewModeChange('table')}
-                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
                   viewMode === 'table'
-                    ? 'bg-white text-blue-600 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-primary/10 text-primary border border-primary/20'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
                 title="Table View"
               >
@@ -121,10 +121,10 @@ export default function SalesKanbanView({
               <button
                 type="button"
                 onClick={() => onViewModeChange('kanban')}
-                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
                   viewMode === 'kanban'
-                    ? 'bg-white text-blue-600 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-primary/10 text-primary border border-primary/20'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
                 title="Kanban Board"
               >
@@ -146,20 +146,20 @@ export default function SalesKanbanView({
         return (
           <div
             key={col.id}
-            className={`flex flex-col rounded-2xl border p-3.5 min-w-[260px] max-w-full shadow-xs ${col.color}`}
+            className={`flex flex-col rounded-xl border p-3 min-w-[260px] max-w-full shadow-xs ${col.color}`}
           >
             {/* Column Header */}
-            <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200">
+            <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-border">
               <div className="flex items-center gap-1.5">
-                <span className={`text-xs font-bold ${col.accent}`}>
+                <span className={`text-xs font-semibold ${col.accent}`}>
                   {col.label}
                 </span>
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-white border border-slate-200 text-slate-600">
+                <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded-full bg-muted border border-border text-muted-foreground">
                   {colLeads.length}
                 </span>
               </div>
               {colValue > 0 && (
-                <span className="text-[10px] font-bold text-slate-500 font-mono">
+                <span className="text-[10px] font-medium text-muted-foreground font-mono">
                   {fmtCurrency(colValue)}
                 </span>
               )}
@@ -168,8 +168,8 @@ export default function SalesKanbanView({
             {/* Cards List */}
             <div className="space-y-2.5 min-h-[300px]">
               {colLeads.length === 0 ? (
-                <div className="text-center py-10 border border-dashed border-slate-200 rounded-xl bg-white/50">
-                  <span className="text-[11px] text-slate-400 block font-medium">
+                <div className="text-center py-10 border border-dashed border-border rounded-xl bg-card/30">
+                  <span className="text-[11px] text-muted-foreground block font-medium">
                     No accounts
                   </span>
                 </div>
@@ -178,32 +178,32 @@ export default function SalesKanbanView({
                   <Card
                     key={lead.id}
                     onClick={() => onSelectLead(lead)}
-                    className="p-3.5 bg-white hover:bg-slate-50/80 border-slate-200 hover:border-blue-400 rounded-xl cursor-pointer shadow-xs hover:shadow-md transition-all group"
+                    className="p-3 bg-card hover:bg-surface-hover border-border hover:border-primary/40 rounded-xl cursor-pointer shadow-xs transition-all group"
                   >
                     <div className="flex items-start justify-between gap-1.5">
-                      <span className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1">
+                      <span className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-1">
                         {lead.company}
                       </span>
                       {lead.score && (
-                        <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-emerald-600 text-white shrink-0 shadow-2xs">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#263D38] text-[#64B99A] border border-[#64B99A]/20 shrink-0">
                           {lead.score}
                         </span>
                       )}
                     </div>
 
-                    <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                    <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
                       {lead.name}
                     </p>
 
                     {lead.why && (
-                      <p className="text-[10px] text-slate-600 line-clamp-2 mt-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      <p className="text-[10px] text-muted-foreground line-clamp-2 mt-2 bg-muted/40 p-2 rounded-lg border border-border">
                         {lead.why}
                       </p>
                     )}
 
                     {/* Bottom Metadata & Advance Action */}
-                    <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-100">
-                      <span className="text-[10px] font-bold text-slate-700 font-mono">
+                    <div className="flex items-center justify-between pt-2 mt-2 border-t border-border">
+                      <span className="text-[10px] font-semibold text-foreground font-mono">
                         {lead.how_much || lead.purchasing_capacity || 'Qualified'}
                       </span>
 
@@ -215,7 +215,7 @@ export default function SalesKanbanView({
                             e.stopPropagation();
                             onUpdateStatus(lead.id, col.nextStatus!);
                           }}
-                          className="h-6 px-2 text-[10px] font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md flex items-center gap-1"
+                          className="h-6 px-2 text-[10px] font-semibold text-primary hover:text-primary-hover hover:bg-primary/10 rounded-md flex items-center gap-1"
                         >
                           {col.nextLabel} <ChevronRight size={10} />
                         </Button>

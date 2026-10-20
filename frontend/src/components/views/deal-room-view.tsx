@@ -14,14 +14,35 @@ import {
   ChevronRight, ArrowUpRight, Clock, HelpCircle, Layers, Mail, Check, ExternalLink,
   ShieldAlert, ChevronDown
 } from 'lucide-react';
+import RoomFolderExplorer from '@/components/rooms/room-folder-explorer';
+import RoomHeader from '@/components/rooms/room-header';
+import { SectionRoomData } from '@/components/rooms/room-access-modal';
 
 interface DealRoomViewProps {
   token: string | null;
   API_URL: string;
   fetchWithAuth: (url: string, options?: any) => Promise<Response>;
+  initialRoomSlug?: string;
+  activeRoom?: SectionRoomData | null;
 }
 
-export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoomViewProps) {
+export default function DealRoomView({ token, API_URL, fetchWithAuth, initialRoomSlug, activeRoom }: DealRoomViewProps) {
+  // Section Room state
+  const [rooms, setRooms] = useState<SectionRoomData[]>([]);
+  const [roomsLoading, setRoomsLoading] = useState(false);
+  const [currentRoomSlug, setCurrentRoomSlug] = useState<string | null>(activeRoom?.slug || initialRoomSlug || null);
+  const [currentRoom, setCurrentRoom] = useState<SectionRoomData | null>(activeRoom || null);
+  const [isDirectoryView, setIsDirectoryView] = useState(!activeRoom && !initialRoomSlug);
+
+  useEffect(() => {
+    if (activeRoom) {
+      setCurrentRoom(activeRoom);
+      setCurrentRoomSlug(activeRoom.slug);
+      setIsDirectoryView(false);
+      fetchDealRooms(activeRoom.slug);
+    }
+  }, [activeRoom]);
+
   const [dealRooms, setDealRooms] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -62,12 +83,49 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
   const [quoteDiscountPct, setQuoteDiscountPct] = useState('10');
   const [quoteResult, setQuoteResult] = useState<any | null>(null);
 
-  const fetchDealRooms = async () => {
+  const fetchRooms = async () => {
+    if (!token) return;
+    setRoomsLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/rooms/?section=sales`);
+      if (res.ok) {
+        const data = await res.json();
+        setRooms(data);
+        if (currentRoomSlug) {
+          const match = data.find((r: any) => r.slug === currentRoomSlug);
+          if (match) setCurrentRoom(match);
+        } else if (data.length > 0 && !isDirectoryView) {
+          const defaultRoom = data.find((r: any) => r.slug === 'default') || data[0];
+          setCurrentRoom(defaultRoom);
+          setCurrentRoomSlug(defaultRoom.slug);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load sales rooms:', err);
+    } finally {
+      setRoomsLoading(false);
+    }
+  };
+
+  const handleSelectRoom = (slug: string) => {
+    setCurrentRoomSlug(slug);
+    const match = rooms.find((r) => r.slug === slug);
+    if (match) setCurrentRoom(match);
+    setIsDirectoryView(false);
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', `/app/sales/rooms/${slug}`);
+    }
+    fetchDealRooms(slug);
+  };
+
+  const fetchDealRooms = async (slugOverride?: string) => {
     if (!token) return;
     setLoading(true);
     try {
       let url = `${API_URL}/deal-rooms`;
       const queryParams = new URLSearchParams();
+      const targetSlug = slugOverride || currentRoomSlug;
+      if (targetSlug) queryParams.append('room_slug', targetSlug);
       if (search) queryParams.append('search', search);
       if (stageFilter !== 'all') queryParams.append('stage', stageFilter);
       if (queryParams.toString()) url += `?${queryParams.toString()}`;
@@ -122,6 +180,7 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
   };
 
   useEffect(() => {
+    fetchRooms();
     fetchDealRooms();
     runManagerAudit();
   }, [stageFilter]);
@@ -270,10 +329,43 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
     return 'bg-slate-100 text-slate-700 border-slate-200';
   };
 
+  if (!activeRoom && (isDirectoryView || !currentRoom)) {
+    return (
+      <RoomFolderExplorer
+        section="sales"
+        sectionTitle="Sales & Deals"
+        rooms={rooms}
+        loading={roomsLoading}
+        onSelectRoom={handleSelectRoom}
+        onRefresh={fetchRooms}
+        API_URL={API_URL}
+        fetchWithAuth={fetchWithAuth}
+      />
+    );
+  }
+
   return (
-    <div className="space-y-5 text-slate-900">
-      {/* ── 1. EXECUTIVE KPI METRIC RIBBON ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="space-y-6 animate-in fade-in duration-300 pb-16">
+      {!activeRoom && currentRoom && (
+        <RoomHeader
+          sectionTitle="Sales & Deals"
+          activeRoom={currentRoom}
+          allRooms={rooms}
+          onSelectRoom={handleSelectRoom}
+          onOpenDirectory={() => setIsDirectoryView(true)}
+          onCreateNewRoom={() => setIsDirectoryView(true)}
+          API_URL={API_URL}
+          fetchWithAuth={fetchWithAuth}
+          onRoomUpdated={(updated) => {
+            setCurrentRoom(updated);
+            setRooms((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+          }}
+        />
+      )}
+
+      <div className="space-y-5 text-slate-900 px-1">
+        {/* ── 1. EXECUTIVE KPI METRIC RIBBON ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Metric 1: Active Deal Rooms */}
         <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between text-slate-500">
@@ -1023,6 +1115,7 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth }: DealRoom
           )}
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

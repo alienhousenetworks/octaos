@@ -196,13 +196,28 @@ class SalesOutboxService:
             if max_jitter_sec > 0:
                 time.sleep(random.uniform(0.5, float(max_jitter_sec)))
 
-            send_result = send_email_with_status(
-                self.db,
-                self.tenant_id,
-                item.recipient_email,
-                item.subject or "Partnership Opportunity",
-                item.body,
-            )
+            from app.services.sales.touch_dispatcher import dispatch_sales_touch
+            lead = self.db.query(Lead).filter_by(id=item.lead_id, tenant_id=self.tenant_id).first() if item.lead_id else None
+
+            if lead:
+                send_result = dispatch_sales_touch(
+                    self.db,
+                    self.tenant_id,
+                    lead,
+                    channel=item.channel or "email",
+                    body=item.body,
+                    subject=item.subject or "Partnership Opportunity",
+                    step_number=item.step_number or 1,
+                    outbox_item_id=item.id,
+                )
+            else:
+                send_result = send_email_with_status(
+                    self.db,
+                    self.tenant_id,
+                    item.recipient_email,
+                    item.subject or "Partnership Opportunity",
+                    item.body,
+                )
 
             if send_result.get("sent"):
                 item.status = "sent"
@@ -211,33 +226,35 @@ class SalesOutboxService:
                 dispatched += 1
 
                 # Update lead conversation log and status if lead exists
-                if item.lead_id:
-                    lead = self.db.query(Lead).filter_by(id=item.lead_id, tenant_id=self.tenant_id).first()
-                    if lead:
-                        lead.status = "contacted"
-                        conv = list((lead.data or {}).get("conversation") or [])
-                        conv.append({
-                            "direction": "outbound",
-                            "channel": item.channel,
-                            "content": item.body,
-                            "subject": item.subject,
-                            "author": "Sales AI Agent",
-                            "at": datetime.now(timezone.utc).isoformat(),
-                            "outbox_item_id": item.id,
-                            "step_number": item.step_number,
-                            "sent": True,
-                        })
-                        lead.data = {
-                            **(lead.data or {}),
-                            "conversation": conv,
-                            "outreach_channel": item.channel,
-                            "outbound_subject": item.subject,
-                            "outbound_body": item.body,
-                            "outreach_sent_at": datetime.now(timezone.utc).isoformat(),
-                        }
+                if lead:
+                    lead.status = "contacted"
+                    conv = list((lead.data or {}).get("conversation") or [])
+                    conv.append({
+                        "direction": "outbound",
+                        "channel": item.channel or "email",
+                        "content": item.body,
+                        "subject": item.subject,
+                        "author": "Sales AI Agent",
+                        "at": datetime.now(timezone.utc).isoformat(),
+                        "outbox_item_id": item.id,
+                        "step_number": item.step_number,
+                        "sent": True,
+                        "delivery_details": send_result.get("message"),
+                    })
+                    lead.data = {
+                        **(lead.data or {}),
+                        "conversation": conv,
+                        "outreach_channel": item.channel or "email",
+                        "outbound_subject": item.subject,
+                        "outbound_body": item.body,
+                        "outreach_sent_at": datetime.now(timezone.utc).isoformat(),
+                    }
+            elif send_result.get("requires_action"):
+                item.status = "pending_review"
+                item.error_message = send_result.get("message")
             else:
                 item.status = "failed"
-                item.error_message = send_result.get("reason") or "Delivery failed"
+                item.error_message = send_result.get("message") or send_result.get("reason") or "Delivery failed"
                 failed += 1
 
             self.db.commit()

@@ -20,6 +20,7 @@ class PublishResult:
     platform: str
     external_id: str = ""
     error: str = ""
+    note: str = ""
 
 
 class SocialPublisher:
@@ -108,16 +109,37 @@ class SocialPublisher:
         if not token:
             return PublishResult(False, "linkedin", error="Missing LinkedIn API credential.")
 
+        settings = dict(settings or {})
+        had_scope = "scope" in settings
+        had_author = bool(settings.get("author_urn"))
         img_bytes, img_mime, img_url = await self._resolve_image(post)
 
         client = LinkedInClient(token, settings)
-        ext_id = await client.publish_post(
-            post.content or "",
-            image_url=img_url,
-            image_bytes=img_bytes,
-            image_content_type=img_mime,
-        )
-        return PublishResult(True, "linkedin", external_id=ext_id)
+        try:
+            ext_id = await client.publish_post(
+                post.content or "",
+                image_url=img_url,
+                image_bytes=img_bytes,
+                image_content_type=img_mime,
+            )
+            return PublishResult(
+                True,
+                "linkedin",
+                external_id=ext_id,
+                note=client.publish_note or "",
+            )
+        finally:
+            updates = {}
+            if not had_scope and isinstance(settings.get("scope"), str):
+                updates["scope"] = settings["scope"]
+            if not had_author and settings.get("author_urn"):
+                updates["author_urn"] = settings["author_urn"]
+            if updates:
+                try:
+                    from app.services.credentials import save_credential
+                    save_credential(self.db, self.tenant_id, "linkedin", token, settings=updates)
+                except Exception:
+                    logger.debug("Could not persist LinkedIn token metadata", exc_info=True)
 
 
 async def publish_content_post(db: Session, post: ContentPost) -> PublishResult:

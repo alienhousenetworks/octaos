@@ -17,7 +17,8 @@ import {
   Sparkles, 
   Clock, 
   ChevronRight,
-  Headphones
+  Headphones,
+  RotateCcw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +28,9 @@ interface SupportWidgetProps {
   tenantId: string | null;
   API_URL: string;
   defaultOpen?: boolean;
+  brandColor?: string;
+  title?: string;
+  welcomeMessage?: string;
 }
 
 interface MessageItem {
@@ -41,6 +45,9 @@ export default function SupportWidget({
   tenantId,
   API_URL,
   defaultOpen = false,
+  brandColor,
+  title,
+  welcomeMessage,
 }: SupportWidgetProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [activeTab, setActiveTab] = useState<'chat' | 'ticket'>('chat');
@@ -56,6 +63,10 @@ export default function SupportWidget({
     brand_color: '#2563eb',
     live_chat_available: false,
   });
+
+  const activeColor = brandColor || config.brand_color || '#2563eb';
+  const activeTitle = title || config.title || 'Customer Support';
+  const activeWelcome = welcomeMessage || config.welcome_message || 'Hi there! How can we assist you today?';
 
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [inputText, setInputText] = useState('');
@@ -295,6 +306,28 @@ export default function SupportWidget({
     }
   };
 
+  const handleNewChat = () => {
+    const newId = `sess_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`octaos_widget_session_${tenantId || 'default'}`, newId);
+    }
+    setSessionId(newId);
+    setMessages([
+      {
+        sender: 'agent',
+        content: activeWelcome,
+      },
+    ]);
+    setTicketStatus('open');
+    setAgentName(null);
+    setSuggestLiveChat({ suggested: false });
+    setInputText('');
+    setActiveTab('chat');
+    setTicketSuccessMsg(null);
+    setTicketForm({ problem: '', name: '', email: '', phone: '' });
+    notify('Started a new conversation');
+  };
+
   return (
     <div className="fixed bottom-6 right-6 z-50 font-sans">
       {/* Expandable Chat Window */}
@@ -302,9 +335,21 @@ export default function SupportWidget({
         <div className="absolute bottom-16 right-0 w-[380px] sm:w-[410px] h-[580px] max-h-[calc(100vh-6rem)] bg-gray-950/95 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-300">
           
           {/* Header */}
-          <div className="p-4 bg-gradient-to-r from-gray-900 via-gray-900/90 to-blue-950/40 border-b border-white/10 flex items-center justify-between">
+          <div
+            style={{
+              background: `linear-gradient(to right, rgb(17 24 39 / 0.95), rgb(17 24 39 / 0.9), ${activeColor}22)`,
+            }}
+            className="p-4 border-b border-white/10 flex items-center justify-between"
+          >
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-inner">
+              <div
+                style={{
+                  backgroundColor: `${activeColor}20`,
+                  borderColor: `${activeColor}40`,
+                  color: activeColor,
+                }}
+                className="w-9 h-9 rounded-xl border flex items-center justify-center shadow-inner"
+              >
                 {ticketStatus === 'human_handling' ? (
                   <Headphones size={18} className="animate-pulse" />
                 ) : (
@@ -313,17 +358,24 @@ export default function SupportWidget({
               </div>
               <div>
                 <h4 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
-                  {config.title}
-                  <span className="text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.2 rounded-full">
+                  {activeTitle}
+                  <span
+                    style={{
+                      backgroundColor: `${activeColor}15`,
+                      borderColor: `${activeColor}35`,
+                      color: activeColor,
+                    }}
+                    className="text-xs font-semibold border px-1.5 py-0.2 rounded-full"
+                  >
                     AI + Live
                   </span>
                 </h4>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className={`w-2 h-2 rounded-full ${
- ticketStatus === 'human_handling' ? 'bg-emerald-400 animate-ping' :
- ticketStatus === 'pending_human' ? 'bg-amber-400 animate-pulse' :
- config.live_chat_available ? 'bg-emerald-500' : 'bg-blue-400'
- }`} />
+                    ticketStatus === 'human_handling' ? 'bg-emerald-400 animate-ping' :
+                    ticketStatus === 'pending_human' ? 'bg-amber-400 animate-pulse' :
+                    config.live_chat_available ? 'bg-emerald-500' : 'bg-blue-400'
+                  }`} />
                   <span className="text-xs text-gray-400 font-medium">
                     {ticketStatus === 'human_handling'
                       ? (agentName ? `Live with ${agentName}` : 'Live Agent Active')
@@ -337,34 +389,57 @@ export default function SupportWidget({
               </div>
             </div>
 
-            <button
-              onClick={() => setIsOpen(false)}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-              title="Close Chat"
-            >
-              <X size={18} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleNewChat}
+                className="px-2 py-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-1.5 text-xs font-medium"
+                title="Start a new chat"
+                aria-label="Start a new chat"
+              >
+                <RotateCcw size={13} />
+                <span className="hidden sm:inline">New Chat</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                title="Close Chat"
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
 
           {/* Navigation Bar: Chat vs Ticket */}
           <div className="flex bg-gray-900/80 border-b border-white/5 p-1 gap-1">
             <button
               onClick={() => setActiveTab('chat')}
+              style={
+                activeTab === 'chat'
+                  ? { backgroundColor: activeColor, boxShadow: `0 4px 14px ${activeColor}35` }
+                  : undefined
+              }
               className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
- activeTab === 'chat'
- ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
- : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
- }`}
+                activeTab === 'chat'
+                  ? 'text-white'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+              }`}
             >
               <MessageSquare size={13} /> Live Assistant
             </button>
             <button
               onClick={() => setActiveTab('ticket')}
+              style={
+                activeTab === 'ticket'
+                  ? { backgroundColor: activeColor, boxShadow: `0 4px 14px ${activeColor}35` }
+                  : undefined
+              }
               className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
- activeTab === 'ticket'
- ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
- : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
- }`}
+                activeTab === 'ticket'
+                  ? 'text-white'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+              }`}
             >
               <FileText size={13} /> Raise Ticket
             </button>
@@ -394,18 +469,23 @@ export default function SupportWidget({
                       className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
                     >
                       <div
+                        style={
+                          isUser
+                            ? { backgroundColor: activeColor, boxShadow: `0 4px 14px ${activeColor}25` }
+                            : undefined
+                        }
                         className={`max-w-[85%] rounded-2xl p-3 leading-relaxed shadow-sm ${
- isUser
- ? 'bg-blue-600 text-white rounded-tr-none shadow-blue-500/10'
- : 'bg-gray-900 border border-white/10 text-gray-200 rounded-tl-none'
- }`}
+                          isUser
+                            ? 'text-white rounded-tr-none'
+                            : 'bg-gray-900 border border-white/10 text-gray-200 rounded-tl-none'
+                        }`}
                       >
                         <p className="whitespace-pre-wrap">{m.content}</p>
 
                         {/* Knowledge Base Citations */}
                         {m.citations && m.citations.length > 0 && (
                           <div className="mt-2 pt-2 border-t border-white/10 text-xs text-gray-400 flex flex-wrap gap-1 items-center">
-                            <span className="font-semibold text-blue-400">Sources:</span>
+                            <span className="font-semibold" style={{ color: activeColor }}>Sources:</span>
                             {m.citations.map((c, cIdx) => (
                               <span
                                 key={cIdx}
@@ -450,7 +530,7 @@ export default function SupportWidget({
 
                 {isSending && (
                   <div className="flex items-center gap-2 text-gray-500 text-xs italic">
-                    <Bot size={13} className="animate-spin text-blue-400" />
+                    <Bot size={13} className="animate-spin" style={{ color: activeColor }} />
                     <span>Thinking with Knowledge Base...</span>
                   </div>
                 )}
@@ -463,7 +543,12 @@ export default function SupportWidget({
                 <button
                   type="button"
                   onClick={() => handleSendMessage('I would like to speak with a human support agent.', 'request_handoff')}
-                  className="px-2.5 py-1 rounded-full bg-blue-600/10 border border-blue-500/20 text-blue-300 hover:bg-blue-600/20 text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1"
+                  style={{
+                    backgroundColor: `${activeColor}15`,
+                    borderColor: `${activeColor}35`,
+                    color: activeColor,
+                  }}
+                  className="px-2.5 py-1 rounded-full border text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1 hover:brightness-110"
                 >
                   <Headphones size={10} /> Talk to Human
                 </button>
@@ -499,7 +584,11 @@ export default function SupportWidget({
                 <Button
                   onClick={() => handleSendMessage()}
                   disabled={isSending || !inputText.trim()}
-                  className="bg-blue-600 hover:bg-blue-500 text-white h-9 w-9 p-0 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 transition-all active:scale-95"
+                  style={{
+                    backgroundColor: activeColor,
+                    boxShadow: `0 4px 14px ${activeColor}35`,
+                  }}
+                  className="text-white h-9 w-9 p-0 rounded-xl flex items-center justify-center transition-all active:scale-95 hover:opacity-90 disabled:opacity-50"
                 >
                   <Send size={14} />
                 </Button>
@@ -512,7 +601,7 @@ export default function SupportWidget({
             <form onSubmit={handleRaiseTicket} className="flex-1 p-5 overflow-y-auto space-y-3.5 text-xs bg-gray-950/40">
               <div className="bg-gray-900/60 p-3 rounded-2xl border border-white/5 space-y-1">
                 <h5 className="font-bold text-white text-xs flex items-center gap-1.5">
-                  <FileText size={13} className="text-blue-400" /> Need Human Follow-up?
+                  <FileText size={13} style={{ color: activeColor }} /> Need Human Follow-up?
                 </h5>
                 <p className="text-xs text-gray-400 leading-relaxed">
                   Submit your problem description and contact information. A specialist will review and respond directly.
@@ -595,13 +684,17 @@ export default function SupportWidget({
       {/* Floating Launcher Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-14 h-14 rounded-full bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-xl shadow-blue-500/30 border border-white/20 transition-all hover:scale-110 active:scale-95 group relative"
+        style={{
+          background: `linear-gradient(135deg, ${activeColor}, ${activeColor}cc)`,
+          boxShadow: `0 10px 25px -5px ${activeColor}55`,
+        }}
+        className="w-14 h-14 rounded-full text-white flex items-center justify-center shadow-xl border border-white/20 transition-all hover:scale-110 active:scale-95 group relative"
         title="Support & Live Chat"
       >
         <span className={`absolute top-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-gray-950 ${
- ticketStatus === 'human_handling' ? 'bg-emerald-400 animate-ping' :
- config.live_chat_available ? 'bg-emerald-500' : 'bg-blue-400'
- }`} />
+          ticketStatus === 'human_handling' ? 'bg-emerald-400 animate-ping' :
+          config.live_chat_available ? 'bg-emerald-500' : 'bg-blue-400'
+        }`} />
         {isOpen ? (
           <X size={24} className="transition-transform group-hover:rotate-90 duration-200" />
         ) : (

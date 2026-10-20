@@ -19,6 +19,7 @@ def apply_publish_result(db: Session, post: ContentPost, result, now: datetime) 
             description=(
                 f"Published to {post.platform.upper()} (Day {post.day}): "
                 f"'{(post.content or '')[:60]}...' [id={result.external_id}]"
+                + (f" {result.note}" if getattr(result, "note", "") else "")
             ),
             status="success",
         )
@@ -64,9 +65,9 @@ def apply_publish_result(db: Session, post: ContentPost, result, now: datetime) 
         post.status = "failed"
 
 
-def publish_post_sync(db: Session, post: ContentPost) -> bool:
+def publish_post_sync(db: Session, post: ContentPost):
     now = datetime.now(timezone.utc)
     result = async_to_sync(publish_content_post)(db, post)
     apply_publish_result(db, post, result, now)
     db.commit()
-    return result.success
+    return result

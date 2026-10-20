@@ -56,6 +56,11 @@ class AutomationWorkflow(Base):
 
     # Intermediate Representation (OctaOS canonical definition)
     definition_ir = Column(JSON, nullable=False, default=dict)
+    # Canonical Graph IR (n8n-style visual graph)
+    graph_json = Column(JSON, nullable=True, default=None)
+    graph_hash = Column(String, nullable=True, index=True)
+    published_version = Column(Integer, nullable=True)
+
     # Compiled target schema (Activepieces JSON)
     compiled_schema = Column(JSON, nullable=False, default=dict)
 
@@ -74,6 +79,19 @@ class AutomationWorkflow(Base):
     versions = relationship("AutomationWorkflowVersion", back_populates="workflow", cascade="all, delete-orphan", order_by="desc(AutomationWorkflowVersion.version)")
     executions = relationship("AutomationExecution", back_populates="workflow", cascade="all, delete-orphan", order_by="desc(AutomationExecution.created_at)")
 
+    def get_graph(self):
+        """Returns the canonical AutomationGraph model, converting legacy IR if graph_json is not yet set."""
+        from app.schemas.automation.graph import AutomationGraph, convert_legacy_ir_to_graph
+        if self.graph_json and isinstance(self.graph_json, dict) and self.graph_json.get("nodes"):
+            return AutomationGraph(**self.graph_json)
+        return convert_legacy_ir_to_graph(
+            self.definition_ir or {},
+            name=self.name,
+            slug=self.slug,
+            category=self.category,
+            workflow_id=self.id,
+        )
+
 
 class AutomationWorkflowVersion(Base):
     """
@@ -85,6 +103,8 @@ class AutomationWorkflowVersion(Base):
     workflow_id = Column(String, ForeignKey("automation_workflows.id"), nullable=False, index=True)
     version = Column(Integer, nullable=False)
     definition_ir = Column(JSON, nullable=False, default=dict)
+    graph_json = Column(JSON, nullable=True, default=None)
+    graph_hash = Column(String, nullable=True)
     compiled_schema = Column(JSON, nullable=False, default=dict)
     change_reason = Column(String, nullable=True)
     created_by = Column(String, nullable=True)

@@ -44,10 +44,24 @@ def read_leads(
     search: Optional[str] = None,
     time_filter: Optional[str] = None,
     assigned_to: Optional[str] = None,
+    room_id: Optional[str] = None,
+    room_slug: Optional[str] = None,
     skip: int = 0,
     limit: int = 100
 ) -> Any:
     query = db.query(models.Lead).filter(models.Lead.tenant_id == tenant_id)
+    
+    if room_slug:
+        from app.models.rooms import SectionRoom
+        r = db.query(SectionRoom).filter(
+            SectionRoom.tenant_id == tenant_id,
+            SectionRoom.section == "sales",
+            SectionRoom.slug == room_slug
+        ).first()
+        if r:
+            query = query.filter(models.Lead.room_id == r.id)
+    elif room_id:
+        query = query.filter(models.Lead.room_id == room_id)
     
     if status and status != "all":
         query = query.filter(models.Lead.status == status)
@@ -204,8 +218,21 @@ async def upload_leads(
     tenant_id: str = Depends(deps.get_current_tenant_id),
     _: User = Depends(require_permission(Resource.LEADS, Action.CREATE)),
     file: UploadFile = File(...),
-    handle_with_ai: bool = Form(False)
+    handle_with_ai: bool = Form(False),
+    room_id: Optional[str] = Form(None),
+    room_slug: Optional[str] = Form(None)
 ) -> Any:
+    target_room_id = room_id
+    if room_slug and not target_room_id:
+        from app.models.rooms import SectionRoom
+        r = db.query(SectionRoom).filter(
+            SectionRoom.tenant_id == tenant_id,
+            SectionRoom.section == "sales",
+            SectionRoom.slug == room_slug
+        ).first()
+        if r:
+            target_room_id = r.id
+
     content = await file.read()
     try:
         decoded = content.decode("utf-8-sig")
@@ -299,7 +326,8 @@ async def upload_leads(
             why=lead_data.get("why"),
             target_context=lead_data.get("target_context"),
             priority=lead_data.get("priority", "medium"),
-            status="captured"
+            status="captured",
+            room_id=target_room_id
         )
         db.add(lead)
         db.commit()

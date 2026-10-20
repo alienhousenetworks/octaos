@@ -124,8 +124,22 @@ def get_tickets(
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
     _: User = Depends(require_permission(Resource.TICKETS, Action.READ)),
+    room_id: Optional[str] = None,
+    room_slug: Optional[str] = None,
 ) -> Any:
-    tickets = db.query(Ticket).filter(Ticket.tenant_id == tenant_id).order_by(Ticket.created_at.desc()).all()
+    q = db.query(Ticket).filter(Ticket.tenant_id == tenant_id)
+    if room_slug:
+        from app.models.rooms import SectionRoom
+        rm = db.query(SectionRoom).filter(
+            SectionRoom.tenant_id == tenant_id,
+            SectionRoom.section == "support",
+            SectionRoom.slug == room_slug.lower(),
+        ).first()
+        if rm:
+            room_id = rm.id
+    if room_id:
+        q = q.filter(Ticket.room_id == room_id)
+    tickets = q.order_by(Ticket.created_at.desc()).all()
     return [_ticket_to_dict(t) for t in tickets]
 
 @router.get("/tickets/{ticket_id}/messages")

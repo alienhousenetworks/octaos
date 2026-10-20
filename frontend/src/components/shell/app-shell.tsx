@@ -156,12 +156,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   href={item.href}
                   id={`nav-${item.id}`}
                   title={item.name}
-                  className={`mb-0.5 flex h-9 items-center gap-2 rounded-md px-2 text-sm ${isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                  className={`mb-0.5 flex h-9 items-center gap-2 rounded-lg px-2.5 text-sm transition-colors ${isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium border-l-2 border-primary' : 'text-muted-foreground hover:bg-surface-hover hover:text-foreground'}`}
                 >
                   <Icon className="size-4 shrink-0" />
                   <span className={`truncate ${collapsed ? 'sr-only' : ''}`}>{item.name}</span>
                   {item.id === 'approvals' && approvalCount ? (
-                    <span className={`ml-auto rounded-md bg-amber-500/15 px-1.5 text-xs text-amber-300 ${collapsed ? 'sr-only' : ''}`}>{approvalCount}</span>
+                    <span className={`ml-auto rounded-md bg-[#443A2D] text-[#D9AD68] border border-[#D9AD68]/20 px-1.5 text-xs font-semibold ${collapsed ? 'sr-only' : ''}`}>{approvalCount}</span>
                   ) : null}
                 </Link>
               );
@@ -172,7 +172,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="hidden border-t border-sidebar-border p-2 md:block">
         <button
           type="button"
-          className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-sm text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
           onClick={() => {
             const next = !collapsed;
             setCollapsed(next);

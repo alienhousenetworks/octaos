@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { notify, confirmAction } from '@/lib/notify';
 import { Button } from '@/components/ui/button';
-import { LayoutGrid, TableProperties } from 'lucide-react';
+import { LayoutGrid, TableProperties, Loader2 } from 'lucide-react';
 
 import DealRoomView from './deal-room-view';
 import SalesHeader from './sales/sales-header';
@@ -15,6 +15,9 @@ import SalesStepperView from './sales/sales-stepper-view';
 import SalesAnalyticsView from './sales/sales-analytics-view';
 import SalesConfigPanel from './sales/sales-config-panel';
 import { CreateLeadModal, UploadLeadsModal } from './sales/sales-modals';
+import RoomFolderExplorer from '@/components/rooms/room-folder-explorer';
+import RoomHeader from '@/components/rooms/room-header';
+import { SectionRoomData } from '@/components/rooms/room-access-modal';
 import {
   SalesSection,
   Lead,
@@ -33,6 +36,7 @@ interface SalesViewProps {
   timeline: any[];
   section?: SalesSection;
   onSectionChange?: (section: SalesSection) => void;
+  initialRoomSlug?: string;
 }
 
 export default function SalesView({
@@ -43,18 +47,100 @@ export default function SalesView({
   timeline,
   section,
   onSectionChange,
+  initialRoomSlug,
 }: SalesViewProps) {
+  // Section Room state
+  const [rooms, setRooms] = useState<SectionRoomData[]>([]);
+  const [roomsLoading, setRoomsLoading] = useState(false);
+  const [currentRoomSlug, setCurrentRoomSlug] = useState<string | null>(() => {
+    if (initialRoomSlug) return initialRoomSlug;
+    if (typeof window !== 'undefined') {
+      const q = new URLSearchParams(window.location.search).get('room');
+      if (q) return q;
+      const match = window.location.pathname.match(/\/app\/sales\/rooms\/([^\/?#]+)/);
+      if (match) return match[1];
+    }
+    return null;
+  });
+  const [currentRoom, setCurrentRoom] = useState<SectionRoomData | null>(null);
+  const [isDirectoryView, setIsDirectoryView] = useState(() => {
+    if (initialRoomSlug) return false;
+    if (typeof window !== 'undefined') {
+      const q = new URLSearchParams(window.location.search).get('room');
+      if (q) return false;
+      const match = window.location.pathname.match(/\/app\/sales\/rooms\/([^\/?#]+)/);
+      if (match) return false;
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (initialRoomSlug) {
+      setCurrentRoomSlug(initialRoomSlug);
+      setIsDirectoryView(false);
+      const match = rooms.find((r) => r.slug === initialRoomSlug);
+      if (match) setCurrentRoom(match);
+    }
+  }, [initialRoomSlug, rooms]);
+
+  const fetchRooms = async () => {
+    if (!token) return;
+    setRoomsLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/rooms/?section=sales`);
+      if (res.ok) {
+        const data = await res.json();
+        setRooms(data);
+        if (currentRoomSlug) {
+          const match = data.find((r: any) => r.slug === currentRoomSlug);
+          if (match) setCurrentRoom(match);
+        } else if (data.length > 0 && !isDirectoryView) {
+          const defaultRoom = data.find((r: any) => r.slug === 'default') || data[0];
+          setCurrentRoom(defaultRoom);
+          setCurrentRoomSlug(defaultRoom.slug);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load sales rooms:', err);
+    } finally {
+      setRoomsLoading(false);
+    }
+  };
+
+  const handleSelectRoom = (slug: string) => {
+    setCurrentRoomSlug(slug);
+    const match = rooms.find((r) => r.slug === slug);
+    if (match) setCurrentRoom(match);
+    setIsDirectoryView(false);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.pathname = `/app/sales/rooms/${slug}`;
+      window.history.pushState({}, '', url.toString());
+    }
+    fetchLeads(slug);
+  };
+
   // Navigation
-  const [activeSalesTab, setActiveSalesTab] = useState<SalesSection>(
-    section || 'pipeline'
-  );
+  const [activeSalesTab, setActiveSalesTab] = useState<SalesSection>(() => {
+    if (typeof window !== 'undefined') {
+      const tabParam = new URLSearchParams(window.location.search).get('tab') as SalesSection | null;
+      if (tabParam && ['pipeline', 'prospecting', 'stepper', 'analytics', 'deal_rooms', 'config'].includes(tabParam)) {
+        return tabParam;
+      }
+    }
+    return section || 'pipeline';
+  });
   useEffect(() => {
     if (section) setActiveSalesTab(section);
   }, [section]);
 
   const selectSalesSection = (next: SalesSection) => {
     setActiveSalesTab(next);
-    onSectionChange?.(next);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', next);
+      window.history.replaceState({}, '', url.toString());
+    }
   };
 
   // View Mode for Pipeline (Table vs Kanban)
@@ -125,11 +211,16 @@ export default function SalesView({
   const [salesSettingsSaving, setSalesSettingsSaving] = useState(false);
 
   // Fetch Leads
-  const fetchLeads = async () => {
+  const fetchLeads = async (slugOverride?: string) => {
     if (!token) return;
     setSalesLoading(true);
     try {
-      const res = await fetchWithAuth(`${API_URL}/leads/?limit=200`);
+      const slug = slugOverride || currentRoomSlug;
+      let url = `${API_URL}/leads/?limit=200`;
+      if (slug) {
+        url += `&room_slug=${encodeURIComponent(slug)}`;
+      }
+      const res = await fetchWithAuth(url);
       if (res.ok) {
         const data = await res.json();
         setSalesLeads(data);
@@ -297,6 +388,7 @@ export default function SalesView({
   // Initial load
   useEffect(() => {
     if (token) {
+      fetchRooms();
       fetchLeads();
       fetchBusinessProfile();
       fetchWorkflowStatus();
@@ -384,7 +476,10 @@ export default function SalesView({
       const res = await fetchWithAuth(`${API_URL}/leads/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(leadData),
+        body: JSON.stringify({
+          ...leadData,
+          room_id: currentRoom?.id,
+        }),
       });
       if (res.ok) {
         notify('Prospect account created.');
@@ -406,6 +501,8 @@ export default function SalesView({
       const formData = new FormData();
       formData.append('file', file);
       formData.append('handle_with_ai', String(withAI));
+      if (currentRoom?.id) formData.append('room_id', currentRoom.id);
+      if (currentRoom?.slug) formData.append('room_slug', currentRoom.slug);
 
       const res = await fetchWithAuth(`${API_URL}/leads/upload`, {
         method: 'POST',
@@ -750,9 +847,49 @@ export default function SalesView({
   const winRate = totalClosed > 0 ? Math.round((wonCount / totalClosed) * 100) : 0;
   const isExecuting = workflowStatus.status === 'executing';
 
+  if (roomsLoading && currentRoomSlug && !currentRoom) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-slate-400 gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <p className="text-xs font-medium">Opening Sales room...</p>
+      </div>
+    );
+  }
+
+  if (isDirectoryView || !currentRoom) {
+    return (
+      <RoomFolderExplorer
+        section="sales"
+        sectionTitle="Sales & Deals"
+        rooms={rooms}
+        loading={roomsLoading}
+        onSelectRoom={handleSelectRoom}
+        onRefresh={fetchRooms}
+        API_URL={API_URL}
+        fetchWithAuth={fetchWithAuth}
+      />
+    );
+  }
+
   return (
-    <div className="sales-white-theme -m-4 md:-m-6 p-4 md:p-8 min-h-[calc(100vh-3rem)]">
-      <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="space-y-6 animate-in fade-in duration-300 pb-16">
+      <RoomHeader
+        sectionTitle="Sales & Deals"
+        activeRoom={currentRoom}
+        allRooms={rooms}
+        onSelectRoom={handleSelectRoom}
+        onOpenDirectory={() => setIsDirectoryView(true)}
+        onCreateNewRoom={() => setIsDirectoryView(true)}
+        API_URL={API_URL}
+        fetchWithAuth={fetchWithAuth}
+        onRoomUpdated={(updated) => {
+          setCurrentRoom(updated);
+          setRooms((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+        }}
+      />
+
+      <div className="p-4 md:p-6 min-h-[calc(100vh-3rem)]">
+        <div className="space-y-6 max-w-7xl mx-auto pb-12">
         {/* Top Header & Executive KPI Ribbon */}
         <SalesHeader
           activeTab={activeSalesTab}
@@ -846,7 +983,13 @@ export default function SalesView({
 
       {/* ── TAB 5: DEAL ROOMS ── */}
       {activeSalesTab === 'deal_rooms' && (
-        <DealRoomView token={token} API_URL={API_URL} fetchWithAuth={fetchWithAuth} />
+        <DealRoomView
+          token={token}
+          API_URL={API_URL}
+          fetchWithAuth={fetchWithAuth}
+          initialRoomSlug={currentRoomSlug || initialRoomSlug}
+          activeRoom={currentRoom}
+        />
       )}
 
       {/* ── TAB 6: ENGINE SETTINGS ── */}
@@ -899,6 +1042,7 @@ export default function SalesView({
         onUpload={handleUploadLeads}
         loading={uploadingLeads}
       />
+        </div>
       </div>
     </div>
   );

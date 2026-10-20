@@ -112,3 +112,92 @@ def test_offer_email_content_generator():
     assert "Offer of Employment: Staff Engineer at Acme Corp" in subject
     assert "Sarah Jenkins" in body
     assert "175,000" in body
+
+def test_internship_only_candidate_does_not_get_3_years_experience():
+    """Verify someone with college 2021-2024 and only internship is NOT assigned 3 years experience."""
+    intern_resume = """
+    Aman Gupta
+    Bengaluru, India | aman.gupta@example.com | +91 98765 43210
+    GitHub: github.com/aman-dev
+
+    CAREER OBJECTIVE
+    Enthusiastic computer science graduate eager to apply skills in full stack development.
+
+    TECHNICAL SKILLS
+    Languages: Python, JavaScript, SQL
+    Frameworks: FastAPI, React, Node.js
+    Tools: Git, Docker, Postman
+
+    INTERNSHIPS & EXPERIENCE
+    Software Engineering Intern | NextGen Cloud Solutions | May 2023 – July 2023
+    - Built REST APIs using FastAPI and PostgreSQL for internal dashboards.
+    - Collaborated with senior engineers on unit testing and Docker containerization.
+
+    EDUCATION
+    Bachelor of Technology in Computer Science (B.Tech) | 2020 – 2024
+    Visvesvaraya Technological University, Bengaluru
+    """
+    entities = extract_heuristic_entities(intern_resume, filename="Aman_Gupta_CV.pdf")
+    assert entities["name"] == "Aman Gupta"
+    assert entities["email"] == "aman.gupta@example.com"
+    assert "98765" in entities["phone"]
+    assert "Bengaluru" in entities["address"]
+    # CRITICAL: Experience must be 0 and marked as internship, NOT 4 or 3 years from college degree!
+    assert entities["experience_years"] == 0
+    assert entities["is_internship_only"] is True
+    assert "intern" in entities["experience_summary"].lower()
+    assert "FastAPI" in entities["skills"]
+    assert "Docker" in entities["skills"]
+
+def test_embedded_links_extraction_mailto_and_tel():
+    """Verify embedded mailto and tel links are extracted and service emails ignored."""
+    resume_with_embedded = """
+    Priya Sharma
+    Contact me via email or phone.
+    For customer queries contact support@company.com or info@enterprise.org.
+    
+    WORK EXPERIENCE
+    Software Developer | 2022 - Present
+    - Developed backend systems with Django and Redis.
+
+    --- EMBEDDED LINKS ---
+    mailto:priya.sharma@personal.dev
+    tel:+919876501234
+    https://linkedin.com/in/priyasharma-code
+    https://github.com/priya-sharma
+    """
+    entities = extract_heuristic_entities(resume_with_embedded, filename="Priya_Resume.pdf")
+    # Must pick the personal embedded mailto, NOT support@company.com
+    assert entities["email"] == "priya.sharma@personal.dev"
+    assert "9876501234" in entities["phone"]
+    assert "linkedin.com/in/priyasharma-code" in entities["linkedin"]
+    assert "github.com/priya-sharma" in entities["github"]
+
+def test_phone_sanitization_rejects_date_ranges():
+    """Verify date ranges like 2020-2024 are rejected and not extracted as phone numbers."""
+    resume_with_dates = """
+    Alex Turner
+    Software Engineer | alex@personalmail.com
+    Experience: 2018 - 2022 at BigCorp, 2022 - 2024 at StartupX
+    Phone: +1 (555) 234-5678
+    """
+    entities = extract_heuristic_entities(resume_with_dates, filename="Alex_Resume.txt")
+    assert "555" in entities["phone"]
+    assert "2018" not in entities["phone"]
+    assert "2020" not in entities["phone"]
+
+def test_address_extraction_rejects_job_titles_and_skills():
+    """Verify address doesn't falsely grab 'Full Stack Developer' or 'React, Python'."""
+    resume_text = """
+    Vikram Malhotra
+    vikram@example.com | +91 91234 56789
+    Location: Hyderabad, India
+    
+    PROFESSIONAL SUMMARY
+    Full Stack Developer, Engineering with expertise in React, Python, PostgreSQL, AWS.
+    """
+    entities = extract_heuristic_entities(resume_text, filename="Vikram_Resume.pdf")
+    assert "Hyderabad" in entities["address"]
+    assert "Full Stack Developer" not in entities["address"]
+    assert "React" not in entities["address"]
+

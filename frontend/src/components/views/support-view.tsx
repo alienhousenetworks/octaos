@@ -31,6 +31,9 @@ import {
   X
 } from 'lucide-react';
 import SupportWidget from '@/components/support-widget';
+import RoomFolderExplorer from '@/components/rooms/room-folder-explorer';
+import RoomHeader from '@/components/rooms/room-header';
+import { SectionRoomData } from '@/components/rooms/room-access-modal';
 
 interface SupportViewProps {
   token: string | null;
@@ -38,6 +41,7 @@ interface SupportViewProps {
   fetchWithAuth: (url: string, options?: any) => Promise<Response>;
   fetchData: () => Promise<void>;
   tenantId?: string | null;
+  initialRoomSlug?: string;
 }
 
 export default function SupportView({
@@ -46,7 +50,15 @@ export default function SupportView({
   fetchWithAuth,
   fetchData,
   tenantId,
+  initialRoomSlug,
 }: SupportViewProps) {
+  // Section Room state
+  const [rooms, setRooms] = useState<SectionRoomData[]>([]);
+  const [roomsLoading, setRoomsLoading] = useState(false);
+  const [currentRoomSlug, setCurrentRoomSlug] = useState<string | null>(initialRoomSlug || null);
+  const [currentRoom, setCurrentRoom] = useState<SectionRoomData | null>(null);
+  const [isDirectoryView, setIsDirectoryView] = useState(!initialRoomSlug);
+
   const [activeMainTab, setActiveMainTab] = useState<'tickets' | 'widget' | 'studio'>('tickets');
   const [ticketFilter, setTicketFilter] = useState<'all' | 'pending_human' | 'human_handling' | 'resolved'>('all');
   
@@ -119,30 +131,62 @@ export default function SupportView({
     return () => clearInterval(interval);
   }, [token, isAgentOnline, API_URL]);
 
-  // Auto-refresh tickets every 6s
+  // Auto-refresh rooms & tickets
   useEffect(() => {
     if (!token) return;
+    fetchRooms();
+    fetchTickets();
     const interval = setInterval(() => {
       fetchTickets();
     }, 6000);
     return () => clearInterval(interval);
   }, [token]);
 
-  // Auto-refresh selected ticket messages every 3s
-  useEffect(() => {
-    if (selectedTicketId && token) {
-      fetchMessages(selectedTicketId);
-      const interval = setInterval(() => {
-        fetchMessages(selectedTicketId);
-      }, 3000);
-      return () => clearInterval(interval);
+  const fetchRooms = async () => {
+    if (!token) return;
+    setRoomsLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/rooms/?section=support`);
+      if (res.ok) {
+        const data = await res.json();
+        setRooms(data);
+        if (currentRoomSlug) {
+          const match = data.find((r: any) => r.slug === currentRoomSlug);
+          if (match) {
+            setCurrentRoom(match);
+          }
+        } else if (data.length > 0 && !isDirectoryView) {
+          const defaultRoom = data.find((r: any) => r.slug === 'default') || data[0];
+          setCurrentRoom(defaultRoom);
+          setCurrentRoomSlug(defaultRoom.slug);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load support rooms:', err);
+    } finally {
+      setRoomsLoading(false);
     }
-  }, [selectedTicketId, token]);
+  };
 
-  const fetchTickets = async () => {
+  const handleSelectRoom = (slug: string) => {
+    setCurrentRoomSlug(slug);
+    const match = rooms.find((r) => r.slug === slug);
+    if (match) {
+      setCurrentRoom(match);
+    }
+    setIsDirectoryView(false);
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', `/app/support/rooms/${slug}`);
+    }
+    fetchTickets(slug);
+  };
+
+  const fetchTickets = async (slugOverride?: string) => {
     if (!token) return;
     try {
-      const res = await fetchWithAuth(`${API_URL}/support/tickets`);
+      const targetSlug = slugOverride || currentRoomSlug;
+      const url = targetSlug ? `${API_URL}/support/tickets?room_slug=${targetSlug}` : `${API_URL}/support/tickets`;
+      const res = await fetchWithAuth(url);
       if (res.ok) {
         const data = await res.json();
         setTickets(data);
@@ -395,8 +439,39 @@ export default function SupportView({
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
+  if (isDirectoryView || !currentRoom) {
+    return (
+      <RoomFolderExplorer
+        section="support"
+        sectionTitle="Support & Queues"
+        rooms={rooms}
+        loading={roomsLoading}
+        onSelectRoom={handleSelectRoom}
+        onRefresh={fetchRooms}
+        API_URL={API_URL}
+        fetchWithAuth={fetchWithAuth}
+      />
+    );
+  }
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto h-[calc(100vh-8rem)] flex flex-col animate-in fade-in duration-300">
+    <div className="space-y-6 animate-in fade-in duration-300 pb-16">
+      <RoomHeader
+        sectionTitle="Support & Queues"
+        activeRoom={currentRoom}
+        allRooms={rooms}
+        onSelectRoom={handleSelectRoom}
+        onOpenDirectory={() => setIsDirectoryView(true)}
+        onCreateNewRoom={() => setIsDirectoryView(true)}
+        API_URL={API_URL}
+        fetchWithAuth={fetchWithAuth}
+        onRoomUpdated={(updated) => {
+          setCurrentRoom(updated);
+          setRooms((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+        }}
+      />
+
+      <div className="space-y-6 max-w-7xl mx-auto h-[calc(100vh-12rem)] flex flex-col px-4 sm:px-6">
       
       {/* Header Panel with Live Presence, Mode & Navigation */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-4">
@@ -867,12 +942,12 @@ export default function SupportView({
 
           {/* Right Panel: Interactive Sandbox Preview - 5 Cols */}
           <div className="lg:col-span-5 flex flex-col">
-            <Card className="glass-panel border-white/5 p-6 rounded-3xl flex-1 flex flex-col relative overflow-hidden bg-gradient-to-b from-gray-950/80 to-blue-950/10">
-              <div className="flex items-center justify-between mb-4 border-b border-gray-800/80 pb-3">
-                <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <Eye size={14} className="text-blue-400" /> Interactive Live Preview
+            <Card className="bg-card border border-border p-6 rounded-xl flex-1 flex flex-col relative overflow-hidden shadow-xs">
+              <div className="flex items-center justify-between mb-4 border-b border-border pb-3">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Eye size={14} className="text-primary" /> Interactive Live Preview
                 </span>
-                <span className="text-xs text-gray-500">Click the floating button below</span>
+                <span className="text-xs text-muted-foreground">Click the floating button below</span>
               </div>
 
               <div className="flex-1 border border-dashed border-gray-800 rounded-2xl relative min-h-[460px] flex items-center justify-center p-6 text-center text-gray-500">
@@ -888,6 +963,9 @@ export default function SupportView({
                   tenantId={tenantId || 'test-tenant'}
                   API_URL={API_URL}
                   defaultOpen={true}
+                  brandColor={supportSettings.widget_color}
+                  title={supportSettings.widget_title}
+                  welcomeMessage={supportSettings.widget_welcome}
                 />
               </div>
             </Card>
@@ -1142,6 +1220,7 @@ export default function SupportView({
         </div>
       )}
 
+      </div>
     </div>
   );
 }

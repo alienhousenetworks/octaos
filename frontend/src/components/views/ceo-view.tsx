@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   Target, Plus, Loader2, Check, Play, Zap, Sparkles,
   Shield, AlertTriangle, Activity, BarChart3, Pause,
@@ -50,6 +51,30 @@ export default function CEOView({
     system_status: 'HEALTHY',
     attention_items: []
   });
+
+  // Business Autonomy Control Plane Top-Level Tab
+  const [activePlaneTab, setActivePlaneTab] = useState<'OBJECTIVES' | 'PORTFOLIO' | 'OPERATIONS'>('OBJECTIVES');
+
+  // Business Objectives & Measurable Commitments state
+  const [objectivesList, setObjectivesList] = useState<any[]>([]);
+  const [isLoadingObjectives, setIsLoadingObjectives] = useState(false);
+  const [isCreateObjectiveOpen, setIsCreateObjectiveOpen] = useState(false);
+  const [newObjTitle, setNewObjTitle] = useState('');
+  const [newObjDept, setNewObjDept] = useState('ENTERPRISE');
+  const [newObjMetric, setNewObjMetric] = useState('mrr_growth');
+  const [newObjBaseline, setNewObjBaseline] = useState('0');
+  const [newObjTarget, setNewObjTarget] = useState('100');
+  const [newObjUnit, setNewObjUnit] = useState('USD');
+  const [newObjBudget, setNewObjBudget] = useState('20000');
+  const [newObjDeadlineDays, setNewObjDeadlineDays] = useState('90');
+  const [isSubmittingObjective, setIsSubmittingObjective] = useState(false);
+
+  // Objective Metric Progress Record Modal State
+  const [selectedObjForMetric, setSelectedObjForMetric] = useState<any | null>(null);
+  const [metricMeasuredValue, setMetricMeasuredValue] = useState('');
+  const [metricBudgetSpent, setMetricBudgetSpent] = useState('');
+  const [metricEvidenceSource, setMetricEvidenceSource] = useState('crm_sync');
+  const [isSubmittingMetric, setIsSubmittingMetric] = useState(false);
 
   // Strategy Formulation & Multi-Variant Plans state
   const [objectivePrompt, setObjectivePrompt] = useState('');
@@ -193,14 +218,98 @@ export default function CEOView({
   const containerRef = useRef<HTMLDivElement>(null);
   const sseRef = useRef<EventSource | null>(null);
 
-  // 1. Initial Load: Fetch Vitals, Workflows & Company Context
+  // 1. Initial Load: Fetch Vitals, Workflows, Objectives & Company Context
   useEffect(() => {
     if (token) {
       fetchVitals();
       fetchCeoWorkflows();
+      fetchObjectives();
       fetchCompanyContext();
     }
   }, [token]);
+
+  const fetchObjectives = async () => {
+    setIsLoadingObjectives(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/ceo/objectives`);
+      if (res.ok) {
+        const data = await res.json();
+        setObjectivesList(data);
+      }
+    } catch (e) {
+      console.error('Error fetching objectives:', e);
+    } finally {
+      setIsLoadingObjectives(false);
+    }
+  };
+
+  const handleCreateObjective = async () => {
+    if (!newObjTitle.trim()) return;
+    setIsSubmittingObjective(true);
+    try {
+      const deadlineDate = new Date();
+      deadlineDate.setDate(deadlineDate.getDate() + (parseInt(newObjDeadlineDays) || 90));
+      const res = await fetchWithAuth(`${API_URL}/ceo/objectives`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newObjTitle.trim(),
+          department: newObjDept === 'ENTERPRISE' ? null : newObjDept,
+          target_metric: newObjMetric,
+          baseline_value: parseFloat(newObjBaseline) || 0.0,
+          target_value: parseFloat(newObjTarget) || 100.0,
+          current_value: parseFloat(newObjBaseline) || 0.0,
+          unit: newObjUnit,
+          priority: 1,
+          budget_limit: parseFloat(newObjBudget) || 20000.0,
+          deadline: deadlineDate.toISOString(),
+        })
+      });
+      if (res.ok) {
+        setIsCreateObjectiveOpen(false);
+        setNewObjTitle('');
+        await fetchObjectives();
+      }
+    } catch (e) {
+      console.error('Failed to create objective:', e);
+    } finally {
+      setIsSubmittingObjective(false);
+    }
+  };
+
+  const handleRecordMetricProgress = async () => {
+    if (!selectedObjForMetric) return;
+    setIsSubmittingMetric(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/ceo/objectives/${selectedObjForMetric.id}/metrics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          measured_value: parseFloat(metricMeasuredValue) || 0,
+          budget_spent_to_date: parseFloat(metricBudgetSpent) || 0,
+          evidence_source: metricEvidenceSource,
+        })
+      });
+      if (res.ok) {
+        setSelectedObjForMetric(null);
+        setMetricMeasuredValue('');
+        setMetricBudgetSpent('');
+        await fetchObjectives();
+      }
+    } catch (e) {
+      console.error('Failed to record metric:', e);
+    } finally {
+      setIsSubmittingMetric(false);
+    }
+  };
+
+  const handleCompileForObjective = (obj: any) => {
+    setObjectivePrompt(`Fulfill objective: ${obj.title} (Target: ${obj.target_value} ${obj.unit})`);
+    setBudgetCapInput(String(obj.budget_limit || 20000));
+    setActivePlaneTab('PORTFOLIO');
+    setInteractiveStep(1);
+  };
+
 
   // Auto-poll team status & operations overview when on Step 3
   useEffect(() => {
@@ -1086,37 +1195,440 @@ export default function CEOView({
         </div>
       )}
 
-      {/* 2. Unified Suite Header: Autonomous Execution DAG Engine with Human-in-the-Loop */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/90 border border-slate-800 p-3 rounded-3xl shadow-md">
+      {/* 2. Business Autonomy & Control Plane Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/90 border border-slate-800 p-4 rounded-3xl shadow-md">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 rounded-2xl text-white shadow-md shadow-sky-500/20">
-            <Layers className="h-5 w-5" />
+          <div className="p-2.5 bg-primary/10 border border-primary/20 rounded-xl text-primary shadow-xs">
+            <Target className="h-6 w-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-white">Autonomous Execution DAG Engine</h2>
-              <span className="text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 px-2 py-0.5 rounded-full font-mono uppercase tracking-wider font-bold flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Human-in-the-Loop Review Active
+              <h1 className="text-base font-bold text-foreground tracking-tight">Business Autonomy &amp; Control Plane</h1>
+              <span className="text-[10px] bg-[#2B3945] text-[#75AFCB] border border-[#75AFCB]/20 px-2.5 py-0.5 rounded-full font-mono uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#75AFCB]" />
+                Autonomous Strategic Control
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">
-              Topological multi-agent execution pipeline with executive review & approval gates at every milestone.
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Continuous objective commitments, cross-department dependency orchestration, and closed-loop operational control.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-950/80 border border-slate-800 rounded-2xl text-xs text-slate-300">
-          <Building className="h-3.5 w-3.5 text-sky-400" />
-          <span className="text-slate-400">Company:</span>
-          <span className="font-semibold text-white">{companyContext?.company_name || 'OctaOS Enterprise'}</span>
-          <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700">
-            {companyContext?.industry || 'B2B Automation'}
-          </span>
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-950/80 border border-slate-800 rounded-2xl text-xs text-slate-300">
+            <Building className="h-3.5 w-3.5 text-sky-400" />
+            <span className="text-slate-400">Tenant:</span>
+            <span className="font-semibold text-white">{companyContext?.company_name || 'OctaOS Enterprise'}</span>
+            <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700">
+              {companyContext?.industry || 'B2B Automation'}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* UNIFIED WORKSPACE VIEW */}
+      {/* 3. Top-Level Control Plane Tabs */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+        <div className="flex items-center gap-2 bg-slate-900/60 p-1 rounded-2xl border border-slate-800">
+          <button
+            onClick={() => setActivePlaneTab('OBJECTIVES')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activePlaneTab === 'OBJECTIVES'
+                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
+          >
+            <Target className="h-4 w-4" />
+            Objectives & Outcomes
+            {objectivesList.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-sky-500/30 text-sky-300 font-mono">
+                {objectivesList.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActivePlaneTab('PORTFOLIO')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activePlaneTab === 'PORTFOLIO'
+                ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
+          >
+            <Layers className="h-4 w-4" />
+            Portfolio & Orchestration (DAG)
+          </button>
+
+          <button
+            onClick={() => setActivePlaneTab('OPERATIONS')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activePlaneTab === 'OPERATIONS'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
+          >
+            <Activity className="h-4 w-4" />
+            Operational Control & SLA
+          </button>
+        </div>
+
+        {activePlaneTab === 'OBJECTIVES' && (
+          <Dialog open={isCreateObjectiveOpen} onOpenChange={setIsCreateObjectiveOpen}>
+            <DialogTrigger render={
+              <Button className="font-semibold text-xs h-9 px-4 flex items-center gap-1.5 cursor-pointer" />
+            }>
+              <Plus size={14} /> Define Objective Commitment
+            </DialogTrigger>
+            <DialogContent className="border border-slate-800 text-white max-w-lg rounded-3xl p-6 bg-slate-950/95 shadow-2xl backdrop-blur-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-base font-bold text-white flex items-center gap-2">
+                  <Target className="text-sky-400 h-5 w-5" /> Commit New Strategic Objective
+                </DialogTitle>
+                <CardDescription className="text-xs text-slate-400">
+                  Objectives are versioned commitments bound to target KPIs, budget ceilings, and deadlines.
+                </CardDescription>
+              </DialogHeader>
+              <div className="space-y-3.5 mt-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-slate-300">Objective Title</label>
+                  <Input
+                    placeholder="e.g. Reduce Enterprise Customer Churn from 8% to 5%"
+                    value={newObjTitle}
+                    onChange={(e) => setNewObjTitle(e.target.value)}
+                    className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-300">Target Metric Code</label>
+                    <Input
+                      placeholder="e.g. churn_rate or mrr_growth"
+                      value={newObjMetric}
+                      onChange={(e) => setNewObjMetric(e.target.value)}
+                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-300">Department Scope</label>
+                    <select
+                      value={newObjDept}
+                      onChange={(e) => setNewObjDept(e.target.value)}
+                      className="bg-slate-900 border border-slate-800 text-white rounded-xl text-xs h-9 px-2 focus:border-sky-500"
+                    >
+                      <option value="ENTERPRISE">Enterprise-Wide</option>
+                      <option value="SALES">Sales & Pipeline</option>
+                      <option value="MARKETING">Marketing & Growth</option>
+                      <option value="HR">People & Talent</option>
+                      <option value="FINANCE">Finance & Margin</option>
+                      <option value="SUPPORT">Support & Retention</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-300">Baseline Value</label>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={newObjBaseline}
+                      onChange={(e) => setNewObjBaseline(e.target.value)}
+                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-300">Target Value</label>
+                    <Input
+                      type="number"
+                      placeholder="100"
+                      value={newObjTarget}
+                      onChange={(e) => setNewObjTarget(e.target.value)}
+                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-300">Unit</label>
+                    <Input
+                      placeholder="percent, USD, count"
+                      value={newObjUnit}
+                      onChange={(e) => setNewObjUnit(e.target.value)}
+                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-300">Budget Envelope ($)</label>
+                    <Input
+                      type="number"
+                      placeholder="20000"
+                      value={newObjBudget}
+                      onChange={(e) => setNewObjBudget(e.target.value)}
+                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-300">Deadline Horizon (Days)</label>
+                    <Input
+                      type="number"
+                      placeholder="90"
+                      value={newObjDeadlineDays}
+                      onChange={(e) => setNewObjDeadlineDays(e.target.value)}
+                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={handleCreateObjective}
+                  disabled={isSubmittingObjective || !newObjTitle.trim()}
+                  className="w-full h-10 font-semibold mt-2 text-xs"
+                >
+                  {isSubmittingObjective ? 'Registering Objective Commitment...' : 'Create Active Commitment'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+
+      {/* VIEW: OBJECTIVES & OUTCOMES */}
+      {activePlaneTab === 'OBJECTIVES' && (
+        <div className="space-y-6 animate-in fade-in">
+          {/* Objectives Summary Strip */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+              <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+                <span>Total Objectives</span>
+                <Target className="h-4 w-4 text-sky-400" />
+              </div>
+              <div className="text-2xl font-bold text-white mt-1">{objectivesList.length}</div>
+              <p className="text-[11px] text-slate-400 mt-0.5">Versioned organizational commitments</p>
+            </div>
+
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+              <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+                <span>Strategic Health</span>
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+              </div>
+              <div className="text-2xl font-bold text-emerald-400 mt-1">
+                {objectivesList.filter(o => o.health === 'ON_TRACK').length} On Track
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {objectivesList.filter(o => o.health === 'AT_RISK').length} at risk | {objectivesList.filter(o => o.health === 'NEEDS_ATTENTION').length} attention
+              </p>
+            </div>
+
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+              <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+                <span>Total Capital Committed</span>
+                <DollarSign className="h-4 w-4 text-indigo-400" />
+              </div>
+              <div className="text-2xl font-bold text-white mt-1">
+                ${objectivesList.reduce((acc, o) => acc + (o.budget_limit || 0), 0).toLocaleString()}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">Allocated budget ceiling across goals</p>
+            </div>
+
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+              <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+                <span>Consumed Budget</span>
+                <TrendingUp className="h-4 w-4 text-amber-400" />
+              </div>
+              <div className="text-2xl font-bold text-white mt-1">
+                ${objectivesList.reduce((acc, o) => acc + (o.consumed_budget || 0), 0).toLocaleString()}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">Real-world expenditure tracked to date</p>
+            </div>
+          </div>
+
+          {/* Objectives Grid */}
+          {isLoadingObjectives ? (
+            <div className="flex items-center justify-center p-12 text-slate-400 text-xs">
+              <Loader2 className="animate-spin h-5 w-5 mr-2 text-sky-400" /> Loading objective commitments...
+            </div>
+          ) : objectivesList.length === 0 ? (
+            <div className="bg-slate-900/50 border border-dashed border-slate-800 rounded-3xl p-12 text-center space-y-3">
+              <Target className="h-10 w-10 text-slate-500 mx-auto" />
+              <h3 className="text-sm font-bold text-white">No Strategic Objectives Committed Yet</h3>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                Define your company's measurable goals (e.g. churn reduction, revenue expansion, hiring ramp). The Business Autonomy Plane will coordinate cross-department DAG workflows and budget envelopes to achieve them.
+              </p>
+              <Button
+                onClick={() => setIsCreateObjectiveOpen(true)}
+                className="bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs h-9 px-4 rounded-xl mt-2 cursor-pointer"
+              >
+                <Plus size={14} className="mr-1" /> Define First Objective
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {objectivesList.map((obj) => (
+                <div
+                  key={obj.id}
+                  className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 shadow-sm space-y-4 hover:border-slate-700 transition-all"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-bold">
+                          {obj.department || 'Enterprise'}
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          obj.health === 'ON_TRACK'
+                            ? 'bg-emerald-950/60 border-emerald-800/80 text-emerald-300'
+                            : obj.health === 'AT_RISK'
+                            ? 'bg-amber-950/60 border-amber-800/80 text-amber-300'
+                            : 'bg-rose-950/60 border-rose-800/80 text-rose-300'
+                        }`}>
+                          {obj.health.replace('_', ' ')}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">v{obj.version}</span>
+                      </div>
+                      <h3 className="text-sm font-bold text-white mt-1.5">{obj.title}</h3>
+                      {obj.description && <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{obj.description}</p>}
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="text-xs font-bold text-white">{obj.progress_pct}%</span>
+                      <p className="text-[10px] text-slate-500">progress</p>
+                    </div>
+                  </div>
+
+                  {/* Target Metric Progress Bar */}
+                  <div className="space-y-1.5 bg-slate-950/60 border border-slate-800/60 p-3 rounded-2xl">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400 font-medium">Metric: <span className="text-slate-200 font-semibold">{obj.target_metric}</span></span>
+                      <span className="text-white font-bold font-mono">
+                        {obj.current_value} / {obj.target_value} <span className="text-slate-400 text-[10px]">{obj.unit}</span>
+                      </span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2 overflow-hidden border border-border">
+                      <div
+                        className="bg-primary h-2 rounded-full transition-all"
+                        style={{ width: `${Math.min(obj.progress_pct, 100)}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                      <span>Baseline: {obj.baseline_value}</span>
+                      <span>Target: {obj.target_value}</span>
+                    </div>
+                  </div>
+
+                  {/* Financial & Deadline Footer */}
+                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                    <div className="bg-slate-950/40 p-2 rounded-xl border border-slate-800/40">
+                      <span className="text-slate-400 block text-[10px]">Budget Envelope</span>
+                      <span className="font-semibold text-white">
+                        ${obj.consumed_budget.toLocaleString()} / ${obj.budget_limit.toLocaleString()}
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">({obj.budget_utilization_pct}% used)</span>
+                    </div>
+                    <div className="bg-slate-950/40 p-2 rounded-xl border border-slate-800/40">
+                      <span className="text-slate-400 block text-[10px]">Deadline Horizon</span>
+                      <span className="font-semibold text-white">
+                        {obj.deadline ? new Date(obj.deadline).toLocaleDateString() : 'Continuous'}
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">Status: {obj.status}</span>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/60">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setSelectedObjForMetric(obj);
+                        setMetricMeasuredValue(String(obj.current_value));
+                      }}
+                      className="text-xs text-sky-400 hover:text-sky-300 hover:bg-sky-950/40 rounded-xl h-8 px-3 font-semibold"
+                    >
+                      <Activity size={13} className="mr-1.5" /> Record Telemetry Progress
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      onClick={() => handleCompileForObjective(obj)}
+                      className="text-xs h-8 px-3.5 font-semibold"
+                    >
+                      <Layers size={13} className="mr-1.5" /> Compile Execution DAG →
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Record Progress Modal */}
+          {selectedObjForMetric && (
+            <Dialog open={!!selectedObjForMetric} onOpenChange={() => setSelectedObjForMetric(null)}>
+              <DialogContent className="border border-slate-800 text-white max-w-md rounded-3xl p-6 bg-slate-950/95 shadow-2xl backdrop-blur-2xl">
+                <DialogHeader>
+                  <DialogTitle className="text-base font-bold text-white flex items-center gap-2">
+                    <Activity className="text-sky-400 h-5 w-5" /> Record Objective Telemetry
+                  </DialogTitle>
+                  <CardDescription className="text-xs text-slate-400">
+                    Record observed metric progress and budget spent to calibrate variance.
+                  </CardDescription>
+                </DialogHeader>
+                <div className="space-y-3.5 mt-3">
+                  <div>
+                    <span className="text-xs text-slate-400 block">Objective</span>
+                    <span className="text-sm font-bold text-white">{selectedObjForMetric.title}</span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-300">
+                      New Measured Value ({selectedObjForMetric.unit})
+                    </label>
+                    <Input
+                      type="number"
+                      step="any"
+                      placeholder={String(selectedObjForMetric.current_value)}
+                      value={metricMeasuredValue}
+                      onChange={(e) => setMetricMeasuredValue(e.target.value)}
+                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-300">Budget Spent to Date ($)</label>
+                    <Input
+                      type="number"
+                      step="any"
+                      placeholder={String(selectedObjForMetric.consumed_budget)}
+                      value={metricBudgetSpent}
+                      onChange={(e) => setMetricBudgetSpent(e.target.value)}
+                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-300">Evidence / Telemetry Source</label>
+                    <select
+                      value={metricEvidenceSource}
+                      onChange={(e) => setMetricEvidenceSource(e.target.value)}
+                      className="bg-slate-900 border border-slate-800 text-white rounded-xl text-xs h-9 px-2 focus:border-sky-500"
+                    >
+                      <option value="crm_sync">CRM & Deal Sync</option>
+                      <option value="stripe_sync">Stripe / Revenue Gateway</option>
+                      <option value="support_analytics">Support CSAT & Ticket SLA</option>
+                      <option value="ga4_marketing">Google Analytics / Ad Spend</option>
+                      <option value="manual_audit">Executive Manual Audit</option>
+                    </select>
+                  </div>
+                  <Button
+                    onClick={handleRecordMetricProgress}
+                    disabled={isSubmittingMetric || !metricMeasuredValue}
+                    className="w-full h-10 font-semibold mt-2 text-xs"
+                  >
+                    {isSubmittingMetric ? 'Recording Snapshot...' : 'Save Telemetry Snapshot'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+      )}
+
+      {/* VIEW: PORTFOLIO ORCHESTRATION & OPERATIONS */}
+      {activePlaneTab !== 'OBJECTIVES' && (
       <div className="space-y-6 animate-in fade-in">
         <div className="space-y-6 animate-in fade-in">
           {/* Executive Directives & Workspaces (Last CEO Works) Section */}
@@ -3554,6 +4066,7 @@ export default function CEOView({
           )}
         </div>
       </div>
+      )}
 
       {/* 2.5 Deliverables Inspector Modal for Specialist Employees */}
       {activeDeliverableEmp && (

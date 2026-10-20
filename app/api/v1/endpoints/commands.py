@@ -28,6 +28,7 @@ class CommandRequest(BaseModel):
 class APIKeyUpdate(BaseModel):
     provider: str
     key: str
+    settings: Optional[Dict[str, Any]] = None
 
 class KnowledgeDocCreate(BaseModel):
     department: str
@@ -157,7 +158,12 @@ def update_api_key(
     ).first()
     
     if cred:
-        cred.encrypted_key = encrypt_api_key(request.key)
+        if request.key and request.key not in ("configured_token", "oauth_connected"):
+            cred.encrypted_key = encrypt_api_key(request.key)
+        if request.settings is not None:
+            existing = dict(cred.settings or {})
+            existing.update(request.settings)
+            cred.settings = existing
     else:
         # Check if this is the first key
         existing_keys_count = db.query(APICredential).filter(APICredential.tenant_id == tenant_id).count()
@@ -167,6 +173,7 @@ def update_api_key(
             tenant_id=tenant_id,
             provider=request.provider,
             encrypted_key=encrypt_api_key(request.key),
+            settings=request.settings,
             is_main=is_main
         )
         db.add(cred)
@@ -278,7 +285,14 @@ def get_configured_keys(
         db.commit()
         
     return {
-        "configured_providers": [{"provider": c.provider, "is_main": c.is_main} for c in creds]
+        "configured_providers": [
+            {
+                "provider": c.provider,
+                "is_main": c.is_main,
+                "settings": c.settings,
+            }
+            for c in creds
+        ]
     }
 
 @router.post("/keys/{provider}/set-main")

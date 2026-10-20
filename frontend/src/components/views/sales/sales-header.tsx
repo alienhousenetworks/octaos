@@ -60,22 +60,22 @@ export default function SalesHeader({
   return (
     <div className="space-y-4">
       {/* ── TOP EXECUTIVE APP BAR ── */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl px-5 py-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-card border border-border rounded-xl px-5 py-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-sm shadow-blue-500/20">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold shadow-xs">
             <TrendingUp size={20} />
           </div>
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-lg md:text-xl font-bold tracking-tight text-slate-900">
+              <h1 className="text-lg md:text-xl font-bold tracking-tight text-foreground">
                 Sales Pipeline &amp; Accounts
               </h1>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className={`w-1.5 h-1.5 rounded-full ${isExecuting ? 'bg-emerald-500 animate-ping' : 'bg-emerald-500'}`} />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#263D38] text-[#64B99A] border border-[#64B99A]/20">
+                <span className={`w-1.5 h-1.5 rounded-full ${isExecuting ? 'bg-[#64B99A] animate-ping' : 'bg-[#64B99A]'}`} />
                 {isExecuting ? 'Autonomous Prospector Active' : 'AI Engine Live'}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Enterprise B2B account discovery, multi-channel outreach automation &amp; pipeline management.
             </p>
           </div>
@@ -85,14 +85,15 @@ export default function SalesHeader({
         <div className="flex items-center gap-2 flex-wrap shrink-0">
           <Button
             onClick={() => onSelectTab('prospecting')}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-8.5 px-3.5 rounded-xl shadow-xs hover:shadow transition-all flex items-center gap-1.5"
+            className="flex items-center gap-1.5 text-xs h-8.5 px-3.5"
           >
-            <Sparkles size={13} className="text-blue-100" /> Find Leads
+            <Sparkles size={13} /> Find Leads
           </Button>
 
           <Button
+            variant="secondary"
             onClick={onOpenCreateLead}
-            className="bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs h-8.5 px-3 rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+            className="flex items-center gap-1.5 text-xs h-8.5 px-3"
           >
             <Plus size={13} /> Add Lead
           </Button>
@@ -100,109 +101,109 @@ export default function SalesHeader({
           <Button
             variant="outline"
             onClick={onOpenUploadLeads}
-            className="h-8.5 px-3 text-xs font-semibold rounded-xl border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-xs flex items-center gap-1.5"
+            className="h-8.5 px-3 text-xs flex items-center gap-1.5"
           >
-            <Upload size={13} className="text-slate-500" /> Import
+            <Upload size={13} className="text-muted-foreground" /> Import
           </Button>
 
           <Button
             variant="outline"
             onClick={onExportCSV}
-            className="h-8.5 px-2.5 text-xs font-semibold rounded-xl border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-xs flex items-center gap-1.5"
+            className="h-8.5 px-2.5 text-xs flex items-center gap-1.5"
             title="Export CSV"
           >
-            <Download size={13} className="text-slate-500" /> Export
+            <Download size={13} className="text-muted-foreground" /> Export
           </Button>
         </div>
       </div>
 
-      {/* ── EXECUTIVE KPI METRIC RIBBON (Apollo & Ahrefs Compact Standard) ── */}
+      {/* ── EXECUTIVE KPI METRIC RIBBON ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Metric 1: Total Leads */}
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition-all">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+        <div className="bg-card border border-border rounded-xl p-4 shadow-xs transition-colors hover:bg-surface-hover/50">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Total Accounts
             </span>
-            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-0.5">
+            <span className="text-[10px] font-semibold text-[#64B99A] bg-[#263D38] px-2 py-0.5 rounded-full border border-[#64B99A]/20 flex items-center gap-0.5">
               <ArrowUpRight size={10} /> +12% MoM
             </span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
             <div>
-              <span className="text-2xl font-extrabold tracking-tight text-slate-900">
+              <span className="text-2xl font-bold tracking-tight text-foreground">
                 {leadsCount}
               </span>
-              <p className="text-[11px] text-slate-500 mt-0.5">Verified B2B accounts</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Verified B2B accounts</p>
             </div>
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
+            <div className="p-2 rounded-xl bg-surface-hover text-muted-foreground border border-border">
               <Users size={16} />
             </div>
           </div>
         </div>
 
         {/* Metric 2: Active Pipeline Value */}
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition-all">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+        <div className="bg-card border border-border rounded-xl p-4 shadow-xs transition-colors hover:bg-surface-hover/50">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Active Pipeline
             </span>
-            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+            <span className="text-[10px] font-semibold text-[#75AFCB] bg-[#2B3945] px-2 py-0.5 rounded-full border border-[#75AFCB]/20">
               In Flight
             </span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
             <div>
-              <span className="text-2xl font-extrabold tracking-tight text-slate-900">
+              <span className="text-2xl font-bold tracking-tight text-foreground">
                 {fmtCurrency(activePipelineValue)}
               </span>
-              <p className="text-[11px] text-slate-500 mt-0.5">Weighted deal value</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Weighted deal value</p>
             </div>
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100">
+            <div className="p-2 rounded-xl bg-surface-hover text-[#64B99A] border border-border">
               <TrendingUp size={16} />
             </div>
           </div>
         </div>
 
         {/* Metric 3: Closed Lifetime Revenue */}
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition-all">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+        <div className="bg-card border border-border rounded-xl p-4 shadow-xs transition-colors hover:bg-surface-hover/50">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Closed Revenue
             </span>
-            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+            <span className="text-[10px] font-semibold text-[#64B99A] bg-[#263D38] px-2 py-0.5 rounded-full border border-[#64B99A]/20">
               {wonCount} Won
             </span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
             <div>
-              <span className="text-2xl font-extrabold tracking-tight text-slate-900">
+              <span className="text-2xl font-bold tracking-tight text-foreground">
                 {fmtCurrency(closedRevenue)}
               </span>
-              <p className="text-[11px] text-slate-500 mt-0.5">Realized bookings</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Realized bookings</p>
             </div>
-            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100">
+            <div className="p-2 rounded-xl bg-surface-hover text-primary border border-border">
               <Target size={16} />
             </div>
           </div>
         </div>
 
-        {/* Metric 4: Win Conversion Rate with Ahrefs-style Donut Ring */}
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition-all">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+        {/* Metric 4: Win Conversion Rate */}
+        <div className="bg-card border border-border rounded-xl p-4 shadow-xs transition-colors hover:bg-surface-hover/50">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Win Rate
             </span>
-            <span className="text-[10px] font-medium text-slate-500">
+            <span className="text-[10px] font-medium text-muted-foreground">
               {wonCount} won · {lostCount} lost
             </span>
           </div>
           <div className="mt-2 flex items-center justify-between">
             <div>
-              <span className="text-2xl font-extrabold tracking-tight text-slate-900">
+              <span className="text-2xl font-bold tracking-tight text-foreground">
                 {winRate}%
               </span>
-              <p className="text-[11px] text-slate-500 mt-0.5">Conversion efficiency</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Conversion efficiency</p>
             </div>
             
             {/* Circular Progress Ring */}
@@ -212,7 +213,7 @@ export default function SalesHeader({
                   cx="24"
                   cy="24"
                   r={radius}
-                  stroke="#e2e8f0"
+                  stroke="#414c5a"
                   strokeWidth="4"
                   fill="transparent"
                 />
@@ -220,7 +221,7 @@ export default function SalesHeader({
                   cx="24"
                   cy="24"
                   r={radius}
-                  stroke="#2563eb"
+                  stroke="#7888d9"
                   strokeWidth="4"
                   fill="transparent"
                   strokeDasharray={circumference}
@@ -230,7 +231,7 @@ export default function SalesHeader({
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[9px] font-extrabold text-slate-800">
+                <span className="text-[9px] font-bold text-foreground">
                   {winRate}%
                 </span>
               </div>
@@ -240,7 +241,7 @@ export default function SalesHeader({
       </div>
 
       {/* ── UNIFIED NAVIGATION PILL TABS ── */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-1.5 shadow-xs flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+      <div className="bg-card border border-border rounded-xl p-1.5 shadow-xs flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
         <div className="flex items-center gap-1">
           {tabs.map((tab) => {
             const isActive = 
@@ -251,16 +252,16 @@ export default function SalesHeader({
               <button
                 key={tab.id}
                 onClick={() => onSelectTab(tab.id)}
-                className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                   isActive
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-surface-hover'
                 }`}
               >
                 {tab.icon}
                 {tab.label}
                 {tab.badge && (
-                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-white text-blue-700">
+                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#263D38] text-[#64B99A] border border-[#64B99A]/20">
                     {tab.badge}
                   </span>
                 )}
@@ -270,14 +271,14 @@ export default function SalesHeader({
         </div>
 
         {/* Live channel status tag */}
-        <div className="hidden xl:flex items-center gap-2 pr-2 text-[11px] text-slate-500">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            Verified Coordinates: <strong className="text-slate-800 font-bold ml-0.5">98.4%</strong>
+        <div className="hidden xl:flex items-center gap-2 pr-2 text-[11px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted border border-border font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#64B99A]" />
+            Verified Coordinates: <strong className="text-foreground font-semibold ml-0.5">98.4%</strong>
           </span>
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-            Data Freshness: <strong className="text-slate-800 font-bold ml-0.5">&lt; 30d</strong>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted border border-border font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#75AFCB]" />
+            Data Freshness: <strong className="text-foreground font-semibold ml-0.5">&lt; 30d</strong>
           </span>
         </div>
       </div>

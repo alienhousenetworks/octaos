@@ -33,3 +33,4 @@ from app.models import executive
 from app.models import objectives
 from app.models import decision_cases
 from app.models import mcp
+from app.models.rooms import SectionRoom

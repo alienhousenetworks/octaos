@@ -1453,18 +1453,52 @@ def execute_sales_cadence_touches():
                                 updated_schedule = True
                                 break
 
-                            channel = (step.get("channel") or "").lower()
+                            from app.services.sales.touch_dispatcher import dispatch_sales_touch
+
+                            channel = (step.get("channel") or "email").lower()
                             content = step.get("content", "")
-                            if channel == "email" and lead.email:
-                                subject = f"Following up: {lead.company}"
-                                res = send_email(db, tenant.id, lead.email, subject, content)
-                                if (isinstance(res, dict) and res.get("sent")) or res is True:
-                                    step["status"] = "sent"
-                                    step["sent_at"] = now.isoformat()
-                                    updated_schedule = True
-                            elif channel in ("linkedin", "whatsapp", "follow-up call"):
-                                step["status"] = "logged"
-                                step["logged_at"] = now.isoformat()
+                            step_num = step.get("day", 1)
+                            subject = f"Following up: {lead.company or 'Partnership'}"
+
+                            res = dispatch_sales_touch(
+                                db,
+                                tenant.id,
+                                lead,
+                                channel=channel,
+                                body=content,
+                                subject=subject,
+                                step_number=step_num,
+                            )
+
+                            if res.get("sent"):
+                                step["status"] = "sent"
+                                step["sent_at"] = now.isoformat()
+                                step["delivery_details"] = res.get("message")
+                                updated_schedule = True
+
+                                conv = list(data.get("conversation") or [])
+                                conv.append({
+                                    "direction": "outbound",
+                                    "channel": channel,
+                                    "content": content,
+                                    "subject": subject,
+                                    "author": "Sales AI Agent",
+                                    "at": now.isoformat(),
+                                    "day": step.get("day", 1),
+                                    "sent": True,
+                                    "delivery_details": res.get("message"),
+                                })
+                                data["conversation"] = conv
+                            elif res.get("requires_action"):
+                                step["status"] = "action_required"
+                                step["approval_id"] = res.get("approval_id")
+                                step["action_url"] = res.get("linkedin_url")
+                                step["status_message"] = res.get("message")
+                                updated_schedule = True
+                            else:
+                                step["status"] = "failed"
+                                step["error"] = res.get("message") or res.get("reason") or "Delivery failed"
+                                step["attempted_at"] = now.isoformat()
                                 updated_schedule = True
 
                 if updated_schedule:

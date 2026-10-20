@@ -27,6 +27,7 @@ class MCPHubService:
         self.register_server("postgres", "stdio", "npx -y @modelcontextprotocol/server-postgres postgresql://localhost/octaos")
         self.register_server("filesystem", "stdio", "npx -y @modelcontextprotocol/server-filesystem /Users/sayantande/OctaOsautomation")
         self.register_server("github", "sse", "https://api.github.com/mcp")
+        self.register_server("apify", "http", "https://mcp.apify.com")
 
     def register_server(self, name: str, transport: str, uri_or_cmd: str) -> bool:
         self._servers[name] = MCPServerConfig(name, transport, uri_or_cmd)
@@ -94,6 +95,29 @@ class MCPHubService:
                         "required": ["owner", "repo"]
                     }
                 })
+            elif server.name == "apify":
+                tools.append({
+                    "name": "mcp_apify_search_actors",
+                    "description": "Search Apify Store for available Actors and automation tools via MCP",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "keywords": {"type": "string", "description": "Search keywords (e.g. 'google places', 'linkedin')"}
+                        },
+                        "required": ["keywords"]
+                    }
+                })
+                tools.append({
+                    "name": "mcp_apify_actor_details",
+                    "description": "Inspect an Apify Actor's schema, pricing model, and documentation via MCP",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "actor_id": {"type": "string", "description": "Actor identifier, e.g. 'apify/google-search-scraper'"}
+                        },
+                        "required": ["actor_id"]
+                    }
+                })
         return tools
 
     async def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -107,6 +131,23 @@ class MCPHubService:
             return {"status": "success", "content": "File read successfully via MCP Filesystem transport"}
         elif "github" in tool_name:
             return {"status": "success", "issues": []}
+        elif "apify" in tool_name:
+            from app.integrations.apify.actor_registry import ActorRegistry
+            if "search" in tool_name:
+                keywords = arguments.get("keywords", "").lower()
+                approved = ActorRegistry.list()
+                matched = [
+                    {"actor_key": a.actor_key, "actor_id": a.actor_id, "name": a.name, "description": a.description}
+                    for a in approved
+                    if keywords in a.actor_key.lower() or keywords in a.name.lower() or keywords in a.description.lower()
+                ]
+                return {"status": "success", "actors": matched or [a.dict() for a in approved]}
+            elif "details" in tool_name:
+                actor_id = arguments.get("actor_id", "")
+                actor = ActorRegistry.get_by_actor_id(actor_id) or ActorRegistry.get(actor_id)
+                if actor:
+                    return {"status": "success", "actor": actor.dict()}
+                return {"status": "error", "message": f"Actor '{actor_id}' not found in registry."}
         return {"status": "error", "message": f"Unknown MCP tool: {tool_name}"}
 
 mcp_hub = MCPHubService()

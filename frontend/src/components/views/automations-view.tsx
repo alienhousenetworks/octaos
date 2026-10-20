@@ -36,8 +36,10 @@ import {
   Check,
   Bot,
   Zap,
+  Plus,
 } from 'lucide-react';
 import { notify } from '@/lib/notify';
+import WorkflowCanvas from '@/features/automations/canvas/workflow-canvas';
 
 interface AutomationsViewProps {
   token: string | null;
@@ -81,6 +83,7 @@ export default function AutomationsView({
 
   // Modals & Drawers
   const [activeEditorUrl, setActiveEditorUrl] = useState<string | null>(null);
+  const [canvasWorkflowId, setCanvasWorkflowId] = useState<string | null>(null);
   const [viewingStepsWorkflow, setViewingStepsWorkflow] = useState<any | null>(null);
   const [selectedWorkflowForExecutions, setSelectedWorkflowForExecutions] = useState<any | null>(null);
   const [executions, setExecutions] = useState<any[]>([]);
@@ -249,6 +252,49 @@ export default function AutomationsView({
     }
   };
 
+  // Create blank visual workflow
+  const handleCreateNewVisualWorkflow = async () => {
+    try {
+      const res = await fetchWithAuth(`${API_URL}/automations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'New Visual Workflow',
+          category: 'operations',
+          definition_ir: {
+            name: 'New Visual Workflow',
+            category: 'operations',
+            trigger: { type: 'octaos_event', event: 'lead.qualified', display_name: 'OctaOS: Lead Qualified' },
+            steps: [],
+          },
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        notify('Visual workflow created! Opening canvas...');
+        setCanvasWorkflowId(data.id);
+      } else {
+        notify('Failed to create workflow');
+      }
+    } catch (e: any) {
+      notify('Error creating workflow: ' + e.message);
+    }
+  };
+
+  if (canvasWorkflowId) {
+    return (
+      <WorkflowCanvas
+        workflowId={canvasWorkflowId}
+        API_URL={API_URL}
+        fetchWithAuth={fetchWithAuth}
+        onBack={() => {
+          setCanvasWorkflowId(null);
+          loadData();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 p-6 max-w-7xl mx-auto">
       {/* ─── Header & Switcher ────────────────────────────────────────────── */}
@@ -265,8 +311,20 @@ export default function AutomationsView({
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
+        <div className="flex items-center gap-2">
+          {canBuild && (
+            <Button
+              size="sm"
+              onClick={handleCreateNewVisualWorkflow}
+              className="text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              New Visual Workflow
+            </Button>
+          )}
+
+          {/* Tab Switcher */}
+          <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
           <Button
             variant={activeTab === 'workflows' ? 'default' : 'ghost'}
             size="sm"
@@ -296,6 +354,7 @@ export default function AutomationsView({
           </Button>
         </div>
       </div>
+    </div>
 
       {/* ─── Metric Cards ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -600,12 +659,12 @@ export default function AutomationsView({
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleOpenEditor(wf.id)}
+                            onClick={() => setCanvasWorkflowId(wf.id)}
                             className="h-8 text-xs border-primary/30 text-primary hover:bg-primary/5 font-medium"
                             title="Open Visual Workflow Canvas (Builder Permission)"
                           >
-                            <ExternalLink className="h-3.5 w-3.5 mr-1 text-primary" />
-                            Open Canvas
+                            <GitFork className="h-3.5 w-3.5 mr-1 text-primary" />
+                            Visual Canvas
                           </Button>
                         ) : (
                           <Button

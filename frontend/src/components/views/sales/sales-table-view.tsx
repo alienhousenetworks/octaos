@@ -28,33 +28,33 @@ interface SalesTableViewProps {
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
   new: { 
     label: 'New Prospect', 
-    color: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100/70',
-    dot: 'bg-blue-500' 
+    color: 'bg-[#333E4C] text-[#C1CAD6] border border-[#414C5A]',
+    dot: 'bg-[#AAB5C4]' 
   },
   qualified: { 
     label: 'ICP Qualified', 
-    color: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/70',
-    dot: 'bg-emerald-500' 
+    color: 'bg-[#2B3945] text-[#75AFCB] border border-[#75AFCB]/20',
+    dot: 'bg-[#75AFCB]' 
   },
   contacted: { 
     label: 'In Outreach', 
-    color: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/70',
-    dot: 'bg-amber-500' 
+    color: 'bg-[#343D61] text-[#A1AEF0] border border-[#7888D9]/30',
+    dot: 'bg-[#7888D9]' 
   },
   meeting_scheduled: { 
     label: 'Meeting Booked', 
-    color: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100/70',
-    dot: 'bg-purple-500' 
+    color: 'bg-[#443A2D] text-[#D9AD68] border border-[#D9AD68]/20',
+    dot: 'bg-[#D9AD68]' 
   },
   closed_won: { 
     label: 'Closed Won', 
-    color: 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 font-bold',
-    dot: 'bg-white' 
+    color: 'bg-[#263D38] text-[#64B99A] border border-[#64B99A]/20 font-semibold',
+    dot: 'bg-[#64B99A]' 
   },
   closed_lost: { 
     label: 'Closed Lost', 
-    color: 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100/70',
-    dot: 'bg-rose-500' 
+    color: 'bg-[#462F35] text-[#D9828B] border border-[#D9828B]/20',
+    dot: 'bg-[#D9828B]' 
   },
 };
 
@@ -149,37 +149,37 @@ export default function SalesTableView({
     const val = score ?? 50;
     if (val >= 80) {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-emerald-600 text-white shadow-2xs">
-          <Sparkles size={11} className="text-emerald-100" /> {val}/100
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-[#263D38] text-[#64B99A] border border-[#64B99A]/20">
+          <Sparkles size={11} className="text-[#64B99A]" /> {val}/100
         </span>
       );
     }
     if (val >= 60) {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-blue-600 text-white shadow-2xs">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-[#343D61] text-[#A1AEF0] border border-[#7888D9]/30">
           {val}/100
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-[#333E4C] text-[#C1CAD6] border border-[#414C5A]">
         {val}/100
       </span>
     );
   };
 
   return (
-    <Card className="bg-white border border-slate-200/90 rounded-2xl p-4 md:p-5 shadow-xs space-y-3.5 relative">
+    <Card className="bg-card border border-border rounded-xl p-4 md:p-5 shadow-xs space-y-3.5 relative">
       {/* ── TOP INTEGRATED TOOLBAR (Search + Filter Pills + View Switcher) ── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         {/* Left: Search Bar */}
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search by company, contact, email, or need..."
-            className="pl-9 bg-slate-50 border-slate-200 rounded-xl text-xs h-9 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500"
+            className="pl-9 bg-muted/40 border-border rounded-xl text-xs h-9 text-foreground placeholder:text-muted-foreground focus:bg-card focus:border-primary"
           />
         </div>
 
@@ -196,10 +196,10 @@ export default function SalesTableView({
             <button
               key={pill.id}
               onClick={() => setStatusFilter(pill.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                 statusFilter === pill.id
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200/70 text-slate-600 hover:text-slate-900'
+                  ? 'bg-primary text-primary-foreground shadow-xs'
+                  : 'bg-card border border-border hover:bg-surface-hover text-muted-foreground hover:text-foreground'
               }`}
             >
               {pill.label}
@@ -209,14 +209,14 @@ export default function SalesTableView({
 
         {/* Right: Table vs Kanban Switcher */}
         {onViewModeChange && (
-          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0 self-end lg:self-auto">
+          <div className="flex items-center gap-1 bg-card p-0.5 rounded-lg border border-border shrink-0 self-end lg:self-auto">
             <button
               type="button"
               onClick={() => onViewModeChange('table')}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
                 viewMode === 'table'
-                  ? 'bg-white text-blue-600 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-primary/10 text-primary border border-primary/20'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
               title="Table View"
             >
@@ -225,14 +225,14 @@ export default function SalesTableView({
             <button
               type="button"
               onClick={() => onViewModeChange('kanban')}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
                 viewMode === 'kanban'
-                  ? 'bg-white text-blue-600 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-primary/10 text-primary border border-primary/20'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
               title="Kanban Board"
             >
-              <LayoutGrid size={13} /> Board
+              <LayoutGrid size={13} /> Kanban
             </button>
           </div>
         )}
@@ -255,45 +255,45 @@ export default function SalesTableView({
                     className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
                 </th>
-                <th className="py-2.5 px-3.5 font-bold uppercase tracking-wider text-[11px] text-slate-500">
+                <th className="py-2.5 px-3.5 font-semibold uppercase tracking-wider text-[11px] text-muted-foreground">
                   Account &amp; Decision Maker
                 </th>
-                <th className="py-2.5 px-3.5 font-bold uppercase tracking-wider text-[11px] text-slate-500">
+                <th className="py-2.5 px-3.5 font-semibold uppercase tracking-wider text-[11px] text-muted-foreground">
                   AI Fit Score
                 </th>
-                <th className="py-2.5 px-3.5 font-bold uppercase tracking-wider text-[11px] text-slate-500">
+                <th className="py-2.5 px-3.5 font-semibold uppercase tracking-wider text-[11px] text-muted-foreground">
                   Pipeline Stage
                 </th>
-                <th className="py-2.5 px-3.5 font-bold uppercase tracking-wider text-[11px] text-slate-500">
+                <th className="py-2.5 px-3.5 font-semibold uppercase tracking-wider text-[11px] text-muted-foreground">
                   Contact Coordinates
                 </th>
-                <th className="py-2.5 px-3.5 font-bold uppercase tracking-wider text-[11px] text-slate-500">
+                <th className="py-2.5 px-3.5 font-semibold uppercase tracking-wider text-[11px] text-muted-foreground">
                   Signal &amp; Source
                 </th>
-                <th className="py-2.5 px-3.5 text-right font-bold uppercase tracking-wider text-[11px] text-slate-500">
+                <th className="py-2.5 px-3.5 text-right font-semibold uppercase tracking-wider text-[11px] text-muted-foreground">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border">
               {filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 px-4 bg-slate-50/40">
+                  <td colSpan={7} className="text-center py-12 px-4 bg-card">
                     <div className="max-w-sm mx-auto space-y-3">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto border border-blue-100 shadow-2xs">
+                      <div className="w-12 h-12 rounded-xl bg-surface-hover text-muted-foreground flex items-center justify-center mx-auto border border-border shadow-xs">
                         <Sparkles size={22} />
                       </div>
-                      <h4 className="text-sm font-bold text-slate-900">
+                      <h4 className="text-sm font-semibold text-foreground">
                         No accounts match active filters
                       </h4>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-muted-foreground">
                         Source fresh, ICP-verified accounts using autonomous prospecting or clear search terms.
                       </p>
                       <div className="flex items-center justify-center gap-2 pt-1">
                         <Button
                           size="sm"
                           onClick={onOpenProspecting}
-                          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs"
+                          className="text-xs font-semibold"
                         >
                           <Sparkles size={13} className="mr-1.5" /> Launch AI Prospector
                         </Button>
@@ -301,7 +301,7 @@ export default function SalesTableView({
                           size="sm"
                           variant="outline"
                           onClick={onOpenCreateLead}
-                          className="text-xs rounded-xl border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-xs"
+                          className="text-xs"
                         >
                           Add Manually
                         </Button>
@@ -315,16 +315,16 @@ export default function SalesTableView({
                   const isChecked = selectedLeadIds.includes(lead.id);
                   const st = STATUS_CONFIG[lead.status] || {
                     label: lead.status,
-                    color: 'bg-slate-100 text-slate-700 border-slate-200',
-                    dot: 'bg-slate-400',
+                    color: 'bg-[#333E4C] text-[#C1CAD6] border border-[#414C5A]',
+                    dot: 'bg-[#AAB5C4]',
                   };
 
                   return (
                     <tr
                       key={lead.id}
                       onClick={() => onSelectLead(lead)}
-                      className={`hover:bg-slate-50/80 transition-colors cursor-pointer group ${
-                        isSelected ? 'bg-blue-50/50' : ''
+                      className={`hover:bg-surface-hover/50 transition-colors cursor-pointer group ${
+                        isSelected ? 'bg-primary/10' : ''
                       }`}
                     >
                       {/* Checkbox */}
@@ -334,18 +334,18 @@ export default function SalesTableView({
                           checked={isChecked}
                           onChange={(e) => toggleSelectOne(lead.id, e as any)}
                           onClick={(e) => e.stopPropagation()}
-                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          className="rounded border-border text-primary focus:ring-ring"
                         />
                       </td>
 
                       {/* Account & Contact */}
                       <td className="py-3 px-3.5">
                         <div className="flex items-start gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 flex items-center justify-center text-xs font-extrabold shrink-0 mt-0.5 shadow-2xs">
+                          <div className="w-8 h-8 rounded-lg bg-surface-hover border border-border text-foreground flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5">
                             {lead.company?.charAt(0).toUpperCase() || 'C'}
                           </div>
                           <div>
-                            <div className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                            <div className="font-semibold text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5">
                               <span>{lead.company}</span>
                               {lead.website && (
                                 <a
@@ -357,15 +357,15 @@ export default function SalesTableView({
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()}
-                                  className="text-slate-400 hover:text-blue-600 transition-colors"
+                                  className="text-muted-foreground hover:text-primary transition-colors"
                                   title="Open website"
                                 >
                                   <ExternalLink size={12} />
                                 </a>
                               )}
                             </div>
-                            <p className="text-[11px] text-slate-500 mt-0.5">
-                              <strong className="text-slate-700">{lead.name}</strong>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              <strong className="text-foreground">{lead.name}</strong>
                               {lead.assigned_to ? ` · ${lead.assigned_to}` : ''}
                             </p>
                           </div>
@@ -383,7 +383,7 @@ export default function SalesTableView({
                           <select
                             value={lead.status}
                             onChange={(e) => onUpdateStatus(lead.id, e.target.value)}
-                            className={`appearance-none cursor-pointer pl-2.5 pr-6 py-1 rounded-full text-[11px] font-semibold border transition-all outline-none ${st.color}`}
+                            className={`appearance-none cursor-pointer pl-2.5 pr-6 py-1 rounded-full text-[11px] font-semibold border transition-all outline-none ${st.color} [&>option]:bg-[#29323E] [&>option]:text-[#E5EAF1]`}
                           >
                             <option value="new">New Prospect</option>
                             <option value="qualified">ICP Qualified</option>
@@ -400,32 +400,32 @@ export default function SalesTableView({
                       <td className="py-3 px-3.5">
                         <div className="space-y-1">
                           {lead.email ? (
-                            <div className="flex items-center gap-1.5 text-slate-700">
-                              <Mail size={12} className="text-slate-400 shrink-0" />
-                              <span className="font-mono text-[11px] text-slate-800">{lead.email}</span>
+                            <div className="flex items-center gap-1.5 text-foreground">
+                              <Mail size={12} className="text-muted-foreground shrink-0" />
+                              <span className="font-mono text-[11px] text-foreground">{lead.email}</span>
                               <button
                                 type="button"
                                 onClick={(e) => copyToClipboard(lead.email, e)}
-                                className="text-slate-400 hover:text-blue-600 p-0.5"
+                                className="text-muted-foreground hover:text-primary p-0.5 transition-colors"
                                 title="Copy email"
                               >
                                 {copiedEmail === lead.email ? (
-                                  <Check size={11} className="text-emerald-600" />
+                                  <Check size={11} className="text-[#64B99A]" />
                                 ) : (
                                   <Copy size={11} />
                                 )}
                               </button>
                             </div>
                           ) : (
-                            <span className="text-slate-400 text-[11px] italic">No email</span>
+                            <span className="text-muted-foreground text-[11px] italic">No email</span>
                           )}
                           {lead.phone && (
-                            <div className="flex items-center gap-1.5 text-slate-500">
-                              <Phone size={11} className="shrink-0 text-slate-400" />
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                              <Phone size={11} className="shrink-0 text-muted-foreground" />
                               <a
                                 href={`tel:${lead.phone}`}
                                 onClick={(e) => e.stopPropagation()}
-                                className="text-[11px] hover:text-blue-600 font-mono"
+                                className="text-[11px] hover:text-primary font-mono transition-colors"
                               >
                                 {lead.phone}
                               </a>
@@ -437,10 +437,10 @@ export default function SalesTableView({
                       {/* Freshness / Source */}
                       <td className="py-3 px-3.5">
                         <div>
-                          <span className="text-[11px] font-semibold text-slate-800 block">
+                          <span className="text-[11px] font-semibold text-foreground block">
                             {lead.data?.freshness?.freshness_label || lead.freshness?.freshness_label || 'Active Verified'}
                           </span>
-                          <span className="text-[10px] text-slate-500">
+                          <span className="text-[10px] text-muted-foreground">
                             {lead.source?.replace(': V3 Workflow', '') || 'Inbound'}
                           </span>
                         </div>

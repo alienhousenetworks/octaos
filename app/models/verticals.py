@@ -11,6 +11,7 @@ class Lead(Base):
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
     organization_id = Column(String, nullable=True, index=True)
+    room_id = Column(String, ForeignKey("section_rooms.id"), nullable=True, index=True)
     name = Column(String)
     email = Column(String, index=True)
     phone = Column(String)
@@ -40,6 +41,7 @@ class ContentPost(Base):
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
     organization_id = Column(String, nullable=True, index=True)
+    room_id = Column(String, ForeignKey("section_rooms.id"), nullable=True, index=True)
     platform = Column(String)
     content = Column(Text)
     image_url = Column(String, nullable=True)
@@ -201,6 +203,7 @@ class Candidate(Base):
     email = Column(String)
     phone = Column(String, nullable=True)
     role = Column(String)
+    room_id = Column(String, ForeignKey("section_rooms.id"), nullable=True, index=True)
     scorecard = Column(JSON)
     status = Column(String, default="sourced") # sourced, screened, interviewed, offered, hired
     merged_into_candidate_id = Column(String, ForeignKey("candidates.id"), nullable=True)
@@ -228,6 +231,7 @@ class Ticket(Base):
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
     organization_id = Column(String, nullable=True, index=True)
+    room_id = Column(String, ForeignKey("section_rooms.id"), nullable=True, index=True)
     subject = Column(String)
     description = Column(Text)
     status = Column(String, default="open") # open, pending_human, human_handling, resolved, closed

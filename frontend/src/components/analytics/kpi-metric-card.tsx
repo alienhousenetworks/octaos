@@ -35,22 +35,22 @@ export default function KpiMetricCard({
   const isDown = hasDelta && deltaPct < 0;
 
   let deltaColor = 'text-muted-foreground';
-  let sparkColor = '#3B82F6'; // Default blue
+  let sparkColor = '#7888D9'; // Default muted indigo
 
   if (hasDelta) {
     const isGood = isNegativeGood ? isDown : isUp;
     if (isGood) {
-      deltaColor = 'text-emerald-400';
-      sparkColor = '#10B981';
+      deltaColor = 'text-[#64B99A]';
+      sparkColor = '#64B99A';
     } else if ((isNegativeGood && isUp) || (!isNegativeGood && isDown)) {
-      deltaColor = 'text-rose-400';
-      sparkColor = '#F43F5E';
+      deltaColor = 'text-[#D9828B]';
+      sparkColor = '#D9828B';
     }
   }
 
   return (
     <div
-      className={`group relative flex flex-col justify-between overflow-hidden rounded-xl border border-border/70 bg-card/60 p-4 shadow-sm backdrop-blur-md transition-all duration-200 hover:border-border hover:bg-card/80 ${className}`}
+      className={`group relative flex flex-col justify-between overflow-hidden rounded-xl border border-border bg-card p-4 shadow-xs transition-colors hover:border-border hover:bg-surface-hover/70 ${className}`}
     >
       {/* Top Header: Label + Optional Badge / Explore */}
       <div className="flex items-center justify-between gap-2">

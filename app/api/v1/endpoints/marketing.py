@@ -91,15 +91,22 @@ def read_posts(
     _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.READ)),
     skip: int = 0,
     limit: int = 100,
+    room_id: Optional[str] = None,
+    room_slug: Optional[str] = None,
 ) -> Any:
-    posts = (
-        db.query(models.ContentPost)
-        .filter(models.ContentPost.tenant_id == tenant_id)
-        .order_by(models.ContentPost.day.asc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+    q = db.query(models.ContentPost).filter(models.ContentPost.tenant_id == tenant_id)
+    if room_slug:
+        from app.models.rooms import SectionRoom
+        rm = db.query(SectionRoom).filter(
+            SectionRoom.tenant_id == tenant_id,
+            SectionRoom.section == "marketing",
+            SectionRoom.slug == room_slug.lower(),
+        ).first()
+        if rm:
+            room_id = rm.id
+    if room_id:
+        q = q.filter(models.ContentPost.room_id == room_id)
+    posts = q.order_by(models.ContentPost.day.asc()).offset(skip).limit(limit).all()
     return posts
 
 
@@ -386,6 +393,7 @@ def create_manual_post(
         status="draft",
         approval_status="pending",
         scheduled_at=post_in.scheduled_at,
+        room_id=post_in.room_id,
     )
     db.add(post)
     db.commit()
@@ -980,9 +988,10 @@ def publish_post_now(
 
     from app.services.social.publish_helpers import publish_post_sync
 
-    success = publish_post_sync(db, post)
-    if not success:
-        raise HTTPException(status_code=502, detail="Publishing failed. Check activity logs for details.")
+    result = publish_post_sync(db, post)
+    if not result.success:
+        detail = (result.error or "Publishing failed. Check activity logs for details.")[:500]
+        raise HTTPException(status_code=502, detail=detail)
     db.refresh(post)
     return {"status": "published", "post": schemas.ContentPost.model_validate(post)}
 

@@ -30,7 +30,7 @@ from app.models.hr import (
     ProvisioningRequest,
     SalaryBand,
 )
-from app.models.verticals import Candidate
+from app.models.verticals import Candidate, HRResumeIngestionJob
 from app.models.workflows import Workflow, WorkflowTask
 from app.services.executive_os.state_machine import TaskState
 from app.services.hr.analytics import RecruitmentAnalytics
@@ -219,6 +219,147 @@ def list_requisitions(
         for r in rows
     ]
     return [policy.redact(item) for item in payload]
+
+
+@router.get("/requisitions/{requisition_id}/pipeline-summary")
+def get_requisition_pipeline_summary(
+    requisition_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    user: User = Depends(deps.get_current_user),
+):
+    """Returns reconciled recruitment pipeline summary for a requisition,
+    including actual batch ingestion stats, accurate stage counts, and applications.
+    """
+    req = db.query(JobRequisition).filter_by(id=requisition_id, tenant_id=tenant_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Requisition not found.")
+
+    # Find matching ingestion batch if any
+    ingestion_job = (
+        db.query(HRResumeIngestionJob)
+        .filter(
+            HRResumeIngestionJob.tenant_id == tenant_id,
+            HRResumeIngestionJob.role.ilike(f"%{req.title.strip()}%"),
+        )
+        .order_by(HRResumeIngestionJob.created_at.desc())
+        .first()
+    )
+
+    # Reconcile matching Candidate records to Applications safely without duplicating candidates
+    matching_candidates = (
+        db.query(Candidate)
+        .filter(
+            Candidate.tenant_id == tenant_id,
+            Candidate.role.ilike(f"%{req.title.strip()}%"),
+            Candidate.merged_into_candidate_id.is_(None),
+        )
+        .all()
+    )
+
+    for cand in matching_candidates:
+        existing_app = (
+            db.query(Application)
+            .filter_by(tenant_id=tenant_id, candidate_id=cand.id, requisition_id=req.id)
+            .first()
+        )
+        if not existing_app:
+            initial_stage = cand.status if cand.status in ("sourced", "screened", "interviewing", "offer", "hired", "rejected") else "sourced"
+            new_app = Application(
+                tenant_id=tenant_id,
+                candidate_id=cand.id,
+                requisition_id=req.id,
+                current_stage=initial_stage,
+                status="active" if initial_stage != "rejected" else "rejected",
+                source="Batch Resume Ingestion",
+                consent_status="basis_recorded",
+            )
+            db.add(new_app)
+            db.flush()
+            ensure_application_anchor(db, tenant_id, new_app)
+
+    db.commit()
+
+    # Query all applications for this requisition
+    apps = (
+        db.query(Application)
+        .filter_by(tenant_id=tenant_id, requisition_id=req.id)
+        .all()
+    )
+
+    stage_counts = {
+        "sourced": 0,
+        "screened": 0,
+        "interviewing": 0,
+        "offer": 0,
+        "hired": 0,
+        "rejected": 0,
+    }
+
+    application_cards = []
+    policy = _policy(user)
+
+    for app in apps:
+        stage = app.current_stage if app.current_stage in stage_counts else "sourced"
+        stage_counts[stage] += 1
+
+        person = db.query(Candidate).filter_by(id=app.candidate_id).first()
+        scorecard = person.scorecard if (person and person.scorecard) else {}
+
+        # Permitted next transitions based on internal edges
+        permitted = []
+        if stage == "sourced":
+            permitted = ["screened", "rejected"]
+        elif stage == "screened":
+            permitted = ["interviewing", "sourced", "rejected"]
+        elif stage == "interviewing":
+            permitted = ["offer", "screened", "rejected"]
+        elif stage == "offer":
+            permitted = ["hired", "interviewing", "rejected"]
+
+        application_cards.append(policy.redact({
+            "id": app.id,
+            "candidate_id": app.candidate_id,
+            "name": person.name if person else "Candidate",
+            "email": person.email if person else None,
+            "role": person.role if person else req.title,
+            "current_stage": stage,
+            "status": app.status,
+            "source": app.source,
+            "experience_years": scorecard.get("experience_years") or scorecard.get("years_of_experience"),
+            "skills": scorecard.get("skills") or scorecard.get("matched_skills") or [],
+            "recommendation": scorecard.get("recommendation"),
+            "fit_verdict": scorecard.get("fit_verdict") or scorecard.get("extra_remarks"),
+            "salary_expectation": scorecard.get("salary_expectation"),
+            "permitted_actions": permitted,
+            "applied_at": app.created_at.isoformat() if app.created_at else None,
+        }))
+
+    batch_info = None
+    if ingestion_job:
+        batch_info = {
+            "job_id": ingestion_job.id,
+            "role": ingestion_job.role,
+            "total_files": ingestion_job.total_files,
+            "processed_files": ingestion_job.processed_files,
+            "status": ingestion_job.status,
+            "completed_at": ingestion_job.updated_at.isoformat() if ingestion_job.updated_at else None,
+        }
+
+    return {
+        "requisition": {
+            "id": req.id,
+            "title": req.title,
+            "status": req.status,
+            "headcount_approved": req.headcount_approved,
+            "headcount_filled": req.headcount_filled,
+            "opened_at_confirmed": req.opened_at_confirmed,
+        },
+        "ingestion_batch": batch_info,
+        "stage_counts": stage_counts,
+        "total_applications": len(apps),
+        "applications": application_cards,
+    }
 
 
 @router.post("/applications")

@@ -548,6 +548,9 @@ def build_adapter(provider_key: str, transport: Transport | None = None) -> Any:
     }
     if provider_key == "dns_mx_inspect":
         return DnsMxAdapter()
+    if provider_key == "apify" or provider_key.startswith("apify_"):
+        from app.services.sales_os.providers.apify_adapter import ApifyAdapter
+        return ApifyAdapter(provider_key=provider_key, transport=transport)
     if provider_key in mapping and provider_key in SALES_OS_CALLABLE:
         return mapping[provider_key](transport=transport)
     if provider_key in SPECS:
