@@ -526,14 +526,17 @@ class CalendarEngine:
             except Exception as search_err:
                 logger.debug(f"[CalendarEngine] Search fallback: {search_err}")
 
+            state_line = f"State/Province: {state_display}\n" if state_display else ""
+            search_line = f"Web Search Context:\n{search_snippets}\n\n" if search_snippets else "\n"
+
             prompt = (
                 f"Identify major upcoming cultural, seasonal, and commercial moments in {loc_query} "
                 f"for the next 30 days between {today.isoformat()} and {end_date.isoformat()}.\n\n"
                 f"Country: {country_display}\n"
-                f"{f'State/Province: {state_display}\n' if state_display else ''}"
+                f"{state_line}"
                 f"Brand: {company_name} ({industry})\n"
                 f"Brand USP: {usp}\n"
-                f"{f'Web Search Context:\n{search_snippets}\n' if search_snippets else ''}\n"
+                f"{search_line}"
                 f"Generate high-converting marketing hooks connecting each moment to brand innovation, trust, and growth.\n"
                 f"Output strictly a valid JSON array of objects with keys:\n"
                 f'- "name": Exact event or observation name as given in official calendar\n'

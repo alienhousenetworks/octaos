@@ -668,6 +668,7 @@ async def send_interview_email(
     company_name = "OctaOS Technologies Inc."
     subject = f"Interview Invitation: {candidate.role} at {company_name}"
     
+    notes_block = f"Additional Notes:\n{request.custom_notes}\n\n" if request.custom_notes else ""
     body = f"""Dear {candidate.name},
 
 Thank you for your application for the position of {candidate.role} at {company_name}. 
@@ -680,8 +681,7 @@ Interview Details:
 - Interviewer: {request.interviewer_name}
 - Meeting Link: {request.meeting_link}
 
-{f"Additional Notes:\n{request.custom_notes}\n" if request.custom_notes else ""}
-Please reply directly to this email if you need to reschedule or have any questions.
+{notes_block}Please reply directly to this email if you need to reschedule or have any questions.
 
 We look forward to speaking with you!
 
