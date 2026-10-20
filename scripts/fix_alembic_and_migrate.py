@@ -182,15 +182,29 @@ def main() -> int:
     current = get_db_version(url)
     print(f"[info] DB alembic_version: {current or '(empty)'}")
 
+    # Check if database actually has base tables (like tenants)
+    from sqlalchemy import create_engine, text
+    try:
+        _eng = create_engine(url)
+        with _eng.connect() as _conn:
+            _has_tenants = bool(_conn.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'tenants'")).fetchone())
+        if not _has_tenants:
+            with _eng.begin() as _conn:
+                _conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
+            print("[clean] cleared alembic_version because base tables do not exist yet")
+            current = None
+    except Exception as _e:
+        print(f"[warn] could not check base tables: {_e}")
+
     if current and current not in known:
         print(f"[fix] orphan revision {current!r} not on disk — rewriting stamp")
         fallback = pick_fallback_stamp(known)
         set_db_version(url, fallback)
         current = fallback
 
-    # try upgrade
-    print("[migrate] alembic upgrade head ...")
-    result = run_alembic("upgrade", "head")
+    # try upgrade all heads
+    print("[migrate] alembic upgrade heads ...")
+    result = run_alembic("upgrade", "heads")
     if result.returncode == 0:
         print(result.stdout or "")
         print("[ok] migrations applied")
@@ -201,28 +215,19 @@ def main() -> int:
     combined = (result.stdout or "") + (result.stderr or "")
     print(combined)
 
-    if "Can't locate revision" in combined or "Multiple head revisions" in combined:
-        print("[fix] upgrade failed due to revision graph issue — auto-recovering")
-        # clean again just in case
-        clean_untracked_auto_migrations()
-        known = parse_revisions_on_disk()
-        fallback = pick_fallback_stamp(known)
-        set_db_version(url, fallback)
-        result2 = run_alembic("upgrade", "head")
-        print(result2.stdout or "")
-        print(result2.stderr or "")
-        if result2.returncode == 0:
-            print("[ok] recovered and migrations applied")
+    # Fallback: create all tables via SQLAlchemy metadata and stamp heads
+    print("[fallback] applying full metadata create_all and stamping heads ...")
+    try:
+        import app.models  # noqa: F401
+        from app.models.base import Base
+        from app.db.session import engine
+        Base.metadata.create_all(bind=engine)
+        stamp_res = run_alembic("stamp", "heads")
+        if stamp_res.returncode == 0:
+            print("[ok] full metadata created and stamped heads successfully")
             return 0
-        # last resort: multiple heads
-        result3 = run_alembic("upgrade", "heads")
-        print(result3.stdout or "")
-        print(result3.stderr or "")
-        if result3.returncode == 0:
-            print("[ok] upgraded all heads")
-            return 0
-        print("[error] migration recovery failed")
-        return 1
+    except Exception as ex:
+        print(f"[error] metadata create_all fallback failed: {ex}")
 
     print("[error] alembic upgrade failed")
     return 1

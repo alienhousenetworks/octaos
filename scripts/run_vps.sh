@@ -99,6 +99,9 @@ python3 -m venv "${PROJECT_DIR}/venv"
 source "${PROJECT_DIR}/venv/bin/activate"
 pip install --upgrade pip setuptools wheel
 pip install -r "${PROJECT_DIR}/requirements.txt"
+# If tenants table is missing, ensure alembic_version is dropped so migration starts cleanly from initial schema
+sudo -u postgres psql -d "${PG_DB}" -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'tenants') THEN DROP TABLE IF EXISTS alembic_version; END IF; END \$\$;" 2>/dev/null || true
+
 # Run migrations for all heads
 alembic upgrade heads || python3 scripts/fix_alembic_and_migrate.py || true
 

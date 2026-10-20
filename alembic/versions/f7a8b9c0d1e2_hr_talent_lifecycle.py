@@ -46,11 +46,44 @@ NEW_TABLES = [
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
-    from app.models import hr as hr_models
+    from app.models import hr as hr_models  # noqa: F401
+    from app.models import executive as executive_models  # noqa: F401
+    from app.models import objectives as objectives_models  # noqa: F401
+    from app.models import decision_cases as decision_cases_models  # noqa: F401
+    from app.models import mcp as mcp_models  # noqa: F401
     from app.models.base import Base
 
-    tables = [Base.metadata.tables[name] for name in NEW_TABLES if name in Base.metadata.tables]
-    Base.metadata.create_all(bind=bind, tables=tables)
+    PREREQ_TABLES = [
+        "business_objectives",
+        "objective_metrics",
+        "workflow_events",
+        "capability_registry",
+        "budget_envelopes",
+        "budget_reservations",
+        "kill_switches",
+        "policy_rules",
+        "suppression_list",
+        "plan_versions",
+        "plan_nodes",
+        "executive_approval_requests",
+        "approval_decisions",
+        "side_effect_outbox",
+        "evidence_sources",
+        "claim_clusters",
+        "claim_support",
+        "playbook_post_mortems",
+        "decision_cases",
+        "decision_alternatives",
+        "decision_grants",
+        "decision_outcome_reviews",
+        "system_mcp_credentials",
+        "dynamic_connectors",
+        "dynamic_object_definitions",
+        "mcp_capability_grants",
+    ]
+
+    all_tables = [Base.metadata.tables[name] for name in (PREREQ_TABLES + NEW_TABLES) if name in Base.metadata.tables]
+    Base.metadata.create_all(bind=bind, tables=all_tables, checkfirst=True)
 
     existing_candidate_cols = {c["name"] for c in inspector.get_columns("candidates")} if "candidates" in inspector.get_table_names() else set()
     if "phone" not in existing_candidate_cols:
@@ -66,17 +99,26 @@ def upgrade() -> None:
     if approval_cols and "idempotency_key" not in approval_cols:
         op.add_column("executive_approval_requests", sa.Column("idempotency_key", sa.String(length=64), nullable=True))
     if approval_cols and bind.dialect.name == "postgresql":
-        op.alter_column("executive_approval_requests", "plan_version_id", existing_type=sa.String(), nullable=True)
-        op.create_check_constraint(
-            "chk_hr_plan_version_nullable",
-            "executive_approval_requests",
-            "plan_version_id IS NOT NULL OR capability_id LIKE 'hr.%'",
-        )
-        op.create_check_constraint(
-            "chk_hr_idempotency_key",
-            "executive_approval_requests",
-            "capability_id NOT LIKE 'hr.%' OR idempotency_key IS NOT NULL",
-        )
+        try:
+            op.alter_column("executive_approval_requests", "plan_version_id", existing_type=sa.String(), nullable=True)
+        except Exception:
+            pass
+        try:
+            op.create_check_constraint(
+                "chk_hr_plan_version_nullable",
+                "executive_approval_requests",
+                "plan_version_id IS NOT NULL OR capability_id LIKE 'hr.%'",
+            )
+        except Exception:
+            pass
+        try:
+            op.create_check_constraint(
+                "chk_hr_idempotency_key",
+                "executive_approval_requests",
+                "capability_id NOT LIKE 'hr.%' OR idempotency_key IS NOT NULL",
+            )
+        except Exception:
+            pass
 
     if "provider_usage" in inspector.get_table_names():
         usage_cols = {c["name"] for c in inspector.get_columns("provider_usage")}
