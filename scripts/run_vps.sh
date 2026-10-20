@@ -8,14 +8,13 @@ PROJECT_DIR="/opt/octaos"
 cd "${PROJECT_DIR}"
 
 echo "=========================================================="
-echo "1. Handling Apt Locks & Updating Packages"
+echo "1. Clearing Any Stuck Locks & Updating Packages"
 echo "=========================================================="
-# Wait if background apt is finishing
-while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-    echo "Waiting for background apt process to finish..."
-    sleep 3
-done
+# Kill any hung background apt processes waiting for stdin
+killall -9 apt apt-get dpkg 2>/dev/null || true
+rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true
 
+export DEBIAN_FRONTEND=noninteractive
 dpkg --configure -a || true
 
 export DEBIAN_FRONTEND=noninteractive
