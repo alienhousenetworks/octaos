@@ -80,11 +80,8 @@ class NvidiaAdapter:
             messages.append({"role": "system", "content": req.system_prompt})
         messages.append({"role": "user", "content": req.prompt})
 
-        clean_model = req.model or "meta/llama-3.2-11b-vision-instruct"
-        if not ("/" in clean_model) and "llama-3.3-70b" in clean_model:
-            clean_model = "meta/llama-3.2-11b-vision-instruct"
-        elif clean_model.startswith("meta-llama/"):
-            clean_model = clean_model.replace("meta-llama/", "meta/")
+        from app.services.ai_gateway.adapters import resolve_nvidia_model
+        clean_model = resolve_nvidia_model(req.model)
 
         payload = {
             "model": clean_model,

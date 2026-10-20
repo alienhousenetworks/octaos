@@ -864,11 +864,50 @@ class LocalAdapter(BaseProviderAdapter):
             }
 
 
+# NIM catalog id. meta/llama-3.3-70b-instruct reached end of life on 2026-08-26.
+NVIDIA_NEMOTRON_MODEL = "nvidia/nemotron-3.5-super-vl-120b-a12b"
+_RETIRED_NVIDIA_MODELS = {
+    "meta/llama-3.3-70b-instruct",
+    "meta-llama/llama-3.3-70b-instruct",
+}
+
+
+def resolve_nvidia_model(model: Optional[str]) -> str:
+    """Return the model id NVIDIA NIM should receive.
+
+    Real NIM ids such as nvidia/nemotron-3.5-super-vl-120b-a12b keep the
+    nvidia/ prefix. A doubled provider prefix (nvidia/meta/...) is stripped
+    once. The retired Llama 3.3 70B id is replaced by DEFAULT_AI_MODEL when
+    that setting names a live model.
+    """
+    from app.core.config import settings
+
+    configured = (getattr(settings, "DEFAULT_AI_MODEL", None) or "").strip()
+
+    def _usable(candidate: str) -> str:
+        if candidate and candidate not in _RETIRED_NVIDIA_MODELS:
+            return candidate
+        if configured and configured not in _RETIRED_NVIDIA_MODELS:
+            return configured
+        return NVIDIA_NEMOTRON_MODEL
+
+    clean = (model or "").strip() or _usable(configured)
+    # nvidia/meta/llama-... was a provider prefix plus a model id.
+    # nvidia/nemotron-... is the model id itself and must be kept.
+    if clean.startswith("nvidia/") and clean.count("/") >= 2:
+        clean = _usable(clean[len("nvidia/"):])
+    elif clean.startswith("meta-llama/"):
+        clean = _usable("meta/" + clean[len("meta-llama/"):])
+    elif clean in _RETIRED_NVIDIA_MODELS or ("/" not in clean and "llama-3.3-70b" in clean):
+        clean = _usable("")
+    return clean
+
+
 class NvidiaAdapter(BaseProviderAdapter):
     """NVIDIA NIM API adapter (OpenAI-compatible endpoint at https://integrate.api.nvidia.com/v1)."""
     base_url: str = "https://integrate.api.nvidia.com/v1"
 
-    async def execute_request(self, prompt: str, model: str = "meta/llama-3.3-70b-instruct", system_prompt: str = None, **kwargs) -> Dict[str, Any]:
+    async def execute_request(self, prompt: str, model: str = None, system_prompt: str = None, **kwargs) -> Dict[str, Any]:
         images = kwargs.pop("images", None)
         messages = []
         if system_prompt:
@@ -888,13 +927,7 @@ class NvidiaAdapter(BaseProviderAdapter):
         else:
             messages.append({"role": "user", "content": prompt})
 
-        clean_model = model or "meta/llama-3.3-70b-instruct"
-        if clean_model.startswith("nvidia/"):
-            clean_model = clean_model[len("nvidia/"):]
-        if not ("/" in clean_model) and "llama-3.3-70b" in clean_model:
-            clean_model = "meta/llama-3.3-70b-instruct"
-        elif clean_model.startswith("meta-llama/"):
-            clean_model = clean_model.replace("meta-llama/", "meta/")
+        clean_model = resolve_nvidia_model(model)
 
         temperature = kwargs.pop("temperature", 0.2)
         top_p = kwargs.pop("top_p", 0.7)

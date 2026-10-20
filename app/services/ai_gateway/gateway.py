@@ -337,7 +337,8 @@ class AIProviderGateway:
             elif prov_lower == "groq":
                 return "llama-3.3-70b-versatile"
             elif prov_lower in ("nvidia", "nim", "nvidia_nim"):
-                return "meta/llama-3.3-70b-instruct"
+                from app.services.ai_gateway.adapters import resolve_nvidia_model
+                return resolve_nvidia_model(getattr(settings, "DEFAULT_AI_MODEL", None))
             elif prov_lower in ("grok", "xai"):
                 return "grok-2"
             elif prov_lower == "openai":
@@ -525,7 +526,8 @@ class AIProviderGateway:
                 elif p == "groq":
                     return "groq", "llama-3.3-70b-versatile"
                 elif p in ("nvidia", "nim", "nvidia_nim"):
-                    return "nvidia", "meta/llama-3.3-70b-instruct"
+                    from app.services.ai_gateway.adapters import resolve_nvidia_model
+                    return "nvidia", resolve_nvidia_model(getattr(settings, "DEFAULT_AI_MODEL", None))
                 elif p in ("grok", "xai"):
                     return "grok", "grok-2"
                 elif p == "openai":
