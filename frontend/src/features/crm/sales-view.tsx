@@ -98,10 +98,6 @@ export default function SalesView({
         if (currentRoomSlug) {
           const match = data.find((r: any) => r.slug === currentRoomSlug);
           if (match) setCurrentRoom(match);
-        } else if (data.length > 0) {
-          const defaultRoom = data.find((r: any) => r.slug === 'default') || data[0];
-          setCurrentRoom(defaultRoom);
-          setCurrentRoomSlug(defaultRoom.slug);
         }
       }
     } catch (err) {
@@ -111,11 +107,16 @@ export default function SalesView({
     }
   };
 
-  const handleSelectRoom = (slug: string) => {
+  const handleSelectRoom = (slug: string, room?: SectionRoomData) => {
     setCurrentRoomSlug(slug);
-    const match = rooms.find((r) => r.slug === slug);
-    if (match) setCurrentRoom(match);
+    const match = room || rooms.find((r) => r.slug === slug);
+    if (match) {
+      setCurrentRoom(match);
+      const packId = match.data?.industry_pack_id;
+      if (packId && packId !== activePack?.id) handleSelectPack(packId);
+    }
     setIsDirectoryView(false);
+    setActiveSalesTab('home');
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.pathname = `/app/sales/rooms/${slug}`;
@@ -931,6 +932,7 @@ export default function SalesView({
         rooms={rooms}
         loading={roomsLoading}
         onSelectRoom={handleSelectRoom}
+        industryPacks={packs}
         onRefresh={fetchRooms}
         API_URL={API_URL}
         fetchWithAuth={fetchWithAuth}

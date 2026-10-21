@@ -442,7 +442,7 @@ export default function AutomationsView({
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   disabled={!canBuild || synthesizing}
-                  placeholder={canBuild ? "e.g. When a lead is qualified in OctaOS Sales, notify #sales-pipeline in Slack and create a HubSpot deal..." : "Builder permissions required to synthesize new workflows"}
+                  placeholder={canBuild ? "e.g. When a lead is qualified in Sales, notify #sales-pipeline in Slack and create a HubSpot deal..." : "Builder permissions required to synthesize new workflows"}
                   className="flex-1 text-sm bg-background/80"
                   onKeyDown={(e) => e.key === 'Enter' && canBuild && handleSynthesize()}
                 />

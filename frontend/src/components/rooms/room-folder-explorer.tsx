@@ -45,7 +45,8 @@ interface RoomFolderExplorerProps {
   sectionTitle: string;
   rooms: SectionRoomData[];
   loading: boolean;
-  onSelectRoom: (slug: string) => void;
+  onSelectRoom: (slug: string, room?: SectionRoomData) => void;
+  industryPacks?: { id: string; name: string }[];
   onRefresh: () => Promise<void>;
   API_URL: string;
   fetchWithAuth: (url: string, options?: any) => Promise<Response>;
@@ -104,6 +105,7 @@ export default function RoomFolderExplorer({
   rooms,
   loading,
   onSelectRoom,
+  industryPacks = [],
   onRefresh,
   API_URL,
   fetchWithAuth,
@@ -151,7 +153,7 @@ export default function RoomFolderExplorer({
       setField3('LinkedIn, Twitter/X, Instagram');
     } else if (section === 'sales') {
       setField1('Mid-Market & Enterprise Accounts');
-      setField2('SaaS / Cloud Infrastructure');
+      setField2('');
       setField3('$50,000 - $150,000 ARR');
     } else {
       setField1('Tier-1 Inbound Queue');
@@ -165,6 +167,10 @@ export default function RoomFolderExplorer({
     e.preventDefault();
     if (!newName.trim()) {
       notify('Please enter a room name');
+      return;
+    }
+    if (section === 'sales' && industryPacks.length > 0 && !field2) {
+      notify('Please choose an industry');
       return;
     }
 
@@ -181,7 +187,8 @@ export default function RoomFolderExplorer({
         roomData.channels = field3;
       } else if (section === 'sales') {
         roomData.target_tier = field1;
-        roomData.industry = field2;
+        roomData.industry_pack_id = field2 || undefined;
+        roomData.industry = industryPacks.find((p) => p.id === field2)?.name;
         roomData.deal_size = field3;
       } else {
         roomData.queue_name = field1;
@@ -207,7 +214,7 @@ export default function RoomFolderExplorer({
         notify(`Created room "${created.name}"`);
         setIsCreateOpen(false);
         await onRefresh();
-        onSelectRoom(created.slug);
+        onSelectRoom(created.slug, created);
       } else {
         const err = await res.json();
         notify(err.detail || 'Failed to create room');
@@ -654,14 +661,23 @@ export default function RoomFolderExplorer({
                         className="bg-slate-900 border-slate-800 text-xs h-8"
                       />
                     </div>
+                    {industryPacks.length > 0 && (
                     <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Industry / Vertical</label>
-                      <Input
-                        value={field2}
-                        onChange={(e) => setField2(e.target.value)}
-                        className="bg-slate-900 border-slate-800 text-xs h-8"
-                      />
+                      <label className="text-[11px] text-slate-300">Industry *</label>
+                      <Select value={field2} onValueChange={(val) => setField2(val || '')}>
+                        <SelectTrigger className="bg-slate-900 border-slate-800 text-xs text-slate-200 h-8">
+                          <SelectValue placeholder="Choose an industry" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-900 border-slate-800 text-slate-200 max-h-64">
+                          {industryPacks.map((pack) => (
+                            <SelectItem key={pack.id} value={pack.id}>
+                              {pack.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
+                    )}
                     <div className="space-y-1">
                       <label className="text-[11px] text-slate-300">Target Deal Value</label>
                       <Input
