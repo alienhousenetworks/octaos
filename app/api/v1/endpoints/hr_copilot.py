@@ -38,7 +38,11 @@ async def chat_with_hr_copilot(
     Retrieves authorized context, classifies intents, and returns evidence-backed responses.
     """
     orchestrator = HREnterpriseOrchestrator(db, tenant_id, current_user.id)
-    return await orchestrator.handle_message(request)
+    try:
+        return await orchestrator.handle_message(request)
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.post("/actions/submit-approval")

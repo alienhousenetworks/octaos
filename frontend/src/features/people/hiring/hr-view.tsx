@@ -33,6 +33,7 @@ interface HRViewProps {
   fetchWithAuth: (url: string, options?: any) => Promise<Response>;
   fetchData: () => Promise<void>;
   initialRoomSlug?: string;
+  dataRevision?: number;
 }
 
 export default function HRView({
@@ -41,6 +42,7 @@ export default function HRView({
   fetchWithAuth,
   fetchData,
   initialRoomSlug,
+  dataRevision = 0,
 }: HRViewProps) {
   // ── Section Room State ──
   const [rooms, setRooms] = useState<SectionRoomData[]>([]);
@@ -160,7 +162,7 @@ export default function HRView({
       fetchContractTemplates();
       checkIngestionJobStatus();
     }
-  }, [token]);
+  }, [token, dataRevision]);
 
   const fetchRooms = async () => {
     if (!token) return;

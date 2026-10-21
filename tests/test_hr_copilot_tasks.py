@@ -128,3 +128,51 @@ async def test_hr_copilot_task_execution_and_db_answering(test_db):
     mkt = test_db.query(Department).filter_by(tenant_id=tenant_id, name="Marketing").first()
     assert mkt is not None
     assert mkt.code == "MKT"
+
+
+@pytest.mark.asyncio
+async def test_ask_hr_answers_analytics_and_executes_workflow_tasks(test_db, monkeypatch):
+    tenant_id = "tenant-analytics"
+
+    async def fail_llm(*_args, **_kwargs):
+        raise RuntimeError("llm unavailable")
+
+    monkeypatch.setattr("app.services.agents.hr.orchestrator.LLMGateway.complete", fail_llm)
+    orchestrator = HREnterpriseOrchestrator(test_db, tenant_id, "user-analytics")
+
+    analytics = await orchestrator.handle_message(CopilotChatRequest(message="show hiring analytics"))
+    assert "Hiring analytics" in analytics.reply
+    assert "time to fill" in analytics.reply.lower()
+    assert "insufficient" in analytics.reply.lower()
+    assert not analytics.reply.lower().startswith("hello")
+
+    hiring = await orchestrator.handle_message(CopilotChatRequest(message="what is our hiring analytics"))
+    assert "time to fill" in hiring.reply.lower()
+    assert "Hello!" not in hiring.reply
+
+    from app.models.hr import HRWorkflowTask
+    start = HRWorkflowTask(
+        tenant_id=tenant_id,
+        instance_id="inst-1",
+        node_id="start-node",
+        task_type="start",
+        status="pending",
+    )
+    approval = HRWorkflowTask(
+        tenant_id=tenant_id,
+        instance_id="inst-1",
+        node_id="approval-node",
+        task_type="approval",
+        status="pending",
+    )
+    test_db.add_all([start, approval])
+    test_db.commit()
+
+    ran = await orchestrator.handle_message(CopilotChatRequest(message="execute the pending hr workflow tasks"))
+    assert "Completed" in ran.reply
+    assert ran.task_result is not None
+    assert ran.task_result.proposed_actions[0].executed is True
+    test_db.refresh(start)
+    test_db.refresh(approval)
+    assert start.status == "completed"
+    assert approval.status == "pending"

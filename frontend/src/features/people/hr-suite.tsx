@@ -68,7 +68,7 @@ export default function HREnterpriseSuite({
   }>>([
     {
       role: 'assistant',
-      content: 'Ask about people, hiring, or time off. I can look up the directory, the pipeline, or leave coverage.',
+      content: 'Ask about people, hiring analytics, or time off. Command a task and I will run it in the HR flow: add someone, open a requisition, move a candidate, or complete pending workflow tasks.',
       agent: 'HR Orchestrator'
     }
   ]);
@@ -95,6 +95,7 @@ export default function HREnterpriseSuite({
 
   // Analytics State
   const [analytics, setAnalytics] = useState<any>(null);
+  const [hiringRevision, setHiringRevision] = useState(0);
 
   // Keyboard shortcut Cmd+J to toggle Copilot
   useEffect(() => {
@@ -264,7 +265,7 @@ export default function HREnterpriseSuite({
           ...prev,
           {
             role: 'assistant',
-            content: data.reply,
+            content: data.reply || 'Ask HR returned an empty answer. Try a headcount, analytics, or a direct command.',
             agent: data.specialist_agent,
             action: action
           }
@@ -272,11 +273,20 @@ export default function HREnterpriseSuite({
         if (action?.executed) {
           loadEmployees();
           loadLeaves();
+          loadAnalytics();
+          setHiringRevision((revision) => revision + 1);
         }
       } else {
+        let detail = 'Apologies, I encountered an error retrieving that workforce data.';
+        try {
+          const err = await res.json();
+          if (typeof err.detail === 'string' && err.detail.trim()) detail = err.detail;
+        } catch {
+          // Keep the fallback sentence when the body is not JSON.
+        }
         setCopilotMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: 'Apologies, I encountered an error retrieving that workforce data.' }
+          { role: 'assistant', content: detail }
         ]);
       }
     } catch {
@@ -372,6 +382,7 @@ export default function HREnterpriseSuite({
             fetchWithAuth={fetchWithAuth}
             fetchData={fetchData}
             initialRoomSlug={initialRoomSlug}
+            dataRevision={hiringRevision}
           />
         )}
 

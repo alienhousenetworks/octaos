@@ -7,13 +7,14 @@ import uuid
 import logging
 import re
 import json
+import asyncio
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
 from app.models.hr_core import EmployeeProfile, Department, CompanyPolicy
 from app.models.hr_workforce import LeaveRequest, LeaveType
-from app.models.hr import JobRequisition, Application
+from app.models.hr import JobRequisition, Application, HRWorkflowTask
 from app.models.verticals import Candidate
 from app.services.llm_gateway import LLMGateway
 from app.services.agents.hr.schemas import (
@@ -43,26 +44,52 @@ class HREnterpriseOrchestrator:
         self.people_admin_specialist = PeopleAdminSpecialist(db, tenant_id)
         self.llm = LLMGateway(db, tenant_id)
 
+    def _safe_call(self, fn, default):
+        """Run one read in a savepoint so a missing table does not abort the chat."""
+        try:
+            with self.db.begin_nested():
+                return fn()
+        except Exception as exc:
+            logger.warning("HR copilot skipped a live read: %s", exc)
+            return default
+
     def _get_workforce_data(self) -> Dict[str, Any]:
         """Gathers ground-truth enterprise workforce state from the database."""
-        employees = self.db.query(EmployeeProfile).filter_by(
-            tenant_id=self.tenant_id
-        ).order_by(EmployeeProfile.created_at.desc()).limit(100).all()
+        employees = self._safe_call(
+            lambda: self.db.query(EmployeeProfile).filter_by(
+                tenant_id=self.tenant_id
+            ).order_by(EmployeeProfile.created_at.desc()).limit(100).all(),
+            [],
+        ) or []
 
         active_count = sum(1 for e in employees if e.status == "active")
 
-        departments = self.db.query(Department).filter_by(tenant_id=self.tenant_id).all()
+        departments = self._safe_call(
+            lambda: self.db.query(Department).filter_by(tenant_id=self.tenant_id).all(),
+            [],
+        ) or []
 
-        open_reqs = self.db.query(JobRequisition).filter(
-            JobRequisition.tenant_id == self.tenant_id,
-            JobRequisition.status.in_(["open", "draft"])
-        ).all()
+        open_reqs = self._safe_call(
+            lambda: self.db.query(JobRequisition).filter(
+                JobRequisition.tenant_id == self.tenant_id,
+                JobRequisition.status.in_(["open", "draft"])
+            ).all(),
+            [],
+        ) or []
 
-        candidates = self.db.query(Candidate).filter_by(
-            tenant_id=self.tenant_id
-        ).order_by(Candidate.created_at.desc()).limit(100).all()
+        candidates = self._safe_call(
+            lambda: self.db.query(Candidate).filter_by(
+                tenant_id=self.tenant_id
+            ).order_by(Candidate.created_at.desc()).limit(100).all(),
+            [],
+        ) or []
 
-        total_candidates_count = self.db.query(Candidate).filter_by(tenant_id=self.tenant_id).count()
+        total_candidates_count = self._safe_call(
+            lambda: self.db.query(Candidate).filter_by(tenant_id=self.tenant_id).count(),
+            len(candidates),
+        )
+        if total_candidates_count is None:
+            total_candidates_count = len(candidates)
 
         candidates_by_status: Dict[str, int] = {}
         candidates_by_role: Dict[str, int] = {}
@@ -72,13 +99,28 @@ class HREnterpriseOrchestrator:
             r = c.role or "Unassigned"
             candidates_by_role[r] = candidates_by_role.get(r, 0) + 1
 
-        pending_leaves_records = self.db.query(LeaveRequest).filter_by(
-            tenant_id=self.tenant_id, status="pending"
-        ).order_by(LeaveRequest.created_at.desc()).limit(20).all()
+        pending_leaves_records = self._safe_call(
+            lambda: self.db.query(LeaveRequest).filter_by(
+                tenant_id=self.tenant_id, status="pending"
+            ).order_by(LeaveRequest.created_at.desc()).limit(20).all(),
+            [],
+        ) or []
 
-        policies = self.db.query(CompanyPolicy).filter_by(
-            tenant_id=self.tenant_id, is_active=True
-        ).all()
+        policies = self._safe_call(
+            lambda: self.db.query(CompanyPolicy).filter_by(
+                tenant_id=self.tenant_id, is_active=True
+            ).all(),
+            [],
+        ) or []
+
+        applications = self._safe_call(
+            lambda: self.db.query(Application).filter_by(tenant_id=self.tenant_id).all(),
+            [],
+        ) or []
+        applications_by_stage: Dict[str, int] = {}
+        for app in applications:
+            stage = (app.current_stage or "sourced").lower()
+            applications_by_stage[stage] = applications_by_stage.get(stage, 0) + 1
 
         return {
             "employees": employees,
@@ -92,8 +134,255 @@ class HREnterpriseOrchestrator:
             "candidates_by_role": candidates_by_role,
             "pending_leaves": len(pending_leaves_records),
             "pending_leaves_records": pending_leaves_records,
-            "policies": policies
+            "policies": policies,
+            "applications": applications,
+            "applications_by_stage": applications_by_stage,
         }
+
+    def _place_candidate_in_flow(self, candidate: Candidate, role: str) -> str:
+        """Open or reuse a requisition and attach an application so the hire shows in the pipeline."""
+        title = (role or "").strip() or "General Role"
+        requisitions = self.db.query(JobRequisition).filter_by(tenant_id=self.tenant_id).all()
+        requisition = None
+        title_l = title.lower()
+        for row in requisitions:
+            existing_title = (row.title or "").lower()
+            if existing_title and (existing_title in title_l or title_l in existing_title):
+                requisition = row
+                break
+        if requisition is None:
+            requisition = JobRequisition(
+                tenant_id=self.tenant_id,
+                title=title,
+                headcount_approved=1,
+                headcount_filled=0,
+                status="open",
+                opened_at=datetime.now(),
+                opened_at_confirmed=True,
+                recruiter_user_id=self.user_id,
+            )
+            self.db.add(requisition)
+            self.db.flush()
+
+        existing = self.db.query(Application).filter_by(
+            tenant_id=self.tenant_id,
+            candidate_id=candidate.id,
+            requisition_id=requisition.id,
+        ).first()
+        if existing:
+            return existing.id
+
+        application = Application(
+            tenant_id=self.tenant_id,
+            candidate_id=candidate.id,
+            requisition_id=requisition.id,
+            current_stage="sourced",
+            status="active",
+            source="HR Copilot",
+            consent_status="unknown_legacy",
+        )
+        self.db.add(application)
+        self.db.flush()
+        from app.services.hr.anchors import ensure_application_anchor
+        ensure_application_anchor(self.db, self.tenant_id, application)
+        return application.id
+
+    def _sync_candidate_stage(self, candidate: Candidate, spoken_stage: str) -> str:
+        """Move the hiring-flow application when the spoken stage is an allowed internal edge."""
+        flow_stage = {
+            "sourced": "sourced",
+            "screened": "screened",
+            "interviewed": "interviewing",
+            "interviewing": "interviewing",
+            "offered": "offer",
+            "offer": "offer",
+        }.get(spoken_stage)
+        if not flow_stage:
+            return "Hire and rejection stay on the approval path, so the application stage was not moved."
+
+        applications = self.db.query(Application).filter_by(
+            tenant_id=self.tenant_id, candidate_id=candidate.id
+        ).all()
+        if not applications:
+            try:
+                with self.db.begin_nested():
+                    self._place_candidate_in_flow(candidate, candidate.role or "General Role")
+            except Exception as exc:
+                logger.warning("Could not open an application for stage move: %s", exc)
+                return "No application is in the hiring flow yet, so only the candidate record changed."
+            applications = self.db.query(Application).filter_by(
+                tenant_id=self.tenant_id, candidate_id=candidate.id
+            ).all()
+        if not applications:
+            return "No application is in the hiring flow yet, so only the candidate record changed."
+
+        from app.models.base import User
+        from app.services.hr.stage_service import StageService
+        user = self.db.query(User).filter_by(id=self.user_id).first()
+        role = user.role if user and user.role else "admin"
+        service = StageService(self.db, self.tenant_id)
+        notes: List[str] = []
+        for application in applications:
+            if application.current_stage == flow_stage:
+                notes.append(f"application already at {flow_stage}")
+                continue
+            try:
+                with self.db.begin_nested():
+                    service.transition(application, flow_stage, self.user_id or "user", role)
+                notes.append(f"hiring flow moved to {flow_stage}")
+            except Exception as exc:
+                detail = getattr(exc, "detail", None) or str(exc)
+                notes.append(f"hiring flow stayed at {application.current_stage} ({detail})")
+        return " ".join(notes)
+
+    def _execute_pending_workflow_tasks(self) -> CopilotChatResponse:
+        """Complete commanded, non-approval tasks on running HR workflow instances."""
+        conv_id = f"hr-task-{uuid.uuid4().hex[:8]}"
+        held_types = ("approval", "offer", "email", "send", "reject", "hire")
+        tasks = self._safe_call(
+            lambda: self.db.query(HRWorkflowTask).filter_by(
+                tenant_id=self.tenant_id, status="pending"
+            ).all(),
+            None,
+        )
+        if tasks is None:
+            return CopilotChatResponse(
+                conversation_id=conv_id,
+                reply="I could not read HR workflow tasks. The hiring flow tables are not available yet.",
+                specialist_agent="Talent Acquisition Agent",
+                autonomy_level=AutonomyLevel.L0_INFORMATIONAL,
+            )
+        if not tasks:
+            return CopilotChatResponse(
+                conversation_id=conv_id,
+                reply=(
+                    "There are no pending tasks on an HR workflow instance.\n\n"
+                    "You can still command work in the hiring flow:\n"
+                    "- *\"Open a job requisition for Backend Engineer with 2 openings\"*\n"
+                    "- *\"Add candidate Alice Smith for Backend Engineer\"*\n"
+                    "- *\"Move candidate Alice Smith to screened\"*"
+                ),
+                specialist_agent="Talent Acquisition Agent",
+                autonomy_level=AutonomyLevel.L0_INFORMATIONAL,
+            )
+
+        completed = []
+        held = []
+        for task in tasks:
+            kind = (task.task_type or "").lower()
+            if any(token in kind for token in held_types):
+                held.append(task)
+                continue
+            task.status = "completed"
+            task.completed_at = datetime.now()
+            task.output_payload = {"completed_by": "hr_copilot", "user_id": self.user_id}
+            completed.append(task)
+        self.db.commit()
+
+        lines = ["### HR workflow tasks"]
+        if completed:
+            lines.append(f"Completed **{len(completed)}** commanded task(s) inside the HR flow:")
+            for task in completed[:12]:
+                lines.append(f"- `{task.task_type}` on instance `{str(task.instance_id)[:8]}`")
+        else:
+            lines.append("No operational task was waiting.")
+        if held:
+            lines.append("")
+            lines.append(f"**{len(held)}** task(s) still need a person. Approvals, offers, and sends stay gated:")
+            for task in held[:8]:
+                lines.append(f"- `{task.task_type}` remains `{task.status}`")
+        return CopilotChatResponse(
+            conversation_id=conv_id,
+            reply="\n".join(lines),
+            specialist_agent="Talent Acquisition Agent",
+            autonomy_level=AutonomyLevel.L1_SUGGESTIVE,
+            task_result=AgentTaskResult(
+                task_id=f"task-flow-{uuid.uuid4().hex[:6]}",
+                agent_id="talent_agent",
+                intent="execute_workflow_tasks",
+                status="completed" if completed else "awaiting_approval",
+                summary=f"Completed {len(completed)} HR workflow task(s); held {len(held)} for a person.",
+                proposed_actions=[
+                    ProposedAction(
+                        action_type="workflow.task.complete",
+                        title=f"Completed {len(completed)} HR workflow task(s)",
+                        payload={"completed": len(completed), "held": len(held)},
+                        risk_tier=RiskTier.R1_LOW_IMPACT,
+                        requires_approval=bool(held) and not completed,
+                        executed=bool(completed),
+                    )
+                ],
+            ) if completed or held else None,
+        )
+
+    async def _execute_commanded_flow(self, text: str) -> Optional[CopilotChatResponse]:
+        """Run an explicit HR-flow command that the directory task parser does not own."""
+        lower = text.lower()
+        conv_id = f"hr-task-{uuid.uuid4().hex[:8]}"
+        if re.search(r"\b(run|execute|advance|complete)\b.{0,60}\b(workflow|hr flow|onboarding|pending tasks?)\b", lower):
+            return self._execute_pending_workflow_tasks()
+
+        action = None
+        params: Dict[str, Any] = {}
+        if re.search(r"\bsource\s+(?:\d+\s+)?candidates?\b", lower) or "source candidates" in lower:
+            count_match = re.search(r"(\d+)\s+candidates?", lower)
+            role_match = re.search(r"\bfor\s+(.+)$", text, re.IGNORECASE)
+            action = "source_candidates"
+            params = {
+                "role": role_match.group(1).strip(" .") if role_match else "Software Engineer",
+                "count": int(count_match.group(1)) if count_match else 5,
+                "requirements": "General qualifications",
+                "platforms": ["greenhouse", "lever"],
+            }
+        elif re.search(r"\b(send|start|run)\b.{0,40}\b(outreach|candidate emails?)\b", lower):
+            action = "candidate_outreach"
+            params = {"channel": "smtp"}
+        elif re.search(r"\bschedule\b.{0,40}\binterview", lower):
+            action = "schedule_interview"
+            params = {"tool": "google_calendar"}
+        if not action:
+            return None
+
+        from app.services.agents.hr.talent_agent import HRAgent
+        try:
+            result = await HRAgent(self.db, self.tenant_id).execute_task(
+                {"action": action, "parameters": params}
+            )
+        except Exception as exc:
+            return CopilotChatResponse(
+                conversation_id=conv_id,
+                reply=(
+                    f"I could not run **{action.replace('_', ' ')}** in the HR flow.\n\n"
+                    f"{exc}\n\n"
+                    "The candidate record was not changed."
+                ),
+                specialist_agent="Talent Acquisition Agent",
+                autonomy_level=AutonomyLevel.L0_INFORMATIONAL,
+            )
+        status = result.get("status") if isinstance(result, dict) else "completed"
+        return CopilotChatResponse(
+            conversation_id=conv_id,
+            reply=f"HR flow task **{action.replace('_', ' ')}** finished with status `{status}`.\n\n{json.dumps(result, default=str)[:1200]}",
+            specialist_agent="Talent Acquisition Agent",
+            autonomy_level=AutonomyLevel.L1_SUGGESTIVE,
+            task_result=AgentTaskResult(
+                task_id=f"task-agent-{uuid.uuid4().hex[:6]}",
+                agent_id="talent_agent",
+                intent=action,
+                status="completed" if status == "success" else "failed",
+                summary=f"Ran {action} in the HR flow.",
+                proposed_actions=[
+                    ProposedAction(
+                        action_type=f"hr.{action}",
+                        title=action.replace("_", " ").title(),
+                        payload=result if isinstance(result, dict) else {"result": str(result)},
+                        risk_tier=RiskTier.R1_LOW_IMPACT,
+                        requires_approval=False,
+                        executed=status == "success",
+                    )
+                ],
+            ),
+        )
 
     def _retrieve_rag_context(self, query: str) -> List[Dict[str, Any]]:
         """Retrieves genuine HR knowledge base documents and company policies."""
@@ -582,6 +871,15 @@ class HREnterpriseOrchestrator:
                 scorecard={"match_score": 85, "summary": "Added via HR Copilot command"}
             )
             self.db.add(new_cand)
+            self.db.flush()
+            flow_note = ""
+            try:
+                with self.db.begin_nested():
+                    application_id = self._place_candidate_in_flow(new_cand, role)
+                flow_note = f"\n\nThe candidate is in the hiring flow (application `{str(application_id)[:8]}`)."
+            except Exception as exc:
+                logger.warning("Could not open a hiring-flow application: %s", exc)
+                flow_note = "\n\nThe candidate was saved. A hiring-flow application could not be opened."
             self.db.commit()
             self.db.refresh(new_cand)
 
@@ -605,6 +903,7 @@ class HREnterpriseOrchestrator:
                     f"- **Initial Stage**: `SOURCED`\n"
                     f"- **Match Score**: `85%`\n\n"
                     f"Candidate record is live in the ATS talent pipeline."
+                    f"{flow_note}"
                 ),
                 specialist_agent="Talent Acquisition Agent",
                 autonomy_level=AutonomyLevel.L1_SUGGESTIVE,
@@ -641,6 +940,13 @@ class HREnterpriseOrchestrator:
 
             if target_cand and stage:
                 target_cand.status = stage
+                flow_note = ""
+                try:
+                    with self.db.begin_nested():
+                        flow_note = self._sync_candidate_stage(target_cand, stage)
+                except Exception as exc:
+                    logger.warning("Hiring flow stage sync skipped: %s", exc)
+                    flow_note = "The candidate record was updated. The hiring-flow application was left unchanged."
                 self.db.commit()
                 self.db.refresh(target_cand)
 
@@ -651,7 +957,7 @@ class HREnterpriseOrchestrator:
                         f"- **Candidate**: **{target_cand.name}**\n"
                         f"- **Role**: {target_cand.role}\n"
                         f"- **New Stage**: `{stage.upper()}`\n\n"
-                        f"Talent ATS pipeline has been updated."
+                        f"Talent ATS pipeline has been updated. {flow_note}"
                     ),
                     specialist_agent="Talent Acquisition Agent",
                     autonomy_level=AutonomyLevel.L1_SUGGESTIVE
@@ -774,8 +1080,10 @@ class HREnterpriseOrchestrator:
 
             if target_req:
                 target_req.status = status_target
-                target_req.approved_by_user_id = self.user_id
-                target_req.decision_at = datetime.now()
+                target_req.approver_user_id = self.user_id
+                target_req.approved_at = datetime.now()
+                if not is_approve:
+                    target_req.rejection_reason = "Rejected from Ask HR"
                 self.db.commit()
                 self.db.refresh(target_req)
 
@@ -881,9 +1189,79 @@ class HREnterpriseOrchestrator:
     # DETERMINISTIC DATABASE-GROUNDED RESPONSES (FOR QUESTIONS & INQUIRIES)
     # =========================================================================
 
-    def _generate_fallback_response(self, text: str, data: Dict[str, Any], rag_hits: Optional[List[Dict[str, Any]]] = None) -> str:
+    def _format_analytics(self, lower: str, data: Dict[str, Any]) -> Optional[str]:
+        """Answer hiring-analytics questions from stored rows. Missing inputs stay insufficient."""
+        hints = (
+            "analytics", "time to fill", "time-to-fill", "source quality",
+            "cost per hire", "cost-per-hire", "plan vs actual", "workload",
+            "completion rate", "hiring metric", "recruiting metric",
+            "pipeline health", "funnel",
+        )
+        if not any(hint in lower for hint in hints):
+            return None
+
+        from app.services.hr.analytics import RecruitmentAnalytics
+        catalogue = [
+            ("time_to_fill", ("time to fill", "time-to-fill")),
+            ("source_quality", ("source quality",)),
+            ("workload", ("workload",)),
+            ("plan_vs_actual", ("plan vs actual", "headcount plan")),
+            ("workflow_completion_rate", ("completion rate", "workflow")),
+            ("cost_per_hire", ("cost per hire", "cost-per-hire")),
+        ]
+        selected = [name for name, keys in catalogue if any(key in lower for key in keys)]
+        if not selected or "analytics" in lower or "funnel" in lower or "pipeline health" in lower:
+            selected = [name for name, _keys in catalogue]
+
+        analytics = RecruitmentAnalytics(self.db, self.tenant_id)
+        lines = [
+            "### Hiring analytics",
+            "",
+            "These figures come from stored recruitment records. Missing inputs stay insufficient. They are not estimated.",
+            "",
+        ]
+        for name in selected:
+            try:
+                with self.db.begin_nested():
+                    row = analytics.metric(name)
+            except Exception as exc:
+                logger.warning("Analytics metric %s failed: %s", name, exc)
+                row = {"status": "insufficient_data", "value": None, "unit": "", "sample_size": 0, "missing": ["metric_read"]}
+            label = name.replace("_", " ")
+            if row.get("status") != "ok":
+                missing = ", ".join(row.get("missing") or []) or "stored inputs"
+                lines.append(f"- **{label}**: insufficient data (needs {missing})")
+            else:
+                lines.append(
+                    f"- **{label}**: `{row.get('value')}` {row.get('unit') or ''} "
+                    f"(sample {row.get('sample_size', 0)})"
+                )
+
+        stage_counts = data.get("applications_by_stage") or {}
+        if stage_counts:
+            stage_bits = ", ".join(f"{stage}: {count}" for stage, count in stage_counts.items())
+            lines.append(f"- **applications by stage**: {stage_bits}")
+        lines.append("")
+        lines.append(
+            f"Live snapshot: **{data['active_count']} active employee(s)**, "
+            f"**{data['candidates_count']} candidates**, "
+            f"**{len(data['open_reqs'])} open requisitions**, "
+            f"**{data['pending_leaves']} pending leave requests**."
+        )
+        return "\n".join(lines)
+
+    def _generate_fallback_response(
+        self,
+        text: str,
+        data: Dict[str, Any],
+        rag_hits: Optional[List[Dict[str, Any]]] = None,
+        specific_only: bool = False,
+    ) -> Optional[str]:
         """Deterministic response powered by real database records and authorized RAG retrieval."""
         lower = text.lower()
+        analytics_reply = self._format_analytics(lower, data)
+        if analytics_reply:
+            return analytics_reply
         active = data["active_count"]
         total = data["total_count"]
         depts = data["departments"]
@@ -1048,8 +1426,8 @@ class HREnterpriseOrchestrator:
                 "- *\"Add company policy on Remote Work: Employees can work remotely up to 3 days per week.\"*"
             )
 
-        # 8. Greetings
-        if any(w in lower for w in ["hi", "hello", "hey", "hwq", "greetings", "good morning", "good afternoon"]):
+        # 8. Greetings. Match whole words so "hiring" and "this" are not greetings.
+        if re.search(r"\b(hi|hello|hey|hwq|greetings)\b", lower) or "good morning" in lower or "good afternoon" in lower:
             return (
                 f"Hello! I am your **Universal HR Copilot**.\n\n"
                 f"I am connected to your live workforce database with **{active} active employee(s)**, "
@@ -1061,6 +1439,9 @@ class HREnterpriseOrchestrator:
                 f"- *\"Submit leave for Jane Smith for 3 days\"*\n"
                 f"- *\"How many employees are there?\"*"
             )
+
+        if specific_only:
+            return None
 
         # 9. Dynamic Live Overview
         return (
@@ -1083,6 +1464,27 @@ class HREnterpriseOrchestrator:
     # =========================================================================
 
     async def handle_message(self, request: CopilotChatRequest) -> CopilotChatResponse:
+        try:
+            return await self._handle_message(request)
+        except Exception as exc:
+            logger.exception("Ask HR failed: %s", exc)
+            try:
+                self.db.rollback()
+            except Exception:
+                logger.warning("Ask HR rollback failed", exc_info=True)
+            return CopilotChatResponse(
+                conversation_id=f"hr-conv-{uuid.uuid4().hex[:8]}",
+                reply=(
+                    "Ask HR could not finish that request. "
+                    "Ask for hiring analytics, headcount, or the talent pipeline, "
+                    "or command a task such as adding an employee, opening a requisition, "
+                    "moving a candidate, or running the pending HR workflow tasks."
+                ),
+                specialist_agent="Universal HR Copilot",
+                autonomy_level=AutonomyLevel.L0_INFORMATIONAL,
+            )
+
+    async def _handle_message(self, request: CopilotChatRequest) -> CopilotChatResponse:
         text = (request.message or "").strip()
         lower = text.lower()
         conv_id = f"hr-conv-{uuid.uuid4().hex[:8]}"
@@ -1110,6 +1512,10 @@ class HREnterpriseOrchestrator:
         task_response = self._execute_hr_task(text, workforce_data)
         if task_response:
             return task_response
+
+        commanded = await self._execute_commanded_flow(text)
+        if commanded:
+            return commanded
 
         # 3. SPECIALIZED LEAVE COVERAGE SIMULATION / GAP EVALUATION
         is_leave_eval = (
@@ -1191,10 +1597,7 @@ class HREnterpriseOrchestrator:
                     task_result=task_result
                 )
 
-        # 4. CONVERSATIONAL AI GROUNDED IN LIVE DATABASE
-        rag_hits = self._retrieve_rag_context(text)
-        workforce_context = self._format_workforce_context(workforce_data, rag_hits)
-
+        # 4. Live database answers, including hiring analytics, before any model call.
         is_candidate_query = (
             any(w in lower for w in [
                 "candidate", "candidates", "cancdiate", "cancdiates", "candidat",
@@ -1204,6 +1607,23 @@ class HREnterpriseOrchestrator:
             or (any(w in lower for w in ["how many", "count", "number of", "list", "show"]) and any(w in lower for w in ["interviewed", "screened", "sourced", "hired"]))
         )
         is_policy_query = any(w in lower for w in ["policy", "handbook", "guideline", "rule", "remote work", "overtime", "wfh"])
+        rag_hits = self._retrieve_rag_context(text)
+        specific_reply = self._generate_fallback_response(text, workforce_data, rag_hits, specific_only=True)
+        if specific_reply:
+            is_analytics = "hiring analytics" in specific_reply.lower()
+            return CopilotChatResponse(
+                conversation_id=conv_id,
+                reply=specific_reply,
+                specialist_agent=(
+                    "Talent Acquisition Agent" if is_candidate_query or is_analytics
+                    else "People & Policy Administration Agent" if is_policy_query
+                    else "Universal HR Copilot"
+                ),
+                autonomy_level=AutonomyLevel.L0_INFORMATIONAL,
+            )
+
+        # 5. Open questions go to the model, then back to the live snapshot.
+        workforce_context = self._format_workforce_context(workforce_data, rag_hits)
 
         # Multi-turn history
         conversation_context = ""
@@ -1241,10 +1661,13 @@ class HREnterpriseOrchestrator:
         user_prompt = f"{conversation_context}\n\nCurrent User Query: {text}" if conversation_context else text
 
         try:
-            ai_reply = await self.llm.complete(
-                prompt=user_prompt,
-                system_prompt=system_prompt,
-                task_type="hr"
+            ai_reply = await asyncio.wait_for(
+                self.llm.complete(
+                    prompt=user_prompt,
+                    system_prompt=system_prompt,
+                    task_type="hr",
+                ),
+                timeout=12,
             )
             if ai_reply and ai_reply.strip():
                 agent_name = (
@@ -1262,7 +1685,10 @@ class HREnterpriseOrchestrator:
             logger.warning(f"HR Copilot AI completion error, falling back to deterministic answer: {e}")
 
         # Deterministic fallback response with live database records
-        fallback_reply = self._generate_fallback_response(text, workforce_data, rag_hits)
+        fallback_reply = self._generate_fallback_response(text, workforce_data, rag_hits) or (
+            "I could not match that to a live HR record. Ask for hiring analytics, headcount, or the pipeline, "
+            "or command a task such as opening a requisition or moving a candidate."
+        )
         fallback_agent = (
             "Talent Acquisition Agent" if is_candidate_query
             else "People & Policy Administration Agent" if is_policy_query
