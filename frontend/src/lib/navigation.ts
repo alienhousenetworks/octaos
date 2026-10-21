@@ -59,7 +59,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Revenue',
     items: [
       { id: 'campaigns', name: 'Campaigns', href: '/app/campaigns', icon: Calendar, section: 'marketing' },
-      { id: 'sales', name: 'OctaOS Sales', href: '/app/sales', icon: TrendingUp, section: 'sales', keywords: 'crm leads pipeline accounts deals sales inbox cadence industry copilot' },
+      { id: 'sales', name: 'Sales', href: '/app/sales', icon: TrendingUp, section: 'sales', keywords: 'crm leads pipeline accounts deals sales inbox cadence industry copilot' },
     ],
   },
   {
