@@ -83,6 +83,16 @@ def upgrade():
             if "scope" not in supp_cols:
                 batch_op.add_column(sa.Column("scope", sa.String(), nullable=True, server_default="tenant"))
 
+    # 5. Add missing columns to business_profiles
+    if "business_profiles" in current_tables:
+        bp_cols = {c["name"] for c in inspector.get_columns("business_profiles")}
+        with op.batch_alter_table("business_profiles") as batch_op:
+            if "industry_pack_id" not in bp_cols:
+                batch_op.add_column(sa.Column("industry_pack_id", sa.String(), nullable=True))
+                batch_op.create_index("ix_business_profiles_industry_pack_id", ["industry_pack_id"], unique=False)
+            if "lead_freshness" not in bp_cols:
+                batch_op.add_column(sa.Column("lead_freshness", sa.String(), nullable=True, server_default="30_days"))
+
 
 def downgrade():
     bind = op.get_bind()

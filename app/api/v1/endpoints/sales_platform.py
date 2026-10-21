@@ -6,12 +6,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.models.base import User
 from app.models.verticals import BusinessProfile, Lead
 from app.services.sales_os.copilot.record import advise_record
 from app.services.sales_os.verticals.registry import get_pack, list_packs, preview_switch, resolve_pack_id
 from app.services.sales_os.workforce.organization import organization
 
-router = APIRouter(dependencies=[Depends(deps.check_access("sales"))])
+router = APIRouter()
 
 
 class PackSelect(BaseModel):

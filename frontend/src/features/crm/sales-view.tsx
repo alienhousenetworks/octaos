@@ -152,7 +152,7 @@ export default function SalesView({
         const data = await packRes.json();
         setPacks(Array.isArray(data.packs) ? data.packs : []);
       } else {
-        setPacksError('Industry packs are unavailable.');
+        setPacksError(`Industry packs are unavailable (${packRes.status}). Please verify that backend is running the latest update.`);
       }
       if (activeRes.ok) {
         const data = await activeRes.json();
@@ -161,12 +161,12 @@ export default function SalesView({
       if (workforceRes.ok) {
         setWorkforce(await workforceRes.json());
       } else {
-        setWorkforceError('The agent registry is unavailable.');
+        setWorkforceError(`The agent registry is unavailable (${workforceRes.status}).`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setPacksError('Industry packs are unavailable.');
-      setWorkforceError('The agent registry is unavailable.');
+      setPacksError(`Industry packs are unavailable: ${err?.message || 'network error'}`);
+      setWorkforceError(`The agent registry is unavailable: ${err?.message || 'network error'}`);
     } finally {
       setPacksLoading(false);
       setWorkforceLoading(false);
