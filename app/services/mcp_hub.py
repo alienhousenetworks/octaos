@@ -17,17 +17,31 @@ class MCPHubService:
     (Databases, Repositories, Cloud Storage, Issue Trackers) using standard MCP schemas.
     """
 
-    def __init__(self):
+    def __init__(self, db_factory=None):
         self._servers: Dict[str, MCPServerConfig] = {}
         self._registered_tools: Dict[str, Dict[str, Any]] = {}
+        self.db_factory = db_factory
         # Pre-populate default standard MCP servers
         self._init_default_servers()
+
+    def _get_db(self):
+        if self.db_factory:
+            try:
+                return self.db_factory()
+            except Exception:
+                return None
+        try:
+            from app.db.session import SessionLocal
+            return SessionLocal()
+        except Exception:
+            return None
 
     def _init_default_servers(self):
         self.register_server("postgres", "stdio", "npx -y @modelcontextprotocol/server-postgres postgresql://localhost/octaos")
         self.register_server("filesystem", "stdio", "npx -y @modelcontextprotocol/server-filesystem /Users/sayantande/OctaOsautomation")
         self.register_server("github", "sse", "https://api.github.com/mcp")
         self.register_server("apify", "http", "https://mcp.apify.com")
+        self.register_server("marketing_integrations", "stdio", "octaos_integrations_hub")
 
     def register_server(self, name: str, transport: str, uri_or_cmd: str) -> bool:
         self._servers[name] = MCPServerConfig(name, transport, uri_or_cmd)
@@ -118,6 +132,80 @@ class MCPHubService:
                         "required": ["actor_id"]
                     }
                 })
+            elif server.name == "marketing_integrations":
+                tools.extend([
+                    {
+                        "name": "mcp_sendgrid_send_campaign",
+                        "description": "Send personalized marketing or SDR email campaigns via Twilio SendGrid",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "to_email": {"type": "string"},
+                                "subject": {"type": "string"},
+                                "content": {"type": "string"},
+                                "template_id": {"type": "string"},
+                            },
+                            "required": ["to_email", "subject", "content"],
+                        },
+                    },
+                    {
+                        "name": "mcp_calendly_get_slots",
+                        "description": "Discover live SDR booking slots and single-use scheduling links via Calendly",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "event_type_uri": {"type": "string"},
+                            },
+                        },
+                    },
+                    {
+                        "name": "mcp_zoominfo_enrich",
+                        "description": "Enrich accounts and contacts with verified ZoomInfo firmographics and buyer intent",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "domain": {"type": "string"},
+                                "email": {"type": "string"},
+                            },
+                        },
+                    },
+                    {
+                        "name": "mcp_twilio_send_sms",
+                        "description": "Dispatch SMS notifications and two-way outreach via Twilio",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "to_phone": {"type": "string"},
+                                "message": {"type": "string"},
+                            },
+                            "required": ["to_phone", "message"],
+                        },
+                    },
+                    {
+                        "name": "mcp_zapier_emit_event",
+                        "description": "Trigger external workflows across 6,000+ apps on Zapier or Workato",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "event_name": {"type": "string"},
+                                "payload": {"type": "object"},
+                            },
+                            "required": ["event_name"],
+                        },
+                    },
+                    {
+                        "name": "mcp_powerbi_push_kpis",
+                        "description": "Stream executive KPIs and sales telemetry rows directly into Power BI datasets",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "table_name": {"type": "string"},
+                                "rows": {"type": "array", "items": {"type": "object"}},
+                            },
+                            "required": ["table_name", "rows"],
+                        },
+                    },
+                ])
         return tools
 
     async def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -148,6 +236,77 @@ class MCPHubService:
                 if actor:
                     return {"status": "success", "actor": actor.dict()}
                 return {"status": "error", "message": f"Actor '{actor_id}' not found in registry."}
+        elif "sendgrid" in tool_name:
+            from app.services.integrations.sendgrid_service import SendGridService
+            db = self._get_db()
+            try:
+                res = await SendGridService(db, "system").send_email(
+                    to_email=arguments.get("to_email", ""),
+                    subject=arguments.get("subject", ""),
+                    content=arguments.get("content", ""),
+                    template_id=arguments.get("template_id"),
+                )
+                return {"status": "success", "result": res}
+            finally:
+                if db:
+                    db.close()
+        elif "calendly" in tool_name:
+            from app.services.integrations.calendly_service import CalendlyService
+            db = self._get_db()
+            try:
+                service = CalendlyService(db, "system")
+                event_uri = arguments.get("event_type_uri")
+                if event_uri:
+                    link = await service.create_single_use_link(event_uri)
+                    return {"status": "success", "link": link}
+                events = await service.list_event_types()
+                return {"status": "success", "events": events}
+            finally:
+                if db:
+                    db.close()
+        elif "zoominfo" in tool_name:
+            from app.services.integrations.zoominfo_service import ZoomInfoService
+            db = self._get_db()
+            try:
+                service = ZoomInfoService(db, "system")
+                if arguments.get("domain"):
+                    data = await service.enrich_company(arguments["domain"])
+                else:
+                    data = await service.enrich_contact(arguments.get("email", ""))
+                return {"status": "success", "data": data}
+            finally:
+                if db:
+                    db.close()
+        elif "twilio" in tool_name:
+            from app.services.integrations.twilio_service import TwilioService
+            db = self._get_db()
+            try:
+                service = TwilioService(db, "system")
+                res = await service.send_sms(arguments.get("to_phone", ""), arguments.get("message", ""))
+                return {"status": "success", "result": res}
+            finally:
+                if db:
+                    db.close()
+        elif "zapier" in tool_name:
+            from app.services.integrations.zapier_workato_service import ZapierWorkatoService
+            db = self._get_db()
+            try:
+                service = ZapierWorkatoService(db, "system")
+                res = await service.emit_event(arguments.get("event_name", "event"), arguments.get("payload", {}))
+                return {"status": "success", "result": res}
+            finally:
+                if db:
+                    db.close()
+        elif "powerbi" in tool_name:
+            from app.services.integrations.analytics_connectors import AnalyticsConnectorsService
+            db = self._get_db()
+            try:
+                service = AnalyticsConnectorsService(db, "system")
+                res = await service.push_powerbi_rows(arguments.get("table_name", "kpis"), arguments.get("rows", []))
+                return {"status": "success", "result": res}
+            finally:
+                if db:
+                    db.close()
         return {"status": "error", "message": f"Unknown MCP tool: {tool_name}"}
 
 mcp_hub = MCPHubService()

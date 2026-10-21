@@ -10,11 +10,12 @@ import OrchestratorView from '@/components/views/orchestrator-view';
 import TeamsView from '@/components/views/teams-view';
 import MarketplaceView from '@/components/views/marketplace-view';
 import InstructionsView from '@/components/views/instructions-view';
-import HRView from '@/components/views/hr-view';
+import HREnterpriseSuite from '@/features/people/hr-suite';
+import { peopleScreenFromPath } from '@/features/people/routes';
 import CEOView from '@/components/views/ceo-view';
 import CoordinationView from '@/components/views/coordination-view';
-import SalesView from '@/components/views/sales-view';
-import SalesIntelligenceView from '@/components/views/sales-intelligence-view';
+import SalesView from '@/features/crm/sales-view';
+import { salesSectionFromPath } from '@/features/crm/routes';
 import AIOptimizationView from '@/components/views/ai-optimization-view';
 import MembersView from '@/components/views/members-view';
 import SystemAdminView from '@/components/views/system-admin-view';
@@ -22,9 +23,9 @@ import ApiManagementView from '@/components/views/api-management-view';
 import ProfileView from '@/components/views/profile-view';
 import EnterpriseView from '@/components/views/enterprise-view';
 import ApprovalsView from '@/components/views/approvals-view';
-import AutomationsView from '@/components/views/automations-view';
-import AgentDirectoryView from '@/components/views/agent-directory-view';
-import AgentDetailView from '@/components/views/agent-detail-view';
+import AutomationsView from '@/features/automations/automations-view';
+import AgentDirectoryView from '@/features/workforce/agent-directory-view';
+import AgentDetailView from '@/features/workforce/agent-detail-view';
 import AgentLockedScreen from '@/components/shell/agent-locked-screen';
 import { EmptyState } from '@/components/shell/states';
 import { allNavItems, canSeeItem, pathForView, isAgentAllowed } from '@/lib/navigation';
@@ -42,21 +43,12 @@ const FEED_PATHS = [
   '/app/ceo',
   '/app/costs',
   '/app/automations',
+  '/app/hr',
   '/app/hiring',
   '/app/support',
   '/app/settings/integrations',
   '/app/settings/guide',
 ];
-
-const SALES_SECTIONS = {
-  '/app/sales': 'pipeline',
-  '/app/sales/deals': 'deal_rooms',
-  '/app/sales/prompt-agent': 'prompt_agent',
-  '/app/sales/configured-engine': 'configured_engine',
-  '/app/sales/configuration': 'configured_engine',
-  '/app/sales/activity': 'stepper',
-  '/app/sales/revenue': 'analytics',
-} as const;
 
 export default function WorkspaceScreen() {
   const pathname = usePathname();
@@ -197,7 +189,7 @@ export default function WorkspaceScreen() {
   if (pathname === '/app/automations') {
     return <AutomationsView {...shared} userProfile={workspace.userProfile} />;
   }
-  if (pathname === '/app/hiring' || pathname.startsWith('/app/hiring/')) {
+  if (pathname === '/app/hr' || pathname.startsWith('/app/hr/') || pathname === '/app/hiring' || pathname.startsWith('/app/hiring/')) {
     if (!isAgentAllowed('hr', workspace.userProfile)) {
       return (
         <AgentLockedScreen
@@ -208,10 +200,16 @@ export default function WorkspaceScreen() {
         />
       );
     }
-    const roomSlug = pathname.startsWith('/app/hiring/rooms/')
-      ? pathname.replace('/app/hiring/rooms/', '').split('/')[0]
+    const roomSlug = pathname.includes('/rooms/')
+      ? pathname.split('/rooms/')[1]?.split('/')[0]
       : undefined;
-    return <HRView {...shared} initialRoomSlug={roomSlug} />;
+    return (
+      <HREnterpriseSuite
+        {...shared}
+        screen={peopleScreenFromPath(pathname)}
+        initialRoomSlug={roomSlug}
+      />
+    );
   }
   if (pathname === '/app/ceo') {
     return <CEOView {...shared} timeline={workspace.timeline} setActiveView={setActiveView} />;
@@ -219,7 +217,7 @@ export default function WorkspaceScreen() {
   if (pathname === '/app/boardroom') {
     return <CoordinationView {...shared} />;
   }
-  if (pathname === '/app/sales/intelligence' || pathname.startsWith('/app/sales/rooms/') || pathname in SALES_SECTIONS) {
+  if (pathname === '/app/sales' || pathname.startsWith('/app/sales/')) {
     if (!isAgentAllowed('sales', workspace.userProfile)) {
       return (
         <AgentLockedScreen
@@ -230,13 +228,10 @@ export default function WorkspaceScreen() {
         />
       );
     }
-    if (pathname === '/app/sales/intelligence') {
-      return <SalesIntelligenceView {...shared} />;
-    }
     const roomSlug = pathname.startsWith('/app/sales/rooms/')
       ? pathname.replace('/app/sales/rooms/', '').split('/')[0]
       : undefined;
-    const section = pathname in SALES_SECTIONS ? SALES_SECTIONS[pathname as keyof typeof SALES_SECTIONS] : 'pipeline';
+    const section = salesSectionFromPath(pathname);
     return (
       <SalesView
         {...shared}

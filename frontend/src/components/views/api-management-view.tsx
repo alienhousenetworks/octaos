@@ -22,6 +22,7 @@ import {
   EyeOff,
   AlertTriangle,
   Zap,
+  Copy,
   ChevronRight,
   Sparkles,
   Server,
@@ -62,7 +63,7 @@ interface ProviderDef {
 }
 
 const PROVIDERS: ProviderDef[] = [
-  // AI Models
+  // AI Models & Brains
   { id: 'openrouter', label: 'OpenRouter (Meta-Hub)', category: 'ai', hint: 'sk-or-v1-...', url: 'https://openrouter.ai/keys', placeholder: 'sk-or-v1-...', description: 'Unified gateway routing to Claude, Llama 3, DeepSeek, and Mistral' },
   { id: 'anthropic', label: 'Anthropic Claude', category: 'ai', hint: 'sk-ant-api03-...', url: 'https://console.anthropic.com/', placeholder: 'sk-ant-api03-...', description: 'Claude 3.5 Sonnet & Opus for deep strategic enterprise reasoning' },
   { id: 'openai', label: 'OpenAI (GPT-4o)', category: 'ai', hint: 'sk-proj-...', url: 'https://platform.openai.com/api-keys', placeholder: 'sk-proj-...', description: 'GPT-4o and o1 models for multi-modal agent workflows' },
@@ -72,25 +73,46 @@ const PROVIDERS: ProviderDef[] = [
   { id: 'nvidia', label: 'NVIDIA NIM (Integrate API)', category: 'ai', hint: 'nvapi-...', url: 'https://build.nvidia.com/', placeholder: 'nvapi-...', description: 'Enterprise accelerated inference for Llama 3.3 70B and frontier open models' },
   { id: 'grok', label: 'xAI Grok', category: 'ai', hint: 'xai-...', url: 'https://console.x.ai/', placeholder: 'xai-...', description: 'Grok 2 model for unfiltered real-time web context' },
 
-  // Social & Content
+  // Marketing & Ads
+  { id: 'sendgrid', label: 'Twilio SendGrid', category: 'marketing', hint: 'SG....', url: 'https://app.sendgrid.com/settings/api_keys', placeholder: 'SG....', description: 'Transactional & marketing email campaigns, dynamic templates, and bounce telemetry' },
+  { id: 'landingi', label: 'Landingi Pages & Funnels', category: 'marketing', hint: 'API Key / Webhook Token', url: 'https://landingi.com/', placeholder: 'landingi_token...', description: 'Landing page conversion webhooks, UTM campaign tagging, and lead capture' },
+  { id: 'google_ads', label: 'Google Ads', category: 'marketing', hint: 'Developer Token | Customer ID', url: 'https://ads.google.com/', placeholder: 'dev_token | 123-456-7890', description: 'Offline conversion uploads via GCLID and Customer Match audience sync' },
+  { id: 'matomo', label: 'Matomo Analytics', category: 'marketing', hint: 'token_auth | Server URL', url: 'https://matomo.org/', placeholder: 'token_auth...', description: 'Privacy-compliant web analytics, goal conversion tracking, and campaign ROI' },
+  { id: 'youscan', label: 'YouScan AI Listening', category: 'marketing', hint: 'API Token', url: 'https://youscan.io/', placeholder: 'youscan_token...', description: 'AI brand sentiment monitoring, visual logo detection, and competitor radar' },
+  { id: 'sendpulse', label: 'SendPulse Marketing', category: 'marketing', hint: 'Client ID | Secret', url: 'https://sendpulse.com/', placeholder: 'client_id | secret', description: 'Multi-channel email campaigns, web push notifications, and chatbots' },
+
+  // Social & Media
   { id: 'linkedin', label: 'LinkedIn Share API', category: 'social', hint: 'OAuth Access Token', url: 'https://developer.linkedin.com/', placeholder: 'AQXTs...', description: 'Publishing B2B thought leadership updates and company posts' },
-  { id: 'meta', label: 'Meta Graph API', category: 'social', hint: 'Page Access Token', url: 'https://developers.facebook.com/', placeholder: 'EAABsbCS...', description: 'Publishing carousel and video reels on Instagram & Facebook' },
+  { id: 'meta', label: 'Meta Graph API & Lead Ads', category: 'social', hint: 'Page Access Token', url: 'https://developers.facebook.com/', placeholder: 'EAABsbCS...', description: 'Publishing carousels, video reels on IG & FB, and Meta Lead Ads sync' },
+  { id: 'hootsuite', label: 'Hootsuite Publishing', category: 'social', hint: 'Access Token', url: 'https://developer.hootsuite.com/', placeholder: 'Bearer token...', description: 'Multi-network social post scheduling, queue management, and stream monitoring' },
 
   // Communications & Support
   { id: 'whatsapp', label: 'WhatsApp Business API', category: 'comm', hint: 'Bearer Token | Phone ID', url: 'https://developers.facebook.com/', placeholder: 'EAABx... | 1234567890', description: 'Direct customer engagement and multi-agent support channels' },
+  { id: 'fbmessenger', label: 'Facebook Messenger', category: 'comm', hint: 'Page Access Token', url: 'https://developers.facebook.com/', placeholder: 'EAAB...', description: 'Conversational marketing triage, automated replies, and agent handoff' },
+  { id: 'twilio', label: 'Twilio SMS & Voice', category: 'comm', hint: 'Account SID | Auth Token', url: 'https://console.twilio.com/', placeholder: 'AC... | auth_token', description: 'Two-way SMS outreach, voice telephony alerts, and OTP verification' },
   { id: 'telegram', label: 'Telegram Bot API', category: 'comm', hint: 'Bot Token', url: 'https://t.me/BotFather', placeholder: '7123456789:AAFtq...', description: 'Automated executive alerts and community concierge' },
   { id: 'gmail', label: 'Gmail OAuth API', category: 'comm', hint: 'OAuth Token', url: 'https://console.cloud.google.com/', placeholder: 'ya29...', description: 'Outbound sales threads and customer inbox synchronization' },
   { id: 'smtp_sales', label: 'SMTP (Sales Outbound)', category: 'comm', hint: 'smtp://user:pass@host:port', url: '', placeholder: 'smtp://sales@company.com:pass@smtp.mail.com:587', description: 'Dedicated mailbox for SDR cold outreach campaigns' },
   { id: 'smtp_marketing', label: 'SMTP (Marketing)', category: 'comm', hint: 'smtp://user:pass@host:port', url: '', placeholder: 'smtp://news@company.com:pass@smtp.mail.com:587', description: 'Newsletter and transactional email delivery server' },
 
-  // Lead Discovery & Enrichment
+  // Sales & Scheduling & Enrichment
+  { id: 'calendly', label: 'Calendly Scheduling', category: 'enrichment', hint: 'Personal Access Token', url: 'https://calendly.com/integrations/api_webhooks', placeholder: 'eyJhbGciOi...', description: 'Automated meeting scheduling, single-use booking links, and SDR handoff' },
+  { id: 'zoominfo', label: 'ZoomInfo Enterprise', category: 'enrichment', hint: 'API Key', url: 'https://www.zoominfo.com/', placeholder: 'API_KEY...', description: 'Enterprise org charts, verified contact waterfall, and buyer intent signals' },
+  { id: 'mapsly', label: 'Mapsly Geocoding', category: 'enrichment', hint: 'API Key', url: 'https://mapsly.com/', placeholder: 'mapsly_api_key...', description: 'Sales territory management, lead geocoding, and field rep route optimization' },
   { id: 'apollo', label: 'Apollo.io', category: 'enrichment', hint: 'API Key', url: 'https://app.apollo.io/#/settings/integrations/api', placeholder: 'API_KEY...', description: 'Waterfall contact discovery, direct dials, and verified emails' },
   { id: 'hunter', label: 'Hunter.io', category: 'enrichment', hint: 'API Key', url: 'https://hunter.io/api-keys', placeholder: 'abc123...', description: 'Domain search and email pattern verification' },
   { id: 'clearbit', label: 'Clearbit Enrichment', category: 'enrichment', hint: 'sk_...', url: 'https://clearbit.com/', placeholder: 'sk_...', description: 'Company firmographics and executive role mapping' },
-  { id: 'zoominfo', label: 'ZoomInfo Enterprise', category: 'enrichment', hint: 'API Key', url: 'https://www.zoominfo.com/', placeholder: 'API_KEY...', description: 'Enterprise org charts and buyer intent signals' },
   { id: 'crunchbase', label: 'Crunchbase Pro', category: 'enrichment', hint: 'API Key', url: 'https://data.crunchbase.com/', placeholder: 'API_KEY...', description: 'Funding rounds, venture investments, and acquisition signals' },
   { id: 'builtwith', label: 'BuiltWith Technographics', category: 'enrichment', hint: 'API Key', url: 'https://builtwith.com/', placeholder: 'API_KEY...', description: 'Live technology stack detection and software migration alerts' },
   { id: 'firecrawl', label: 'Firecrawl Headless', category: 'enrichment', hint: 'API Key', url: 'https://www.firecrawl.dev/app/api-keys', placeholder: 'fc-...', description: 'Deep LLM-ready website crawling and content scraping' },
+
+  // iPaaS & Enterprise Automations
+  { id: 'zapier', label: 'Zapier Automation Hub', category: 'ipaas', hint: 'Webhook URL / API Key', url: 'https://zapier.com/app/developer', placeholder: 'https://hooks.zapier.com/...', description: 'Universal no-code automation connecting OctaOS to 6,000+ apps' },
+  { id: 'workato', label: 'Workato Enterprise iPaaS', category: 'ipaas', hint: 'API Token | Webhook Secret', url: 'https://www.workato.com/', placeholder: 'workato_token...', description: 'Enterprise workflow recipes, bidirectional ERP sync, and event bus' },
+  { id: 'google_forms', label: 'Google Forms Ingestion', category: 'ipaas', hint: 'Webhook Token / Secret', url: 'https://forms.google.com/', placeholder: 'google_forms_secret...', description: 'Real-time form submission capture directly syncing into Sales OS Leads' },
+  { id: 'formstack', label: 'Formstack Forms & Docs', category: 'ipaas', hint: 'API Token', url: 'https://www.formstack.com/', placeholder: 'formstack_token...', description: 'Enterprise forms, automated document generation, and digital signature workflows' },
+  { id: 'powerbi', label: 'Microsoft Power BI', category: 'ipaas', hint: 'Push Dataset URL | Client Secret', url: 'https://powerbi.microsoft.com/', placeholder: 'https://api.powerbi.com/v1.0/myorg/...', description: 'Streaming executive dashboards, conversion KPIs, and revenue pipelines' },
+  { id: 'postman', label: 'Postman Workspace', category: 'ipaas', hint: 'Postman API Key', url: 'https://web.postman.co/settings/me/api-keys', placeholder: 'PMAK-...', description: 'Automated webhook collection tests, API health mocks, and spec validation' },
 ];
 
 export default function ApiManagementView({
@@ -364,9 +386,11 @@ export default function ApiManagementView({
   const categories = [
     { id: 'all', label: 'All Services' },
     { id: 'ai', label: 'AI Brains & Hubs' },
+    { id: 'marketing', label: 'Marketing & Ads' },
     { id: 'social', label: 'Social & Media' },
-    { id: 'comm', label: 'Communications & Mail' },
-    { id: 'enrichment', label: 'Data & Enrichment' },
+    { id: 'comm', label: 'Communications & Chat' },
+    { id: 'enrichment', label: 'Sales & Scheduling' },
+    { id: 'ipaas', label: 'iPaaS & Automation' },
   ];
 
   return (
@@ -953,6 +977,34 @@ export default function ApiManagementView({
                   <p className="text-[11px] text-zinc-500 font-mono">Format: {dialogProvider.hint}</p>
                 )}
               </div>
+
+              {dialogProvider && ['calendly', 'google_forms', 'landingi', 'formstack', 'zapier', 'workato', 'sendgrid', 'twilio'].includes(dialogProvider.id) && (
+                <div className="p-3 rounded-lg bg-zinc-950/60 border border-white/[0.08] space-y-1.5">
+                  <div className="flex items-center justify-between text-xs text-zinc-300">
+                    <span className="font-medium flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-indigo-400" />
+                      Inbound Webhook Endpoint
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = `${API_URL}/integrations/webhooks/${dialogProvider.id}/${tenantId || 'default'}`;
+                        navigator.clipboard.writeText(url);
+                        showToast('✓ Webhook URL copied to clipboard');
+                      }}
+                      className="text-[10px] font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                    >
+                      <Copy className="w-3 h-3" /> Copy URL
+                    </button>
+                  </div>
+                  <p className="text-[11px] font-mono text-zinc-400 truncate bg-zinc-900 px-2 py-1 rounded">
+                    {`${API_URL}/integrations/webhooks/${dialogProvider.id}/${tenantId || 'default'}`}
+                  </p>
+                  <p className="text-[10px] text-zinc-500">
+                    Paste this endpoint into {dialogProvider.label} to stream real-time events into OctaOS.
+                  </p>
+                </div>
+              )}
 
               <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.08]">
                 <Button

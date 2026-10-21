@@ -561,3 +561,59 @@ def test_15_node_traversal_and_field_deduplication():
     assert "evidence.passport" in result.required_candidate_fields
     assert len(result.required_candidate_fields) == len(set(result.required_candidate_fields))
 
+
+def test_custom_required_documents_and_smart_missing_triage():
+    # 1. Custom documents configured by HR
+    custom_docs = [
+        {
+            "document_category": "relieving_letter",
+            "title": "Previous Employer Relieving Letter",
+            "description": "Upload official relieving letter",
+            "is_mandatory": True,
+        },
+        {
+            "document_category": "payslips",
+            "title": "Last 3 Months Payslips",
+            "description": "Salary slips from previous employer",
+            "is_mandatory": False,
+        },
+    ]
+
+    context = {
+        "required_documents": custom_docs,
+        "company_fields": {
+            "department": "Engineering",
+            # CTC and Start Date intentionally omitted to test company missing detection
+        },
+    }
+
+    req_docs = CandidatePortalService.get_required_documents(context)
+    assert len(req_docs) == 2
+    assert req_docs[0].document_category == "relieving_letter"
+    assert req_docs[0].title == "Previous Employer Relieving Letter"
+    assert req_docs[0].is_mandatory is True
+    assert req_docs[1].is_mandatory is False
+
+    # 2. Smart missing items categorization
+    synthesized_fields = CandidatePortalService.synthesize_intake_questionnaire(["candidate.full_name", "candidate.email"])
+    field_values = {"candidate.full_name": "John Doe"}  # email is missing
+
+    missing_company, missing_candidate = CandidatePortalService.audit_missing_items(
+        context=context,
+        synthesized_fields=synthesized_fields,
+        required_documents=req_docs,
+        uploaded_evidence=[],  # no evidence uploaded yet
+        field_values=field_values,
+    )
+
+    # Missing from company should detect CTC, Start Date, Signatory
+    assert any("CTC" in item for item in missing_company)
+    assert any("Start Date" in item for item in missing_company)
+
+    # Missing from candidate should detect missing email and relieving letter (mandatory)
+    # But payslips is optional, so it shouldn't block
+    assert "Email Address" in missing_candidate
+    assert "Previous Employer Relieving Letter" in missing_candidate
+    assert "Last 3 Months Payslips" not in missing_candidate
+
+

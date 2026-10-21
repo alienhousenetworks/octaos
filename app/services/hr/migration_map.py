@@ -130,6 +130,11 @@ def backfill_candidates(db: Session) -> Dict[str, int]:
             title = normalize_role(sources[0].role)
             legacy_missing = not (sources[0].role or "").strip()
             opened = min((s.created_at for s in sources if s.created_at), default=datetime.now(timezone.utc))
+            if isinstance(opened, str):
+                try:
+                    opened = datetime.fromisoformat(opened)
+                except Exception:
+                    opened = datetime.now(timezone.utc)
             salary_text = None
             for source in sources:
                 card = source.scorecard or {}
@@ -251,6 +256,11 @@ def _copy_scorecard(db: Session, tenant_id: str, application_id: str, assessment
 
     card: Dict[str, Any] = source.scorecard if isinstance(source.scorecard, dict) else {}
     now = source.created_at or datetime.now(timezone.utc)
+    if isinstance(now, str):
+        try:
+            now = datetime.fromisoformat(now)
+        except Exception:
+            now = datetime.now(timezone.utc)
     facts = []
     skills = card.get("skills") or []
     if isinstance(skills, list):

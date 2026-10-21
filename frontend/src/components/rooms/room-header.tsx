@@ -14,7 +14,9 @@ import {
   LayoutGrid,
   Check,
   Plus,
+  Trash2,
 } from 'lucide-react';
+import { notify, confirmAction } from '@/lib/notify';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -149,6 +151,36 @@ export default function RoomHeader({
                     >
                       <LayoutGrid className="w-3.5 h-3.5" /> View Folder Directory
                     </DropdownMenuItem>
+                    {activeRoom.slug !== 'default' && (
+                      <>
+                        <DropdownMenuSeparator className="bg-slate-800" />
+                        <DropdownMenuItem
+                          onClick={async () => {
+                            const confirmed = await confirmAction(
+                              `Are you sure you want to delete folder "${activeRoom.name}"? Records will be safely unlinked.`
+                            );
+                            if (!confirmed) return;
+                            try {
+                              const res = await fetchWithAuth(`${API_URL}/rooms/${activeRoom.id}?permanent=true`, {
+                                method: 'DELETE',
+                              });
+                              if (res.ok) {
+                                notify(`Deleted folder "${activeRoom.name}"`);
+                                onOpenDirectory();
+                              } else {
+                                const err = await res.json().catch(() => ({}));
+                                notify(err.detail || 'Failed to delete folder');
+                              }
+                            } catch {
+                              notify('Error deleting folder');
+                            }
+                          }}
+                          className="text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 cursor-pointer py-1.5 gap-2"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Delete This Folder
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
 

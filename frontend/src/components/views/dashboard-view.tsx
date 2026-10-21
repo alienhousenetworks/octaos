@@ -39,7 +39,7 @@ import StackedBarChart, { CategoryDef, StackedDataPoint } from '@/components/ana
 import LeaderboardCard, { LeaderboardItem } from '@/components/analytics/leaderboard-card';
 import ReliabilityGauge from '@/components/analytics/reliability-gauge';
 import RoiPanel from '@/components/analytics/roi-panel';
-import AgentDirectoryView from '@/components/views/agent-directory-view';
+import AgentDirectoryView from '@/features/workforce/agent-directory-view';
 
 interface DashboardViewProps {
   metrics: any;

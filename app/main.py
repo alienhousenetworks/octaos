@@ -70,7 +70,7 @@ def startup_db_check():
     # Ensure Flow Engine tables and seeded agents/packages exist
     try:
         from app.models.base import Base
-        from app.models import enterprise, flow_engine, automations, schedules, verticals, rooms  # noqa: F401
+        from app.models import enterprise, flow_engine, automations, schedules, verticals, rooms, hr  # noqa: F401
         from app.db.session import SessionLocal
         from app.services.agents.seeder import seed_system_agents, seed_system_packages
         # One failing CREATE (pgvector) must not roll back the other tables.
@@ -91,6 +91,7 @@ def startup_db_check():
             from sqlalchemy import text
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS lead_freshness VARCHAR DEFAULT '30_days';"))
+                conn.execute(text("ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS industry_pack_id VARCHAR;"))
                 conn.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS owner_type VARCHAR DEFAULT 'ai';"))
                 conn.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS handoff_started_at TIMESTAMP WITH TIME ZONE;"))
                 conn.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS handoff_deadline_at TIMESTAMP WITH TIME ZONE;"))
@@ -106,6 +107,28 @@ def startup_db_check():
                 conn.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS room_id VARCHAR;"))
                 conn.execute(text("ALTER TABLE deal_rooms ADD COLUMN IF NOT EXISTS room_id VARCHAR;"))
                 conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS room_id VARCHAR;"))
+                conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS sales_company_id VARCHAR;"))
+                conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS sales_contact_id VARCHAR;"))
+                conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS sales_opportunity_id VARCHAR;"))
+                conn.execute(text("ALTER TABLE content_posts ADD COLUMN IF NOT EXISTS used_model VARCHAR;"))
+                conn.execute(text("ALTER TABLE content_posts ADD COLUMN IF NOT EXISTS fallback_reason TEXT;"))
+                conn.execute(text("ALTER TABLE content_posts ADD COLUMN IF NOT EXISTS cost_usd DOUBLE PRECISION DEFAULT 0.0;"))
+                conn.execute(text("ALTER TABLE suppression_records ADD COLUMN IF NOT EXISTS channel VARCHAR;"))
+                conn.execute(text("ALTER TABLE suppression_records ADD COLUMN IF NOT EXISTS jurisdiction VARCHAR;"))
+                conn.execute(text("ALTER TABLE suppression_records ADD COLUMN IF NOT EXISTS scope VARCHAR DEFAULT 'tenant';"))
+                conn.execute(text("ALTER TABLE tenant_document_templates ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'onboarding';"))
+                conn.execute(text("ALTER TABLE tenant_document_templates ADD COLUMN IF NOT EXISTS folder_path VARCHAR DEFAULT '/';"))
+                conn.execute(text("ALTER TABLE tenant_document_templates ADD COLUMN IF NOT EXISTS tags JSON DEFAULT '[]'::json;"))
+                conn.execute(text("ALTER TABLE tenant_document_templates ADD COLUMN IF NOT EXISTS description TEXT;"))
+                conn.execute(text("ALTER TABLE tenant_document_templates ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;"))
+                conn.execute(text("ALTER TABLE tenant_document_templates ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tenant_document_templates_category ON tenant_document_templates(category);"))
+                conn.execute(text("ALTER TABLE template_versions ADD COLUMN IF NOT EXISTS docx_structure JSON DEFAULT '{}'::json;"))
+                conn.execute(text("ALTER TABLE template_versions ADD COLUMN IF NOT EXISTS detected_clauses JSON DEFAULT '[]'::json;"))
+                conn.execute(text("ALTER TABLE template_versions ADD COLUMN IF NOT EXISTS proposed_mappings JSON DEFAULT '[]'::json;"))
+                conn.execute(text("ALTER TABLE template_versions ADD COLUMN IF NOT EXISTS raw_content TEXT;"))
+                conn.execute(text("ALTER TABLE template_versions ADD COLUMN IF NOT EXISTS published_at TIMESTAMP WITH TIME ZONE;"))
+                conn.execute(text("ALTER TABLE template_versions ADD COLUMN IF NOT EXISTS published_by_user_id VARCHAR;"))
             print("Schema column extensions verified.")
         except Exception as col_error:
             print(f"Skipped schema column alter: {col_error}")

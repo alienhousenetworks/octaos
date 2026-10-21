@@ -101,6 +101,25 @@ class CandidatePortalService:
     @classmethod
     def get_required_documents(cls, context: Dict[str, Any]) -> List[RequiredDocumentItem]:
         """Determines mandatory document evidence items based on role & context."""
+        custom_docs = context.get("required_documents") if context else None
+        if custom_docs and isinstance(custom_docs, list) and len(custom_docs) > 0:
+            parsed: List[RequiredDocumentItem] = []
+            for item in custom_docs:
+                if isinstance(item, RequiredDocumentItem):
+                    parsed.append(item)
+                elif isinstance(item, dict):
+                    parsed.append(
+                        RequiredDocumentItem(
+                            document_category=item.get("document_category", "custom_doc"),
+                            title=item.get("title", "Required Document"),
+                            description=item.get("description", "Upload official proof document"),
+                            is_mandatory=bool(item.get("is_mandatory", True)),
+                            accepted_mimes=item.get("accepted_mimes") or ["application/pdf", "image/jpeg", "image/png"],
+                        )
+                    )
+            if parsed:
+                return parsed
+
         items = [
             RequiredDocumentItem(
                 document_category="passport",
@@ -128,6 +147,49 @@ class CandidatePortalService:
             ),
         ]
         return items
+
+    @classmethod
+    def audit_missing_items(
+        cls,
+        context: Dict[str, Any],
+        synthesized_fields: List[SynthesizedIntakeField],
+        required_documents: List[RequiredDocumentItem],
+        uploaded_evidence: List[Dict[str, Any]],
+        field_values: Dict[str, Any],
+    ) -> Tuple[List[str], List[str]]:
+        """Intelligently categorizes missing items into Company-side vs Candidate-side."""
+        company_fields = (context.get("company_fields") or {}) if context else {}
+        merged_company = {**(context or {}), **company_fields}
+
+        missing_from_company: List[str] = []
+        company_checks = [
+            ("compensation.annual_ctc", ["annual_ctc", "salary_amount", "compensation.annual_ctc", "ctc"], "Annual Compensation / CTC"),
+            ("role.start_date", ["start_date", "role.start_date", "joining_date"], "Joining / Start Date"),
+            ("organization.department", ["department", "organization.department"], "Department"),
+            ("company.signatory_name", ["signatory_name", "company.signatory_name", "authorized_signatory"], "Authorized Signatory"),
+        ]
+        for canonical, aliases, label in company_checks:
+            val = None
+            for alias in aliases:
+                if alias in merged_company and merged_company[alias]:
+                    val = merged_company[alias]
+                    break
+            if not val:
+                missing_from_company.append(label)
+
+        missing_from_candidate: List[str] = []
+        for field in synthesized_fields:
+            if field.is_required:
+                val = field_values.get(field.canonical_key)
+                if not val or not str(val).strip():
+                    missing_from_candidate.append(field.label)
+
+        uploaded_categories = {e.get("document_category") for e in uploaded_evidence}
+        for doc in required_documents:
+            if doc.is_mandatory and doc.document_category not in uploaded_categories:
+                missing_from_candidate.append(doc.title)
+
+        return missing_from_company, missing_from_candidate
 
     @classmethod
     def resolve_session(
@@ -186,6 +248,14 @@ class CandidatePortalService:
         field_records = db.query(CandidateFieldValue).filter_by(instance_id=instance.id).all()
         field_values = {f.canonical_key: f.resolved_value or f.candidate_provided_value for f in field_records}
 
+        missing_company, missing_candidate = cls.audit_missing_items(
+            context=instance.context_data or {},
+            synthesized_fields=synthesized_fields,
+            required_documents=req_docs,
+            uploaded_evidence=uploaded_evidence,
+            field_values=field_values,
+        )
+
         return CandidatePortalSessionResponse(
             instance_id=instance.id,
             candidate_name=candidate.name if candidate else "Candidate",
@@ -197,4 +267,6 @@ class CandidatePortalService:
             required_documents=req_docs,
             uploaded_evidence=uploaded_evidence,
             field_values=field_values,
+            missing_from_company=missing_company,
+            missing_from_candidate=missing_candidate,
         )

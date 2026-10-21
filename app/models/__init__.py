@@ -27,6 +27,8 @@ from app.models.boardroom_events import (
 from app.models import flow_engine
 from app.models import sales_intelligence
 from app.models import hr as hr_models
+from app.models import hr_core as hr_core_models
+from app.models import hr_workforce as hr_workforce_models
 from app.models import search_v4 as search_v4_models
 from app.models import knowledge_connectors
 from app.models import executive
@@ -34,3 +36,4 @@ from app.models import objectives
 from app.models import decision_cases
 from app.models import mcp
 from app.models.rooms import SectionRoom
+from app.models import agent_runtime

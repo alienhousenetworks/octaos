@@ -13,6 +13,7 @@ from app.services.audit_service import AuditService
 from app.services.mcp.auth.policy import PolicyKernel, AuthorizationDecision
 from app.services.mcp.connectors.base import ConnectorAdapter, ConnectorContext
 from app.services.mcp.connectors.octaos_internal import OctaOSInternalAdapter
+from app.services.mcp.connectors.marketing_adapter import MarketingIntegrationsAdapter
 from app.services.mcp.execution.query_engine import validate_query_dsl, QueryValidationError
 from app.services.mcp.registry.schema_validation import validate_record_against_schema
 from app.services.mcp.protocol import ToolResult, TextContent
@@ -38,9 +39,13 @@ class GovernedExecutionDispatcher:
 
     def __init__(self, db_factory=SessionLocal):
         self.db_factory = db_factory
+        marketing_adapter = MarketingIntegrationsAdapter(db_factory=db_factory)
         # Registry of instantiated adapters per connector slug
         self._adapters: Dict[str, ConnectorAdapter] = {
             "octaos": OctaOSInternalAdapter(db_factory=db_factory),
+            "marketing": marketing_adapter,
+            "integrations": marketing_adapter,
+            "crm": marketing_adapter,
         }
 
     def register_adapter(self, connector_slug: str, adapter: ConnectorAdapter) -> None:

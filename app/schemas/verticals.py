@@ -260,6 +260,7 @@ class BusinessProfileBase(BaseModel):
     company_name: Optional[str] = None
     website: Optional[str] = None
     industry: Optional[str] = None
+    industry_pack_id: Optional[str] = None
     service_description: Optional[str] = None
     target_countries: Optional[List[str]] = None
     target_industries: Optional[List[str]] = None

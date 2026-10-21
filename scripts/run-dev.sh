@@ -78,6 +78,16 @@ fi
 
 mkdir -p "$LOG_DIR"
 
+# 8000 is often held by another local app. Bind the first free port and
+# tell the frontend to use that same origin so the browser is not sent
+# to the wrong server.
+API_PORT=8000
+if lsof -nP -iTCP:8000 -sTCP:LISTEN >/dev/null 2>&1; then
+  API_PORT=8001
+  echo "Port 8000 is already in use. OctaOS API will listen on ${API_PORT}."
+fi
+export NEXT_PUBLIC_API_URL="http://127.0.0.1:${API_PORT}/api/v1"
+
 if [[ "$WITH_WORKER" -eq 1 || "$WITH_BEAT" -eq 1 ]]; then
   if command -v redis-cli >/dev/null 2>&1; then
     if ! redis-cli -h "${REDIS_HOST:-localhost}" -p "${REDIS_PORT:-6379}" ping >/dev/null 2>&1; then
@@ -130,7 +140,7 @@ start_job() {
 
 if [[ "$WITH_API" -eq 1 ]]; then
   start_job api "$APP_DIR" \
-    "$VENV_DIR/bin/uvicorn" app.main:app --host 127.0.0.1 --port 8000 --reload
+    "$VENV_DIR/bin/uvicorn" app.main:app --host 127.0.0.1 --port "$API_PORT" --reload
 fi
 
 if [[ "$WITH_WORKER" -eq 1 ]]; then
@@ -168,8 +178,8 @@ done
 
 echo
 if [[ "$WITH_API" -eq 1 ]]; then
-  echo "API:        http://127.0.0.1:8000"
-  echo "Docs:       http://127.0.0.1:8000/docs"
+  echo "API:        http://127.0.0.1:${API_PORT}"
+  echo "Docs:       http://127.0.0.1:${API_PORT}/docs"
 fi
 if [[ "$WITH_FRONTEND" -eq 1 ]]; then
   echo "Dashboard:  http://127.0.0.1:3000"

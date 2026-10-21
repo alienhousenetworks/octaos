@@ -342,6 +342,7 @@ class BusinessProfile(Base):
     company_name = Column(String, nullable=True)
     website = Column(String, nullable=True)
     industry = Column(String, nullable=True)
+    industry_pack_id = Column(String, nullable=True, index=True)
     service_description = Column(Text, nullable=True)
     target_countries = Column(JSON, nullable=True)
     target_industries = Column(JSON, nullable=True)

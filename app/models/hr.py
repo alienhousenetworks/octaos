@@ -157,6 +157,10 @@ class Interview(Base):
     meeting_url = Column(String, nullable=True)
     unconfirmed_legacy_link = Column(Boolean, nullable=False, default=False)
     round_name = Column(String, nullable=True)
+    duration_minutes = Column(Integer, nullable=False, default=45)
+    calendar_uid = Column(String, nullable=True, index=True)
+    calendar_sequence = Column(Integer, nullable=False, default=0)
+    custom_notes = Column(Text, nullable=True)
     starts_at = Column(DateTime(timezone=True), nullable=True)
     ends_at = Column(DateTime(timezone=True), nullable=True)
     feedback_due_at = Column(DateTime(timezone=True), nullable=True)
@@ -166,12 +170,33 @@ class Interview(Base):
 class InterviewPanelist(Base):
     __tablename__ = "interview_panelists"
     id = Column(String, primary_key=True, default=_id)
-    interview_id = Column(String, ForeignKey("interviews.id"), nullable=False)
-    user_id = Column(String, nullable=False)
+    interview_id = Column(String, ForeignKey("interviews.id"), nullable=False, index=True)
+    user_id = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    name = Column(String, nullable=True)
+    role = Column(String, nullable=False, default="interviewer")
+    response_status = Column(String, nullable=False, default="needs_action")  # 'needs_action', 'accepted', 'tentative', 'declined'
 
     __table_args__ = (
-        UniqueConstraint("interview_id", "user_id", name="uq_interview_panelist"),
+        UniqueConstraint("interview_id", "email", name="uq_interview_panelist_email"),
     )
+
+
+class InterviewDelivery(Base):
+    """Tracks per-recipient calendar invite and notification deliveries."""
+    __tablename__ = "interview_deliveries"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    interview_id = Column(String, ForeignKey("interviews.id"), nullable=False, index=True)
+    recipient_email = Column(String, nullable=False)
+    recipient_type = Column(String, nullable=False, default="candidate")  # 'candidate', 'interviewer', 'organizer'
+    delivery_channel = Column(String, nullable=False, default="smtp")  # 'smtp', 'gmail', 'calendar_sync'
+    status = Column(String, nullable=False, default="pending")  # 'pending', 'sent', 'failed'
+    attempts = Column(Integer, nullable=False, default=0)
+    provider_message_id = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class InterviewFeedback(Base):
@@ -498,6 +523,10 @@ class HRWorkflowDefinition(Base):
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
+    folder_path = Column(String, nullable=False, default="/")
+    department_id = Column(String, nullable=True, index=True)
+    tags = Column(JSON, nullable=False, default=list)
+    published_version_id = Column(String, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
     version = Column(Integer, nullable=False, default=1)
     graph_schema = Column(JSON, nullable=False, default=dict)
@@ -618,6 +647,68 @@ class ScheduledDelivery(Base):
     retry_count = Column(Integer, nullable=False, default=0)
     last_error = Column(Text, nullable=True)
     dispatched_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class HRWorkflowVersion(Base):
+    """Immutable published version of an HR workflow graph."""
+    __tablename__ = "hr_workflow_versions"
+    id = Column(String, primary_key=True, default=_id)
+    definition_id = Column(String, ForeignKey("hr_workflow_definitions.id"), nullable=False, index=True)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    version = Column(Integer, nullable=False, default=1)
+    graph_schema = Column(JSON, nullable=False, default=dict)
+    published_by_user_id = Column(String, nullable=True)
+    change_summary = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("definition_id", "version", name="uq_workflow_definition_version"),
+    )
+
+
+class HRWorkflowImportRecord(Base):
+    """Audit log of cross-folder or cross-department workflow and template imports."""
+    __tablename__ = "hr_workflow_import_records"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    source_definition_id = Column(String, ForeignKey("hr_workflow_definitions.id"), nullable=False)
+    target_definition_id = Column(String, ForeignKey("hr_workflow_definitions.id"), nullable=False)
+    source_folder_path = Column(String, nullable=False)
+    target_folder_path = Column(String, nullable=False)
+    remapped_node_ids = Column(JSON, nullable=False, default=dict)
+    cloned_template_ids = Column(JSON, nullable=False, default=dict)
+    imported_by_user_id = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class TenantEmployeeSequence(Base):
+    """Tenant-scoped atomic sequential counter for employee numbering."""
+    __tablename__ = "tenant_employee_sequences"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    prefix = Column(String, nullable=False, default="EMP")
+    current_val = Column(Integer, nullable=False, default=0)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "prefix", name="uq_tenant_employee_sequence"),
+    )
+
+
+class HROutboxEvent(Base):
+    """Transactional outbox for reliable asynchronous HR domain events."""
+    __tablename__ = "hr_outbox_events"
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    event_type = Column(String, nullable=False, index=True)  # e.g. 'hr.employee.provisioned', 'hr.interview.scheduled'
+    aggregate_type = Column(String, nullable=False, default="employee")
+    aggregate_id = Column(String, nullable=False, index=True)
+    payload = Column(JSON, nullable=False, default=dict)
+    status = Column(String, nullable=False, default="pending", index=True)  # 'pending', 'processed', 'failed'
+    retry_count = Column(Integer, nullable=False, default=0)
+    error_message = Column(Text, nullable=True)
+    processed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

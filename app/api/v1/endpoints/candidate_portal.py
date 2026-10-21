@@ -142,3 +142,66 @@ def submit_candidate_questionnaire(
         "next_state": instance.current_state,
         "conflicts_detected": summary.conflict_count,
     }
+
+
+@router.post("/session/{token}/upload-signed-document")
+async def upload_signed_document(
+    token: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(deps.get_db),
+):
+    """Candidate submits signed contract or NDA with automated multi-layer verification."""
+    from app.services.hr.document_verification_service import DocumentVerificationService
+
+    token_hash = CandidatePortalService.hash_token(token)
+    instance = db.query(HRWorkflowInstance).filter_by(
+        candidate_token_hash=token_hash,
+        token_revoked=False,
+    ).first()
+    if not instance:
+        raise HTTPException(status_code=401, detail="Invalid candidate token")
+
+    content_bytes = await file.read()
+    filename = file.filename or "signed_contract.pdf"
+    file_sha = hashlib.sha256(content_bytes).hexdigest()
+
+    storage_key = DocumentStore.save(
+        tenant_id=instance.tenant_id,
+        filename=filename,
+        content=content_bytes,
+        prefix="signed_agreements",
+    )
+
+    evidence = CandidateEvidence(
+        tenant_id=instance.tenant_id,
+        instance_id=instance.id,
+        document_name=filename,
+        document_category="signed_contract",
+        storage_key=storage_key,
+        file_sha256=file_sha,
+        mime_type=file.content_type or "application/pdf",
+        extracted_data={"upload_type": "candidate_signed_return"},
+    )
+    db.add(evidence)
+    db.commit()
+    db.refresh(evidence)
+
+    # Run multi-dimensional verification
+    verification_report = DocumentVerificationService.verify_instance_signed_evidence(
+        db=db,
+        tenant_id=instance.tenant_id,
+        instance_id=instance.id,
+        evidence_id=evidence.id,
+    )
+
+    instance.current_state = "signed_documents_received"
+    db.commit()
+
+    return {
+        "status": "received",
+        "evidence_id": evidence.id,
+        "verification_status": verification_report.get("status"),
+        "decision_summary": verification_report.get("decision_summary"),
+        "has_digital_signature": verification_report.get("has_digital_signature"),
+        "has_visual_signature": verification_report.get("has_visual_signature"),
+    }

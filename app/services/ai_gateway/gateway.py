@@ -330,8 +330,9 @@ class AIProviderGateway:
             if prov_lower == "openrouter":
                 # If original model was on another provider, OpenRouter can route it directly or use default
                 if original_model and ("/" in original_model or "gpt" in original_model or "claude" in original_model):
-                    return original_model
-                return getattr(settings, "DEFAULT_AI_MODEL", None) or "meta-llama/llama-3.3-70b-instruct"
+                    if not original_model.startswith("nvidia/nemotron"):
+                        return original_model
+                return "meta-llama/llama-3.3-70b-instruct"
             elif prov_lower in ("together", "togetherapi"):
                 return "meta-llama/Llama-3.3-70B-Instruct-Turbo"
             elif prov_lower == "groq":

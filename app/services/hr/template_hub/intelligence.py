@@ -131,3 +131,129 @@ class TemplateIntelligenceAnalyzer:
                     break
 
         return proposed_mappings, detected_clauses
+
+    @classmethod
+    def deduce_required_candidate_documents(
+        cls,
+        placeholders: List[Any],
+        paragraphs_text: List[str] = None,
+        detected_clauses: List[Any] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Deduces required proof documents from placeholders, paragraph context, and detected legal clauses.
+        Returns serialized dicts compatible with RequiredDocumentItem.
+        """
+        paragraphs_text = paragraphs_text or []
+        detected_clauses = detected_clauses or []
+        
+        # Collect all placeholder tokens and subtokens
+        tokens = set()
+        for p in placeholders:
+            raw = ""
+            if hasattr(p, "inferred_key"):
+                raw = str(p.inferred_key).lower()
+            elif hasattr(p, "canonical_key"):
+                raw = str(p.canonical_key).lower()
+            elif isinstance(p, str):
+                raw = p.lower()
+            elif isinstance(p, dict):
+                raw = str(p.get("inferred_key") or p.get("canonical_key") or "").lower()
+            
+            if raw:
+                tokens.add(raw)
+                for part in raw.replace(".", " ").replace("_", " ").split():
+                    tokens.add(part)
+
+        full_text = " ".join(paragraphs_text).lower()
+
+        def matches_any(keywords):
+            for k in keywords:
+                if k in tokens or any(k in tok for tok in tokens) or k in full_text:
+                    return True
+            return False
+
+        required_docs: List[Dict[str, Any]] = []
+        added_categories = set()
+
+        def add_req(category: str, title: str, description: str, is_mandatory: bool = True):
+            if category not in added_categories:
+                added_categories.add(category)
+                required_docs.append({
+                    "document_category": category,
+                    "title": title,
+                    "description": description,
+                    "is_mandatory": is_mandatory,
+                    "accepted_mimes": ["application/pdf", "image/jpeg", "image/png"],
+                })
+
+        # 1. Government Photo ID & Address Proof
+        if matches_any(["name", "full_name", "candidate_name", "address", "current_address", "residential_address", "national_id", "dob", "date_of_birth", "identity proof", "government id", "passport", "aadhaar"]):
+            add_req(
+                "passport",
+                "Government Photo ID & Address Proof",
+                "Clear color scan of valid Passport, Aadhaar, or National ID card",
+                is_mandatory=True,
+            )
+
+        # 2. Tax / PAN / SSN Identification
+        if matches_any(["pan", "pan_number", "tax", "tax_id", "ssn", "national_id", "pan card", "tax identification", "w-4", "form 16", "withholding"]):
+            add_req(
+                "tax_form",
+                "Tax / Social Security Proof",
+                "Official PAN card, Tax Registration, or Social Security documentation",
+                is_mandatory=True,
+            )
+
+        # 3. Educational Degree Certificate
+        if matches_any(["degree", "qualification", "education", "university", "college", "degree certificate", "highest qualification", "graduation", "transcript"]):
+            add_req(
+                "degree_certificate",
+                "Highest Educational Degree Certificate",
+                "Graduation or post-graduation degree certificate / transcript",
+                is_mandatory=True,
+            )
+
+        # 4. Relieving / Experience Certificate
+        if matches_any(["relieving", "experience", "prior_employer", "service_certificate", "relieving letter", "service certificate", "prior employment", "experience certificate"]):
+            add_req(
+                "relieving_letter",
+                "Prior Employment Relieving Letter",
+                "Official relieving letter and last 3 months pay slips from previous employer",
+                is_mandatory=True,
+            )
+
+        # 5. Bank Account & Direct Deposit
+        if matches_any(["bank", "bank_account", "ifsc", "routing_number", "account_number", "cancelled cheque", "direct deposit", "salary transfer"]):
+            add_req(
+                "bank_proof",
+                "Bank Account Proof / Cancelled Cheque",
+                "Cancelled bank cheque or bank account statement verifying account number and IFSC",
+                is_mandatory=True,
+            )
+
+        # 6. Non-Disclosure Agreement (NDA)
+        clause_types = {getattr(c, "clause_type", str(c)) for c in detected_clauses}
+        if "confidentiality" in clause_types or any(w in full_text for w in ["non-disclosure", "confidentiality agreement", "proprietary information"]):
+            add_req(
+                "signed_nda",
+                "Signed Confidentiality & NDA Agreement",
+                "Signed copy of the Employee Proprietary Information & Inventions Agreement",
+                is_mandatory=True,
+            )
+
+        # Default fallback: if nothing detected, ensure minimal ID & Tax proof
+        if not required_docs:
+            add_req(
+                "passport",
+                "Government Photo ID",
+                "Clear scan of Passport, Aadhaar, or Driver's License",
+                is_mandatory=True,
+            )
+            add_req(
+                "tax_form",
+                "Tax / Social Security Proof",
+                "Official PAN card or Tax Registration",
+                is_mandatory=True,
+            )
+
+        return required_docs

@@ -22,6 +22,8 @@ import {
   GitFork,
   Bot,
   ShieldCheck,
+  Cpu,
+  Mail,
 } from 'lucide-react';
 
 export type NavItem = {
@@ -33,6 +35,10 @@ export type NavItem = {
   adminOnly?: boolean;
   systemAdminOnly?: boolean;
   keywords?: string;
+  /** exact: only this URL. prefix: this URL and paths under it. */
+  match?: 'exact' | 'prefix';
+  /** Extra paths that should highlight this item. */
+  also?: string[];
 };
 
 export type NavGroup = {
@@ -53,7 +59,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Revenue',
     items: [
       { id: 'campaigns', name: 'Campaigns', href: '/app/campaigns', icon: Calendar, section: 'marketing' },
-      { id: 'sales', name: 'Sales', href: '/app/sales', icon: TrendingUp, section: 'sales', keywords: 'crm leads pipeline deals accounts' },
+      { id: 'sales', name: 'OctaOS Sales', href: '/app/sales', icon: TrendingUp, section: 'sales', keywords: 'crm leads pipeline accounts deals sales inbox cadence industry copilot' },
     ],
   },
   {
@@ -65,19 +71,26 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'People',
     items: [
-      { id: 'hr', name: 'Hiring', href: '/app/hiring', icon: Briefcase, section: 'hr' },
+      { id: 'hr', name: 'People', href: '/app/hr', icon: Users, section: 'hr', match: 'exact', keywords: 'employees directory headcount hr' },
+      { id: 'hr_hiring', name: 'Hiring', href: '/app/hr/hiring', icon: Briefcase, section: 'hr', also: ['/app/hiring'], keywords: 'ats candidates resumes interviews offers recruitment' },
+      { id: 'hr_leave', name: 'Time off', href: '/app/hr/leave', icon: Calendar, section: 'hr', keywords: 'leave pto coverage' },
     ],
   },
   {
     label: 'Workforce',
     items: [
       { id: 'agents', name: 'Agents', href: '/app/agents', icon: Bot, section: 'teams', keywords: 'workforce agents directory cockpit' },
+      { id: 'orchestrator', name: 'Live runs', href: '/app/orchestrator', icon: Activity, section: 'orchestrator', keywords: 'orchestrator running tasks' },
+      { id: 'automations', name: 'Workflows', href: '/app/automations', icon: GitFork, section: 'automations', keywords: 'automations workflows triggers' },
       { id: 'teams', name: 'Teams', href: '/app/teams', icon: Users, section: 'teams' },
-      { id: 'orchestrator', name: 'Orchestrator', href: '/app/orchestrator', icon: Activity, section: 'orchestrator' },
-      { id: 'ceo', name: 'Business Autonomy', href: '/app/ceo', icon: Target, section: 'ceo', keywords: 'business autonomy control plane objectives execution strategy' },
-      { id: 'coordination', name: 'Decision Assurance', href: '/app/boardroom', icon: ShieldCheck, section: 'coordination', keywords: 'decision assurance boardroom governance risk audit' },
       { id: 'marketplace', name: 'Marketplace', href: '/app/marketplace', icon: Store, section: 'marketplace' },
-      { id: 'automations', name: 'Automations', href: '/app/automations', icon: GitFork, section: 'automations', keywords: 'workflows activepieces triggers' },
+    ],
+  },
+  {
+    label: 'Oversight',
+    items: [
+      { id: 'ceo', name: 'Business autonomy', href: '/app/ceo', icon: Target, section: 'ceo', keywords: 'business autonomy control plane objectives execution strategy' },
+      { id: 'coordination', name: 'Decision assurance', href: '/app/boardroom', icon: ShieldCheck, section: 'coordination', keywords: 'decision assurance boardroom governance risk audit' },
     ],
   },
   {
@@ -94,13 +107,21 @@ export const NAV_GROUPS: NavGroup[] = [
 ];
 
 export const EXTRA_ROUTES: NavItem[] = [
-  { id: 'deal_rooms', name: 'Deal rooms', href: '/app/sales/deals', icon: Building2, section: 'sales' },
-  { id: 'sales_intelligence', name: 'Source intelligence', href: '/app/sales/intelligence', icon: Radar, section: 'sales', keywords: 'evidence sources roi scoring' },
   { id: 'instructions', name: 'Setup guide', href: '/app/settings/guide', icon: Settings, section: 'system', keywords: 'api guide instructions' },
-  { id: 'sales_prompt_agent', name: 'Prompt Sales Agent', href: '/app/sales/prompt-agent', icon: Zap, section: 'sales' },
-  { id: 'sales_config', name: 'Configured Sales Engine', href: '/app/sales/configuration', icon: Settings, section: 'sales' },
-  { id: 'sales_activity', name: 'Sales activity', href: '/app/sales/activity', icon: Activity, section: 'sales' },
-  { id: 'sales_revenue', name: 'Revenue', href: '/app/sales/revenue', icon: DollarSign, section: 'sales' },
+  { id: 'sales_prompt_agent', name: 'Prompt sales agent', href: '/app/sales/prompt-agent', icon: Zap, section: 'sales', keywords: 'prompt sales agent find leads' },
+  { id: 'sales_find', name: 'Find leads', href: '/app/sales/find', icon: Radar, section: 'sales', keywords: 'prospecting discovery crm search' },
+  { id: 'sales_activity', name: 'Agent runs', href: '/app/sales/activity', icon: Activity, section: 'sales', keywords: 'sales workflow stepper' },
+  { id: 'deal_rooms', name: 'Deal rooms', href: '/app/sales/deals', icon: Building2, section: 'sales', keywords: 'deals committee quote' },
+  { id: 'sales_revenue', name: 'Revenue', href: '/app/sales/revenue', icon: DollarSign, section: 'sales', keywords: 'funnel analytics won' },
+  { id: 'sales_config', name: 'Sales rules', href: '/app/sales/configuration', icon: Settings, section: 'sales', keywords: 'cadence auto reply settings' },
+  { id: 'sales_intelligence', name: 'Source intelligence', href: '/app/sales/intelligence', icon: Radar, section: 'sales', keywords: 'evidence sources roi scoring' },
+  { id: 'sales_accounts', name: 'Accounts 360', href: '/app/sales/accounts', icon: Building2, section: 'sales', keywords: 'accounts buying committee canonical' },
+  { id: 'sales_agents', name: 'Agent Center', href: '/app/sales/agents', icon: Cpu, section: 'sales', keywords: '50 agents autonomous execution runs' },
+  { id: 'sales_inbox', name: 'Omnichannel Inbox', href: '/app/sales/inbox', icon: Mail, section: 'sales', keywords: 'inbox messages email whatsapp cadence replies' },
+  { id: 'sales_deal_desk', name: 'Deal Desk & CPQ', href: '/app/sales/deal-desk', icon: FileText, section: 'sales', keywords: 'deal desk cpq quotes pricing proposal contract' },
+  { id: 'sales_pipeline', name: 'Sales CRM', href: '/app/sales/pipeline', icon: TrendingUp, section: 'sales', keywords: 'pipeline leads table kanban' },
+  { id: 'sales_industries', name: 'Industry packs', href: '/app/sales/industries', icon: Building2, section: 'sales', keywords: 'vertical industry pack banking saas real estate' },
+  { id: 'sales_campaigns', name: 'Sales campaigns', href: '/app/sales/campaigns', icon: Calendar, section: 'sales', keywords: 'campaign execution cadence' },
 ];
 
 const VIEW_PATHS: Record<string, string> = {
@@ -108,6 +129,13 @@ const VIEW_PATHS: Record<string, string> = {
   knowledge: '/app/knowledge',
   campaigns: '/app/campaigns',
   sales: '/app/sales',
+  sales_pipeline: '/app/sales/pipeline',
+  sales_industries: '/app/sales/industries',
+  sales_campaigns: '/app/sales/campaigns',
+  sales_inbox: '/app/sales/inbox',
+  sales_deal_desk: '/app/sales/deal-desk',
+  sales_accounts: '/app/sales/accounts',
+  sales_agents: '/app/sales/agents',
   support: '/app/support',
   coordination: '/app/boardroom',
   boardroom: '/app/boardroom',
@@ -115,7 +143,14 @@ const VIEW_PATHS: Record<string, string> = {
   orchestrator: '/app/orchestrator',
   teams: '/app/teams',
   marketplace: '/app/marketplace',
-  hr: '/app/hiring',
+  hr: '/app/hr',
+  hr_hiring: '/app/hr/hiring',
+  hr_leave: '/app/hr/leave',
+  sales_find: '/app/sales/find',
+  sales_activity: '/app/sales/activity',
+  sales_revenue: '/app/sales/revenue',
+  sales_config: '/app/sales/configuration',
+  'deal-rooms': '/app/sales/deals',
   ai_optimization: '/app/costs',
   api_management: '/app/settings/integrations',
   enterprise: '/app/settings/enterprise',
@@ -164,9 +199,15 @@ export function crumbForPath(pathname: string) {
   if (pathname === '/app/agents') {
     return { section: 'AI Workforce', name: 'Agent Directory' };
   }
-  if (pathname.startsWith('/app/hiring/rooms/')) {
-    const slug = pathname.replace('/app/hiring/rooms/', '').split('/')[0];
-    return { section: 'People', name: `Hiring Room (#${slug})` };
+  if (pathname.startsWith('/app/hiring/rooms/') || pathname.startsWith('/app/hr/hiring/rooms/')) {
+    const slug = pathname.split('/rooms/')[1]?.split('/')[0];
+    return { section: 'People', name: `Hiring room (#${slug})` };
+  }
+  if (pathname.startsWith('/app/hr/hiring') || pathname.startsWith('/app/hiring')) {
+    return { section: 'People', name: 'Hiring' };
+  }
+  if (pathname.startsWith('/app/hr/leave')) {
+    return { section: 'People', name: 'Time off' };
   }
   if (pathname.startsWith('/app/campaigns/rooms/')) {
     const slug = pathname.replace('/app/campaigns/rooms/', '').split('/')[0];
@@ -184,6 +225,12 @@ export function crumbForPath(pathname: string) {
   if (!item) return { section: 'Workspace', name: 'OctaOS' };
   const group = NAV_GROUPS.find((entry) => entry.items.some((nav) => nav.href === pathname));
   return { section: group?.label || 'Workspace', name: item.name };
+}
+
+export function isItemActive(item: NavItem, pathname: string) {
+  const hrefs = [item.href, ...(item.also || [])];
+  if (item.match === 'exact') return hrefs.some((href) => pathname === href);
+  return hrefs.some((href) => pathname === href || pathname.startsWith(`${href}/`));
 }
 
 export function isAgentAllowed(agentKey: string, profile: any): boolean {

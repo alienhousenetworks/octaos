@@ -462,12 +462,13 @@ def update_room_access(
 @router.delete("/{room_id}")
 def delete_room(
     room_id: str,
+    permanent: bool = Query(False),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
-    """Archive or delete a section room."""
+    """Archive or permanently delete a section room."""
     room = db.query(SectionRoom).filter(
-        SectionRoom.id == room_id,
+        or_(SectionRoom.id == room_id, SectionRoom.slug == room_id.lower()),
         SectionRoom.tenant_id == current_user.tenant_id,
     ).first()
 
@@ -482,8 +483,21 @@ def delete_room(
     if room.slug == "default":
         raise HTTPException(status_code=400, detail="Cannot delete the default room")
 
+    if permanent:
+        # Unlink foreign keys safely
+        db.query(Candidate).filter(Candidate.room_id == room.id).update({"room_id": None})
+        db.query(ContentPost).filter(ContentPost.room_id == room.id).update({"room_id": None})
+        db.query(Lead).filter(Lead.room_id == room.id).update({"room_id": None})
+        db.query(DealRoom).filter(DealRoom.room_id == room.id).update({"room_id": None})
+        db.query(Ticket).filter(Ticket.room_id == room.id).update({"room_id": None})
+        deleted_id = room.id
+        db.delete(room)
+        db.commit()
+        return {"status": "deleted", "id": deleted_id}
+
     # Mark as archived
     room.status = "archived"
     room.updated_at = datetime.utcnow()
     db.commit()
     return {"status": "archived", "id": room.id}
+

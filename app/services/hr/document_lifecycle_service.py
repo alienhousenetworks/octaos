@@ -160,16 +160,42 @@ class DocumentLifecycleService:
 
         # Find or create application
         candidate = self.db.query(Candidate).filter_by(id=candidate_id, tenant_id=self.tenant_id).first()
-        app_id = candidate.id  # Default link
         app = self.db.query(Application).filter_by(candidate_id=candidate_id, tenant_id=self.tenant_id).first()
-        if app:
-            app_id = app.id
+        if not app:
+            req = None
+            if requisition_id:
+                req = self.db.query(JobRequisition).filter_by(id=requisition_id, tenant_id=self.tenant_id).first()
+            if not req:
+                req = self.db.query(JobRequisition).filter_by(tenant_id=self.tenant_id).first()
+            if not req:
+                req = JobRequisition(
+                    tenant_id=self.tenant_id,
+                    title=(candidate.role if candidate else None) or "Software Engineer",
+                    status="open",
+                )
+                self.db.add(req)
+                self.db.flush()
+
+            app = Application(
+                tenant_id=self.tenant_id,
+                candidate_id=candidate_id,
+                requisition_id=req.id,
+                current_stage="offer",
+                status="active",
+                source="HR Document Studio",
+                consent_status="basis_recorded",
+            )
+            self.db.add(app)
+            self.db.flush()
+
+        app_id = app.id
+        effective_req_id = requisition_id or (app.requisition_id if app else None)
 
         packet = HRDocumentPacket(
             tenant_id=self.tenant_id,
             application_id=app_id,
             candidate_id=candidate_id,
-            requisition_id=requisition_id,
+            requisition_id=effective_req_id,
             data_snapshot=snapshot,
             data_snapshot_sha256=snapshot_hash,
             current_lifecycle_state="draft",

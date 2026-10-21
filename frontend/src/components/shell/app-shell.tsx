@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import CommandPalette from '@/components/shell/command-palette';
 import { LoadingState } from '@/components/shell/states';
-import { crumbForPath, visibleGroups } from '@/lib/navigation';
+import { crumbForPath, isItemActive, visibleGroups } from '@/lib/navigation';
 import { saveSession } from '@/lib/auth-session';
 import { notify } from '@/lib/notify';
 import { useWorkspace } from '@/lib/workspace';
@@ -147,9 +147,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <p className={`px-2 pb-1 text-xs font-medium text-muted-foreground ${collapsed ? 'sr-only' : ''}`}>{group.label}</p>
             {group.items.map((item) => {
               const Icon = item.icon;
-              const active = pathname === item.href || (item.href !== '/app/sales' && pathname.startsWith(item.href) && item.href !== '/app/home');
-              const salesActive = item.href === '/app/sales' && pathname === '/app/sales';
-              const isActive = item.href === '/app/sales' ? salesActive : active;
+              const isActive = isItemActive(item, pathname);
               return (
                 <Link
                   key={item.id}

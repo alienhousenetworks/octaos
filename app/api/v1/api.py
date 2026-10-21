@@ -8,6 +8,9 @@ from app.api.v1.endpoints import (
     hr_workflow, candidate_portal,
     data_collection,
     automation_nodes, automation_documents,
+    hr_people, hr_workforce, hr_copilot,
+    sales_crm, sales_inbox, sales_platform,
+    integrations,
 )
 
 from app.api.v1.orchestrator import router as orchestrator_router
@@ -23,7 +26,12 @@ api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboar
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(support.router, prefix="/support", tags=["support"])
 api_router.include_router(hr.router, prefix="/hr", tags=["hr"])
+api_router.include_router(hr_people.router, prefix="/hr/people", tags=["hr-people"])
+api_router.include_router(hr_workforce.router, prefix="/hr/workforce", tags=["hr-workforce"])
+api_router.include_router(hr_copilot.router, prefix="/hr/copilot", tags=["hr-copilot"])
 api_router.include_router(hr_workflow.router, prefix="/hr-workflows", tags=["hr-workflows"])
+api_router.include_router(hr_workflow.router, prefix="/hr/workflow", tags=["hr-workflow"])
+api_router.include_router(hr_workflow.router, prefix="/hr/workflows", tags=["hr-workflows-alias"])
 api_router.include_router(candidate_portal.router, prefix="/public/candidate-portal", tags=["candidate-portal"])
 api_router.include_router(coordination.router, prefix="/coordination", tags=["coordination"])
 api_router.include_router(ceo.router, prefix="/ceo", tags=["ceo"])
@@ -41,6 +49,9 @@ api_router.include_router(orchestrator_router, prefix="/octa", tags=["octa-orche
 api_router.include_router(deal_rooms.router, prefix="/deal-rooms", tags=["deal-rooms"])
 api_router.include_router(sales_manager.router, prefix="/sales-manager", tags=["sales-manager"])
 api_router.include_router(sales_os.router, prefix="/sales-os", tags=["sales-os"])
+api_router.include_router(sales_crm.router, prefix="/sales-crm", tags=["sales-crm"])
+api_router.include_router(sales_inbox.router, prefix="/sales-inbox", tags=["sales-inbox"])
+api_router.include_router(sales_platform.router, prefix="/sales-os", tags=["sales-platform"])
 api_router.include_router(automations.router, prefix="/automations", tags=["automations"])
 api_router.include_router(schedules.router, prefix="/schedules", tags=["schedules"])
 api_router.include_router(knowledge_connectors.router, prefix="/knowledge/connectors", tags=["knowledge-connectors"])
@@ -48,6 +59,7 @@ api_router.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
 api_router.include_router(data_collection.router, prefix="/data-collection", tags=["data-collection"])
 api_router.include_router(automation_nodes.router, prefix="/automation-nodes", tags=["automation-nodes"])
 api_router.include_router(automation_documents.router, prefix="/automation-documents", tags=["automation-documents"])
+api_router.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 
 
 

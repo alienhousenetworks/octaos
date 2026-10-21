@@ -1397,118 +1397,18 @@ def execute_media_generation_job_task(job_id: str):
 
 @celery_app.task(name="execute_sales_cadence_touches")
 def execute_sales_cadence_touches():
-    """Processes pending multi-channel cadence touches (Email, LinkedIn, WhatsApp) for contacted leads."""
-    from datetime import datetime, timezone
-    from app.models.base import Tenant
-    from app.models.verticals import Lead
-    from app.services.sales_os.governance.suppression import SuppressionService
-    from app.services.email.sender import send_email
+    """Processes pending multi-channel cadence touches (Email, LinkedIn, WhatsApp) via DurableCadenceRunner."""
+    from app.services.sales.cadence_runner import DurableCadenceRunner
 
     db = SessionLocal()
     try:
-        tenants = db.query(Tenant).filter(Tenant.is_active == True).all()
-        now = datetime.now(timezone.utc)
-        for tenant in tenants:
-            # 1. Drain autonomous Sales Outbox items due for delivery
-            from app.services.sales.outbox_service import SalesOutboxService
-            try:
-                outbox = SalesOutboxService(db, tenant.id)
-                outbox.drain_due_items(limit=25, max_jitter_sec=2)
-            except Exception as outbox_err:
-                logger.error(f"Error draining sales outbox for tenant {tenant.id}: {outbox_err}")
-
-            # 2. Legacy cadence touches fallback
-            suppression = SuppressionService(db, tenant.id)
-            leads = (
-                db.query(Lead)
-                .filter(
-                    Lead.tenant_id == tenant.id,
-                    Lead.status == "contacted",
-                )
-                .all()
-            )
-            for lead in leads:
-                data = dict(lead.data or {})
-                schedule = list(data.get("outreach_schedule") or [])
-                sent_at_str = data.get("outreach_sent_at")
-                if not schedule or not sent_at_str:
-                    continue
-                try:
-                    sent_at = datetime.fromisoformat(sent_at_str)
-                    if sent_at.tzinfo is None:
-                        sent_at = sent_at.replace(tzinfo=timezone.utc)
-                except Exception:
-                    continue
-
-                days_elapsed = (now - sent_at).total_seconds() / 86400.0
-                updated_schedule = False
-
-                for step in schedule:
-                    if step.get("status") == "pending" and step.get("day", 1) > 1:
-                        if days_elapsed >= step.get("day", 1):
-                            # Pre-send suppression check
-                            is_supp, _ = suppression.is_suppressed(email=lead.email, phone=lead.phone)
-                            if is_supp:
-                                step["status"] = "suppressed"
-                                updated_schedule = True
-                                break
-
-                            from app.services.sales.touch_dispatcher import dispatch_sales_touch
-
-                            channel = (step.get("channel") or "email").lower()
-                            content = step.get("content", "")
-                            step_num = step.get("day", 1)
-                            subject = f"Following up: {lead.company or 'Partnership'}"
-
-                            res = dispatch_sales_touch(
-                                db,
-                                tenant.id,
-                                lead,
-                                channel=channel,
-                                body=content,
-                                subject=subject,
-                                step_number=step_num,
-                            )
-
-                            if res.get("sent"):
-                                step["status"] = "sent"
-                                step["sent_at"] = now.isoformat()
-                                step["delivery_details"] = res.get("message")
-                                updated_schedule = True
-
-                                conv = list(data.get("conversation") or [])
-                                conv.append({
-                                    "direction": "outbound",
-                                    "channel": channel,
-                                    "content": content,
-                                    "subject": subject,
-                                    "author": "Sales AI Agent",
-                                    "at": now.isoformat(),
-                                    "day": step.get("day", 1),
-                                    "sent": True,
-                                    "delivery_details": res.get("message"),
-                                })
-                                data["conversation"] = conv
-                            elif res.get("requires_action"):
-                                step["status"] = "action_required"
-                                step["approval_id"] = res.get("approval_id")
-                                step["action_url"] = res.get("linkedin_url")
-                                step["status_message"] = res.get("message")
-                                updated_schedule = True
-                            else:
-                                step["status"] = "failed"
-                                step["error"] = res.get("message") or res.get("reason") or "Delivery failed"
-                                step["attempted_at"] = now.isoformat()
-                                updated_schedule = True
-
-                if updated_schedule:
-                    data["outreach_schedule"] = schedule
-                    lead.data = data
-                    db.commit()
+        return DurableCadenceRunner.run_all_tenants_cadence(db, max_touches_per_tenant=50)
     except Exception as e:
         logger.error(f"Error in execute_sales_cadence_touches: {e}", exc_info=True)
+        return {"error": str(e)}
     finally:
         db.close()
+
 
 
 # Registers the sales-os discovery task. It is not on the beat schedule.

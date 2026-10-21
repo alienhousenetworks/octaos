@@ -23,6 +23,7 @@ import {
   Clock,
   Layers,
   Filter,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,7 +37,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { notify } from '@/lib/notify';
+import { notify, confirmAction } from '@/lib/notify';
 import RoomAccessModal, { SectionRoomData } from '@/components/rooms/room-access-modal';
 
 interface RoomFolderExplorerProps {
@@ -385,6 +386,37 @@ export default function RoomFolderExplorer({
                       >
                         <Share2 className="w-3.5 h-3.5" />
                       </button>
+
+                      {room.slug !== 'default' && (
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const confirmed = await confirmAction(
+                              `Are you sure you want to delete folder "${room.name}"? Any leads, deals, or records inside it will be safely unlinked.`
+                            );
+                            if (!confirmed) return;
+                            try {
+                              const res = await fetchWithAuth(`${API_URL}/rooms/${room.id}?permanent=true`, {
+                                method: 'DELETE',
+                              });
+                              if (res.ok) {
+                                notify(`Deleted folder "${room.name}"`);
+                                await onRefresh();
+                              } else {
+                                const err = await res.json().catch(() => ({}));
+                                notify(err.detail || 'Failed to delete folder');
+                              }
+                            } catch {
+                              notify('Network error deleting folder');
+                            }
+                          }}
+                          className="p-1.5 rounded-md text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                          title="Delete Folder"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
 

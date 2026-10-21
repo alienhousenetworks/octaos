@@ -80,6 +80,11 @@ class SalesSyncBridge:
                     self.db.add(bcm)
                     self.db.flush()
 
+                member_count = self.db.query(BuyingCommitteeMember).filter_by(deal_room_id=deal_room.id).count()
+                if member_count >= 2:
+                    deal_room.is_multi_threaded = True
+                    self.db.flush()
+
         # 2. Canonical SalesCompany Resolution
         sales_company = None
         if lead.sales_company_id:
@@ -279,3 +284,43 @@ class SalesSyncBridge:
         if auto_commit:
             self.db.commit()
         logger.info(f"Synchronized meeting booked for lead {lead.email} across Lead, DealRoom, and SalesOpportunity.")
+
+    def reconcile_tenant_leads_to_canonical(self, limit: int = 500) -> Dict[str, Any]:
+        """
+        Transactional reconciliation engine ensuring zero split-brain between legacy
+        leads and canonical Sales OS entities (SalesCompany, AccountContact, DealRoom, BuyingCommittee).
+        """
+        leads = (
+            self.db.query(Lead)
+            .filter(
+                Lead.tenant_id == self.tenant_id,
+                (Lead.sales_company_id.is_(None)) | (Lead.sales_contact_id.is_(None))
+            )
+            .limit(limit)
+            .all()
+        )
+
+        scanned = len(leads)
+        promoted = 0
+        linked_rooms = 0
+        errors = []
+
+        for lead in leads:
+            try:
+                res = self.sync_lead_entities(lead, auto_commit=False)
+                if res.get("sales_company_id"):
+                    promoted += 1
+                if res.get("deal_room_id"):
+                    linked_rooms += 1
+            except Exception as e:
+                errors.append({"lead_id": lead.id, "error": str(e)})
+                logger.error(f"Reconciliation error on lead {lead.id}: {e}")
+
+        self.db.commit()
+        return {
+            "tenant_id": self.tenant_id,
+            "scanned": scanned,
+            "promoted_to_canonical": promoted,
+            "linked_deal_rooms": linked_rooms,
+            "errors": errors,
+        }

@@ -48,7 +48,7 @@ class LLMGateway:
             if ai_gateway._get_api_key(self.db, self.tenant_id, p):
                 return True
         return False
-    async def complete(self, prompt: str, model: str = None, provider: str = "anthropic", system_prompt: str = None, **kwargs) -> str:
+    async def complete(self, prompt: str, model: str = None, provider: str = None, system_prompt: str = None, **kwargs) -> str:
         from app.services.ai_gateway import ai_gateway
         
         # 1. Infer task parameters for optimization routing
@@ -134,6 +134,11 @@ class LLMGateway:
         if "generate_campaign" in combined_text or "bulk" in combined_text:
             inferred_bulk = True
 
+        inferred_task_type = kwargs.pop("task_type", None) or inferred_task_type
+        inferred_realtime = kwargs.pop("realtime", inferred_realtime)
+        inferred_complexity = kwargs.pop("complexity", inferred_complexity)
+        inferred_bulk = kwargs.pop("bulk", inferred_bulk)
+
         # If a specific non-default model is requested, pass it.
         # Otherwise, pass None to trigger dynamic optimization routing.
         req_provider = provider
@@ -143,6 +148,10 @@ class LLMGateway:
         if model in ["claude-3-haiku-20240307", "claude-sonnet-4-6", "gpt-4o", "gemini-2.5-flash", "gemini-1.5-flash", "grok-2"]:
             req_model = None
             req_provider = None
+        elif req_provider in ["anthropic", "auto", "default"] and not req_model:
+            # If Anthropic is not configured but another provider is, let gateway choose
+            if not self._get_api_key("anthropic") and self.has_configured_provider():
+                req_provider = None
 
         return await ai_gateway.executeCached(
             db=self.db,

@@ -65,12 +65,21 @@ class InterviewRequest(BaseModel):
     provider: str = "auto"
     model: Optional[str] = None
 
+class InterviewPanelistSpec(BaseModel):
+    name: Optional[str] = None
+    email: str
+    user_id: Optional[str] = None
+    role: str = "interviewer"
+
 class InterviewEmailRequest(BaseModel):
     interview_date: str
     interview_time: Optional[str] = "11:00 AM"
     round_name: Optional[str] = "Technical Screen"
     meeting_link: Optional[str] = "https://meet.google.com/new"
     interviewer_name: Optional[str] = "Engineering Lead"
+    interviewers: Optional[List[InterviewPanelistSpec]] = []
+    timezone: Optional[str] = "UTC"
+    duration_minutes: Optional[int] = 45
     custom_notes: Optional[str] = None
     channel: str = "smtp"
 
@@ -87,6 +96,7 @@ class StatusUpdateRequest(BaseModel):
     status: str
 
 @router.get("/", response_model=List[schemas.Candidate])
+@router.get("/candidates", response_model=List[schemas.Candidate])
 def read_candidates(
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
@@ -112,6 +122,7 @@ def read_candidates(
     return candidates
 
 @router.post("/", response_model=schemas.Candidate)
+@router.post("/candidates", response_model=schemas.Candidate)
 def create_candidate(
     *,
     db: Session = Depends(deps.get_db),
@@ -647,7 +658,43 @@ async def upload_resumes_batch(
         raise HTTPException(status_code=500, detail=f"Resume ingestion failed: {str(e)}")
 
 
-# --- INTERVIEW INVITATION EMAIL ---
+# --- INTERVIEW INVITATION & CALENDAR OPERATIONS ---
+
+class InterviewConflictCheckRequest(BaseModel):
+    interview_date: str
+    interview_time: Optional[str] = "11:00 AM"
+    duration_minutes: Optional[int] = 45
+    timezone: Optional[str] = "UTC"
+    panelist_emails: List[str] = []
+    exclude_interview_id: Optional[str] = None
+
+
+@router.post("/interviews/check-conflicts")
+def check_interview_conflicts(
+    request: InterviewConflictCheckRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.HR, Action.READ)),
+) -> Any:
+    """Pre-flight check for panelist availability and scheduling conflicts."""
+    from app.services.hr.calendar_service import CalendarService
+    from app.services.hr.interview_availability_service import InterviewAvailabilityService
+
+    start_utc = CalendarService.parse_to_utc(
+        date_str=request.interview_date,
+        time_str=request.interview_time or "11:00 AM",
+        tz_name=request.timezone or "UTC"
+    )
+
+    return InterviewAvailabilityService.check_conflicts(
+        db=db,
+        tenant_id=tenant_id,
+        start_utc=start_utc,
+        duration_minutes=request.duration_minutes or 45,
+        panelist_emails=request.panelist_emails,
+        exclude_interview_id=request.exclude_interview_id,
+    )
+
 
 @router.post("/{candidate_id}/send-interview-email")
 async def send_interview_email(
@@ -655,9 +702,23 @@ async def send_interview_email(
     request: InterviewEmailRequest,
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
-    _: User = Depends(require_permission(Resource.HR, Action.CREATE)),
+    current_user: User = Depends(require_permission(Resource.HR, Action.CREATE)),
 ) -> Any:
-    """Dispatches a personalized interview invitation email to the approved candidate."""
+    """
+    Enterprise Interview Scheduling & Calendar Dispatch:
+    - Timezone-safe UTC conversion
+    - Idempotent Interview and Panelist records in PostgreSQL
+    - RFC 5545 compliant iCalendar (.ics) generation with stable UID
+    - Multi-recipient dispatch to Candidate and all assigned Interviewers
+    - Per-recipient delivery tracking in interview_deliveries
+    """
+    from app.services.hr.calendar_service import CalendarService
+    from app.services.hr.interview_availability_service import InterviewAvailabilityService
+    from app.services.hr.email_delivery_service import EmailDeliveryService
+    from app.models.hr import Interview, InterviewPanelist, Application, JobRequisition
+    import uuid
+    from datetime import timedelta
+
     candidate = db.query(models.Candidate).filter(
         models.Candidate.id == candidate_id,
         models.Candidate.tenant_id == tenant_id
@@ -665,76 +726,205 @@ async def send_interview_email(
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
-    company_name = "OctaOS Technologies Inc."
-    subject = f"Interview Invitation: {candidate.role} at {company_name}"
-    
-    notes_block = f"Additional Notes:\n{request.custom_notes}\n\n" if request.custom_notes else ""
-    body = f"""Dear {candidate.name},
+    # 1. Timezone-safe start and end time in UTC
+    duration = request.duration_minutes or 45
+    tz_str = request.timezone or "UTC"
+    start_utc = CalendarService.parse_to_utc(
+        date_str=request.interview_date,
+        time_str=request.interview_time or "11:00 AM",
+        tz_name=tz_str
+    )
+    end_utc = start_utc + timedelta(minutes=duration)
 
-Thank you for your application for the position of {candidate.role} at {company_name}. 
-We reviewed your profile and were impressed by your background. We would love to invite you to an interview!
+    # 2. Resolve panelist list (combine request.interviewers or fallback to interviewer_name)
+    panelists_data: List[Dict[str, str]] = []
+    if request.interviewers and len(request.interviewers) > 0:
+        for p in request.interviewers:
+            panelists_data.append({
+                "name": p.name or p.email.split("@")[0],
+                "email": p.email.strip(),
+                "user_id": p.user_id,
+                "role": p.role or "interviewer",
+            })
+    elif request.interviewer_name:
+        panelists_data.append({
+            "name": request.interviewer_name.strip(),
+            "email": current_user.email or "interviewer@octaos.ai",
+            "user_id": current_user.id,
+            "role": "interviewer",
+        })
 
-Interview Details:
-- Round: {request.round_name}
-- Date: {request.interview_date}
-- Time: {request.interview_time}
-- Interviewer: {request.interviewer_name}
-- Meeting Link: {request.meeting_link}
+    # 3. Conflict checking
+    panelist_emails = [p["email"] for p in panelists_data if p.get("email")]
+    conflict_check = InterviewAvailabilityService.check_conflicts(
+        db=db,
+        tenant_id=tenant_id,
+        start_utc=start_utc,
+        duration_minutes=duration,
+        panelist_emails=panelist_emails,
+    )
 
-{notes_block}Please reply directly to this email if you need to reschedule or have any questions.
+    # 4. Resolve Application record (anchor candidate application)
+    application = db.query(Application).filter_by(
+        tenant_id=tenant_id,
+        candidate_id=candidate.id
+    ).first()
+    if not application:
+        req = db.query(JobRequisition).filter_by(tenant_id=tenant_id).first()
+        if not req:
+            req = JobRequisition(
+                tenant_id=tenant_id,
+                title=candidate.role or "General Position",
+                status="active"
+            )
+            db.add(req)
+            db.commit()
+            db.refresh(req)
+        application = Application(
+            tenant_id=tenant_id,
+            candidate_id=candidate.id,
+            requisition_id=req.id,
+            current_stage="interview_scheduled",
+            status="active",
+        )
+        db.add(application)
+        db.commit()
+        db.refresh(application)
+    else:
+        application.current_stage = "interview_scheduled"
 
-We look forward to speaking with you!
+    # 5. Insert or update Interview record with stable calendar UID and sequence
+    interview = db.query(Interview).filter_by(
+        tenant_id=tenant_id,
+        application_id=application.id,
+        round_name=request.round_name or "Technical Screen"
+    ).first()
 
-Warm regards,
-Talent Acquisition Team
-{company_name}
-"""
+    if not interview:
+        cal_uid = f"octaos-interview-{uuid.uuid4()}@{tenant_id[:8]}.octaos.ai"
+        interview = Interview(
+            tenant_id=tenant_id,
+            application_id=application.id,
+            requisition_id=application.requisition_id,
+            status="scheduled",
+            tz=tz_str,
+            meeting_url=request.meeting_link,
+            round_name=request.round_name or "Technical Screen",
+            duration_minutes=duration,
+            calendar_uid=cal_uid,
+            calendar_sequence=0,
+            custom_notes=request.custom_notes,
+            starts_at=start_utc,
+            ends_at=end_utc,
+        )
+        db.add(interview)
+    else:
+        interview.starts_at = start_utc
+        interview.ends_at = end_utc
+        interview.duration_minutes = duration
+        interview.tz = tz_str
+        interview.meeting_url = request.meeting_link
+        interview.custom_notes = request.custom_notes
+        interview.calendar_sequence = (interview.calendar_sequence or 0) + 1
+        interview.status = "scheduled"
 
-    agent = HRAgent(db, tenant_id)
-    sent_successfully = False
-    delivery_note = "Logged interview invite"
+    db.commit()
+    db.refresh(interview)
 
-    # Attempt SMTP or Gmail dispatch if credentials exist
-    try:
-        if request.channel == "smtp":
-            cred = db.query(APICredential).filter_by(tenant_id=tenant_id, provider="smtp").first()
-            if cred and cred.encrypted_key:
-                from app.core.security import decrypt_api_key
-                smtp_creds = agent._parse_smtp_credentials(decrypt_api_key(cred.encrypted_key))
-                if smtp_creds and candidate.email and "@" in candidate.email:
-                    sent_successfully = agent._send_actual_email(smtp_creds, candidate.email, subject, body)
-                    delivery_note = "Sent via SMTP"
-        elif request.channel == "gmail":
-            cred = db.query(APICredential).filter_by(tenant_id=tenant_id, provider="gmail").first()
-            if cred and cred.encrypted_key:
-                from app.core.security import decrypt_api_key
-                agent._send_gmail_api_email(decrypt_api_key(cred.encrypted_key), candidate.email, subject, body)
-                sent_successfully = True
-                delivery_note = "Sent via Gmail API"
-    except Exception as e:
-        delivery_note = f"Delivery attempted (Note: {str(e)[:100]})"
+    # 6. Upsert panelists
+    for p_info in panelists_data:
+        p_email = p_info["email"]
+        existing_panelist = db.query(InterviewPanelist).filter_by(
+            interview_id=interview.id,
+            email=p_email
+        ).first()
+        if not existing_panelist:
+            new_panelist = InterviewPanelist(
+                interview_id=interview.id,
+                user_id=p_info.get("user_id"),
+                email=p_email,
+                name=p_info.get("name"),
+                role=p_info.get("role", "interviewer"),
+                response_status="needs_action",
+            )
+            db.add(new_panelist)
+    db.commit()
 
-    # Update candidate status and scorecard
+    # 7. Generate RFC 5545 iCalendar payload
+    attendees_for_ics = [
+        {"name": candidate.name or "Candidate", "email": candidate.email, "role": "REQ-PARTICIPANT"}
+    ]
+    for p in panelists_data:
+        if p.get("email"):
+            attendees_for_ics.append({
+                "name": p.get("name") or p["email"],
+                "email": p["email"],
+                "role": "REQ-PARTICIPANT"
+            })
+
+    organizer_email = current_user.email or "talent@octaos.ai"
+    ics_content = CalendarService.generate_interview_ics(
+        summary=f"Interview: {candidate.name} - {request.round_name or 'Technical Screen'}",
+        description=f"Interview Round: {request.round_name}\nCandidate: {candidate.name} ({candidate.email})\nNotes: {request.custom_notes or 'None'}",
+        meeting_url=request.meeting_link or "",
+        start_utc=start_utc,
+        duration_minutes=duration,
+        organizer_email=organizer_email,
+        organizer_name="OctaOS Talent Acquisition",
+        attendees=attendees_for_ics,
+        calendar_uid=interview.calendar_uid,
+        sequence=interview.calendar_sequence or 0,
+        status="CONFIRMED",
+        method="REQUEST",
+    )
+
+    # 8. Dispatch invitations to candidate and interviewers
+    delivery_reports = EmailDeliveryService.dispatch_interview_invitations(
+        db=db,
+        tenant_id=tenant_id,
+        interview_id=interview.id,
+        candidate_info={"name": candidate.name or "Candidate", "email": candidate.email or ""},
+        panelists_info=panelists_data,
+        round_name=request.round_name or "Technical Screen",
+        interview_date=request.interview_date,
+        interview_time=request.interview_time or "11:00 AM",
+        meeting_url=request.meeting_link or "",
+        custom_notes=request.custom_notes or "",
+        ics_content=ics_content,
+        channel=request.channel or "smtp",
+    )
+
+    # 9. Update Candidate status & Scorecard
     candidate.status = "interviewed"
     existing_scorecard = candidate.scorecard or {}
     candidate.scorecard = {
         **existing_scorecard,
-        "meeting_time": f"{request.interview_date} at {request.interview_time}",
+        "interview_id": interview.id,
+        "meeting_time": f"{request.interview_date} at {request.interview_time} ({tz_str})",
         "meeting_link": request.meeting_link,
         "interview_round": request.round_name,
+        "duration_minutes": duration,
         "interviewer_name": request.interviewer_name,
-        "interview_email_subject": subject,
-        "interview_email_body": body,
-        "interview_delivery_status": delivery_note,
-        "calendar_booked": True
+        "panelists": [p.get("name") for p in panelists_data],
+        "calendar_uid": interview.calendar_uid,
+        "calendar_sequence": interview.calendar_sequence,
+        "has_conflicts": conflict_check["has_conflict"],
+        "delivery_count": len(delivery_reports),
+        "calendar_booked": True,
     }
     db.commit()
     db.refresh(candidate)
 
     return {
         "status": "success",
-        "message": f"Interview invitation successfully recorded. ({delivery_note})",
-        "candidate": schemas.Candidate.from_orm(candidate)
+        "message": f"Calendar invitation dispatched to candidate and {len(panelists_data)} interviewer(s).",
+        "interview_id": interview.id,
+        "calendar_uid": interview.calendar_uid,
+        "sequence": interview.calendar_sequence,
+        "conflicts_detected": conflict_check["has_conflict"],
+        "conflicts": conflict_check["conflicts"],
+        "deliveries": delivery_reports,
+        "candidate": schemas.Candidate.from_orm(candidate),
     }
 
 

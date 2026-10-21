@@ -50,6 +50,7 @@ class TemplateAnalysisResponse(BaseModel):
     placeholders: List[DetectedPlaceholder]
     proposed_mappings: List[ProposedFieldMapping]
     detected_clauses: List[DetectedClause]
+    deduced_requirements: List[Dict[str, Any]] = Field(default_factory=list)
     table_count: int
     paragraph_count: int
 
@@ -180,10 +181,46 @@ class CandidatePortalSessionResponse(BaseModel):
     required_documents: List[RequiredDocumentItem]
     uploaded_evidence: List[Dict[str, Any]] = Field(default_factory=list)
     field_values: Dict[str, Any] = Field(default_factory=dict)
+    missing_from_company: List[str] = Field(default_factory=list)
+    missing_from_candidate: List[str] = Field(default_factory=list)
 
 
 class CandidateIntakeSubmitRequest(BaseModel):
     field_values: Dict[str, Any]
+
+
+class OnboardingInstanceCreateRequest(BaseModel):
+    candidate_id: str
+    application_id: Optional[str] = None
+    workflow_definition_id: Optional[str] = None
+    company_fields: Dict[str, Any] = Field(default_factory=dict)
+    required_documents: List[RequiredDocumentItem] = Field(default_factory=list)
+    context_data: Dict[str, Any] = Field(default_factory=dict)
+
+
+class OnboardingInstanceUpdateRequest(BaseModel):
+    company_fields: Optional[Dict[str, Any]] = None
+    required_documents: Optional[List[RequiredDocumentItem]] = None
+    current_state: Optional[str] = None
+    context_data: Optional[Dict[str, Any]] = None
+
+
+class OnboardingInstanceSummary(BaseModel):
+    id: str
+    candidate_id: str
+    candidate_name: str
+    candidate_email: Optional[str] = None
+    role_title: str
+    current_state: str
+    expires_at: datetime
+    candidate_portal_url: str
+    missing_from_company: List[str] = Field(default_factory=list)
+    missing_from_candidate: List[str] = Field(default_factory=list)
+    required_documents: List[RequiredDocumentItem] = Field(default_factory=list)
+    uploaded_evidence: List[Dict[str, Any]] = Field(default_factory=list)
+    company_fields: Dict[str, Any] = Field(default_factory=dict)
+    progress_percentage: int = 0
+    created_at: Optional[str] = None
 
 
 # --- EVIDENCE RECONCILIATION SCHEMAS ---

@@ -6,7 +6,9 @@ from typing import Any
 def summarize_roi(costs: list[dict], outcomes: list[dict]) -> dict[str, Any]:
     spend = 0.0
     spend_known = False
-    by_provider: dict[str, dict[str, float]] = defaultdict(lambda: {"spend": 0.0, "meetings": 0.0, "revenue": 0.0, "outcomes": 0.0})
+    by_provider: dict[str, dict[str, float]] = defaultdict(
+        lambda: {"spend": 0.0, "meetings": 0.0, "revenue": 0.0, "outcomes": 0.0, "verified_leads": 0.0}
+    )
     for cost in costs:
         amount = cost.get("actual_amount")
         if amount is None:

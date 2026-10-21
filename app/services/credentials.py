@@ -11,6 +11,12 @@ META_ALIASES = frozenset({"meta", "facebook", "instagram"})
 PROVIDER_ALIASES: Dict[str, str] = {
     "facebook": "meta",
     "instagram": "meta",
+    "fbmessenger": "messenger",
+    "facebook_messenger": "messenger",
+    "googleforms": "google_forms",
+    "googleads": "google_ads",
+    "twilio_sms": "twilio",
+    "twilio_voice": "twilio",
 }
 
 
