@@ -48,8 +48,14 @@ cd "$APP_DIR"
 
 if git rev-parse --git-dir &>/dev/null; then
   BRANCH=$(git rev-parse --abbrev-ref HEAD)
-  info "Updating Git remote origin URL..."
-  git remote set-url origin https://github.com/alienhousenetworks/OctaOsautomation.git || warn "Failed to update Git remote origin URL"
+  CURRENT_REMOTE="$(git remote get-url origin 2>/dev/null || true)"
+  if [[ -n "$CURRENT_REMOTE" && "$CURRENT_REMOTE" == *"OctaOsautomation"* ]]; then
+    CORRECTED_REMOTE="${CURRENT_REMOTE/OctaOsautomation/octaos}"
+    info "Correcting Git remote origin URL to $CORRECTED_REMOTE"
+    git remote set-url origin "$CORRECTED_REMOTE" || warn "Failed to update Git remote origin URL"
+  elif [[ -z "$CURRENT_REMOTE" ]]; then
+    git remote add origin https://github.com/alienhousenetworks/octaos.git || warn "Failed to add Git remote origin URL"
+  fi
   info "Fetching latest changes from Git..."
   git fetch --all
   BEFORE=$(git rev-parse HEAD)
