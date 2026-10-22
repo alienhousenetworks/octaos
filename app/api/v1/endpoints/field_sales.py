@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.api import deps
 from app.models.base import User
-from app.models.real_estate import RealEstateSiteVisit, RealEstateProject, RealEstateUnit
+from app.models.real_estate import RealEstateSiteVisit, RealEstateProject, RealEstateUnit, RealEstateProjectAssignment
 from app.models.field_sales import SalespersonFieldStatus, FieldScheduleRecoveryProposal
 from app.models.verticals import Lead
 from app.services.sales_os.real_estate.visit_service import VisitService
+from app.services.sales_os.real_estate.inventory_service import InventoryService
 from app.services.sales_os.field_sales.connectors.budget_controller import ConnectorBudgetController
 from app.services.sales_os.field_sales.engine.optimizer import ScheduleOptimizer
 from app.services.sales_os.field_sales.engine.recovery import ScheduleRecoveryEngine
@@ -412,6 +413,228 @@ def get_agent_my_day(
             "rationale": proposal.rationale,
             "changes": proposal.proposed_changes,
         } if proposal else None,
+    }
+
+
+class AgentUnitHoldRequest(BaseModel):
+    lead_id: str
+    deposit_amount: float = 0.0
+    notes: str | None = None
+
+
+@router.get("/agent/projects")
+def get_agent_assigned_projects(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> list[dict[str, Any]]:
+    """Return projects assigned to the current mobile salesperson, or active tenant projects."""
+    assignments = (
+        db.query(RealEstateProjectAssignment)
+        .filter(
+            RealEstateProjectAssignment.tenant_id == tenant_id,
+            RealEstateProjectAssignment.user_id == current_user.id,
+            RealEstateProjectAssignment.is_active == True,
+        )
+        .all()
+    )
+    assigned_proj_ids = {a.project_id: a.role for a in assignments}
+
+    if assigned_proj_ids:
+        projects = (
+            db.query(RealEstateProject)
+            .filter(
+                RealEstateProject.tenant_id == tenant_id,
+                RealEstateProject.id.in_(list(assigned_proj_ids.keys())),
+            )
+            .all()
+        )
+    else:
+        projects = (
+            db.query(RealEstateProject)
+            .filter(
+                RealEstateProject.tenant_id == tenant_id,
+                RealEstateProject.status == "active",
+            )
+            .limit(10)
+            .all()
+        )
+
+    results = []
+    inv_svc = InventoryService(db, tenant_id)
+    for p in projects:
+        units = inv_svc.list_units(p.id)
+        available_count = sum(1 for u in units if u["status"] == "available")
+        results.append({
+            "id": p.id,
+            "name": p.name,
+            "code": p.code,
+            "location": p.location,
+            "city": p.city,
+            "address": p.address or p.location or "Site Location",
+            "latitude": p.latitude or 12.9716,
+            "longitude": p.longitude or 77.5946,
+            "rera_number": p.rera_number,
+            "amenities": p.amenities or [],
+            "total_units": p.total_units or len(units),
+            "available_units": available_count,
+            "status": p.status,
+            "assigned_role": assigned_proj_ids.get(p.id, "specialist"),
+            "units_count": len(units),
+        })
+    return results
+
+
+@router.get("/agent/projects/{project_id}/units")
+def get_agent_project_units(
+    project_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> list[dict[str, Any]]:
+    inv_svc = InventoryService(db, tenant_id)
+    return inv_svc.list_units(project_id)
+
+
+@router.post("/agent/units/{unit_id}/hold")
+def agent_hold_unit(
+    unit_id: str,
+    body: AgentUnitHoldRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> dict[str, Any]:
+    inv_svc = InventoryService(db, tenant_id)
+    return inv_svc.request_unit_hold(
+        unit_id=unit_id,
+        lead_id=body.lead_id,
+        deposit_amount=body.deposit_amount,
+        notes=body.notes or "Reserved on-site via Mobile Field Sales App",
+    )
+
+
+@router.get("/agent/leads")
+def get_agent_leads(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> list[dict[str, Any]]:
+    """Return priority inquiries and leads assigned to this salesperson."""
+    leads = (
+        db.query(Lead)
+        .filter(
+            Lead.tenant_id == tenant_id,
+            (Lead.assigned_to == (current_user.name or current_user.email)) |
+            (Lead.assigned_to == current_user.email) |
+            (Lead.assigned_to == current_user.id),
+        )
+        .order_by(Lead.updated_at.desc())
+        .limit(50)
+        .all()
+    )
+    if not leads:
+        leads = (
+            db.query(Lead)
+            .filter(
+                Lead.tenant_id == tenant_id,
+                Lead.status.in_(["visit_scheduled", "qualified", "inquiry", "hot"]),
+            )
+            .order_by(Lead.score.desc().nullslast())
+            .limit(20)
+            .all()
+        )
+
+    results = []
+    for l in leads:
+        visit = (
+            db.query(RealEstateSiteVisit)
+            .filter(
+                RealEstateSiteVisit.tenant_id == tenant_id,
+                RealEstateSiteVisit.lead_id == l.id,
+            )
+            .order_by(RealEstateSiteVisit.scheduled_at.desc())
+            .first()
+        )
+        lead_data = l.data or {}
+        results.append({
+            "id": l.id,
+            "name": l.name or "Prospective Buyer",
+            "phone": l.phone or l.mobile_no or "",
+            "email": l.email or "",
+            "status": l.status or "inquiry",
+            "score": l.score or 50,
+            "project_name": lead_data.get("project_name") or l.company or "Featured Project",
+            "unit_preference": l.need_of_what or lead_data.get("unit_preference") or "3BHK Luxury",
+            "budget": l.how_much or lead_data.get("budget") or "₹1.5Cr - ₹2.5Cr",
+            "purchase_purpose": lead_data.get("purchase_purpose") or "Self-Use",
+            "purchase_timeline": lead_data.get("purchase_timeline") or "30 Days",
+            "why": l.why or "Matched with assigned project specialist",
+            "has_visit_scheduled": visit is not None,
+            "visit_scheduled_at": visit.scheduled_at.isoformat() if visit else None,
+            "visit_status": visit.status if visit else None,
+        })
+    return results
+
+
+@router.get("/agent/profile")
+def get_agent_profile(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> dict[str, Any]:
+    field_status = (
+        db.query(SalespersonFieldStatus)
+        .filter(
+            SalespersonFieldStatus.tenant_id == tenant_id,
+            SalespersonFieldStatus.user_id == current_user.id,
+        )
+        .first()
+    )
+    assigned_count = (
+        db.query(RealEstateProjectAssignment)
+        .filter(
+            RealEstateProjectAssignment.tenant_id == tenant_id,
+            RealEstateProjectAssignment.user_id == current_user.id,
+            RealEstateProjectAssignment.is_active == True,
+        )
+        .count()
+    )
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    completed_today = (
+        db.query(RealEstateSiteVisit)
+        .filter(
+            RealEstateSiteVisit.tenant_id == tenant_id,
+            RealEstateSiteVisit.assigned_agent == current_user.id,
+            RealEstateSiteVisit.scheduled_at >= today_start,
+            RealEstateSiteVisit.status == "completed",
+        )
+        .count()
+    )
+    total_today = (
+        db.query(RealEstateSiteVisit)
+        .filter(
+            RealEstateSiteVisit.tenant_id == tenant_id,
+            RealEstateSiteVisit.assigned_agent == current_user.id,
+            RealEstateSiteVisit.scheduled_at >= today_start,
+        )
+        .count()
+    )
+
+    return {
+        "user_id": current_user.id,
+        "name": current_user.name or current_user.email,
+        "email": current_user.email,
+        "phone": current_user.phone_no or "",
+        "role": current_user.role,
+        "designation": "Real Estate Showing Specialist",
+        "is_shift_active": field_status.is_shift_active if field_status else False,
+        "status": field_status.status if field_status else "off_duty",
+        "working_hours_start": field_status.working_hours_start if field_status else "09:00",
+        "working_hours_end": field_status.working_hours_end if field_status else "18:00",
+        "max_visits_per_day": field_status.max_visits_per_day if field_status else 6,
+        "completed_visits_today": completed_today,
+        "total_visits_today": total_today,
+        "assigned_projects_count": assigned_count,
+        "last_latitude": field_status.last_latitude if field_status else None,
+        "last_longitude": field_status.last_longitude if field_status else None,
     }
 
 

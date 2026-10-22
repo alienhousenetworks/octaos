@@ -7,7 +7,7 @@ import 'package:field_sales_app/services/offline_sync_service.dart';
 import 'package:field_sales_app/providers/auth_provider.dart';
 import 'package:field_sales_app/providers/field_sales_provider.dart';
 import 'package:field_sales_app/screens/login_screen.dart';
-import 'package:field_sales_app/screens/my_day_screen.dart';
+import 'package:field_sales_app/screens/sales_home_shell.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,7 +40,7 @@ class OctaFieldSalesApp extends StatelessWidget {
       title: 'OctaOS Field Sales',
       debugShowCheckedModeBanner: false,
       theme: OctaTheme.darkTheme,
-      home: auth.isAuthenticated ? const MyDayScreen() : const LoginScreen(),
+      home: auth.isAuthenticated ? const SalesHomeShell() : const LoginScreen(),
     );
   }
 }

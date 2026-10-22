@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:field_sales_app/constants/theme.dart';
 import 'package:field_sales_app/constants/api_endpoints.dart';
 import 'package:field_sales_app/providers/auth_provider.dart';
-import 'package:field_sales_app/screens/my_day_screen.dart';
+import 'package:field_sales_app/screens/sales_home_shell.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -200,7 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             );
                             if (success && mounted) {
                               Navigator.of(context).pushReplacement(
-                                MaterialPageRoute(builder: (_) => const MyDayScreen()),
+                                MaterialPageRoute(builder: (_) => const SalesHomeShell()),
                               );
                             }
                           },

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Loader2, Lock, Send } from 'lucide-react';
+import { ArrowLeft, Loader2, Lock, Send, Sparkles, Building, CheckCircle, FileText, Check, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -63,14 +63,24 @@ export default function SalesRecordWorkspace({
   const [visitDate, setVisitDate] = useState('');
   const [visitAgent, setVisitAgent] = useState('');
   const [visitScheduling, setVisitScheduling] = useState(false);
+  const [autoAssigning, setAutoAssigning] = useState(false);
+  const [autoAssignMessage, setAutoAssignMessage] = useState<string | null>(null);
   const [brokerName, setBrokerName] = useState(lead.data?.channel_partner?.brokerage_name || '');
   const [brokerRera, setBrokerRera] = useState(lead.data?.channel_partner?.rera_id || '');
   const [brokerCommission, setBrokerCommission] = useState(String(lead.data?.channel_partner?.commission_pct || '2.0'));
+  const [matches, setMatches] = useState<any[]>([]);
+  const [matchesLoading, setMatchesLoading] = useState(false);
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [bookingUnitId, setBookingUnitId] = useState<string | null>(null);
+  const [bookingPrice, setBookingPrice] = useState('');
+  const [bookingBuyerName, setBookingBuyerName] = useState('');
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [draftPreview, setDraftPreview] = useState<{ subject: string; body: string } | null>(
     lead.data?.draft_subject || lead.data?.draft_body
       ? { subject: lead.data?.draft_subject || '', body: lead.data?.draft_body || '' }
       : null
   );
+
 
   useEffect(() => {
     setName(lead.name || '');
@@ -111,9 +121,10 @@ export default function SalesRecordWorkspace({
 
   const loadRealEstateData = async () => {
     try {
-      const [vRes, bRes] = await Promise.all([
+      const [vRes, bRes, bkRes] = await Promise.all([
         fetchWithAuth(`${API_URL}/sales-os/real-estate/leads/${lead.id}/visits`),
         fetchWithAuth(`${API_URL}/sales-os/real-estate/leads/${lead.id}/broker`),
+        fetchWithAuth(`${API_URL}/sales-os/real-estate/bookings?lead_id=${lead.id}`),
       ]);
       if (vRes.ok) setVisits(await vRes.json());
       if (bRes.ok) {
@@ -124,6 +135,9 @@ export default function SalesRecordWorkspace({
           setBrokerRera(bData.rera_id || '');
           setBrokerCommission(String(bData.commission_pct || '2.0'));
         }
+      }
+      if (bkRes.ok) {
+        setBookings(await bkRes.json());
       }
     } catch {
       // Ignore if endpoints not queried or non-real estate
@@ -160,6 +174,35 @@ export default function SalesRecordWorkspace({
     }
   };
 
+  const handleAutoAssignVisit = async () => {
+    setAutoAssigning(true);
+    setAutoAssignMessage(null);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/sales-real-estate/leads/${lead.id}/auto-assign-visit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          preferred_time: visitDate ? new Date(visitDate).toISOString() : undefined,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const specialist = data.matched_salesperson?.name || 'Assigned Specialist';
+        setAutoAssignMessage(`Successfully scheduled showing with ${specialist} (${data.project_name || 'Project'})`);
+        setVisitDate('');
+        setVisitAgent('');
+        await loadRealEstateData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setAutoAssignMessage(err.detail || 'Autonomous dispatch could not find an available assigned specialist.');
+      }
+    } catch {
+      setAutoAssignMessage('Autonomous dispatch encountered a network error.');
+    } finally {
+      setAutoAssigning(false);
+    }
+  };
+
   const handleSaveBroker = async () => {
     if (!brokerName.trim()) return;
     try {
@@ -179,6 +222,70 @@ export default function SalesRecordWorkspace({
       // Ignore
     }
   };
+
+  const handleFindMatches = async () => {
+    setMatchesLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/sales-os/real-estate/inquiries/${lead.id}/matches?limit=4`);
+      if (res.ok) {
+        const data = await res.json();
+        setMatches(data.top_matches || []);
+      }
+    } catch {
+      // Ignore
+    } finally {
+      setMatchesLoading(false);
+    }
+  };
+
+  const handleQuickHoldUnit = async (unitId: string) => {
+    try {
+      const res = await fetchWithAuth(`${API_URL}/sales-os/real-estate/units/${unitId}/hold`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lead_id: lead.id,
+          deposit_amount: 10000,
+          notes: 'Standard 48-hour reservation from workspace matching',
+        }),
+      });
+      if (res.ok) {
+        await handleFindMatches();
+        await onUpdateStatus(lead.id, 'hold_requested');
+      }
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleCreateBookingSubmit = async (unitId: string, basePrice: number) => {
+    setBookingSubmitting(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/sales-os/real-estate/bookings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lead_id: lead.id,
+          unit_id: unitId,
+          agreed_price: parseFloat(bookingPrice) || basePrice,
+          buyer_legal_name: bookingBuyerName.trim() || lead.name || 'Purchaser',
+          deposit_paid: 50000,
+        }),
+      });
+      if (res.ok) {
+        setBookingUnitId(null);
+        setBookingPrice('');
+        setBookingBuyerName('');
+        await loadRealEstateData();
+        await onUpdateStatus(lead.id, 'booking');
+      }
+    } catch {
+      // Ignore
+    } finally {
+      setBookingSubmitting(false);
+    }
+  };
+
 
   const labels = advice?.terminology || terms || SHARED_TERMS;
   const conversation = Array.isArray(lead.data?.conversation) ? lead.data.conversation : [];
@@ -374,10 +481,174 @@ export default function SalesRecordWorkspace({
                 </div>
               </div>
 
+              {/* AI Property Matching Section */}
+              <div className="mt-4 p-3 rounded-xl border border-border bg-card/50 space-y-3">
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Sparkles size={13} className="text-primary" />
+                      AI Inventory Matcher
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">Ranks real, available inventory against buyer budget and preferences.</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={matchesLoading}
+                    onClick={handleFindMatches}
+                    className="text-xs font-semibold h-7 gap-1"
+                  >
+                    {matchesLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                    {matches.length > 0 ? 'Refresh Matches' : 'Find Matched Units'}
+                  </Button>
+                </div>
+
+                {matches.length > 0 ? (
+                  <div className="space-y-2 mt-2">
+                    {matches.map((m: any) => (
+                      <div key={m.unit_id} className="rounded-lg border border-border p-3 bg-card text-xs space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-foreground">{m.unit_number}</span>
+                            <span className="rounded bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                              {m.unit_type}
+                            </span>
+                            <span className="text-muted-foreground">{m.project_name} · Floor {m.floor || 1}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[11px] font-bold text-emerald-400">
+                              {m.match_score}% Match
+                            </span>
+                            <span className="font-semibold text-foreground">₹{Number(m.base_price).toLocaleString()}</span>
+                          </div>
+                        </div>
+
+                        {/* Pros / Cons Tags */}
+                        <div className="flex flex-wrap gap-1">
+                          {(m.pros || []).map((pro: string, i: number) => (
+                            <span key={i} className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-300">
+                              ✓ {pro}
+                            </span>
+                          ))}
+                          {(m.cons || []).map((con: string, i: number) => (
+                            <span key={i} className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300">
+                              • {con}
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* Booking or Hold Action */}
+                        <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/50">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleQuickHoldUnit(m.unit_id)}
+                            className="h-7 text-xs font-medium"
+                          >
+                            Reserve 48h Hold
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setBookingUnitId(m.unit_id);
+                              setBookingPrice(String(m.base_price));
+                              setBookingBuyerName(lead.name || '');
+                            }}
+                            className="h-7 text-xs font-semibold"
+                          >
+                            Book Unit
+                          </Button>
+                        </div>
+
+                        {/* Inline Booking Form */}
+                        {bookingUnitId === m.unit_id ? (
+                          <div className="mt-2 p-2.5 rounded-lg border border-primary/40 bg-primary/5 space-y-2">
+                            <h4 className="text-xs font-bold text-foreground">Confirm Booking Application for {m.unit_number}</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] text-muted-foreground block">Buyer Legal Name</label>
+                                <Input
+                                  value={bookingBuyerName}
+                                  onChange={(e) => setBookingBuyerName(e.target.value)}
+                                  className="h-7 text-xs mt-0.5"
+                                  placeholder="Full Legal Name"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted-foreground block">Agreed Deal Price</label>
+                                <Input
+                                  value={bookingPrice}
+                                  onChange={(e) => setBookingPrice(e.target.value)}
+                                  className="h-7 text-xs mt-0.5"
+                                  placeholder="Agreed Amount"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex justify-end gap-2 pt-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setBookingUnitId(null)}
+                                className="h-7 text-xs"
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="sm"
+                                disabled={bookingSubmitting}
+                                onClick={() => handleCreateBookingSubmit(m.unit_id, m.base_price)}
+                                className="h-7 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white"
+                              >
+                                {bookingSubmitting ? 'Creating...' : 'Lock & Confirm Booking'}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Active Bookings & Financial Progress */}
+              {bookings.length > 0 ? (
+                <div className="mt-4 p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                      <CheckCircle size={13} className="text-emerald-400" />
+                      Active Booking Contracts ({bookings.length})
+                    </h3>
+                  </div>
+                  <div className="space-y-2">
+                    {bookings.map((bk: any) => (
+                      <div key={bk.id} className="rounded-lg border border-border p-2.5 bg-card text-xs flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-foreground">{bk.booking_reference}</span>
+                            <span className="rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400 uppercase">
+                              {bk.status.replaceAll('_', ' ')}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-muted-foreground mt-0.5 block">
+                            Buyer: {bk.buyer_legal_name} · Agreed: ₹{Number(bk.agreed_price).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-semibold text-emerald-400 block">₹{Number(bk.deposit_paid).toLocaleString()} paid</span>
+                          <span className="text-[10px] text-muted-foreground">₹{Number(bk.balance_due).toLocaleString()} balance</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               {/* Site Visits Section */}
               <div className="mt-4 p-3 rounded-xl border border-border bg-card/50 space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Site Visits & Private Tours</h3>
+
                   <span className="text-[11px] text-muted-foreground">{visits.length} scheduled</span>
                 </div>
                 {visits.length === 0 ? (
@@ -424,7 +695,22 @@ export default function SalesRecordWorkspace({
                   >
                     Schedule Showing
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={autoAssigning}
+                    onClick={handleAutoAssignVisit}
+                    className="text-xs font-semibold h-8 gap-1.5 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                  >
+                    {autoAssigning ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} className="text-emerald-400" />}
+                    Auto-Dispatch Specialist
+                  </Button>
                 </div>
+                {autoAssignMessage && (
+                  <p className="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded px-2.5 py-1.5 mt-2">
+                    {autoAssignMessage}
+                  </p>
+                )}
               </div>
 
               {/* Channel Partner / Broker Attribution */}

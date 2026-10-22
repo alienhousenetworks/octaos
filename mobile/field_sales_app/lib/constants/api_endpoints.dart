@@ -30,4 +30,7 @@ class ApiEndpoints {
   static const String aiRecover = '/sales-os/field-sales/ai/recover';
   static const String aiProposals = '/sales-os/field-sales/ai/proposals';
   static const String offlineSync = '/sales-os/field-sales/sync/offline';
+  static const String agentProjects = '/sales-os/field-sales/agent/projects';
+  static const String agentLeads = '/sales-os/field-sales/agent/leads';
+  static const String agentProfile = '/sales-os/field-sales/agent/profile';
 }

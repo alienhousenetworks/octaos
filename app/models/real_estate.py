@@ -152,3 +152,119 @@ class RealEstateBrokerAttribution(Base):
     agreement_doc_url = Column(String, nullable=True)
     status = Column(String, default="active")  # active, contested, approved, paid
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class RealEstateBooking(Base):
+    """Authoritative booking contract locking a unit to a buyer."""
+
+    __tablename__ = "real_estate_bookings"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    booking_reference = Column(String, unique=True, nullable=False, index=True)  # e.g. BK-2026-0042
+    unit_id = Column(String, ForeignKey("real_estate_units.id"), nullable=False, index=True)
+    project_id = Column(String, ForeignKey("real_estate_projects.id"), nullable=False, index=True)
+    lead_id = Column(String, ForeignKey("leads.id"), nullable=False, index=True)
+    hold_id = Column(String, ForeignKey("real_estate_unit_holds.id"), nullable=True)
+
+    # Financial & Price Snapshot (immutable once confirmed)
+    base_price = Column(Float, nullable=False)
+    agreed_price = Column(Float, nullable=False)
+    deposit_paid = Column(Float, default=0.0)
+    balance_due = Column(Float, nullable=False)
+    currency = Column(String, default="INR")
+
+    # Lifecycle State: draft, pending_payment, payment_verified, agreement_signed, registered, completed, cancelled, refunded
+    status = Column(String, nullable=False, default="draft")
+
+    # Buyer & Co-buyer Details Snapshot
+    buyer_legal_name = Column(String, nullable=False)
+    buyer_id_number = Column(String, nullable=True)  # PAN / Aadhaar / National ID
+    co_buyers = Column(JSON, default=list)
+    payment_plan = Column(JSON, default=dict)  # construction-linked milestones
+
+    # Approvals & Auditing
+    sales_rep_id = Column(String, nullable=True)
+    approved_by_user_id = Column(String, nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    cancellation_reason = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class RealEstatePaymentTransaction(Base):
+    """Immutable ledger of payment events verified against banking or gateway sources."""
+
+    __tablename__ = "real_estate_payment_transactions"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    booking_id = Column(String, ForeignKey("real_estate_bookings.id"), nullable=True, index=True)
+    hold_id = Column(String, ForeignKey("real_estate_unit_holds.id"), nullable=True, index=True)
+    lead_id = Column(String, ForeignKey("leads.id"), nullable=False, index=True)
+
+    transaction_type = Column(String, nullable=False)  # token_deposit, milestone_payment, refund, maintenance_fee
+    amount = Column(Float, nullable=False)
+    currency = Column(String, default="INR")
+    status = Column(String, nullable=False, default="pending")  # pending, verified, rejected, refunded
+
+    payment_method = Column(String, nullable=False)  # wire, card, upi, cheque, gateway
+    payment_reference = Column(String, nullable=True, index=True)  # UTR, Gateway charge ID
+    idempotency_key = Column(String, unique=True, nullable=False, index=True)
+
+    proof_document_url = Column(String, nullable=True)
+    verified_by_user_id = Column(String, nullable=True)
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class RealEstateCommissionLedger(Base):
+    """Channel partner commission accruals, milestones, and payout tracking."""
+
+    __tablename__ = "real_estate_commission_ledgers"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    booking_id = Column(String, ForeignKey("real_estate_bookings.id"), nullable=False, index=True)
+    broker_attribution_id = Column(String, ForeignKey("real_estate_broker_attributions.id"), nullable=False, index=True)
+
+    total_commission_amount = Column(Float, nullable=False)
+    milestone_number = Column(Integer, default=1)
+    milestone_name = Column(String, nullable=False)  # e.g., "Token Deposit (20%)", "Agreement Registered (80%)"
+    payable_amount = Column(Float, nullable=False)
+    status = Column(String, nullable=False, default="accrued")  # accrued, approved, paid, reversed, disputed
+
+    due_date = Column(DateTime(timezone=True), nullable=True)
+    paid_at = Column(DateTime(timezone=True), nullable=True)
+    payout_reference = Column(String, nullable=True)
+    approved_by_user_id = Column(String, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class RealEstateProjectAssignment(Base):
+    """Mapping between Real Estate Projects and Sales Persons / Agents."""
+
+    __tablename__ = "real_estate_project_assignments"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    project_id = Column(String, ForeignKey("real_estate_projects.id"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    role = Column(String, default="site_specialist")  # primary_lead, site_specialist, relationship_manager
+    is_active = Column(Boolean, default=True)
+    ai_recommended = Column(Boolean, default=False)
+    ai_recommendation_reason = Column(Text, nullable=True)
+    ai_match_score = Column(Float, nullable=True)
+    assigned_by_id = Column(String, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "project_id", "user_id", name="uq_project_agent_assignment"),
+    )
+

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:field_sales_app/constants/theme.dart';
 import 'package:field_sales_app/models/visit.dart';
 import 'package:field_sales_app/providers/field_sales_provider.dart';

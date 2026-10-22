@@ -54,6 +54,7 @@ api_router.include_router(sales_crm.router, prefix="/sales-crm", tags=["sales-cr
 api_router.include_router(sales_inbox.router, prefix="/sales-inbox", tags=["sales-inbox"])
 api_router.include_router(sales_platform.router, prefix="/sales-os", tags=["sales-platform"])
 api_router.include_router(sales_real_estate.router, prefix="/sales-os/real-estate", tags=["sales-real-estate"])
+api_router.include_router(sales_real_estate.router, prefix="/sales-real-estate", tags=["sales-real-estate-alias"])
 api_router.include_router(field_sales.router, prefix="/sales-os/field-sales", tags=["field-sales"])
 api_router.include_router(sales_inbound_webhooks.router, prefix="/sales-os", tags=["sales-inbound-webhooks"])
 api_router.include_router(automations.router, prefix="/automations", tags=["automations"])

@@ -216,3 +216,83 @@ def test_offline_batch_sync_api(client_and_db):
     assert res.status_code == 200
     data = res.json()
     assert data["synced_count"] == 2
+
+
+def test_agent_assigned_projects_api(client_and_db):
+    client, db = client_and_db
+    from app.models.real_estate import RealEstateProjectAssignment
+    assignment = RealEstateProjectAssignment(
+        tenant_id="tenant_api_fs",
+        project_id="proj_apex_1",
+        user_id="user_field_agent",
+        role="primary_lead",
+        is_active=True,
+    )
+    db.add(assignment)
+    db.commit()
+
+    res = client.get("/api/v1/sales-os/field-sales/agent/projects")
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data) >= 1
+    assert data[0]["id"] == "proj_apex_1"
+    assert data[0]["name"] == "Apex Heights"
+    assert data[0]["assigned_role"] == "primary_lead"
+
+
+def test_agent_project_units_and_hold_api(client_and_db):
+    client, db = client_and_db
+    from app.models.real_estate import RealEstateUnit
+    unit = RealEstateUnit(
+        tenant_id="tenant_api_fs",
+        project_id="proj_apex_1",
+        unit_number="A-402",
+        unit_type="3BHK",
+        floor=4,
+        base_price=18500000.0,
+        status="available",
+    )
+    db.add(unit)
+    db.commit()
+
+    # List units
+    res = client.get("/api/v1/sales-os/field-sales/agent/projects/proj_apex_1/units")
+    assert res.status_code == 200
+    units_data = res.json()
+    assert any(u["unit_number"] == "A-402" for u in units_data)
+
+    # Reserve hold on unit
+    hold_res = client.post(
+        f"/api/v1/sales-os/field-sales/agent/units/{unit.id}/hold",
+        json={
+            "lead_id": "lead_apex_1",
+            "deposit_amount": 50000.0,
+            "notes": "Reserved on site with buyer",
+        },
+    )
+    assert hold_res.status_code == 200
+    hold_data = hold_res.json()
+    assert hold_data["unit_number"] == "A-402"
+
+
+def test_agent_leads_and_profile_api(client_and_db):
+    client, db = client_and_db
+    from app.models.verticals import Lead
+    lead = db.query(Lead).filter(Lead.id == "lead_apex_1").first()
+    lead.assigned_to = "Marcus Vance"
+    db.commit()
+
+    # Test agent leads
+    leads_res = client.get("/api/v1/sales-os/field-sales/agent/leads")
+    assert leads_res.status_code == 200
+    leads_data = leads_res.json()
+    assert len(leads_data) >= 1
+    assert leads_data[0]["name"] == "Priya Nair"
+
+    # Test agent profile
+    prof_res = client.get("/api/v1/sales-os/field-sales/agent/profile")
+    assert prof_res.status_code == 200
+    prof_data = prof_res.json()
+    assert prof_data["name"] == "Marcus Vance"
+    assert prof_data["designation"] == "Real Estate Showing Specialist"
+    assert prof_data["max_visits_per_day"] == 6

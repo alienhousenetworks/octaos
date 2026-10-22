@@ -1,6 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:field_sales_app/models/visit.dart';
 import 'package:field_sales_app/models/recovery_proposal.dart';
+import 'package:field_sales_app/models/project.dart';
+import 'package:field_sales_app/models/unit.dart';
+import 'package:field_sales_app/models/lead_item.dart';
+import 'package:field_sales_app/models/agent_profile.dart';
 import 'package:field_sales_app/services/api_service.dart';
 import 'package:field_sales_app/services/offline_sync_service.dart';
 
@@ -16,6 +20,14 @@ class FieldSalesProvider extends ChangeNotifier {
   String _agentStatus = 'off_duty';
   MobileRecoveryProposal? _pendingProposal;
 
+  // Real estate sales persona collections
+  List<RealEstateProjectModel> _projects = [];
+  bool _projectsLoading = false;
+  List<SalesLeadModel> _leads = [];
+  bool _leadsLoading = false;
+  AgentProfileModel? _profile;
+  bool _profileLoading = false;
+
   FieldSalesProvider(this.api, this.offlineSync);
 
   bool get isLoading => _isLoading;
@@ -25,6 +37,13 @@ class FieldSalesProvider extends ChangeNotifier {
   String get agentStatus => _agentStatus;
   MobileRecoveryProposal? get pendingProposal => _pendingProposal;
   int get pendingOfflineCount => offlineSync.getPendingEvents().length;
+
+  List<RealEstateProjectModel> get projects => _projects;
+  bool get projectsLoading => _projectsLoading;
+  List<SalesLeadModel> get leads => _leads;
+  bool get leadsLoading => _leadsLoading;
+  AgentProfileModel? get profile => _profile;
+  bool get profileLoading => _profileLoading;
 
   FieldVisit? get nextVisit {
     try {
@@ -211,6 +230,99 @@ class FieldSalesProvider extends ChangeNotifier {
       _errorMessage = e.toString();
       notifyListeners();
       return 0;
+    }
+  }
+
+  Future<void> loadProjects() async {
+    _projectsLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final res = await api.get('/sales-os/field-sales/agent/projects');
+      if (res is List) {
+        _projects = res.map((p) => RealEstateProjectModel.fromJson(p)).toList();
+      }
+      _projectsLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _projectsLoading = false;
+      _errorMessage = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<List<RealEstateUnitModel>> loadProjectUnits(String projectId) async {
+    try {
+      final res = await api.get('/sales-os/field-sales/agent/projects/$projectId/units');
+      if (res is List) {
+        return res.map((u) => RealEstateUnitModel.fromJson(u)).toList();
+      }
+      return [];
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return [];
+    }
+  }
+
+  Future<bool> reserveUnitOnSite({
+    required String unitId,
+    required String leadId,
+    double depositAmount = 0.0,
+    String? notes,
+  }) async {
+    try {
+      await api.post('/sales-os/field-sales/agent/units/$unitId/hold', {
+        'lead_id': leadId,
+        'deposit_amount': depositAmount,
+        'notes': notes ?? 'Reserved on-site via Mobile Sales App',
+      });
+      await loadProjects();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<void> loadLeads() async {
+    _leadsLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final res = await api.get('/sales-os/field-sales/agent/leads');
+      if (res is List) {
+        _leads = res.map((l) => SalesLeadModel.fromJson(l)).toList();
+      }
+      _leadsLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _leadsLoading = false;
+      _errorMessage = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadProfile() async {
+    _profileLoading = true;
+    notifyListeners();
+
+    try {
+      final res = await api.get('/sales-os/field-sales/agent/profile');
+      if (res is Map<String, dynamic>) {
+        _profile = AgentProfileModel.fromJson(res);
+        _isShiftActive = _profile!.isShiftActive;
+        _agentStatus = _profile!.status;
+      }
+      _profileLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _profileLoading = false;
+      _errorMessage = e.toString();
+      notifyListeners();
     }
   }
 

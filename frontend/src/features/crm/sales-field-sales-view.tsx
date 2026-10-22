@@ -5,7 +5,9 @@ import {
   Navigation, MapPin, Calendar, Clock, AlertTriangle, CheckCircle2,
   TrendingUp, Users, Cpu, Sparkles, RefreshCw, Compass, DollarSign,
   ChevronRight, Car, Building2, Phone, ShieldCheck, Check, X,
-  BarChart3, FileText, ArrowRight, Zap, BatteryCharging,
+  BarChart3, FileText, ArrowRight, Zap, BatteryCharging, Plus,
+  UserPlus, Layers, Briefcase, Award, CheckSquare, Search, Sliders,
+  ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { notify } from '@/lib/notify';
@@ -15,6 +17,10 @@ import {
   FieldVisitPin,
   RecoveryProposal,
   FieldSalesAnalysisReport,
+  RealEstateProjectItem,
+  SalespersonDirectoryItem,
+  AITeamSuggestion,
+  AutoAssignResult,
 } from './sales-types';
 
 interface SalesFieldSalesViewProps {
@@ -29,7 +35,7 @@ export default function SalesFieldSalesView({
   fetchWithAuth,
 }: SalesFieldSalesViewProps) {
   // Navigation sub-tabs
-  type SubView = 'overview' | 'dispatch_map' | 'schedule' | 'priority_leads' | 'ai_studio' | 'orchestrator_report';
+  type SubView = 'overview' | 'projects' | 'team' | 'dispatch_map' | 'schedule' | 'priority_leads' | 'ai_studio' | 'orchestrator_report';
   const [activeSubView, setActiveSubView] = useState<SubView>('overview');
 
   // Data states
@@ -42,10 +48,91 @@ export default function SalesFieldSalesView({
   const [proposals, setProposals] = useState<RecoveryProposal[]>([]);
   const [analysisReport, setAnalysisReport] = useState<FieldSalesAnalysisReport | null>(null);
 
+  // Projects State
+  const [projects, setProjects] = useState<RealEstateProjectItem[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
+  const [isSavingProject, setIsSavingProject] = useState(false);
+  const [newProject, setNewProject] = useState({
+    name: '',
+    code: '',
+    location: '',
+    city: 'Bangalore',
+    address: '',
+    latitude: 12.9716,
+    longitude: 77.5946,
+    rera_number: '',
+    hold_duration_hours: 48,
+    total_units: 50,
+    amenities: 'Clubhouse, Swimming Pool, Gym, 24/7 Security',
+    status: 'active',
+  });
+
+  // Project Team Allocation State
+  const [managingProject, setManagingProject] = useState<RealEstateProjectItem | null>(null);
+  const [projectTeamDrawerOpen, setProjectTeamDrawerOpen] = useState(false);
+  const [aiSuggestionsLoading, setAiSuggestionsLoading] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<AITeamSuggestion[]>([]);
+  const [selectedTeamAssignments, setSelectedTeamAssignments] = useState<Record<string, { role: string; ai_recommended: boolean; match_score?: number; reason?: string }>>({});
+  const [isSavingTeam, setIsSavingTeam] = useState(false);
+
+  // Sales Force & Rosters State
+  const [salesTeam, setSalesTeam] = useState<SalespersonDirectoryItem[]>([]);
+  const [salesTeamLoading, setSalesTeamLoading] = useState(false);
+  const [isAddSalespersonOpen, setIsAddSalespersonOpen] = useState(false);
+  const [isSavingSalesperson, setIsSavingSalesperson] = useState(false);
+  const [newSalesperson, setNewSalesperson] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    designation: 'Property Specialist',
+    working_hours_start: '09:00',
+    working_hours_end: '18:00',
+    max_visits_per_day: 6,
+    initial_project_ids: [] as string[],
+  });
+
+  // Autonomous Lead Dispatch State
+  const [autoAssignModalOpen, setAutoAssignModalOpen] = useState(false);
+  const [autoAssignResult, setAutoAssignResult] = useState<AutoAssignResult | null>(null);
+  const [autoAssigningLeadId, setAutoAssigningLeadId] = useState<string | null>(null);
+
   // AI Prompt bar
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiPlanning, setAiPlanning] = useState(false);
   const [aiResult, setAiResult] = useState<any | null>(null);
+
+  // Load Projects
+  const loadProjects = async () => {
+    if (!token) return;
+    setProjectsLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/sales-os/real-estate/projects`);
+      if (res.ok) {
+        setProjects(await res.json());
+      }
+    } catch (err) {
+      console.error('Failed to load projects', err);
+    } finally {
+      setProjectsLoading(false);
+    }
+  };
+
+  // Load Sales Force Directory
+  const loadSalesTeam = async () => {
+    if (!token) return;
+    setSalesTeamLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/sales-os/real-estate/salespeople`);
+      if (res.ok) {
+        setSalesTeam(await res.json());
+      }
+    } catch (err) {
+      console.error('Failed to load sales team', err);
+    } finally {
+      setSalesTeamLoading(false);
+    }
+  };
 
   // Fetch initial data
   const loadData = async () => {
@@ -69,6 +156,9 @@ export default function SalesFieldSalesView({
       if (leadsRes.ok) setPriorityLeads(await leadsRes.json());
       if (propRes.ok) setProposals(await propRes.json());
       if (repRes.ok) setAnalysisReport(await repRes.json());
+
+      loadProjects();
+      loadSalesTeam();
     } catch (err) {
       console.error('Failed to load field sales data', err);
     } finally {
@@ -80,15 +170,233 @@ export default function SalesFieldSalesView({
     loadData();
   }, [token]);
 
-  // Load schedule when switching to schedule tab
+  // Load sub-view specific data
   useEffect(() => {
     if (activeSubView === 'schedule' && token) {
       fetchWithAuth(`${API_URL}/sales-os/field-sales/schedule`)
         .then((res) => res.json())
         .then((data) => setScheduleVisits(data.visits || []))
         .catch((err) => console.error(err));
+    } else if (activeSubView === 'projects' && token) {
+      loadProjects();
+    } else if (activeSubView === 'team' && token) {
+      loadSalesTeam();
     }
   }, [activeSubView, token]);
+
+  // Project Management Handlers
+  const handleCreateProject = async () => {
+    if (!newProject.name.trim() || !token) {
+      notify.error('Project name is required');
+      return;
+    }
+    setIsSavingProject(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/sales-os/real-estate/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newProject,
+          amenities: newProject.amenities.split(',').map((s) => s.trim()).filter(Boolean),
+        }),
+      });
+      if (res.ok) {
+        notify.success(`Project "${newProject.name}" created successfully`);
+        setIsAddProjectOpen(false);
+        setNewProject({
+          name: '',
+          code: '',
+          location: '',
+          city: 'Bangalore',
+          address: '',
+          latitude: 12.9716,
+          longitude: 77.5946,
+          rera_number: '',
+          hold_duration_hours: 48,
+          total_units: 50,
+          amenities: 'Clubhouse, Swimming Pool, Gym, 24/7 Security',
+          status: 'active',
+        });
+        loadProjects();
+      } else {
+        notify.error('Failed to create project');
+      }
+    } catch (err) {
+      notify.error('Error creating project');
+    } finally {
+      setIsSavingProject(false);
+    }
+  };
+
+  const handleOpenTeamModal = async (project: RealEstateProjectItem) => {
+    setManagingProject(project);
+    setProjectTeamDrawerOpen(true);
+    setAiSuggestions([]);
+    setSelectedTeamAssignments({});
+
+    try {
+      const res = await fetchWithAuth(`${API_URL}/sales-os/real-estate/projects/${project.id}`);
+      if (res.ok) {
+        const fullProj = await res.json();
+        setManagingProject(fullProj);
+        const prefill: Record<string, { role: string; ai_recommended: boolean; match_score?: number; reason?: string }> = {};
+        fullProj.team?.forEach((m: any) => {
+          prefill[m.user_id] = {
+            role: m.role || 'site_specialist',
+            ai_recommended: m.ai_recommended || false,
+            match_score: m.ai_match_score,
+            reason: m.ai_recommendation_reason,
+          };
+        });
+        setSelectedTeamAssignments(prefill);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleFetchAiTeamSuggestions = async (projectId: string) => {
+    if (!token) return;
+    setAiSuggestionsLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/sales-os/real-estate/projects/${projectId}/ai-team-suggestions`);
+      if (res.ok) {
+        const data = await res.json();
+        setAiSuggestions(data.suggested_team || []);
+        // Automatically preselect recommended team
+        const updated = { ...selectedTeamAssignments };
+        (data.suggested_team || []).slice(0, 3).forEach((sug: AITeamSuggestion) => {
+          updated[sug.user_id] = {
+            role: sug.recommended_role,
+            ai_recommended: true,
+            match_score: sug.match_score,
+            reason: sug.rationales[0],
+          };
+        });
+        setSelectedTeamAssignments(updated);
+        notify.success('AI evaluated sales specialists and generated optimal team suggestions');
+      } else {
+        notify.error('Failed to get AI team recommendations');
+      }
+    } catch (err) {
+      notify.error('Network error fetching AI team suggestions');
+    } finally {
+      setAiSuggestionsLoading(false);
+    }
+  };
+
+  const handleSaveProjectTeam = async () => {
+    if (!managingProject || !token) return;
+    setIsSavingTeam(true);
+    try {
+      const assignments = Object.entries(selectedTeamAssignments).map(([userId, details]) => ({
+        user_id: userId,
+        role: details.role,
+        ai_recommended: details.ai_recommended,
+        match_score: details.match_score,
+        reason: details.reason,
+      }));
+
+      const res = await fetchWithAuth(`${API_URL}/sales-os/real-estate/projects/${managingProject.id}/team`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignments }),
+      });
+      if (res.ok) {
+        notify.success(`Sales team confirmed for ${managingProject.name}`);
+        setProjectTeamDrawerOpen(false);
+        loadProjects();
+      } else {
+        notify.error('Failed to update project team');
+      }
+    } catch (err) {
+      notify.error('Network error saving project team');
+    } finally {
+      setIsSavingTeam(false);
+    }
+  };
+
+  // Sales Force Directory Handlers
+  const handleCreateSalesperson = async () => {
+    if (!newSalesperson.name.trim() || !newSalesperson.email.trim() || !token) {
+      notify.error('Name and Email are required');
+      return;
+    }
+    setIsSavingSalesperson(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/sales-os/real-estate/salespeople`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSalesperson),
+      });
+      if (res.ok) {
+        notify.success(`Specialist "${newSalesperson.name}" added to sales force`);
+        setIsAddSalespersonOpen(false);
+        setNewSalesperson({
+          name: '',
+          email: '',
+          phone: '',
+          designation: 'Property Specialist',
+          working_hours_start: '09:00',
+          working_hours_end: '18:00',
+          max_visits_per_day: 6,
+          initial_project_ids: [],
+        });
+        loadSalesTeam();
+      } else {
+        notify.error('Failed to create salesperson');
+      }
+    } catch (err) {
+      notify.error('Error creating salesperson');
+    } finally {
+      setIsSavingSalesperson(false);
+    }
+  };
+
+  const handleToggleAgentShift = async (userId: string, currentActive: boolean) => {
+    try {
+      const res = await fetchWithAuth(`${API_URL}/sales-os/real-estate/salespeople/${userId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          is_shift_active: !currentActive,
+          status: !currentActive ? 'available' : 'off_duty',
+        }),
+      });
+      if (res.ok) {
+        notify.success(`Shift status updated`);
+        loadSalesTeam();
+      }
+    } catch (err) {
+      notify.error('Failed to update shift status');
+    }
+  };
+
+  // Autonomous Lead Auto-Dispatch Handler
+  const handleAutoAssignLead = async (leadId: string) => {
+    if (!token) return;
+    setAutoAssigningLeadId(leadId);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/sales-os/real-estate/leads/${leadId}/auto-assign-visit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        const data: AutoAssignResult = await res.json();
+        setAutoAssignResult(data);
+        setAutoAssignModalOpen(true);
+        notify.success(`Lead assigned to specialist ${data.assigned_specialist.name}`);
+        loadData();
+      } else {
+        notify.error('Auto-dispatch failed');
+      }
+    } catch (err) {
+      notify.error('Error contacting auto-dispatch service');
+    } finally {
+      setAutoAssigningLeadId(null);
+    }
+  };
 
   // AI natural language planning
   const handleExecuteAiPlan = async (promptText?: string) => {
@@ -144,10 +452,12 @@ export default function SalesFieldSalesView({
         <div className="flex items-center gap-1.5 flex-wrap">
           {[
             { id: 'overview', label: 'Overview', icon: <TrendingUp size={14} /> },
+            { id: 'projects', label: 'Projects & Inventory', icon: <Building2 size={14} /> },
+            { id: 'team', label: 'Sales Force & Rosters', icon: <Users size={14} /> },
             { id: 'dispatch_map', label: 'Live Dispatch Map', icon: <Compass size={14} /> },
             { id: 'schedule', label: 'Team Schedule', icon: <Calendar size={14} /> },
-            { id: 'priority_leads', label: 'Priority Showings', icon: <Users size={14} /> },
-            { id: 'ai_studio', label: 'AI Recovery Studio', icon: <Sparkles size={14} />, badge: proposals.filter(p => p.status === 'pending_review').length || undefined },
+            { id: 'priority_leads', label: 'Priority Showings', icon: <Navigation size={14} /> },
+            { id: 'ai_studio', label: 'AI Recovery Studio', icon: <Sparkles size={14} />, badge: proposals.filter((p) => p.status === 'pending_review').length || undefined },
             { id: 'orchestrator_report', label: 'Orchestrator Analysis', icon: <BarChart3 size={14} /> },
           ].map((tab) => (
             <button
@@ -359,7 +669,269 @@ export default function SalesFieldSalesView({
         </div>
       )}
 
-      {/* ── 2. SUB-VIEW: LIVE DISPATCH MAP & FLEET TRACKING ── */}
+      {/* ── 2. SUB-VIEW: PROJECTS & INVENTORY CATALOG ── */}
+      {activeSubView === 'projects' && (
+        <div className="space-y-4">
+          <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-border">
+              <div>
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Building2 size={16} className="text-primary" /> Property Developments & Master Projects
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Configure project coordinates, unit inventory, and assigned sales specialist teams.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setIsAddProjectOpen(true)}
+                className="h-8 text-xs gap-1.5 self-start sm:self-auto bg-primary text-primary-foreground font-semibold"
+              >
+                <Plus size={14} /> Add New Project
+              </Button>
+            </div>
+
+            {projectsLoading ? (
+              <div className="py-12 flex flex-col items-center justify-center text-muted-foreground text-xs gap-2">
+                <RefreshCw size={18} className="animate-spin text-primary" />
+                <span>Loading property development portfolio...</span>
+              </div>
+            ) : projects.length === 0 ? (
+              <div className="py-12 text-center border-2 border-dashed border-border rounded-xl p-6 mt-4">
+                <Building2 size={32} className="mx-auto text-muted-foreground mb-2" />
+                <h4 className="text-sm font-bold text-foreground">No projects registered yet</h4>
+                <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                  Add your first real estate project with location, RERA, and unit inventory to enable AI team matching.
+                </p>
+                <Button size="sm" onClick={() => setIsAddProjectOpen(true)} className="mt-4 text-xs gap-1">
+                  <Plus size={12} /> Create Project
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-5">
+                {projects.map((proj) => (
+                  <div key={proj.id} className="bg-background border border-border rounded-xl p-4 shadow-xs flex flex-col justify-between hover:border-primary/40 transition-all">
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h4 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                            {proj.name}
+                          </h4>
+                          <span className="text-[10px] font-mono text-muted-foreground">
+                            CODE: {proj.code || proj.id.slice(0, 8)}
+                          </span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
+                          proj.status === 'active'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            : proj.status === 'pre_launch'
+                            ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {proj.status || 'Active'}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 space-y-1 text-xs">
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <MapPin size={13} className="text-primary shrink-0" />
+                          <span className="truncate">{proj.location ? `${proj.location}, ` : ''}{proj.city || 'Bangalore'}</span>
+                        </div>
+                        {proj.address && (
+                          <p className="text-[11px] text-muted-foreground line-clamp-1 pl-4.5">
+                            {proj.address}
+                          </p>
+                        )}
+                        {proj.rera_number && (
+                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <ShieldCheck size={12} className="text-emerald-400 shrink-0" />
+                            <span className="truncate">RERA: {proj.rera_number}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Units & Inventory Metric Badges */}
+                      <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-border/60 text-center">
+                        <div className="bg-muted/40 rounded p-1.5">
+                          <span className="text-[9px] uppercase tracking-wider text-muted-foreground block">Total Units</span>
+                          <span className="text-xs font-bold text-foreground">{proj.total_units || 0}</span>
+                        </div>
+                        <div className="bg-muted/40 rounded p-1.5">
+                          <span className="text-[9px] uppercase tracking-wider text-muted-foreground block">Available</span>
+                          <span className="text-xs font-bold text-emerald-400">{proj.available_units || 0}</span>
+                        </div>
+                        <div className="bg-muted/40 rounded p-1.5">
+                          <span className="text-[9px] uppercase tracking-wider text-muted-foreground block">Hold Window</span>
+                          <span className="text-xs font-bold text-foreground">{proj.hold_duration_hours || 48}h</span>
+                        </div>
+                      </div>
+
+                      {/* Amenities Pills */}
+                      {proj.amenities && proj.amenities.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-3">
+                          {proj.amenities.slice(0, 3).map((a, i) => (
+                            <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">
+                              {a}
+                            </span>
+                          ))}
+                          {proj.amenities.length > 3 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">
+                              +{proj.amenities.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Team Allocation Footer */}
+                    <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <Users size={13} className="text-primary" />
+                        <span className="font-semibold text-foreground">
+                          {proj.assigned_team_count || 0}
+                        </span>
+                        <span className="text-muted-foreground text-[11px]">Specialist(s)</span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenTeamModal(proj)}
+                        className="h-7 text-[11px] gap-1 font-semibold hover:border-primary/50"
+                      >
+                        <Sparkles size={11} className="text-primary" /> Team & AI Match
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── 3. SUB-VIEW: SALES FORCE DIRECTORY & ROSTERS ── */}
+      {activeSubView === 'team' && (
+        <div className="space-y-4">
+          <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-border">
+              <div>
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Users size={16} className="text-primary" /> Sales Specialists & Showing Rosters
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Manage field sales representatives, working shift hours, daily showing limits, and project allocations.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setIsAddSalespersonOpen(true)}
+                className="h-8 text-xs gap-1.5 self-start sm:self-auto bg-primary text-primary-foreground font-semibold"
+              >
+                <UserPlus size={14} /> Add Sales Specialist
+              </Button>
+            </div>
+
+            {salesTeamLoading ? (
+              <div className="py-12 flex flex-col items-center justify-center text-muted-foreground text-xs gap-2">
+                <RefreshCw size={18} className="animate-spin text-primary" />
+                <span>Loading sales force directory...</span>
+              </div>
+            ) : salesTeam.length === 0 ? (
+              <div className="py-12 text-center border-2 border-dashed border-border rounded-xl p-6 mt-4">
+                <Users size={32} className="mx-auto text-muted-foreground mb-2" />
+                <h4 className="text-sm font-bold text-foreground">No specialists in the directory</h4>
+                <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                  Add property specialists to dispatch tours and manage showing appointments.
+                </p>
+                <Button size="sm" onClick={() => setIsAddSalespersonOpen(true)} className="mt-4 text-xs gap-1">
+                  <UserPlus size={12} /> Add First Specialist
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-5">
+                {salesTeam.map((sp) => (
+                  <div key={sp.user_id} className="bg-background border border-border rounded-xl p-4 shadow-xs flex flex-col justify-between hover:border-primary/40 transition-all">
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h4 className="text-xs font-bold text-foreground">{sp.name}</h4>
+                          <span className="text-[10px] text-muted-foreground font-mono">{sp.email}</span>
+                        </div>
+                        <button
+                          onClick={() => handleToggleAgentShift(sp.user_id, sp.is_shift_active)}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 transition-all ${
+                            sp.is_shift_active
+                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${sp.is_shift_active ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-500'}`} />
+                          {sp.is_shift_active ? 'On Duty' : 'Off Duty'}
+                        </button>
+                      </div>
+
+                      <div className="mt-3 space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground">Designation:</span>
+                          <span className="font-semibold text-foreground">{sp.designation || 'Specialist'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground">Shift Hours:</span>
+                          <span className="font-mono text-foreground">{sp.working_hours_start || '09:00'} - {sp.working_hours_end || '18:00'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground">Phone:</span>
+                          <span className="font-mono text-foreground">{sp.phone || 'Not configured'}</span>
+                        </div>
+                      </div>
+
+                      {/* Daily Load Meter */}
+                      <div className="mt-3 pt-3 border-t border-border/60">
+                        <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+                          <span>Today's Showing Load</span>
+                          <span className="font-bold text-foreground">{sp.today_visits} / {sp.max_visits_per_day} visits</span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              sp.today_visits >= sp.max_visits_per_day
+                                ? 'bg-rose-500'
+                                : sp.today_visits >= sp.max_visits_per_day * 0.7
+                                ? 'bg-amber-500'
+                                : 'bg-emerald-400'
+                            }`}
+                            style={{ width: `${Math.min(100, (sp.today_visits / Math.max(1, sp.max_visits_per_day)) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Assigned Projects */}
+                      <div className="mt-3 pt-2">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
+                          Assigned Projects ({sp.assigned_projects_count || 0})
+                        </span>
+                        {sp.assigned_projects && sp.assigned_projects.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {sp.assigned_projects.map((p, i) => (
+                              <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                                {p.project_name} ({p.role === 'primary_lead' ? 'Lead' : 'Specialist'})
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground italic">No projects currently assigned</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── 4. SUB-VIEW: LIVE DISPATCH MAP & FLEET TRACKING ── */}
       {activeSubView === 'dispatch_map' && (
         <div className="space-y-4">
           <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
@@ -562,16 +1134,27 @@ export default function SalesFieldSalesView({
                     <p className="text-[11px] text-muted-foreground mt-1">Budget: {lead.budget}</p>
                     <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5 italic">"{lead.why}"</p>
                   </div>
-
-                  <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground font-mono">{lead.phone || 'No phone'}</span>
-                    <Button
-                      size="sm"
-                      onClick={() => handleExecuteAiPlan(`Plan showing for ${lead.name} near active project cluster`)}
-                      className="h-7 text-[11px] gap-1"
-                    >
-                      <Sparkles size={11} /> Plan Showing
-                    </Button>
+                  <div className="mt-4 pt-3 border-t border-border flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-muted-foreground font-mono truncate">{lead.phone || 'No phone'}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        size="sm"
+                        disabled={autoAssigningLeadId === lead.id}
+                        onClick={() => handleAutoAssignLead(lead.id)}
+                        className="h-7 text-[11px] gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                      >
+                        <Zap size={11} className={autoAssigningLeadId === lead.id ? 'animate-spin' : ''} />
+                        Auto-Dispatch
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleExecuteAiPlan(`Plan showing for ${lead.name} near active project cluster`)}
+                        className="h-7 text-[11px] gap-1"
+                      >
+                        <Sparkles size={11} /> Plan
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -827,6 +1410,661 @@ export default function SalesFieldSalesView({
                   </li>
                 ))}
               </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 1: ADD PROPERTY PROJECT ── */}
+      {isAddProjectOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <Building2 size={16} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Add Property Development Project</h3>
+                  <p className="text-xs text-muted-foreground">Register new development specs, geocoordinates, and units.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAddProjectOpen(false)}
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Project Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Sobha Royal Pavilion"
+                    value={newProject.name}
+                    onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
+                    className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Project Code</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. SRP_EAST"
+                    value={newProject.code}
+                    onChange={(e) => setNewProject({ ...newProject, code: e.target.value })}
+                    className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Location / Locality</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Sarjapur Road"
+                    value={newProject.location}
+                    onChange={(e) => setNewProject({ ...newProject, location: e.target.value })}
+                    className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">City</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Bangalore"
+                    value={newProject.city}
+                    onChange={(e) => setNewProject({ ...newProject, city: e.target.value })}
+                    className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-foreground mb-1">Full Site Address</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Sarjapur Main Rd, Hadosiddapura, Bengaluru 560035"
+                  value={newProject.address}
+                  onChange={(e) => setNewProject({ ...newProject, address: e.target.value })}
+                  className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Latitude</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={newProject.latitude}
+                    onChange={(e) => setNewProject({ ...newProject, latitude: parseFloat(e.target.value) || 0 })}
+                    className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Longitude</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={newProject.longitude}
+                    onChange={(e) => setNewProject({ ...newProject, longitude: parseFloat(e.target.value) || 0 })}
+                    className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Total Units</label>
+                  <input
+                    type="number"
+                    value={newProject.total_units}
+                    onChange={(e) => setNewProject({ ...newProject, total_units: parseInt(e.target.value, 10) || 0 })}
+                    className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Hold Window (Hours)</label>
+                  <input
+                    type="number"
+                    value={newProject.hold_duration_hours}
+                    onChange={(e) => setNewProject({ ...newProject, hold_duration_hours: parseInt(e.target.value, 10) || 48 })}
+                    className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Status</label>
+                  <select
+                    value={newProject.status}
+                    onChange={(e) => setNewProject({ ...newProject, status: e.target.value })}
+                    className="w-full h-8 px-2 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                  >
+                    <option value="active">Active</option>
+                    <option value="pre_launch">Pre-Launch</option>
+                    <option value="planning">Planning</option>
+                    <option value="sold_out">Sold Out</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-foreground mb-1">RERA Number</label>
+                <input
+                  type="text"
+                  placeholder="e.g. PRM/KA/RERA/1251/308/PR/190204/002338"
+                  value={newProject.rera_number}
+                  onChange={(e) => setNewProject({ ...newProject, rera_number: e.target.value })}
+                  className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-foreground mb-1">Amenities (comma-separated)</label>
+                <input
+                  type="text"
+                  value={newProject.amenities}
+                  onChange={(e) => setNewProject({ ...newProject, amenities: e.target.value })}
+                  placeholder="Clubhouse, Pool, Gymnasium, 24/7 Security"
+                  className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAddProjectOpen(false)}
+                className="h-8 text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleCreateProject}
+                disabled={isSavingProject}
+                className="h-8 text-xs gap-1.5"
+              >
+                {isSavingProject ? <RefreshCw size={12} className="animate-spin" /> : <Plus size={12} />}
+                Create Project
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 2: PROJECT TEAM ALLOCATION & AI SUGGESTIONS ── */}
+      {projectTeamDrawerOpen && managingProject && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between pb-3 border-b border-border">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-foreground">
+                    Project Sales Team: {managingProject.name}
+                  </h3>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-bold uppercase">
+                    {managingProject.city || 'Bangalore'}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Admin team configuration. AI evaluates proximity, workload, and performance to recommend optimal specialists.
+                </p>
+              </div>
+              <button
+                onClick={() => setProjectTeamDrawerOpen(false)}
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* AI Team Suggestion Banner */}
+            <div className="bg-gradient-to-r from-primary/15 via-card to-card border border-primary/30 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-primary/20 text-primary flex items-center justify-center shrink-0">
+                  <Sparkles size={18} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-foreground">AI Sales Specialist Matcher</h4>
+                  <p className="text-[11px] text-muted-foreground">
+                    Analyzes locality distance, existing project allocations, and conversion history.
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => handleFetchAiTeamSuggestions(managingProject.id)}
+                disabled={aiSuggestionsLoading}
+                className="h-7.5 text-xs gap-1.5 shrink-0 bg-primary font-semibold"
+              >
+                {aiSuggestionsLoading ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                AI Recommend Team
+              </Button>
+            </div>
+
+            {/* AI Recommendations List */}
+            {aiSuggestions.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-[10px] uppercase font-bold text-primary tracking-wider flex items-center gap-1.5">
+                  <Award size={12} /> AI Ranked Suggestions (Select to assign)
+                </span>
+                <div className="grid grid-cols-1 gap-2 max-h-56 overflow-y-auto pr-1">
+                  {aiSuggestions.map((sug) => {
+                    const isSelected = !!selectedTeamAssignments[sug.user_id];
+                    return (
+                      <div
+                        key={sug.user_id}
+                        onClick={() => {
+                          const updated = { ...selectedTeamAssignments };
+                          if (isSelected) {
+                            delete updated[sug.user_id];
+                          } else {
+                            updated[sug.user_id] = {
+                              role: sug.recommended_role,
+                              ai_recommended: true,
+                              match_score: sug.match_score,
+                              reason: sug.rationales[0],
+                            };
+                          }
+                          setSelectedTeamAssignments(updated);
+                        }}
+                        className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex items-start justify-between gap-3 ${
+                          isSelected
+                            ? 'bg-primary/10 border-primary/40 shadow-xs'
+                            : 'bg-background border-border hover:border-primary/30'
+                        }`}
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-foreground">{sug.name}</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
+                              {sug.match_score}% Match
+                            </span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground uppercase font-mono">
+                              {sug.recommended_role.replace('_', ' ')}
+                            </span>
+                          </div>
+                          <ul className="text-[11px] text-muted-foreground space-y-0.5">
+                            {sug.rationales.map((r, i) => (
+                              <li key={i} className="flex items-center gap-1">
+                                <span className="text-primary">•</span> {r}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="shrink-0 pt-0.5">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            readOnly
+                            className="w-4 h-4 rounded text-primary border-border focus:ring-0"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Current / Confirmed Team Section */}
+            <div className="space-y-2 pt-2 border-t border-border">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-foreground uppercase tracking-wider">
+                  Configured Project Specialists ({Object.keys(selectedTeamAssignments).length})
+                </span>
+                <span className="text-[10px] text-muted-foreground">Admin confirmation required to activate</span>
+              </div>
+
+              {Object.keys(selectedTeamAssignments).length === 0 ? (
+                <div className="text-center py-6 border border-dashed border-border rounded-xl text-xs text-muted-foreground">
+                  No specialists currently assigned. Use "AI Recommend Team" or add agents manually below.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {Object.entries(selectedTeamAssignments).map(([userId, details]) => {
+                    const agent = salesTeam.find((s) => s.user_id === userId) || { name: userId, email: '' };
+                    return (
+                      <div key={userId} className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-background border border-border text-xs">
+                        <div>
+                          <span className="font-semibold text-foreground">{agent.name}</span>
+                          {details.ai_recommended && (
+                            <span className="ml-2 text-[9px] px-1 rounded bg-primary/10 text-primary font-mono">AI Recommended</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={details.role}
+                            onChange={(e) => {
+                              setSelectedTeamAssignments({
+                                ...selectedTeamAssignments,
+                                [userId]: { ...details, role: e.target.value },
+                              });
+                            }}
+                            className="h-7 px-2 rounded border border-border bg-card text-[11px] text-foreground focus:outline-none"
+                          >
+                            <option value="primary_lead">Primary Lead</option>
+                            <option value="site_specialist">Site Specialist</option>
+                            <option value="relationship_manager">Relationship Manager</option>
+                          </select>
+                          <button
+                            onClick={() => {
+                              const updated = { ...selectedTeamAssignments };
+                              delete updated[userId];
+                              setSelectedTeamAssignments(updated);
+                            }}
+                            className="p-1 rounded text-rose-400 hover:bg-rose-500/10"
+                            title="Remove agent from team"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Quick Add from Sales Pool */}
+            <div className="pt-2 border-t border-border flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground shrink-0">Quick Add:</span>
+              <select
+                onChange={(e) => {
+                  const uid = e.target.value;
+                  if (uid && !selectedTeamAssignments[uid]) {
+                    setSelectedTeamAssignments({
+                      ...selectedTeamAssignments,
+                      [uid]: { role: 'site_specialist', ai_recommended: false },
+                    });
+                  }
+                  e.target.value = '';
+                }}
+                className="h-7.5 px-2 rounded-lg border border-border bg-background text-[11px] text-foreground focus:outline-none w-full"
+              >
+                <option value="">Select an agent from the sales force...</option>
+                {salesTeam
+                  .filter((s) => !selectedTeamAssignments[s.user_id])
+                  .map((s) => (
+                    <option key={s.user_id} value={s.user_id}>
+                      {s.name} ({s.designation || 'Specialist'})
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setProjectTeamDrawerOpen(false)}
+                className="h-8 text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveProjectTeam}
+                disabled={isSavingTeam}
+                className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground font-semibold"
+              >
+                {isSavingTeam ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                Confirm & Implement Team
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 3: ADD SALES SPECIALIST ── */}
+      {isAddSalespersonOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <UserPlus size={16} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Add Sales Specialist</h3>
+                  <p className="text-xs text-muted-foreground">Provision field agent profile, shift hours, and capacity.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAddSalespersonOpen(false)}
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[11px] font-semibold text-foreground mb-1">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Rahul Sharma"
+                  value={newSalesperson.name}
+                  onChange={(e) => setNewSalesperson({ ...newSalesperson, name: e.target.value })}
+                  className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-foreground mb-1">Email Address *</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. rahul.sharma@sobha.com"
+                  value={newSalesperson.email}
+                  onChange={(e) => setNewSalesperson({ ...newSalesperson, email: e.target.value })}
+                  className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Phone Number</label>
+                  <input
+                    type="text"
+                    placeholder="+91 98765 43210"
+                    value={newSalesperson.phone}
+                    onChange={(e) => setNewSalesperson({ ...newSalesperson, phone: e.target.value })}
+                    className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Role / Designation</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Senior Luxury Specialist"
+                    value={newSalesperson.designation}
+                    onChange={(e) => setNewSalesperson({ ...newSalesperson, designation: e.target.value })}
+                    className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Shift Start</label>
+                  <input
+                    type="text"
+                    value={newSalesperson.working_hours_start}
+                    onChange={(e) => setNewSalesperson({ ...newSalesperson, working_hours_start: e.target.value })}
+                    className="w-full h-8 px-2 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Shift End</label>
+                  <input
+                    type="text"
+                    value={newSalesperson.working_hours_end}
+                    onChange={(e) => setNewSalesperson({ ...newSalesperson, working_hours_end: e.target.value })}
+                    className="w-full h-8 px-2 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Max Visits/Day</label>
+                  <input
+                    type="number"
+                    value={newSalesperson.max_visits_per_day}
+                    onChange={(e) => setNewSalesperson({ ...newSalesperson, max_visits_per_day: parseInt(e.target.value, 10) || 6 })}
+                    className="w-full h-8 px-2 rounded-lg border border-border bg-background text-foreground text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Initial Projects Selection */}
+              {projects.length > 0 && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1.5">Assign Initial Project(s)</label>
+                  <div className="space-y-1 max-h-32 overflow-y-auto border border-border rounded-lg p-2 bg-background">
+                    {projects.map((p) => {
+                      const isAssigned = newSalesperson.initial_project_ids.includes(p.id);
+                      return (
+                        <label key={p.id} className="flex items-center gap-2 text-[11px] text-foreground cursor-pointer py-0.5">
+                          <input
+                            type="checkbox"
+                            checked={isAssigned}
+                            onChange={() => {
+                              const updated = isAssigned
+                                ? newSalesperson.initial_project_ids.filter((id) => id !== p.id)
+                                : [...newSalesperson.initial_project_ids, p.id];
+                              setNewSalesperson({ ...newSalesperson, initial_project_ids: updated });
+                            }}
+                            className="w-3.5 h-3.5 rounded text-primary border-border focus:ring-0"
+                          />
+                          <span>{p.name} ({p.location || p.city})</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAddSalespersonOpen(false)}
+                className="h-8 text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleCreateSalesperson}
+                disabled={isSavingSalesperson}
+                className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground font-semibold"
+              >
+                {isSavingSalesperson ? <RefreshCw size={12} className="animate-spin" /> : <UserPlus size={12} />}
+                Add Specialist
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 4: AUTONOMOUS LEAD DISPATCH RESULT ── */}
+      {autoAssignModalOpen && autoAssignResult && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                  <CheckCircle2 size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">Showing Successfully Assigned!</h3>
+                  <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+                    {autoAssignResult.assignment_status.replace('_', ' ')}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setAutoAssignModalOpen(false)}
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3 bg-muted/40 p-3 rounded-xl border border-border/60">
+                <div>
+                  <span className="text-[10px] uppercase text-muted-foreground font-semibold block">Matched Project</span>
+                  <span className="font-bold text-foreground text-sm">{autoAssignResult.project.name}</span>
+                  <span className="text-muted-foreground block text-[11px]">{autoAssignResult.project.location || autoAssignResult.project.city}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase text-muted-foreground font-semibold block">Assigned Specialist</span>
+                  <span className="font-bold text-foreground text-sm">{autoAssignResult.assigned_specialist.name}</span>
+                  <span className="text-primary block text-[11px] font-mono">{autoAssignResult.assigned_specialist.phone || autoAssignResult.assigned_specialist.email}</span>
+                </div>
+              </div>
+
+              {/* Showing Time */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-background border border-border">
+                <div className="flex items-center gap-2">
+                  <Calendar size={15} className="text-primary" />
+                  <div>
+                    <span className="font-semibold text-foreground">Showing Appointment Booked</span>
+                    <p className="text-[11px] text-muted-foreground">
+                      {new Date(autoAssignResult.visit.scheduled_at).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} at{' '}
+                      {new Date(autoAssignResult.visit.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary uppercase">
+                  {autoAssignResult.visit.duration_minutes || 45} mins
+                </span>
+              </div>
+
+              {/* Explainable AI Decision Rationale */}
+              <div className="bg-gradient-to-r from-primary/10 via-card to-card border border-primary/20 rounded-xl p-3.5 space-y-1.5">
+                <span className="text-[10px] font-bold uppercase text-primary tracking-wider flex items-center gap-1.5">
+                  <Sparkles size={12} /> Autonomous AI Dispatch Decision
+                </span>
+                <p className="text-xs text-foreground font-medium">
+                  {autoAssignResult.decision_rationale}
+                </p>
+              </div>
+
+              {/* Take Care Execution Summary */}
+              <div className="space-y-1.5 pt-1 text-[11px] text-muted-foreground">
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Check size={13} />
+                  <span>Lead stage updated to <strong>Visit Scheduled</strong></span>
+                </div>
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Check size={13} />
+                  <span>Showing added to <strong>{autoAssignResult.assigned_specialist.name}'s</strong> itinerary</span>
+                </div>
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Check size={13} />
+                  <span>Dispatch history recorded in audit timeline</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-border flex justify-end">
+              <Button
+                size="sm"
+                onClick={() => setAutoAssignModalOpen(false)}
+                className="h-8 text-xs font-semibold px-4"
+              >
+                Done
+              </Button>
             </div>
           </div>
         </div>

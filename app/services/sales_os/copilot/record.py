@@ -159,6 +159,13 @@ def advise_record(record: dict[str, Any], pack_id: str | None, question: str) ->
         if pack and pack.get("id") == "real_estate":
             actions = [
                 {
+                    "id": "find_matching_properties",
+                    "label": "Match available properties",
+                    "preview": f"Evaluate real-time available units against {name or 'buyer'}'s budget and configuration preferences.",
+                    "executes": True,
+                    "requires_confirmation": False,
+                },
+                {
                     "id": "schedule_site_visit",
                     "label": "Schedule site visit",
                     "preview": f"Book private property showing for {name or 'this inquiry'} at {company or 'selected project'}.",
@@ -173,6 +180,13 @@ def advise_record(record: dict[str, Any], pack_id: str | None, question: str) ->
                     "requires_confirmation": True,
                 },
                 {
+                    "id": "create_booking_application",
+                    "label": "Create booking contract",
+                    "preview": "Prepare binding booking application with price snapshot and milestone payment plan.",
+                    "executes": True,
+                    "requires_confirmation": True,
+                },
+                {
                     "id": "verify_financing",
                     "label": "Verify mortgage readiness",
                     "preview": "Review buyer pre-approval or financing qualification evidence.",
@@ -180,6 +194,7 @@ def advise_record(record: dict[str, Any], pack_id: str | None, question: str) ->
                     "requires_confirmation": False,
                 },
             ] + actions
+
 
     known = len(evidence)
     if refused or asks_missing_metric:

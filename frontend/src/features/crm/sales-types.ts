@@ -274,3 +274,94 @@ export interface FieldSalesAnalysisReport {
   strategic_recommendations: string[];
 }
 
+export interface RealEstateProjectItem {
+  id: string;
+  name: string;
+  code?: string;
+  location?: string;
+  city?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  rera_number?: string;
+  amenities?: string[];
+  hold_duration_hours?: number;
+  status?: string;
+  total_units?: number;
+  available_units?: number;
+  assigned_team_count?: number;
+  units?: any[];
+  team?: Array<{
+    assignment_id?: string;
+    user_id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    role: string;
+    ai_recommended?: boolean;
+    ai_match_score?: number;
+    ai_recommendation_reason?: string;
+  }>;
+}
+
+export interface SalespersonDirectoryItem {
+  user_id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: string;
+  designation?: string;
+  is_shift_active: boolean;
+  status: string;
+  working_hours_start?: string;
+  working_hours_end?: string;
+  today_visits: number;
+  max_visits_per_day: number;
+  assigned_projects_count: number;
+  assigned_projects?: Array<{
+    project_id: string;
+    project_name: string;
+    location?: string;
+    role?: string;
+  }>;
+}
+
+export interface AITeamSuggestion {
+  user_id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  match_score: number;
+  recommended_role: string;
+  current_projects_count: number;
+  is_shift_active: boolean;
+  rationales: string[];
+}
+
+export interface AutoAssignResult {
+  lead_id: string;
+  lead_name?: string;
+  project: {
+    id: string;
+    name: string;
+    location?: string;
+    city?: string;
+  };
+  assigned_specialist: {
+    user_id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    role?: string;
+  };
+  visit: {
+    id: string;
+    scheduled_at: string;
+    duration_minutes?: number;
+    status: string;
+  };
+  assignment_status: string;
+  decision_rationale: string;
+  is_fallback_unassigned_project?: boolean;
+}
+

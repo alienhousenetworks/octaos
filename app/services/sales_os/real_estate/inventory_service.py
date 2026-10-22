@@ -4,7 +4,14 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
-from app.models.real_estate import RealEstateUnit, RealEstateUnitHold, RealEstateProject
+from app.models.real_estate import (
+    RealEstateUnit,
+    RealEstateUnitHold,
+    RealEstateProject,
+    RealEstateBooking,
+    RealEstateProjectAssignment,
+)
+from app.models.base import User
 
 
 class InventoryService:
@@ -13,41 +20,177 @@ class InventoryService:
         self.tenant_id = tenant_id
 
     def list_projects(self) -> list[dict]:
-        """List tenant-scoped property development projects."""
+        """List tenant-scoped property development projects with team counts and coordinates."""
         projects = self.db.query(RealEstateProject).filter(
             RealEstateProject.tenant_id == self.tenant_id
         ).order_by(RealEstateProject.created_at.desc()).all()
-        return [
-            {
+
+        results = []
+        for p in projects:
+            team_count = (
+                self.db.query(RealEstateProjectAssignment)
+                .filter(
+                    RealEstateProjectAssignment.tenant_id == self.tenant_id,
+                    RealEstateProjectAssignment.project_id == p.id,
+                    RealEstateProjectAssignment.is_active == True,
+                )
+                .count()
+            )
+            results.append({
                 "id": p.id,
                 "name": p.name,
                 "code": p.code,
                 "location": p.location,
                 "city": p.city,
+                "address": p.address,
+                "latitude": p.latitude,
+                "longitude": p.longitude,
                 "status": p.status,
-                "total_units": p.total_units,
-                "available_units": p.available_units,
-                "hold_duration_hours": p.hold_duration_hours,
+                "total_units": p.total_units or 0,
+                "available_units": p.available_units or 0,
+                "hold_duration_hours": p.hold_duration_hours or 48,
                 "rera_number": p.rera_number,
                 "amenities": p.amenities or [],
-            }
-            for p in projects
-        ]
+                "assigned_team_count": team_count,
+            })
+        return results
 
-    def create_project(self, name: str, code: str | None = None, location: str | None = None, city: str | None = None, hold_duration_hours: int = 48) -> dict:
-        """Create a new property project."""
+    def create_project(
+        self,
+        name: str,
+        code: str | None = None,
+        location: str | None = None,
+        city: str | None = None,
+        address: str | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        rera_number: str | None = None,
+        amenities: list | None = None,
+        hold_duration_hours: int = 48,
+        status: str = "active",
+        total_units: int = 0,
+    ) -> dict:
+        """Create a new property project with complete geographic and legal specifications."""
         project = RealEstateProject(
             tenant_id=self.tenant_id,
             name=name,
-            code=code or name.lower().replace(" ", "_"),
+            code=code or name.lower().replace(" ", "_").replace("-", "_"),
             location=location,
             city=city,
+            address=address,
+            latitude=latitude,
+            longitude=longitude,
+            rera_number=rera_number,
+            amenities=amenities or [],
             hold_duration_hours=hold_duration_hours,
+            status=status,
+            total_units=total_units,
+            available_units=total_units,
         )
         self.db.add(project)
         self.db.commit()
         self.db.refresh(project)
-        return {"id": project.id, "name": project.name, "code": project.code}
+        return {
+            "id": project.id,
+            "name": project.name,
+            "code": project.code,
+            "location": project.location,
+            "city": project.city,
+            "address": project.address,
+            "latitude": project.latitude,
+            "longitude": project.longitude,
+            "status": project.status,
+            "rera_number": project.rera_number,
+            "total_units": project.total_units,
+            "available_units": project.available_units,
+        }
+
+    def get_project(self, project_id: str) -> dict:
+        """Retrieve complete project dossier including units inventory and assigned team."""
+        project = (
+            self.db.query(RealEstateProject)
+            .filter(
+                RealEstateProject.id == project_id,
+                RealEstateProject.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        # Assigned sales team
+        assignments = (
+            self.db.query(RealEstateProjectAssignment, User)
+            .join(User, User.id == RealEstateProjectAssignment.user_id)
+            .filter(
+                RealEstateProjectAssignment.tenant_id == self.tenant_id,
+                RealEstateProjectAssignment.project_id == project_id,
+                RealEstateProjectAssignment.is_active == True,
+            )
+            .all()
+        )
+        team_members = [
+            {
+                "assignment_id": a.id,
+                "user_id": u.id,
+                "name": u.name or u.email,
+                "email": u.email,
+                "phone": u.phone_no,
+                "role": a.role,
+                "ai_recommended": a.ai_recommended,
+                "ai_match_score": a.ai_match_score,
+                "ai_recommendation_reason": a.ai_recommendation_reason,
+            }
+            for a, u in assignments
+        ]
+
+        units = self.list_units(project_id)
+
+        return {
+            "id": project.id,
+            "name": project.name,
+            "code": project.code,
+            "location": project.location,
+            "city": project.city,
+            "address": project.address,
+            "latitude": project.latitude,
+            "longitude": project.longitude,
+            "status": project.status,
+            "total_units": project.total_units or len(units),
+            "available_units": sum(1 for u in units if u["status"] == "available"),
+            "hold_duration_hours": project.hold_duration_hours,
+            "rera_number": project.rera_number,
+            "amenities": project.amenities or [],
+            "units": units,
+            "team": team_members,
+            "assigned_team_count": len(team_members),
+        }
+
+    def update_project(self, project_id: str, **kwargs) -> dict:
+        """Update property project specifications."""
+        project = (
+            self.db.query(RealEstateProject)
+            .filter(
+                RealEstateProject.id == project_id,
+                RealEstateProject.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        allowed_fields = {
+            "name", "code", "location", "city", "address",
+            "latitude", "longitude", "rera_number", "amenities",
+            "hold_duration_hours", "status", "total_units", "available_units"
+        }
+        for k, v in kwargs.items():
+            if k in allowed_fields and v is not None:
+                setattr(project, k, v)
+
+        self.db.commit()
+        self.db.refresh(project)
+        return self.get_project(project_id)
 
     def list_units(self, project_id: str, unit_type: str | None = None, status: str | None = None) -> list[dict]:
         """List units for a project with lazy reconciliation of expired holds."""
@@ -182,7 +325,7 @@ class InventoryService:
         return {"hold_id": hold.id, "status": "released", "unit_status": "available"}
 
     def reconcile_expired_holds(self, project_id: str) -> int:
-        """Release expired holds back to available state."""
+        """Release expired holds back to available state, strictly preserving units that have committed bookings."""
         now = datetime.now(timezone.utc)
         expired_holds = (
             self.db.query(RealEstateUnitHold)
@@ -201,15 +344,54 @@ class InventoryService:
             hold.status = "expired"
             unit = self.db.query(RealEstateUnit).filter(RealEstateUnit.id == hold.unit_id).first()
             if unit and unit.status in ("hold_requested", "confirmed_hold"):
-                unit.status = "available"
+                # Check if unit has an active booking
+                active_booking = (
+                    self.db.query(RealEstateBooking)
+                    .filter(
+                        RealEstateBooking.unit_id == unit.id,
+                        RealEstateBooking.status.notin_(["cancelled", "refunded"]),
+                    )
+                    .first()
+                )
+                if active_booking:
+                    unit.status = "booked"
+                else:
+                    unit.status = "available"
+                    project = self.db.query(RealEstateProject).filter(RealEstateProject.id == unit.project_id).first()
+                    if project:
+                        project.available_units = (project.available_units or 0) + 1
                 unit.version += 1
                 count += 1
         if count > 0:
             self.db.commit()
         return count
 
+    def reconcile_all_expired_holds(self) -> int:
+        """Tenant-wide scheduled reconciliation of all expired holds."""
+        projects = self.db.query(RealEstateProject).filter(RealEstateProject.tenant_id == self.tenant_id).all()
+        total = 0
+        for p in projects:
+            total += self.reconcile_expired_holds(p.id)
+        return total
+
     def reconcile_unit_status(self, unit: RealEstateUnit) -> None:
+        """Check and reconcile single unit status against active holds and bookings."""
         now = datetime.now(timezone.utc)
+        active_booking = (
+            self.db.query(RealEstateBooking)
+            .filter(
+                RealEstateBooking.unit_id == unit.id,
+                RealEstateBooking.status.notin_(["cancelled", "refunded"]),
+            )
+            .first()
+        )
+        if active_booking:
+            if unit.status != "booked":
+                unit.status = "booked"
+                unit.version += 1
+                self.db.commit()
+            return
+
         active_hold = self.db.query(RealEstateUnitHold).filter(
             RealEstateUnitHold.unit_id == unit.id,
             RealEstateUnitHold.status.in_(["requested", "confirmed"]),
@@ -218,4 +400,8 @@ class InventoryService:
         if not active_hold and unit.status in ("hold_requested", "confirmed_hold"):
             unit.status = "available"
             unit.version += 1
+            project = self.db.query(RealEstateProject).filter(RealEstateProject.id == unit.project_id).first()
+            if project:
+                project.available_units = (project.available_units or 0) + 1
             self.db.commit()
+
