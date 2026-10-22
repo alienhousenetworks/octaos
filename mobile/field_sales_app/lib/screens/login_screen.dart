@@ -74,15 +74,27 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (auth.errorMessage != null)
                   Container(
                     margin: const EdgeInsets.only(bottom: 20),
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
                       color: OctaTheme.danger.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: OctaTheme.danger.withOpacity(0.3)),
+                      border: Border.all(color: OctaTheme.danger.withOpacity(0.35)),
                     ),
-                    child: Text(
-                      auth.errorMessage!,
-                      style: const TextStyle(color: OctaTheme.danger, fontSize: 12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 1),
+                          child: Icon(Icons.error_outline_rounded, size: 16, color: OctaTheme.danger),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            auth.errorMessage!,
+                            style: const TextStyle(color: OctaTheme.danger, fontSize: 12, height: 1.35),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 

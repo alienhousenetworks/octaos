@@ -38,27 +38,48 @@ class AuthProvider extends ChangeNotifier {
     }
 
     try {
-      final res = await api.post('/auth/login', {
-        'email': email.trim(),
-        'password': password,
-        'tenant_id': tenantId.trim(),
-      });
+      dynamic res;
+      try {
+        // FastAPI OAuth2PasswordRequestForm expects application/x-www-form-urlencoded with 'username' and 'password'
+        res = await api.postForm('/auth/login', {
+          'username': email.trim(),
+          'password': password,
+        });
+      } catch (err) {
+        // Fallback to JSON login initiate if OAuth2 form fails with 404/422
+        if (err is ApiException && (err.statusCode == 404 || err.statusCode == 422)) {
+          res = await api.post('/auth/login/initiate', {
+            'email': email.trim(),
+            'password': password,
+            if (tenantId.trim().isNotEmpty) 'tenant_id': tenantId.trim(),
+          });
+        } else {
+          rethrow;
+        }
+      }
 
       final accessToken = res['access_token'] ?? res['token'];
       if (accessToken == null) {
         throw Exception('Server did not return an access token.');
       }
 
-      await storage.setToken(accessToken);
-      await storage.setTenantId(tenantId.trim());
-      await storage.setUserId(res['user_id'] ?? email.trim());
+      await storage.setToken(accessToken.toString());
+      final resolvedTenantId = (res['tenant_id'] != null && res['tenant_id'].toString().trim().isNotEmpty)
+          ? res['tenant_id'].toString().trim()
+          : tenantId.trim();
+      await storage.setTenantId(resolvedTenantId);
+      await storage.setUserId(res['user_id']?.toString() ?? email.trim());
 
       _isLoading = false;
       notifyListeners();
       return true;
     } catch (e) {
       _isLoading = false;
-      _errorMessage = e.toString();
+      var msg = e.toString();
+      if (msg.startsWith('Exception: ')) {
+        msg = msg.substring('Exception: '.length);
+      }
+      _errorMessage = msg;
       notifyListeners();
       return false;
     }
