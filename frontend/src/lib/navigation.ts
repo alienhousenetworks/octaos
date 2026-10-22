@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   Cpu,
   Mail,
+  Navigation,
 } from 'lucide-react';
 
 export type NavItem = {
@@ -122,6 +123,7 @@ export const EXTRA_ROUTES: NavItem[] = [
   { id: 'sales_pipeline', name: 'Sales CRM', href: '/app/sales/pipeline', icon: TrendingUp, section: 'sales', keywords: 'pipeline leads table kanban' },
   { id: 'sales_industries', name: 'Industry packs', href: '/app/sales/industries', icon: Building2, section: 'sales', keywords: 'vertical industry pack banking saas real estate' },
   { id: 'sales_campaigns', name: 'Sales campaigns', href: '/app/sales/campaigns', icon: Calendar, section: 'sales', keywords: 'campaign execution cadence' },
+  { id: 'sales_field_sales', name: 'Field sales & visits', href: '/app/sales/field-sales', icon: Navigation, section: 'sales', keywords: 'field sales visits property smart scheduling gps real estate dispatch' },
 ];
 
 const VIEW_PATHS: Record<string, string> = {
@@ -129,6 +131,7 @@ const VIEW_PATHS: Record<string, string> = {
   knowledge: '/app/knowledge',
   campaigns: '/app/campaigns',
   sales: '/app/sales',
+  sales_field_sales: '/app/sales/field-sales',
   sales_pipeline: '/app/sales/pipeline',
   sales_industries: '/app/sales/industries',
   sales_campaigns: '/app/sales/campaigns',

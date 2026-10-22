@@ -4,7 +4,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Users, TrendingUp, Target, Download, Plus, Upload, Sparkles,
-  Building2, Cpu, Mail, Radar,
+  Building2, Cpu, Mail, Radar, Navigation,
 } from 'lucide-react';
 import { SalesSection, fmtCurrency } from './sales-types';
 
@@ -42,6 +42,7 @@ export default function SalesHeader({
     { id: 'pipeline', label: 'CRM', hint: 'Records, accounts, inbox, and deals.', icon: <TrendingUp size={14} /> },
     { id: 'prospecting', label: 'Prospecting', hint: 'Search for accounts that match the business.', icon: <Radar size={14} /> },
     { id: 'campaigns', label: 'Campaigns', hint: 'Cadence, inbox, and the existing workflow canvas.', icon: <Mail size={14} /> },
+    { id: 'field_sales', label: 'Field Sales', hint: 'Visits, GPS dispatch, live routes, and AI schedule recovery.', icon: <Navigation size={14} /> },
     { id: 'agent_center', label: 'AI Workforce', hint: 'The 24 sales agents and the control plane.', icon: <Cpu size={14} />, badge: isExecuting ? 'Running' : undefined },
     { id: 'analytics', label: 'Analytics', hint: 'Pipeline amounts stored on records, and what closed.', icon: <Target size={14} /> },
     { id: 'industries', label: 'Industries', hint: 'Eighteen packs on one CRM.', icon: <Building2 size={14} /> },

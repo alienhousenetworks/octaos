@@ -409,6 +409,20 @@ export default function HiringWorkflowView({ API_URL, fetchWithAuth }: HiringWor
         <div className="flex items-center gap-2">
           <Button
             type="button"
+            variant="outline"
+            onClick={() => {
+              setActiveTab('pipeline');
+              setCanvasViewMode('canvas');
+            }}
+            className="h-9 px-3.5 text-xs font-bold flex items-center gap-1.5 border-primary/30 text-primary hover:bg-primary/5"
+            title="Open Visual n8n Canvas"
+          >
+            <Layers size={14} />
+            <span>Visual n8n Canvas</span>
+          </Button>
+
+          <Button
+            type="button"
             onClick={() => {
               if (candidates.length > 0) {
                 setSelectedCandidateId(candidates[0].id);
@@ -444,15 +458,18 @@ export default function HiringWorkflowView({ API_URL, fetchWithAuth }: HiringWor
 
         <button
           type="button"
-          onClick={() => setActiveTab('pipeline')}
+          onClick={() => {
+            setActiveTab('pipeline');
+            setCanvasViewMode('canvas');
+          }}
           className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 ${
             activeTab === 'pipeline'
               ? 'bg-primary/10 text-primary font-bold border border-primary/30'
               : 'text-muted-foreground hover:bg-surface-hover'
           }`}
         >
-          <GitBranch size={14} />
-          <span>Workflow Pipeline Editor</span>
+          <Layers size={14} className="text-primary" />
+          <span>Visual n8n Canvas &amp; Pipelines</span>
         </button>
 
         <button

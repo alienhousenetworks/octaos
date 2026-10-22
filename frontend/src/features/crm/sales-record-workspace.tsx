@@ -26,7 +26,7 @@ interface SalesRecordWorkspaceProps {
 }
 
 type Pane = 'contact' | 'record' | 'copilot';
-type Tab = 'overview' | 'activity' | 'sales' | 'history';
+type Tab = 'overview' | 'property' | 'activity' | 'sales' | 'history';
 
 export default function SalesRecordWorkspace({
   lead,
@@ -58,6 +58,14 @@ export default function SalesRecordWorkspace({
   const [note, setNote] = useState('');
   const [confirmMeeting, setConfirmMeeting] = useState(false);
   const [confirmSend, setConfirmSend] = useState(false);
+  const [visits, setVisits] = useState<any[]>([]);
+  const [broker, setBroker] = useState<any | null>(null);
+  const [visitDate, setVisitDate] = useState('');
+  const [visitAgent, setVisitAgent] = useState('');
+  const [visitScheduling, setVisitScheduling] = useState(false);
+  const [brokerName, setBrokerName] = useState(lead.data?.channel_partner?.brokerage_name || '');
+  const [brokerRera, setBrokerRera] = useState(lead.data?.channel_partner?.rera_id || '');
+  const [brokerCommission, setBrokerCommission] = useState(String(lead.data?.channel_partner?.commission_pct || '2.0'));
   const [draftPreview, setDraftPreview] = useState<{ subject: string; body: string } | null>(
     lead.data?.draft_subject || lead.data?.draft_body
       ? { subject: lead.data?.draft_subject || '', body: lead.data?.draft_body || '' }
@@ -101,17 +109,87 @@ export default function SalesRecordWorkspace({
     }
   };
 
+  const loadRealEstateData = async () => {
+    try {
+      const [vRes, bRes] = await Promise.all([
+        fetchWithAuth(`${API_URL}/sales-os/real-estate/leads/${lead.id}/visits`),
+        fetchWithAuth(`${API_URL}/sales-os/real-estate/leads/${lead.id}/broker`),
+      ]);
+      if (vRes.ok) setVisits(await vRes.json());
+      if (bRes.ok) {
+        const bData = await bRes.json();
+        setBroker(bData);
+        if (bData) {
+          setBrokerName(bData.brokerage_name || '');
+          setBrokerRera(bData.rera_id || '');
+          setBrokerCommission(String(bData.commission_pct || '2.0'));
+        }
+      }
+    } catch {
+      // Ignore if endpoints not queried or non-real estate
+    }
+  };
+
   useEffect(() => {
     void ask('What should we do next with this customer?');
+    void loadRealEstateData();
     // Reload when the open record changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead.id]);
+
+  const handleScheduleVisit = async () => {
+    if (!visitDate) return;
+    setVisitScheduling(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/sales-os/real-estate/leads/${lead.id}/visits`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: lead.company || 'default_project',
+          scheduled_at: new Date(visitDate).toISOString(),
+          assigned_agent: visitAgent || undefined,
+        }),
+      });
+      if (res.ok) {
+        setVisitDate('');
+        setVisitAgent('');
+        await loadRealEstateData();
+      }
+    } finally {
+      setVisitScheduling(false);
+    }
+  };
+
+  const handleSaveBroker = async () => {
+    if (!brokerName.trim()) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/sales-os/real-estate/leads/${lead.id}/broker`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brokerage_name: brokerName.trim(),
+          rera_id: brokerRera.trim() || undefined,
+          commission_pct: parseFloat(brokerCommission) || 2.0,
+        }),
+      });
+      if (res.ok) {
+        await loadRealEstateData();
+      }
+    } catch {
+      // Ignore
+    }
+  };
 
   const labels = advice?.terminology || terms || SHARED_TERMS;
   const conversation = Array.isArray(lead.data?.conversation) ? lead.data.conversation : [];
   const title = `${lead.name || 'Unnamed record'}${lead.company ? ` · ${lead.company}` : ''}`;
 
   const runAction = async (id: string) => {
+    if (id === 'schedule_site_visit' || id === 'request_unit_hold' || id === 'verify_financing') {
+      setTab('property');
+      setPane('record');
+      return;
+    }
     if (id === 'review_follow_up') {
       setTab('sales');
       setPane('record');
@@ -206,14 +284,17 @@ export default function SalesRecordWorkspace({
 
         <section className={`${pane === 'record' ? 'block' : 'hidden'} space-y-3 xl:block`}>
           <div className="flex flex-wrap gap-2">
-            {(['overview', 'activity', 'sales', 'history'] as Tab[]).map((item) => (
+            {((advice?.pack?.id === 'real_estate' || labels.account === 'Project')
+              ? (['overview', 'property', 'activity', 'sales', 'history'] as Tab[])
+              : (['overview', 'activity', 'sales', 'history'] as Tab[])
+            ).map((item) => (
               <button
                 key={item}
                 type="button"
                 onClick={() => setTab(item)}
                 className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${tab === item ? 'bg-[#2563eb] text-white' : 'bg-muted text-muted-foreground'}`}
               >
-                {item}
+                {item === 'property' ? 'Property & Showings' : item}
               </button>
             ))}
           </div>
@@ -240,10 +321,126 @@ export default function SalesRecordWorkspace({
                 value={lead.status || 'new'}
                 onChange={(event) => void onUpdateStatus(lead.id, event.target.value)}
               >
-                {['new', 'qualified', 'contacted', 'meeting_scheduled', 'closed_won', 'closed_lost'].map((status) => (
+                {((advice?.pack?.id === 'real_estate' || labels.account === 'Project')
+                  ? ['inquiry', 'qualified', 'site_visit', 'hold_requested', 'booking', 'cancelled']
+                  : ['new', 'qualified', 'contacted', 'meeting_scheduled', 'closed_won', 'closed_lost']
+                ).map((status) => (
                   <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>
                 ))}
               </select>
+            </Panel>
+          ) : null}
+
+          {tab === 'property' ? (
+            <Panel>
+              <div className="flex items-center justify-between pb-2 border-b border-border">
+                <div>
+                  <h2 className="font-semibold text-base">Property & Showing Operations</h2>
+                  <p className="text-xs text-muted-foreground">Authoritative unit inventory, private tours, and channel partner attribution.</p>
+                </div>
+                <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
+                  Real Estate Operating System
+                </span>
+              </div>
+
+              {/* Preferences & Inquired Unit */}
+              <div className="mt-4 p-3 rounded-xl border border-border bg-card/50 space-y-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Inquiry Preferences</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground block">Project</span>
+                    <span className="font-medium text-foreground">{lead.company || 'Not selected'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block">Unit Preference</span>
+                    <span className="font-medium text-foreground">{lead.need_of_what || lead.data?.unit_preference || 'Any configuration'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block">Budget</span>
+                    <span className="font-medium text-foreground">{lead.how_much || lead.data?.budget || 'Not specified'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block">Property Type</span>
+                    <span className="font-medium text-foreground">{lead.data?.property_type || 'Residential'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block">Purchase Purpose</span>
+                    <span className="font-medium text-foreground">{lead.data?.purchase_purpose || 'Self-Use'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block">Timeline</span>
+                    <span className="font-medium text-foreground">{lead.data?.purchase_timeline || '30 Days'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Site Visits Section */}
+              <div className="mt-4 p-3 rounded-xl border border-border bg-card/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Site Visits & Private Tours</h3>
+                  <span className="text-[11px] text-muted-foreground">{visits.length} scheduled</span>
+                </div>
+                {visits.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">No site visits have been logged for this inquiry yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {visits.map((v: any) => (
+                      <div key={v.id} className="flex items-center justify-between rounded-lg border border-border p-2.5 text-xs bg-card">
+                        <div>
+                          <span className="font-semibold block">{new Date(v.scheduled_at).toLocaleString()}</span>
+                          <span className="text-muted-foreground">
+                            {v.assigned_agent ? `Escort: ${v.assigned_agent}` : 'Unassigned agent'} · Status: <span className="text-primary font-medium">{v.status}</span>
+                          </span>
+                        </div>
+                        {v.buyer_interest_level ? (
+                          <span className="rounded px-2 py-0.5 text-[10px] uppercase font-bold border border-primary/30 text-primary">
+                            {v.buyer_interest_level} intent
+                          </span>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Schedule Visit Form */}
+                <div className="pt-2 border-t border-border flex flex-wrap gap-2 items-center">
+                  <input
+                    type="datetime-local"
+                    className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs"
+                    value={visitDate}
+                    onChange={(e) => setVisitDate(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Assigned Agent / Escort"
+                    className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs flex-1 min-w-[140px]"
+                    value={visitAgent}
+                    onChange={(e) => setVisitAgent(e.target.value)}
+                  />
+                  <Button
+                    size="sm"
+                    disabled={!visitDate || visitScheduling}
+                    onClick={handleScheduleVisit}
+                    className="text-xs font-semibold h-8"
+                  >
+                    Schedule Showing
+                  </Button>
+                </div>
+              </div>
+
+              {/* Channel Partner / Broker Attribution */}
+              <div className="mt-4 p-3 rounded-xl border border-border bg-card/50 space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Channel Partner & Broker Attribution</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Field label="Brokerage / Partner Firm" value={brokerName} onChange={setBrokerName} />
+                  <Field label="RERA / License ID" value={brokerRera} onChange={setBrokerRera} />
+                  <Field label="Commission %" value={brokerCommission} onChange={setBrokerCommission} />
+                </div>
+                <div className="flex justify-end">
+                  <Button size="sm" variant="outline" onClick={handleSaveBroker} className="text-xs font-semibold h-7">
+                    Save Broker Attribution
+                  </Button>
+                </div>
+              </div>
             </Panel>
           ) : null}
           {tab === 'activity' ? (

@@ -12,8 +12,12 @@ import {
 } from 'lucide-react';
 import { Lead } from './sales-types';
 
+import { VerticalPack, SalesTerminology } from './sales-platform';
+
 interface SalesTableViewProps {
   leads: Lead[];
+  activePack?: VerticalPack | null;
+  terms?: SalesTerminology;
   onSelectLead: (lead: Lead) => void;
   selectedLeadId?: string | null;
   onDeleteLead: (leadId: string, skipConfirm?: boolean) => Promise<void>;
@@ -31,8 +35,13 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string 
     color: 'bg-[#333E4C] text-[#C1CAD6] border border-[#414C5A]',
     dot: 'bg-[#AAB5C4]' 
   },
+  inquiry: {
+    label: 'New Inquiry',
+    color: 'bg-[#2B3945] text-[#75AFCB] border border-[#75AFCB]/20',
+    dot: 'bg-[#75AFCB]',
+  },
   qualified: { 
-    label: 'ICP Qualified', 
+    label: 'Qualified', 
     color: 'bg-[#2B3945] text-[#75AFCB] border border-[#75AFCB]/20',
     dot: 'bg-[#75AFCB]' 
   },
@@ -46,10 +55,30 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string 
     color: 'bg-[#443A2D] text-[#D9AD68] border border-[#D9AD68]/20',
     dot: 'bg-[#D9AD68]' 
   },
+  site_visit: {
+    label: 'Site Visit',
+    color: 'bg-[#443A2D] text-[#D9AD68] border border-[#D9AD68]/20',
+    dot: 'bg-[#D9AD68]',
+  },
+  hold_requested: {
+    label: 'Hold Requested',
+    color: 'bg-[#462F35] text-[#D9828B] border border-[#D9828B]/20',
+    dot: 'bg-[#D9828B]',
+  },
+  booking: {
+    label: 'Confirmed Booking',
+    color: 'bg-[#263D38] text-[#64B99A] border border-[#64B99A]/20 font-semibold',
+    dot: 'bg-[#64B99A]',
+  },
   closed_won: { 
     label: 'Closed Won', 
     color: 'bg-[#263D38] text-[#64B99A] border border-[#64B99A]/20 font-semibold',
     dot: 'bg-[#64B99A]' 
+  },
+  cancelled: {
+    label: 'Cancelled',
+    color: 'bg-[#462F35] text-[#D9828B] border border-[#D9828B]/20',
+    dot: 'bg-[#D9828B]',
   },
   closed_lost: { 
     label: 'Closed Lost', 
@@ -60,6 +89,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string 
 
 export default function SalesTableView({
   leads,
+  activePack,
+  terms,
   onSelectLead,
   selectedLeadId,
   onDeleteLead,
@@ -256,7 +287,7 @@ export default function SalesTableView({
                   />
                 </th>
                 <th className="py-2.5 px-3.5 font-semibold uppercase tracking-wider text-[11px] text-muted-foreground">
-                  Account &amp; Decision Maker
+                  {terms?.account || 'Account'} &amp; {terms?.lead || 'Decision Maker'}
                 </th>
                 <th className="py-2.5 px-3.5 font-semibold uppercase tracking-wider text-[11px] text-muted-foreground">
                   AI Fit Score
@@ -313,11 +344,20 @@ export default function SalesTableView({
                 filteredLeads.map((lead) => {
                   const isSelected = selectedLeadId === lead.id;
                   const isChecked = selectedLeadIds.includes(lead.id);
-                  const st = STATUS_CONFIG[lead.status] || {
-                    label: lead.status,
-                    color: 'bg-[#333E4C] text-[#C1CAD6] border border-[#414C5A]',
-                    dot: 'bg-[#AAB5C4]',
-                  };
+                  const stageObj = activePack?.pipeline_stages?.find(
+                    (s) => s.id === lead.status || s.label.toLowerCase() === lead.status?.toLowerCase()
+                  );
+                  const st = stageObj
+                    ? {
+                        label: stageObj.label,
+                        color: 'bg-primary/10 text-primary border border-primary/20',
+                        dot: 'bg-primary',
+                      }
+                    : STATUS_CONFIG[lead.status] || {
+                        label: lead.status?.replaceAll('_', ' ') || 'Unknown',
+                        color: 'bg-[#333E4C] text-[#C1CAD6] border border-[#414C5A]',
+                        dot: 'bg-[#AAB5C4]',
+                      };
 
                   return (
                     <tr

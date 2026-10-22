@@ -26,6 +26,7 @@ import SalesIndustries from './sales-industries';
 import SalesWorkforce, { WorkforceMap } from './sales-workforce';
 import SalesCampaigns from './sales-campaigns';
 import SalesRecordWorkspace from './sales-record-workspace';
+import SalesFieldSalesView from './sales-field-sales-view';
 import { SHARED_TERMS, VerticalPack } from './sales-platform';
 import { CreateLeadModal, UploadLeadsModal } from './sales-modals';
 import RoomFolderExplorer from '@/components/rooms/room-folder-explorer';
@@ -52,6 +53,17 @@ interface SalesViewProps {
   initialRoomSlug?: string;
 }
 
+const DEFAULT_SALES_ROOM: SectionRoomData = {
+  id: 'sales-default',
+  name: 'General Sales',
+  slug: 'default',
+  section: 'sales',
+  status: 'active',
+  visibility: 'internal_public',
+  access_list: [],
+  created_at: new Date().toISOString(),
+};
+
 export default function SalesView({
   token,
   API_URL,
@@ -65,18 +77,30 @@ export default function SalesView({
   // Section Room state
   const [rooms, setRooms] = useState<SectionRoomData[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(false);
-  const [currentRoomSlug, setCurrentRoomSlug] = useState<string | null>(() => {
+  const [currentRoomSlug, setCurrentRoomSlug] = useState<string>(() => {
     if (initialRoomSlug) return initialRoomSlug;
     if (typeof window !== 'undefined') {
       const q = new URLSearchParams(window.location.search).get('room');
       if (q) return q;
       const match = window.location.pathname.match(/\/app\/sales\/rooms\/([^\/?#]+)/);
       if (match) return match[1];
+      try {
+        const saved = sessionStorage.getItem('octaos_sales_room_slug');
+        if (saved) return saved;
+      } catch {}
     }
-    return null;
+    return 'default';
   });
-  const [currentRoom, setCurrentRoom] = useState<SectionRoomData | null>(null);
+  const [currentRoom, setCurrentRoom] = useState<SectionRoomData>(DEFAULT_SALES_ROOM);
   const [isDirectoryView, setIsDirectoryView] = useState(false);
+
+  useEffect(() => {
+    if (currentRoomSlug && typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('octaos_sales_room_slug', currentRoomSlug);
+      } catch {}
+    }
+  }, [currentRoomSlug]);
 
   useEffect(() => {
     if (initialRoomSlug) {
@@ -94,10 +118,17 @@ export default function SalesView({
       const res = await fetchWithAuth(`${API_URL}/rooms/?section=sales`);
       if (res.ok) {
         const data = await res.json();
-        setRooms(data);
-        if (currentRoomSlug) {
-          const match = data.find((r: any) => r.slug === currentRoomSlug);
-          if (match) setCurrentRoom(match);
+        const list = Array.isArray(data) ? data : [];
+        setRooms(list);
+        if (list.length > 0) {
+          const match =
+            list.find((r: any) => r.slug === currentRoomSlug) ||
+            list.find((r: any) => r.slug === 'default') ||
+            list[0];
+          if (match) {
+            setCurrentRoom(match);
+            setCurrentRoomSlug(match.slug);
+          }
         }
       }
     } catch (err) {
@@ -116,11 +147,10 @@ export default function SalesView({
       if (packId && packId !== activePack?.id) handleSelectPack(packId);
     }
     setIsDirectoryView(false);
-    setActiveSalesTab('home');
     if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.pathname = `/app/sales/rooms/${slug}`;
-      window.history.pushState({}, '', url.toString());
+      try {
+        sessionStorage.setItem('octaos_sales_room_slug', slug);
+      } catch {}
     }
     fetchLeads(slug);
   };
@@ -132,6 +162,7 @@ export default function SalesView({
   }, [section]);
 
   const selectSalesSection = (next: SalesSection) => {
+    setIsDirectoryView(false);
     setActiveSalesTab(next);
     onSectionChange?.(next);
     router.push(pathForSalesSection(next));
@@ -915,7 +946,7 @@ export default function SalesView({
   const winRate = totalClosed > 0 ? Math.round((wonCount / totalClosed) * 100) : 0;
   const isExecuting = workflowStatus.status === 'executing';
 
-  if (roomsLoading && !currentRoom) {
+  if (roomsLoading && rooms.length === 0 && isDirectoryView) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] text-muted-foreground gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -924,7 +955,7 @@ export default function SalesView({
     );
   }
 
-  if (isDirectoryView || !currentRoom) {
+  if (isDirectoryView && rooms.length > 0) {
     return (
       <RoomFolderExplorer
         section="sales"
@@ -936,6 +967,7 @@ export default function SalesView({
         onRefresh={fetchRooms}
         API_URL={API_URL}
         fetchWithAuth={fetchWithAuth}
+        onClose={() => setIsDirectoryView(false)}
       />
     );
   }
@@ -1085,6 +1117,8 @@ export default function SalesView({
             {pipelineViewMode === 'table' ? (
               <SalesTableView
                 leads={salesLeads}
+                activePack={activePack}
+                terms={activePack?.terminology || SHARED_TERMS}
                 onSelectLead={(l) => setSelectedLead(l)}
                 onDeleteLead={handleDeleteLead}
                 onBulkDeleteLeads={handleBulkDeleteLeads}
@@ -1097,6 +1131,8 @@ export default function SalesView({
             ) : (
               <SalesKanbanView
                 leads={salesLeads}
+                activePack={activePack}
+                terms={activePack?.terminology || SHARED_TERMS}
                 onSelectLead={(l) => setSelectedLead(l)}
                 onUpdateStatus={handleUpdateStatus}
                 onOpenCreateLead={() => setIsCreateLeadModalOpen(true)}
@@ -1178,6 +1214,15 @@ export default function SalesView({
           leads={salesLeads}
           onOpenProspecting={() => selectSalesSection('prospecting')}
           onOpenPipeline={() => selectSalesSection('pipeline')}
+        />
+      )}
+
+      {/* ── TAB: FIELD SALES & SMART VISIT SCHEDULING ── */}
+      {activeSalesTab === 'field_sales' && (
+        <SalesFieldSalesView
+          token={token}
+          API_URL={API_URL}
+          fetchWithAuth={fetchWithAuth}
         />
       )}
 

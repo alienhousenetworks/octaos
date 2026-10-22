@@ -175,6 +175,9 @@ export function WorkflowCanvasToolbar({
           <div>
             <div className="flex items-center gap-2">
               <span className="font-semibold text-xs text-foreground tracking-tight">{graph?.name || 'Workflow Canvas'}</span>
+              <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                Visual n8n Canvas
+              </span>
               <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-muted border text-muted-foreground">
                 v{graph?.version || 1}
               </span>

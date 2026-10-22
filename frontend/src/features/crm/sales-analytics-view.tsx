@@ -38,13 +38,13 @@ export default function SalesAnalyticsView({
   const [winLossData, setWinLossData] = useState<any>(null);
   const [cohortsData, setCohortsData] = useState<any>(null);
 
-  // Compute legacy fallback metrics from leads
+  // Compute fallback metrics from leads
   const totalLeads = leads.length;
-  const wonLeads = leads.filter((l) => l.status === 'closed_won');
-  const lostLeads = leads.filter((l) => l.status === 'closed_lost');
+  const wonLeads = leads.filter((l) => l.status === 'closed_won' || l.status === 'booking');
+  const lostLeads = leads.filter((l) => l.status === 'closed_lost' || l.status === 'cancelled');
   const qualifiedLeads = leads.filter((l) => l.status === 'qualified');
-  const contactedLeads = leads.filter((l) => l.status === 'contacted');
-  const meetingLeads = leads.filter((l) => l.status === 'meeting_scheduled');
+  const contactedLeads = leads.filter((l) => l.status === 'contacted' || l.status === 'inquiry');
+  const meetingLeads = leads.filter((l) => l.status === 'meeting_scheduled' || l.status === 'site_visit' || l.status === 'hold_requested');
 
   const closedRevenue = wonLeads.reduce(
     (acc, l) => acc + parseBudget(l.how_much || l.purchasing_capacity),
@@ -52,7 +52,7 @@ export default function SalesAnalyticsView({
   );
 
   const activePipelineValue = leads
-    .filter((l) => !['closed_won', 'closed_lost'].includes(l.status))
+    .filter((l) => !['closed_won', 'closed_lost', 'booking', 'cancelled'].includes(l.status))
     .reduce((acc, l) => acc + parseBudget(l.how_much || l.purchasing_capacity), 0);
 
   const winRate =

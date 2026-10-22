@@ -14,7 +14,8 @@ export type SalesSection =
   | 'prompt_agent'
   | 'configured_engine'
   | 'industries'
-  | 'campaigns';
+  | 'campaigns'
+  | 'field_sales';
 
 export type LeadStatus =
   | 'new'
@@ -157,3 +158,119 @@ export const fmtCurrency = (val: number): string => {
     maximumFractionDigits: 0,
   }).format(val);
 };
+
+export interface FieldSalesOverview {
+  today_scheduled: number;
+  today_completed: number;
+  today_delayed: number;
+  today_no_shows: number;
+  completion_rate_pct: number;
+  active_salespeople: number;
+  connector_budget: {
+    daily_quota: number;
+    calls_used: number;
+    calls_remaining: number;
+    quota_used_pct: number;
+    cache_hits: number;
+    cache_efficiency_pct: number;
+    estimated_daily_cost_usd: number;
+    status: string;
+  };
+}
+
+export interface SalespersonLiveStatus {
+  user_id: string;
+  name: string;
+  email?: string;
+  status: string;
+  is_shift_active: boolean;
+  latitude?: number;
+  longitude?: number;
+  accuracy?: number;
+  battery_level?: number;
+  speed?: number;
+  last_updated?: string;
+}
+
+export interface FieldVisitPin {
+  visit_id: string;
+  project_name: string;
+  project_location?: string;
+  latitude: number;
+  longitude: number;
+  buyer_name: string;
+  buyer_phone?: string;
+  scheduled_at: string;
+  status: string;
+  assigned_agent?: string;
+  sequence_order?: number;
+  estimated_travel_minutes?: number;
+}
+
+export interface RecoveryProposal {
+  id: string;
+  trigger_type: string;
+  status: string;
+  affected_user_id?: string;
+  rationale: string;
+  proposed_changes: Array<{
+    visit_id: string;
+    lead_id?: string;
+    action: string;
+    original_time: string;
+    proposed_time: string;
+    original_agent: string;
+    proposed_agent: string;
+    rationale: string;
+    customer_message_draft?: string;
+  }>;
+  created_at?: string;
+}
+
+export interface FieldSalesAnalysisReport {
+  tenant_id: string;
+  period_days: number;
+  generated_at: string;
+  executive_summary: {
+    total_scheduled_visits: number;
+    completed_visits: number;
+    no_shows: number;
+    cancellations: number;
+    completion_rate_pct: number;
+    geofence_compliance_pct: number;
+  };
+  conversion_funnel: {
+    inquiries: number;
+    completed_showings: number;
+    unit_holds: number;
+    confirmed_bookings: number;
+    inquiry_to_visit_pct: number;
+    visit_to_hold_pct: number;
+    hold_to_booking_pct: number;
+  };
+  travel_and_efficiency: {
+    total_transit_minutes: number;
+    total_showing_minutes: number;
+    transit_to_showing_ratio: number;
+    verified_on_site_check_ins: number;
+    manual_exceptions: number;
+  };
+  buyer_insights: {
+    interest_distribution: Record<string, number>;
+    top_objections: Array<{ objection: string; count: number }>;
+  };
+  recovery_health: {
+    delay_incidents: number;
+    proposals_applied: number;
+    acceptance_rate_pct: number;
+  };
+  connector_costs: {
+    total_mapping_requests: number;
+    cache_hits: number;
+    billable_calls: number;
+    total_spend_usd: number;
+    cost_per_completed_visit_usd: number;
+  };
+  strategic_recommendations: string[];
+}
+

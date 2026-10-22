@@ -26,13 +26,24 @@ interface DealRoomViewProps {
   activeRoom?: SectionRoomData | null;
 }
 
+const DEFAULT_DEAL_ROOM: SectionRoomData = {
+  id: 'sales-default',
+  name: 'General Sales',
+  slug: 'default',
+  section: 'sales',
+  status: 'active',
+  visibility: 'internal_public',
+  access_list: [],
+  created_at: new Date().toISOString(),
+};
+
 export default function DealRoomView({ token, API_URL, fetchWithAuth, initialRoomSlug, activeRoom }: DealRoomViewProps) {
   // Section Room state
   const [rooms, setRooms] = useState<SectionRoomData[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(false);
-  const [currentRoomSlug, setCurrentRoomSlug] = useState<string | null>(activeRoom?.slug || initialRoomSlug || null);
-  const [currentRoom, setCurrentRoom] = useState<SectionRoomData | null>(activeRoom || null);
-  const [isDirectoryView, setIsDirectoryView] = useState(!activeRoom && !initialRoomSlug);
+  const [currentRoomSlug, setCurrentRoomSlug] = useState<string>(activeRoom?.slug || initialRoomSlug || 'default');
+  const [currentRoom, setCurrentRoom] = useState<SectionRoomData>(activeRoom || DEFAULT_DEAL_ROOM);
+  const [isDirectoryView, setIsDirectoryView] = useState(false);
 
   useEffect(() => {
     if (activeRoom) {
@@ -329,7 +340,7 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth, initialRoo
     return 'bg-slate-100 text-slate-700 border-slate-200';
   };
 
-  if (!activeRoom && (isDirectoryView || !currentRoom)) {
+  if (!activeRoom && isDirectoryView && rooms.length > 0) {
     return (
       <RoomFolderExplorer
         section="sales"
@@ -340,6 +351,7 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth, initialRoo
         onRefresh={fetchRooms}
         API_URL={API_URL}
         fetchWithAuth={fetchWithAuth}
+        onClose={() => setIsDirectoryView(false)}
       />
     );
   }

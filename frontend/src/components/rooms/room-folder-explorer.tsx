@@ -12,6 +12,7 @@ import {
   User,
   Share2,
   ArrowRight,
+  ArrowLeft,
   Sparkles,
   Briefcase,
   Megaphone,
@@ -50,6 +51,7 @@ interface RoomFolderExplorerProps {
   onRefresh: () => Promise<void>;
   API_URL: string;
   fetchWithAuth: (url: string, options?: any) => Promise<Response>;
+  onClose?: () => void;
 }
 
 const SECTION_CONFIG = {
@@ -109,6 +111,7 @@ export default function RoomFolderExplorer({
   onRefresh,
   API_URL,
   fetchWithAuth,
+  onClose,
 }: RoomFolderExplorerProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'archived'>('all');
@@ -277,14 +280,27 @@ export default function RoomFolderExplorer({
             </p>
           </div>
 
-          <Button
-            type="button"
-            onClick={handleOpenCreateModal}
-            className="self-start md:self-auto bg-indigo-600 hover:bg-indigo-500 text-white shadow-md gap-2 h-10 px-4"
-          >
-            <FolderPlus className="w-4 h-4" />
-            <span>Create New Room</span>
-          </Button>
+          <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+            {onClose && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                className="bg-slate-800/80 hover:bg-slate-700 text-slate-200 border-slate-700 shadow-sm gap-2 h-10 px-4"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to {sectionTitle}</span>
+              </Button>
+            )}
+            <Button
+              type="button"
+              onClick={handleOpenCreateModal}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white shadow-md gap-2 h-10 px-4"
+            >
+              <FolderPlus className="w-4 h-4" />
+              <span>Create New Room</span>
+            </Button>
+          </div>
         </div>
       </div>
 

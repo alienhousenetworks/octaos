@@ -9,8 +9,12 @@ import {
 } from 'lucide-react';
 import { Lead, parseBudget, fmtCurrency } from './sales-types';
 
+import { VerticalPack, SalesTerminology } from './sales-platform';
+
 interface SalesKanbanViewProps {
   leads: Lead[];
+  activePack?: VerticalPack | null;
+  terms?: SalesTerminology;
   onSelectLead: (lead: Lead) => void;
   onUpdateStatus: (leadId: string, status: string) => Promise<void>;
   onOpenCreateLead: () => void;
@@ -76,12 +80,52 @@ const COLUMNS: ColumnDef[] = [
 
 export default function SalesKanbanView({
   leads,
+  activePack,
+  terms,
   onSelectLead,
   onUpdateStatus,
   onOpenCreateLead,
   viewMode = 'kanban',
   onViewModeChange,
 }: SalesKanbanViewProps) {
+  const activeColumns: ColumnDef[] = React.useMemo(() => {
+    if (activePack?.pipeline_stages && activePack.pipeline_stages.length > 0) {
+      return activePack.pipeline_stages.map((st, idx) => ({
+        id: st.id,
+        label: st.label,
+        color: 'border-border bg-card/50',
+        accent: st.color || '#75AFCB',
+        nextStatus: st.valid_transitions?.[0] || activePack.pipeline_stages?.[idx + 1]?.id,
+        nextLabel: activePack.pipeline_stages?.[idx + 1]?.label ? `Move to ${activePack.pipeline_stages[idx + 1].label}` : undefined,
+      }));
+    }
+    if (activePack?.stages && activePack.stages.length > 0) {
+      return activePack.stages.map((stageName, idx) => {
+        const id = stageName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        return {
+          id,
+          label: stageName,
+          color: 'border-border bg-card/50',
+          accent: ['#75AFCB', '#A1AEF0', '#D9AD68', '#64B99A', '#D9828B'][idx % 5],
+          nextStatus: activePack.stages[idx + 1]?.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''),
+          nextLabel: activePack.stages[idx + 1] ? `Move to ${activePack.stages[idx + 1]}` : undefined,
+        };
+      });
+    }
+    return COLUMNS;
+  }, [activePack]);
+
+  const matchesColumn = (leadStatus: string | undefined, colId: string) => {
+    if (leadStatus === colId) return true;
+    if (activePack?.id === 'real_estate') {
+      if (colId === 'inquiry' && (leadStatus === 'new' || leadStatus === 'contacted')) return true;
+      if (colId === 'site_visit' && leadStatus === 'meeting_scheduled') return true;
+      if (colId === 'booking' && leadStatus === 'closed_won') return true;
+      if (colId === 'cancelled' && leadStatus === 'closed_lost') return true;
+    }
+    return false;
+  };
+
   return (
     <div className="space-y-4">
       {/* Top Toolbar with View Switcher */}
@@ -91,7 +135,7 @@ export default function SalesKanbanView({
             Pipeline Kanban Board
           </span>
           <span className="text-[11px] text-muted-foreground font-medium">
-            · {leads.length} accounts across 6 stages
+            · {leads.length} {terms?.leads.toLowerCase() || 'records'} across {activeColumns.length} stages
           </span>
         </div>
 
@@ -101,7 +145,7 @@ export default function SalesKanbanView({
             onClick={onOpenCreateLead}
             className="h-8 px-3 text-xs font-semibold"
           >
-            <Plus size={13} className="mr-1" /> Add Lead
+            <Plus size={13} className="mr-1" /> Add {terms?.lead || 'Lead'}
           </Button>
 
           {onViewModeChange && (
@@ -135,9 +179,12 @@ export default function SalesKanbanView({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3.5 items-start overflow-x-auto pb-4">
-      {COLUMNS.map((col) => {
-        const colLeads = leads.filter((l) => l.status === col.id);
+      <div 
+        className="grid gap-3.5 items-start overflow-x-auto pb-4"
+        style={{ gridTemplateColumns: `repeat(${activeColumns.length}, minmax(260px, 1fr))` }}
+      >
+      {activeColumns.map((col) => {
+        const colLeads = leads.filter((l) => matchesColumn(l.status, col.id));
         const colValue = colLeads.reduce(
           (acc, l) => acc + parseBudget(l.how_much || l.purchasing_capacity),
           0

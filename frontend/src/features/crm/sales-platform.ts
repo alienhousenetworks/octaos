@@ -10,6 +10,31 @@ export interface SalesTerminology {
   pipeline: string;
 }
 
+export interface PipelineStage {
+  id: string;
+  label: string;
+  color?: string;
+  is_terminal?: boolean;
+  terminal_outcome?: 'won' | 'lost';
+  valid_transitions?: string[];
+}
+
+export interface SchemaField {
+  key: string;
+  label: string;
+  type: 'string' | 'number' | 'currency' | 'enum' | 'boolean' | 'date' | 'object' | 'array' | string;
+  required?: boolean;
+  options?: string[];
+  description?: string;
+}
+
+export interface Capability {
+  id: string;
+  name: string;
+  status: 'AVAILABLE' | 'DEGRADED' | 'NOT_CONFIGURED' | 'NOT_IMPLEMENTED' | string;
+  description?: string;
+}
+
 export interface VerticalPack {
   id: string;
   version: string;
@@ -21,6 +46,9 @@ export interface VerticalPack {
   terminology: SalesTerminology;
   objects: string[];
   stages: string[];
+  pipeline_stages?: PipelineStage[];
+  fields?: SchemaField[];
+  capabilities?: Record<string, Capability>;
   qualification: string[];
   record_tabs: string[];
   ai_guidance: { allowed: string[]; prohibited: string[] };

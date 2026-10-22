@@ -37,6 +37,7 @@ import {
   Bot,
   Zap,
   Plus,
+  FileText,
 } from 'lucide-react';
 import { notify } from '@/lib/notify';
 import WorkflowCanvas from './canvas/workflow-canvas';
@@ -67,7 +68,7 @@ export default function AutomationsView({
   );
 
   // Navigation tabs
-  const [activeTab, setActiveTab] = useState<'workflows' | 'connections' | 'usage'>('workflows');
+  const [activeTab, setActiveTab] = useState<'workflows' | 'canvas' | 'connections' | 'usage'>('workflows');
 
   // Workflows & Usage data
   const [workflows, setWorkflows] = useState<any[]>([]);
@@ -312,6 +313,23 @@ export default function AutomationsView({
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (workflows.length > 0) {
+                setCanvasWorkflowId(workflows[0].id);
+              } else {
+                handleCreateNewVisualWorkflow();
+              }
+              setActiveTab('canvas');
+            }}
+            className="text-xs border-primary/30 text-primary hover:bg-primary/10 font-semibold shadow-xs"
+          >
+            <Layers className="h-3.5 w-3.5 mr-1" />
+            Visual n8n Canvas
+          </Button>
+
           {canBuild && (
             <Button
               size="sm"
@@ -319,41 +337,66 @@ export default function AutomationsView({
               className="text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm"
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
-              New Visual Workflow
+              New Workflow
             </Button>
           )}
 
           {/* Tab Switcher */}
           <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
-          <Button
-            variant={activeTab === 'workflows' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveTab('workflows')}
-            className="text-xs"
-          >
-            <GitFork className="h-3.5 w-3.5 mr-1.5" />
-            Workflows
-          </Button>
-          <Button
-            variant={activeTab === 'connections' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveTab('connections')}
-            className="text-xs"
-          >
-            <KeyRound className="h-3.5 w-3.5 mr-1.5" />
-            Connection Center
-          </Button>
-          <Button
-            variant={activeTab === 'usage' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveTab('usage')}
-            className="text-xs"
-          >
-            <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
-            Usage & Limits
-          </Button>
+            <Button
+              variant={activeTab === 'workflows' && !canvasWorkflowId ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => {
+                setCanvasWorkflowId(null);
+                setActiveTab('workflows');
+              }}
+              className="text-xs"
+            >
+              <GitFork className="h-3.5 w-3.5 mr-1.5" />
+              Workflows
+            </Button>
+            <Button
+              variant={activeTab === 'canvas' || !!canvasWorkflowId ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => {
+                if (workflows.length > 0) {
+                  setCanvasWorkflowId(workflows[0].id);
+                } else {
+                  handleCreateNewVisualWorkflow();
+                }
+                setActiveTab('canvas');
+              }}
+              className="text-xs font-semibold"
+            >
+              <Layers className="h-3.5 w-3.5 mr-1.5 text-primary" />
+              Visual n8n Canvas
+            </Button>
+            <Button
+              variant={activeTab === 'connections' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => {
+                setCanvasWorkflowId(null);
+                setActiveTab('connections');
+              }}
+              className="text-xs"
+            >
+              <KeyRound className="h-3.5 w-3.5 mr-1.5" />
+              Connection Center
+            </Button>
+            <Button
+              variant={activeTab === 'usage' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => {
+                setCanvasWorkflowId(null);
+                setActiveTab('usage');
+              }}
+              className="text-xs"
+            >
+              <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
+              Usage & Limits
+            </Button>
+          </div>
         </div>
-      </div>
     </div>
 
       {/* ─── Metric Cards ─────────────────────────────────────────────────── */}
@@ -604,10 +647,18 @@ export default function AutomationsView({
             </CardHeader>
             <CardContent>
               {workflows.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
+                <div className="text-center py-12 text-muted-foreground space-y-3">
                   <GitFork className="h-10 w-10 mx-auto text-muted-foreground/40 mb-2" />
                   <p className="text-sm font-medium">No automations configured yet</p>
-                  <p className="text-xs mt-1">Use the AI Synthesizer above or choose a quick template to create your first workflow.</p>
+                  <p className="text-xs mt-1">Use the AI Synthesizer above or launch the visual canvas to build your first workflow.</p>
+                  <Button
+                    size="sm"
+                    onClick={handleCreateNewVisualWorkflow}
+                    className="text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm"
+                  >
+                    <Layers className="h-3.5 w-3.5 mr-1.5" />
+                    Open Visual n8n Canvas
+                  </Button>
                 </div>
               ) : (
                 <div className="divide-y text-sm">
@@ -655,29 +706,30 @@ export default function AutomationsView({
 
                       {/* Action buttons */}
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {canBuild ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setCanvasWorkflowId(wf.id)}
-                            className="h-8 text-xs border-primary/30 text-primary hover:bg-primary/5 font-medium"
-                            title="Open Visual Workflow Canvas (Builder Permission)"
-                          >
-                            <GitFork className="h-3.5 w-3.5 mr-1 text-primary" />
-                            Visual Canvas
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setViewingStepsWorkflow(wf)}
-                            className="h-8 text-xs text-muted-foreground hover:text-foreground"
-                            title="View Workflow Step Details (Read-Only)"
-                          >
-                            <Layers className="h-3.5 w-3.5 mr-1" />
-                            View Steps
-                          </Button>
-                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setCanvasWorkflowId(wf.id);
+                            setActiveTab('canvas');
+                          }}
+                          className="h-8 text-xs border-primary/30 text-primary hover:bg-primary/5 font-semibold"
+                          title="Open Visual n8n Canvas"
+                        >
+                          <Layers className="h-3.5 w-3.5 mr-1 text-primary" />
+                          Visual n8n Canvas
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setViewingStepsWorkflow(wf)}
+                          className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                          title="View Workflow Step Details (Read-Only)"
+                        >
+                          <FileText className="h-3.5 w-3.5 mr-1" />
+                          Steps
+                        </Button>
 
                         {canBuild && (
                           <>
@@ -808,8 +860,8 @@ export default function AutomationsView({
           <DialogHeader className="pb-2 border-b">
             <div className="flex items-center justify-between">
               <DialogTitle className="text-base font-semibold flex items-center gap-2">
-                <GitFork className="h-4 w-4 text-primary" />
-                Activepieces Visual Workflow Canvas
+                <Layers className="h-4 w-4 text-primary" />
+                n8n Visual Workflow Canvas
               </DialogTitle>
               <Button
                 variant="outline"
@@ -831,7 +883,7 @@ export default function AutomationsView({
               <iframe
                 src={activeEditorUrl}
                 className="w-full h-full border-0"
-                title="Activepieces Canvas Editor"
+                title="n8n Canvas Editor"
                 allow="clipboard-read; clipboard-write"
               />
             ) : null}
