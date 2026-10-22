@@ -16,6 +16,14 @@ def _plural(word: str) -> str:
     return word + "s"
 
 
+import re
+
+
+def _sanitize_stage_id(text: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
+    return cleaned or "stage"
+
+
 def _pack(
     pack_id: str,
     name: str,
@@ -30,7 +38,21 @@ def _pack(
     prohibited: list[str],
     representative: bool = False,
     domain_note: str,
+    pipeline_stages: list[dict[str, Any]] | None = None,
+    fields: list[dict[str, Any]] | None = None,
+    capabilities: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    resolved_pipeline_stages = pipeline_stages or [
+        {
+            "id": _sanitize_stage_id(stage),
+            "label": stage,
+            "color": "#75AFCB",
+            "is_terminal": idx == len(stages) - 1,
+            "terminal_outcome": "won" if any(w in stage.lower() for w in ("won", "onboard", "book")) else ("lost" if any(w in stage.lower() for w in ("lost", "cancel")) else None),
+            "valid_transitions": [_sanitize_stage_id(stages[idx + 1])] if idx + 1 < len(stages) else [],
+        }
+        for idx, stage in enumerate(stages)
+    ]
     return {
         "id": pack_id,
         "version": "1.0.0",
@@ -52,6 +74,9 @@ def _pack(
         },
         "objects": objects,
         "stages": stages,
+        "pipeline_stages": resolved_pipeline_stages,
+        "fields": fields or [],
+        "capabilities": capabilities or {},
         "qualification": qualification,
         "record_tabs": ["Overview", "Qualification", "Activity", "History"],
         "ai_guidance": {
@@ -281,10 +306,39 @@ PACKS: dict[str, dict[str, Any]] = {
             opportunity="Booking",
             objects=["Projects", "Units", "Site visits", "Channel partners"],
             stages=["Inquiry", "Site visit", "Hold requested", "Booking", "Cancelled"],
+            pipeline_stages=[
+                {"id": "inquiry", "label": "New Inquiry", "color": "#75AFCB", "valid_transitions": ["qualified", "site_visit", "cancelled"]},
+                {"id": "qualified", "label": "Buyer Qualified", "color": "#A1AEF0", "valid_transitions": ["site_visit", "cancelled"]},
+                {"id": "site_visit", "label": "Site Visit Scheduled", "color": "#D9AD68", "valid_transitions": ["hold_requested", "booking", "cancelled"]},
+                {"id": "hold_requested", "label": "Hold Requested", "color": "#D9828B", "valid_transitions": ["booking", "site_visit", "cancelled"]},
+                {"id": "booking", "label": "Confirmed Booking", "color": "#64B99A", "is_terminal": True, "terminal_outcome": "won"},
+                {"id": "cancelled", "label": "Cancelled / Lost", "color": "#4B5563", "is_terminal": True, "terminal_outcome": "lost"},
+            ],
+            fields=[
+                {"key": "project_id", "label": "Project / Property", "type": "string", "required": True},
+                {"key": "property_type", "label": "Property Type", "type": "enum", "options": ["Apartment", "Penthouse", "Villa", "Commercial", "Plot"]},
+                {"key": "unit_preference", "label": "Unit Config", "type": "string"},
+                {"key": "budget_min", "label": "Budget Min", "type": "currency"},
+                {"key": "budget_max", "label": "Budget Max", "type": "currency"},
+                {"key": "purchase_purpose", "label": "Purpose", "type": "enum", "options": ["Self-Use", "Investment", "Rental Yield"]},
+                {"key": "financing_status", "label": "Financing Status", "type": "enum", "options": ["Cash", "Pre-Approved Mortgage", "Loan Assistance Needed"]},
+                {"key": "purchase_timeline", "label": "Timeline", "type": "enum", "options": ["Immediate", "30 Days", "60 Days", "90+ Days"]},
+            ],
+            capabilities={
+                "inventory_catalog": {"id": "inventory_catalog", "name": "Property & Unit Catalog", "status": "AVAILABLE", "description": "Tenant-scoped projects, towers, units, and price lists."},
+                "atomic_unit_reservation": {"id": "atomic_unit_reservation", "name": "Unit Hold & Concurrency Control", "status": "AVAILABLE", "description": "Transactional reservation with expiration timer and conflict prevention."},
+                "site_visit_scheduler": {"id": "site_visit_scheduler", "name": "Site Visit & Tour Management", "status": "AVAILABLE", "description": "Showing calendar, agent escort assignment, and feedback logging."},
+                "channel_partner_attribution": {"id": "channel_partner_attribution", "name": "Broker Attribution & Commissions", "status": "AVAILABLE", "description": "RERA partner attribution and commission agreement tracking."},
+                "portal_webhooks": {"id": "portal_webhooks", "name": "Listing Portal Ingestion", "status": "AVAILABLE", "description": "Normalized webhook adapters for real estate portals and ad platforms."},
+            },
             qualification=["Project", "Unit or configuration", "Visit status", "Channel partner if stored"],
-            prohibited=["Do not mark a unit held or booked unless that state is stored.", "Do not invent inventory."],
+            prohibited=[
+                "Do not mark a unit held or booked unless that state is stored.",
+                "Do not invent inventory.",
+                "Do not confirm receipt of token deposit without payment evidence."
+            ],
             representative=True,
-            domain_note="Concurrent unit holds, expiry, and commission rules are not installed. Records stay on the shared CRM.",
+            domain_note="Operates with tenant-scoped property catalog, atomic unit holds, and visit schedules.",
         ),
         _pack(
             "restaurant",
@@ -316,3 +370,10 @@ PACKS: dict[str, dict[str, Any]] = {
 }
 
 PACK_ORDER: list[str] = list(PACKS)
+
+# Startup validation: guarantee every registered pack conforms to the manifest schema
+from app.services.sales_os.industry_runtime.manifest import validate_manifest  # noqa: E402
+
+for _pack_id, _pack_dict in PACKS.items():
+    validate_manifest(_pack_dict)
+

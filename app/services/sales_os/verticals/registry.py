@@ -61,6 +61,9 @@ def preview_switch(current_id: str | None, next_id: str, record_count: int) -> d
         "readiness": nxt["readiness"],
         "domain_status": nxt["domain_status"],
         "domain_note": nxt["domain_note"],
+        "pipeline_stages": nxt.get("pipeline_stages", []),
+        "fields": nxt.get("fields", []),
+        "capabilities": nxt.get("capabilities", {}),
         "incompatible": [],
         "effect": "Labels, qualification prompts, and AI guardrails change. Stored leads, accounts, and deals stay.",
     }

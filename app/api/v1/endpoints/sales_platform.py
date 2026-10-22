@@ -107,6 +107,32 @@ def read_vertical(pack_id: str) -> dict[str, Any]:
     return pack
 
 
+class StageTransitionCheck(BaseModel):
+    current_stage: str
+    next_stage: str
+
+
+@router.post("/verticals/transition/validate")
+def validate_stage_transition(
+    body: StageTransitionCheck,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> dict[str, Any]:
+    from app.services.sales_os.industry_runtime.manifest import validate_manifest
+    from app.services.sales_os.industry_runtime.pipeline_engine import PipelineEngine
+
+    profile = _profile(db, tenant_id)
+    pack_id = resolve_pack_id(getattr(profile, "industry_pack_id", None) if profile else None)
+    pack = get_pack(pack_id) if pack_id else None
+    if not pack or "pipeline_stages" not in pack:
+        return {"allowed": True, "reason": "No strict transitions defined"}
+    manifest = validate_manifest(pack)
+    engine = PipelineEngine(manifest)
+    engine.validate_transition(body.current_stage, body.next_stage)
+    return {"allowed": True, "current_stage": body.current_stage, "next_stage": body.next_stage}
+
+
+
 @router.get("/workforce")
 def read_workforce() -> dict[str, Any]:
     return organization()

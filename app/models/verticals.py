@@ -429,4 +429,5 @@ class AuditLog(Base):
 # tables on Base.metadata before create_all or Alembic autogenerate runs.
 import app.models.sales_intelligence  # noqa: E402, F401
 import app.models.hr  # noqa: E402, F401
+import app.models.real_estate  # noqa: E402, F401
 

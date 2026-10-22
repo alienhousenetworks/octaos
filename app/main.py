@@ -70,7 +70,7 @@ def startup_db_check():
     # Ensure Flow Engine tables and seeded agents/packages exist
     try:
         from app.models.base import Base
-        from app.models import enterprise, flow_engine, automations, schedules, verticals, rooms, hr  # noqa: F401
+        from app.models import enterprise, flow_engine, automations, schedules, verticals, rooms, hr, field_sales, real_estate  # noqa: F401
         from app.db.session import SessionLocal
         from app.services.agents.seeder import seed_system_agents, seed_system_packages
         # One failing CREATE (pgvector) must not roll back the other tables.
@@ -129,6 +129,26 @@ def startup_db_check():
                 conn.execute(text("ALTER TABLE template_versions ADD COLUMN IF NOT EXISTS raw_content TEXT;"))
                 conn.execute(text("ALTER TABLE template_versions ADD COLUMN IF NOT EXISTS published_at TIMESTAMP WITH TIME ZONE;"))
                 conn.execute(text("ALTER TABLE template_versions ADD COLUMN IF NOT EXISTS published_by_user_id VARCHAR;"))
+                # Real Estate & Field Sales extensions
+                conn.execute(text("ALTER TABLE real_estate_projects ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;"))
+                conn.execute(text("ALTER TABLE real_estate_projects ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;"))
+                conn.execute(text("ALTER TABLE real_estate_projects ADD COLUMN IF NOT EXISTS address VARCHAR;"))
+                conn.execute(text("ALTER TABLE real_estate_projects ADD COLUMN IF NOT EXISTS geocoded_at TIMESTAMP WITH TIME ZONE;"))
+                conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS duration_minutes INTEGER DEFAULT 45;"))
+                conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS sequence_order INTEGER DEFAULT 1;"))
+                conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS estimated_travel_minutes INTEGER DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS estimated_arrival_at TIMESTAMP WITH TIME ZONE;"))
+                conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS actual_arrival_at TIMESTAMP WITH TIME ZONE;"))
+                conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS actual_departure_at TIMESTAMP WITH TIME ZONE;"))
+                conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS check_in_latitude DOUBLE PRECISION;"))
+                conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS check_in_longitude DOUBLE PRECISION;"))
+                conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS check_in_accuracy DOUBLE PRECISION;"))
+                conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS check_in_verified BOOLEAN DEFAULT FALSE;"))
+                conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS check_in_exception_reason VARCHAR;"))
+                conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS buyer_interest_level VARCHAR;"))
+                conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS buyer_objections JSON DEFAULT '[]'::json;"))
+                conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS agreed_next_step VARCHAR;"))
+                conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS recovery_notes TEXT;"))
             print("Schema column extensions verified.")
         except Exception as col_error:
             print(f"Skipped schema column alter: {col_error}")

@@ -24,6 +24,11 @@ _REFUSAL_HINTS = (
     "prescribe",
     "guarantee the award",
     "improper influence",
+    "hold unit without deposit",
+    "hold without deposit",
+    "mark unit held",
+    "mark unit booked",
+    "invent inventory",
 )
 
 
@@ -151,6 +156,30 @@ def advise_record(record: dict[str, Any], pack_id: str | None, question: str) ->
         answer = _answer(asked, name, company, email, phone, status, why, evidence_url, terms)
         recommendation = _next_action(email, phone, status, why, consent, data)
         actions = _actions(email, data)
+        if pack and pack.get("id") == "real_estate":
+            actions = [
+                {
+                    "id": "schedule_site_visit",
+                    "label": "Schedule site visit",
+                    "preview": f"Book private property showing for {name or 'this inquiry'} at {company or 'selected project'}.",
+                    "executes": True,
+                    "requires_confirmation": True,
+                },
+                {
+                    "id": "request_unit_hold",
+                    "label": "Request unit hold",
+                    "preview": "Initiate temporary unit reservation subject to authoritative inventory lock.",
+                    "executes": True,
+                    "requires_confirmation": True,
+                },
+                {
+                    "id": "verify_financing",
+                    "label": "Verify mortgage readiness",
+                    "preview": "Review buyer pre-approval or financing qualification evidence.",
+                    "executes": False,
+                    "requires_confirmation": False,
+                },
+            ] + actions
 
     known = len(evidence)
     if refused or asks_missing_metric:
@@ -213,6 +242,11 @@ def _refused(pack: dict[str, Any] | None, lowered: str) -> str | None:
                 "This request is outside what Sales AI may decide. "
                 "The record was not changed."
             )
+    if ("hold" in lowered and "unit" in lowered) or "without deposit" in lowered:
+        return (
+            "This request is outside what Sales AI may decide. "
+            "The record was not changed."
+        )
     if "mark" in lowered and "sent" in lowered:
         return "A send is recorded only after the delivery service confirms it. This copilot will not mark it sent."
     return None

@@ -24,6 +24,23 @@ class AIManagerOrchestrator:
         
         print(f"[AI Manager] Initiating goal execution: '{user_goal}' | ID: {trajectory_id}")
         
+        # Check if goal relates to field sales / property visits and inject live database report
+        field_sales_context = ""
+        goal_lower = user_goal.lower()
+        if any(w in goal_lower for w in ("field", "visit", "showing", "salesperson", "dispatch", "route", "property")):
+            try:
+                from app.db.session import SessionLocal
+                from app.services.sales_os.field_sales.orchestrator_bridge import FieldSalesOrchestratorBridge
+                db = SessionLocal()
+                try:
+                    bridge = FieldSalesOrchestratorBridge(db, "default")
+                    report_data = bridge.generate_analysis_report(30)
+                    field_sales_context = f"\n[Live Field Sales Database Report]: {report_data}\n"
+                finally:
+                    db.close()
+            except Exception as e:
+                print(f"[AI Manager] Field sales context query skipped: {e}")
+
         # 1. Generate DAG Plan
         dag_plan: ExecutionPlanDAG = await self.decomposer.decompose_goal(user_goal)
         print(f"[AI Manager] Generated DAG with {len(dag_plan.tasks)} sub-tasks | Est. ROI: {dag_plan.estimated_total_roi}")
@@ -38,7 +55,7 @@ class AIManagerOrchestrator:
             print(f"[AI Manager] Executing {task.task_id} via route: {route['provider']} ({route['model_name']})")
             
             # Construct sub-task execution payload
-            prompt = f"Goal Context: {user_goal}\nSub-task: {task.description}\nDependencies Output: {completed_results}"
+            prompt = f"Goal Context: {user_goal}\nSub-task: {task.description}\nDependencies Output: {completed_results}{field_sales_context}"
             
             headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
             payload = {

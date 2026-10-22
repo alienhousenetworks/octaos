@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     automation_nodes, automation_documents,
     hr_people, hr_workforce, hr_copilot,
     sales_crm, sales_inbox, sales_platform,
+    sales_real_estate, sales_inbound_webhooks, field_sales,
     integrations,
 )
 
@@ -52,6 +53,9 @@ api_router.include_router(sales_os.router, prefix="/sales-os", tags=["sales-os"]
 api_router.include_router(sales_crm.router, prefix="/sales-crm", tags=["sales-crm"])
 api_router.include_router(sales_inbox.router, prefix="/sales-inbox", tags=["sales-inbox"])
 api_router.include_router(sales_platform.router, prefix="/sales-os", tags=["sales-platform"])
+api_router.include_router(sales_real_estate.router, prefix="/sales-os/real-estate", tags=["sales-real-estate"])
+api_router.include_router(field_sales.router, prefix="/sales-os/field-sales", tags=["field-sales"])
+api_router.include_router(sales_inbound_webhooks.router, prefix="/sales-os", tags=["sales-inbound-webhooks"])
 api_router.include_router(automations.router, prefix="/automations", tags=["automations"])
 api_router.include_router(schedules.router, prefix="/schedules", tags=["schedules"])
 api_router.include_router(knowledge_connectors.router, prefix="/knowledge/connectors", tags=["knowledge-connectors"])
