@@ -87,12 +87,28 @@ class CampaignRolesEngine:
         """Formulate high-level brand strategy and defensible angle using AI."""
         system_prompt = (
             "You are the Lead Brand Strategist. Your job is to define the strategic narrative "
-            "for an upcoming marketing campaign based on company context. "
+            "for an upcoming marketing campaign based on company context and industry vertical standards. "
             "Output valid JSON only."
         )
+
+        ind_context = ""
+        ind_pack_id = campaign_projection.get("industry_pack_id")
+        if not ind_pack_id and campaign_projection.get("industry"):
+            from app.services.marketing.verticals.registry import resolve_marketing_pack_id
+            ind_pack_id = resolve_marketing_pack_id(campaign_projection["industry"].lower().replace(" ", "_").replace("&", "").replace("-", "_"))
+        if ind_pack_id:
+            try:
+                from app.services.marketing.verticals.registry import get_marketing_pack
+                m_pack = get_marketing_pack(ind_pack_id)
+                if m_pack:
+                    pillars = [p.get("label", "") for p in m_pack.get("content_pillars", [])]
+                    ind_context = f"\nIndustry Pack: {m_pack.get('name')}\nIndustry Content Pillars: {', '.join(pillars)}\nIndustry Prohibited Guardrails: {json.dumps(m_pack.get('compliance_guardrails', {}).get('taboo_words', []))}\n"
+            except Exception:
+                pass
+
         prompt = f"""Company Context:
 Name: {campaign_projection.get('company_name')}
-Industry: {campaign_projection.get('industry')}
+Industry: {campaign_projection.get('industry')}{ind_context}
 Brand Voice Guidelines: {json.dumps(campaign_projection.get('brand_voice', {}))}
 Verified Approved Claims: {json.dumps(campaign_projection.get('approved_claims', []))}
 Product Highlights: {json.dumps(campaign_projection.get('product_highlights', []))}
@@ -503,6 +519,7 @@ Output JSON format:
         post_draft: PlatformPostDraft,
         approved_evidence: List[Dict[str, Any]],
         brand_brief: BrandStrategyBrief,
+        pack_id: Optional[str] = None,
         provider: Optional[str] = None,
         model: Optional[str] = None,
     ) -> CritiqueScoreCard:
@@ -520,6 +537,7 @@ Output JSON format:
         comp_result = ComplianceRulesEngine.audit_post(
             content=post_draft.formatted_full_post,
             platform=post_draft.platform,
+            pack_id=pack_id,
         )
 
         # 3. LLM Qualitative Evaluation
@@ -591,7 +609,11 @@ Output JSON with formatted_full_post only:
                     post_draft.formatted_full_post = repaired_text
                     # Re-verify
                     second_claim = ClaimVerifier.verify_post_claims(content=repaired_text, approved_evidence=approved_evidence)
-                    second_comp = ComplianceRulesEngine.audit_post(content=repaired_text, platform=post_draft.platform)
+                    second_comp = ComplianceRulesEngine.audit_post(
+                        content=repaired_text,
+                        platform=post_draft.platform,
+                        pack_id=pack_id,
+                    )
                     if second_claim.all_claims_grounded and second_comp.passed:
                         is_approved = True
                         overall_conf = 0.90

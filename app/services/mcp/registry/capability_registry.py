@@ -37,6 +37,44 @@ UNIVERSAL_TOOLS_SPEC: List[Dict[str, Any]] = [
         "required_action": "discover",
     },
     {
+        "name": "octaos_mcp_list_tools",
+        "description": "Discover tools exposed by any tenant-registered external MCP server.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "description": "Registered external MCP server slug.",
+                },
+            },
+            "required": ["source"],
+        },
+        "required_action": "discover",
+    },
+    {
+        "name": "octaos_mcp_call_tool",
+        "description": "Call a tool on any tenant-registered external MCP server through the governed policy boundary.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "description": "Registered external MCP server slug.",
+                },
+                "tool_name": {
+                    "type": "string",
+                    "description": "Exact MCP tool name returned by octaos_mcp_list_tools.",
+                },
+                "arguments": {
+                    "type": "object",
+                    "description": "Arguments accepted by the external MCP tool.",
+                },
+            },
+            "required": ["source", "tool_name"],
+        },
+        "required_action": "invoke",
+    },
+    {
         "name": "octaos_describe_object",
         "description": "Retrieve the dynamic JSON Schema, fields, supported operations, and relationships for a specific business object.",
         "inputSchema": {
@@ -320,6 +358,34 @@ class CapabilityRegistry:
                 object_name="*",
                 action="discover",
                 parameters={},
+                idempotency_key=idempotency_key,
+            )
+        elif tool_name == "octaos_mcp_list_tools":
+            return await self.dispatcher.execute(
+                credential=credential,
+                connector_slug=source,
+                object_name="*",
+                action="discover",
+                parameters={},
+                idempotency_key=idempotency_key,
+            )
+        elif tool_name == "octaos_mcp_call_tool":
+            external_tool_name = arguments.get("tool_name")
+            if not external_tool_name:
+                return ToolResult(
+                    content=[TextContent(text="Missing required 'tool_name'.")],
+                    isError=True,
+                    metadata={"error_code": "INVALID_PARAMS"},
+                )
+            return await self.dispatcher.execute(
+                credential=credential,
+                connector_slug=source,
+                object_name=external_tool_name,
+                action="invoke",
+                parameters={
+                    "action_name": external_tool_name,
+                    "arguments": arguments.get("arguments") or {},
+                },
                 idempotency_key=idempotency_key,
             )
         elif tool_name == "octaos_describe_object":

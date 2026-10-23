@@ -41,7 +41,7 @@ class SalesOutboxService:
     def stage_touch(
         self,
         lead_id: str,
-        recipient_email: str,
+        recipient_email: Optional[str],
         subject: str,
         body: str,
         step_number: int = 1,
@@ -50,19 +50,48 @@ class SalesOutboxService:
         recipient_name: Optional[str] = None,
         deal_room_id: Optional[str] = None,
         require_review: bool = False,
+        recipient_phone: Optional[str] = None,
     ) -> Optional[SalesOutboxItem]:
         """Stage a single outreach touch into the outbox."""
-        if not recipient_email or not body:
+        normalized_channel = str(channel or "email").strip().lower()
+        recipient = (recipient_email or "").strip()
+        if not body:
             return None
 
-        # Suppression check
-        is_supp, reason = self.suppression.is_suppressed(email=recipient_email)
+        # Email is required for email touches; WhatsApp can be phone-only.
+        # LinkedIn and call tasks can be staged with only a lead id because the
+        # dispatcher resolves the profile/phone when the task is drained.
+        if normalized_channel == "email" and not recipient:
+            return None
+        if normalized_channel == "whatsapp" and not (recipient_phone or recipient):
+            return None
+
+        # Suppression check uses the identifier that the channel will actually
+        # transmit to.  The legacy recipient_email column is also used for
+        # phone-only rows, so do not interpret every value as an email address.
+        if normalized_channel == "whatsapp":
+            is_supp, reason = self.suppression.is_suppressed(
+                phone=recipient_phone or recipient,
+                channel=normalized_channel,
+            )
+        else:
+            is_supp, reason = self.suppression.is_suppressed(
+                email=recipient or None,
+                phone=recipient_phone,
+                channel=normalized_channel,
+            )
         if is_supp:
-            logger.info(f"Skipping outbox staging for {recipient_email}: suppressed ({reason})")
+            logger.info(f"Skipping outbox staging for {recipient or recipient_phone}: suppressed ({reason})")
             return None
 
         # Pre-send Gatekeeper validation
-        gate = PreSendGatekeeper.evaluate(subject=subject, body=body, step_number=step_number)
+        gate = PreSendGatekeeper.evaluate(
+            subject=subject,
+            body=body,
+            step_number=step_number,
+            min_words=8 if normalized_channel == "email" else 3,
+            require_subject=normalized_channel == "email",
+        )
         cleaned_body = gate.cleaned_body if gate.cleaned_body else body
         cleaned_subject = gate.cleaned_subject if gate.cleaned_subject else subject
 
@@ -76,8 +105,11 @@ class SalesOutboxService:
             lead_id=lead_id,
             deal_room_id=deal_room_id,
             step_number=step_number,
-            channel=channel,
-            recipient_email=recipient_email.strip().lower(),
+            channel=normalized_channel,
+            # Kept for backwards compatibility with existing rows and API
+            # consumers.  For WhatsApp-only rows this contains the normalized
+            # phone identifier rather than an email address.
+            recipient_email=recipient.lower() if recipient else None,
             recipient_name=recipient_name,
             subject=cleaned_subject,
             body=cleaned_body,
@@ -100,8 +132,9 @@ class SalesOutboxService:
         staged: List[SalesOutboxItem] = []
         now = datetime.now(timezone.utc)
         recipient_email = lead.email or lead.company_email or lead.personal_email
-        if not recipient_email:
-            return staged
+        from app.services.sales.touch_dispatcher import extract_lead_phone
+
+        recipient_phone = extract_lead_phone(lead)
 
         for idx, touch in enumerate(channel_schedule):
             day_offset = int(touch.get("day", 1)) - 1
@@ -111,9 +144,18 @@ class SalesOutboxService:
             subject = touch.get("subject") or f"Partnership Opportunity - {lead.company or 'Your Company'}"
             channel = str(touch.get("channel") or "email").lower()
 
+            if channel == "email":
+                recipient = recipient_email
+            elif channel == "whatsapp":
+                recipient = recipient_phone
+            else:
+                # LinkedIn and call tasks are resolved from the lead at drain
+                # time. Prefer an email for legacy reporting when available.
+                recipient = recipient_email or recipient_phone
+
             item = self.stage_touch(
                 lead_id=lead.id,
-                recipient_email=recipient_email,
+                recipient_email=recipient,
                 subject=subject,
                 body=content,
                 step_number=step_number,
@@ -122,6 +164,7 @@ class SalesOutboxService:
                 recipient_name=lead.name,
                 deal_room_id=deal_room_id,
                 require_review=require_review,
+                recipient_phone=recipient_phone,
             )
             if item:
                 staged.append(item)
@@ -183,13 +226,30 @@ class SalesOutboxService:
         dispatched = 0
         failed = 0
 
+        suppressed = 0
+
         for item in items:
-            # Check suppression right before sending
-            is_supp, reason = self.suppression.is_suppressed(email=item.recipient_email)
+            lead = self.db.query(Lead).filter_by(id=item.lead_id, tenant_id=self.tenant_id).first() if item.lead_id else None
+            channel = str(item.channel or "email").strip().lower()
+
+            # Check the actual channel identifier right before sending.
+            if channel == "whatsapp":
+                from app.services.sales.touch_dispatcher import extract_lead_phone
+                phone = extract_lead_phone(lead) if lead else item.recipient_email
+                is_supp, reason = self.suppression.is_suppressed(phone=phone, channel=channel)
+            else:
+                email = (lead.email or lead.company_email or lead.personal_email) if lead else item.recipient_email
+                phone = getattr(lead, "phone", None) if lead else None
+                is_supp, reason = self.suppression.is_suppressed(
+                    email=email,
+                    phone=phone,
+                    channel=channel,
+                )
             if is_supp:
                 item.status = "cancelled"
                 item.cancellation_reason = f"suppressed:{reason}"
                 self.db.commit()
+                suppressed += 1
                 continue
 
             # Anti-spam jitter pacing
@@ -197,7 +257,6 @@ class SalesOutboxService:
                 time.sleep(random.uniform(0.5, float(max_jitter_sec)))
 
             from app.services.sales.touch_dispatcher import dispatch_sales_touch
-            lead = self.db.query(Lead).filter_by(id=item.lead_id, tenant_id=self.tenant_id).first() if item.lead_id else None
 
             if lead:
                 send_result = dispatch_sales_touch(
@@ -210,6 +269,13 @@ class SalesOutboxService:
                     step_number=item.step_number or 1,
                     outbox_item_id=item.id,
                 )
+            elif channel != "email":
+                send_result = {
+                    "sent": False,
+                    "channel": channel,
+                    "reason": "lead_not_found",
+                    "message": "Cannot dispatch a non-email touch without its tenant-scoped lead.",
+                }
             else:
                 send_result = send_email_with_status(
                     self.db,
@@ -259,4 +325,12 @@ class SalesOutboxService:
 
             self.db.commit()
 
-        return {"status": "completed", "dispatched": dispatched, "failed": failed}
+        return {
+            "status": "completed",
+            "dispatched": dispatched,
+            # Keep the existing dispatched/failed keys and expose explicit
+            # suppression counts for cadence-runner accounting.
+            "sent": dispatched,
+            "failed": failed,
+            "suppressed": suppressed,
+        }

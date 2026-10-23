@@ -55,6 +55,10 @@ class ProposalDocumentGenerator:
             json.dumps(terms_payload, sort_keys=True).encode("utf-8")
         ).hexdigest()
 
+        special_notes_section = (
+            f"### 6. Special Commercial Notes\n{custom_notes}\n" if custom_notes else ""
+        )
+
         # Build Line Items Table
         line_item_rows = []
         for it in quote.line_items:
@@ -112,7 +116,7 @@ All figures in United States Dollars (USD), exclusive of applicable sales or sta
 2. **Data Isolation & Residency:** Client data remains encrypted in transit (TLS 1.3) and at rest (AES-256) within isolated tenant boundaries. No customer data is utilized to train third-party public foundation models without explicit opt-in.
 3. **Compliance Standard:** Provider adheres to SOC 2 Type II controls, GDPR Article 28 data processing guidelines, and India DPDP Act statutory requirements.
 
-{f"### 6. Special Commercial Notes\n{custom_notes}\n" if custom_notes else ""}
+{special_notes_section}
 ---
 
 ### 7. Authorized Acceptance & Signatures

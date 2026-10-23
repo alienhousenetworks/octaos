@@ -14,6 +14,7 @@ from app.services.mcp.auth.policy import PolicyKernel, AuthorizationDecision
 from app.services.mcp.connectors.base import ConnectorAdapter, ConnectorContext
 from app.services.mcp.connectors.octaos_internal import OctaOSInternalAdapter
 from app.services.mcp.connectors.marketing_adapter import MarketingIntegrationsAdapter
+from app.services.mcp.connectors.external_mcp import ExternalMCPAdapter
 from app.services.mcp.execution.query_engine import validate_query_dsl, QueryValidationError
 from app.services.mcp.registry.schema_validation import validate_record_against_schema
 from app.services.mcp.protocol import ToolResult, TextContent
@@ -54,8 +55,10 @@ class GovernedExecutionDispatcher:
     def get_adapter(self, connector_slug: str) -> ConnectorAdapter:
         adapter = self._adapters.get(connector_slug)
         if not adapter:
-            # Fall back to internal OctaOS adapter if unknown or default
-            return self._adapters["octaos"]
+            # Unknown slugs may be tenant-registered external MCP servers.
+            # Resolve their encrypted config lazily in ExternalMCPAdapter so
+            # each request remains tenant-scoped and multi-process safe.
+            return ExternalMCPAdapter(db_factory=self.db_factory)
         return adapter
 
     async def execute(

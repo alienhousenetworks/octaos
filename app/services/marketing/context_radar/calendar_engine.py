@@ -408,6 +408,43 @@ class CalendarEngine:
         for ce in custom_events:
             _add_event(ce, custom_hook=ce.get("hook"))
 
+        # Industry Marketing Moments from Active Pack
+        try:
+            from app.services.marketing.verticals.registry import get_marketing_pack, resolve_marketing_pack_id
+            active_pack_id = resolve_marketing_pack_id(getattr(profile, "industry_pack_id", None) if profile else None)
+            if not active_pack_id and industry:
+                active_pack_id = resolve_marketing_pack_id(industry.lower().replace(" ", "_").replace("&", "").replace("-", "_"))
+            if active_pack_id:
+                pack = get_marketing_pack(active_pack_id)
+                if pack:
+                    ind_events = pack.get("industry_calendar_events", [])
+                    month_names = {
+                        "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+                        "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
+                    }
+                    for ie in ind_events:
+                        m_str = ie.get("month", "").lower()
+                        m_num = month_names.get(m_str)
+                        if m_num:
+                            # Project date for current or next year in window
+                            target_year = today.year if (today.month <= m_num) else (today.year + 1)
+                            try:
+                                ie_date = date(target_year, m_num, 15)
+                                if today <= ie_date <= window_end:
+                                    _add_event({
+                                        "name": f"[{pack['name']}] {ie['name']}",
+                                        "date": ie_date.isoformat(),
+                                        "category": "industry_moment",
+                                        "scope": "industry",
+                                        "country": "Global",
+                                        "country_code": "GLOBAL",
+                                        "source": "marketing_vertical_pack",
+                                    }, custom_hook=ie.get("hook"))
+                            except Exception:
+                                continue
+        except Exception as pack_err:
+            logger.debug(f"[CalendarEngine] Industry pack events injection skipped: {pack_err}")
+
         events.sort(key=lambda e: e["date"])
         return events
 

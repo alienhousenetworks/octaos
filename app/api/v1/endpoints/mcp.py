@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import logging
+import json
+import re
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
+from urllib.parse import urlsplit, urlunsplit
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -19,6 +22,12 @@ from app.services.mcp.auth.credentials import (
 from app.services.mcp.registry.schema_discovery import SchemaDiscoveryService
 from app.services.mcp.connectors.octaos_internal import OctaOSInternalAdapter
 from app.services.mcp.registry.capability_registry import UNIVERSAL_TOOLS_SPEC, DOMAIN_WRAPPERS_SPEC
+from app.services.mcp.external_client import (
+    ExternalMCPClient,
+    ExternalMCPError,
+    validate_external_mcp_config,
+)
+from app.core.security import decrypt_api_key, encrypt_api_key
 from app.services.mcp.transport_http import (
     extract_credential_from_request,
     handle_streamable_http,
@@ -91,6 +100,75 @@ class CreateCredentialRequest(BaseModel):
 class TestConnectionRequest(BaseModel):
     raw_key: Optional[str] = None
     credential_id: Optional[str] = None
+
+
+class AddExternalMCPServerRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    slug: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    transport: str = "streamable_http"
+    endpoint: Optional[str] = None
+    command: Optional[str] = None
+    args: List[str] = Field(default_factory=list)
+    headers: Dict[str, str] = Field(default_factory=dict)
+    env: Dict[str, str] = Field(default_factory=dict)
+    timeout_seconds: float = 30.0
+
+
+def _mcp_slug(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.strip().lower()).strip("-")
+    return slug[:80] or "external-mcp"
+
+
+def _external_mcp_config(req: AddExternalMCPServerRequest) -> Dict[str, Any]:
+    return validate_external_mcp_config(
+        {
+            "transport": req.transport,
+            "endpoint": req.endpoint,
+            "command": req.command,
+            "args": req.args,
+            "headers": req.headers,
+            "env": req.env,
+            "timeout_seconds": req.timeout_seconds,
+        }
+    )
+
+
+def _external_mcp_servers_query(db: Session, tenant_id: str):
+    return (
+        db.query(DynamicConnector)
+        .filter(
+            DynamicConnector.tenant_id == tenant_id,
+            DynamicConnector.connector_type == "mcp",
+        )
+        .order_by(DynamicConnector.created_at.desc())
+    )
+
+
+def _external_mcp_server_response(connector: DynamicConnector) -> Dict[str, Any]:
+    config: Dict[str, Any] = {}
+    if connector.encrypted_config:
+        try:
+            config = json.loads(decrypt_api_key(connector.encrypted_config))
+        except Exception:
+            config = {}
+    transport = config.get("transport", "streamable_http")
+    target = config.get("endpoint") if transport != "stdio" else config.get("command")
+    if target and transport != "stdio":
+        parsed_target = urlsplit(str(target))
+        target = urlunsplit((parsed_target.scheme, parsed_target.netloc, parsed_target.path, "", ""))
+    return {
+        "id": connector.id,
+        "name": connector.name,
+        "slug": connector.slug,
+        "transport": transport,
+        "target": target,
+        "status": connector.status,
+        "enabled": connector.status != "suspended",
+        "has_headers": bool(config.get("headers")),
+        "has_environment": bool(config.get("env")),
+        "last_synced_at": connector.last_synced_at.isoformat() if connector.last_synced_at else None,
+        "created_at": connector.created_at.isoformat() if connector.created_at else None,
+    }
 
 
 @router.get("/credentials")
@@ -238,6 +316,140 @@ async def list_connectors(
     return {"connectors": res}
 
 
+@router.get("/servers")
+def list_external_mcp_servers(
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """List any external MCP servers registered for the current tenant."""
+    return {
+        "servers": [
+            _external_mcp_server_response(connector)
+            for connector in _external_mcp_servers_query(db, current_user.tenant_id).all()
+        ]
+    }
+
+
+@router.post("/servers")
+def add_external_mcp_server(
+    req: AddExternalMCPServerRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """Register an arbitrary MCP server without a provider-specific allow-list."""
+    try:
+        config = _external_mcp_config(req)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    slug = _mcp_slug(req.slug or req.name)
+    existing = (
+        db.query(DynamicConnector)
+        .filter(
+            DynamicConnector.tenant_id == current_user.tenant_id,
+            DynamicConnector.slug == slug,
+        )
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail=f"MCP server slug '{slug}' is already registered.")
+
+    connector = DynamicConnector(
+        tenant_id=current_user.tenant_id,
+        name=req.name.strip(),
+        slug=slug,
+        connector_type="mcp",
+        is_read_only=False,
+        encrypted_config=encrypt_api_key(json.dumps(config, sort_keys=True)),
+        status="active",
+    )
+    db.add(connector)
+    db.commit()
+    db.refresh(connector)
+    return _external_mcp_server_response(connector)
+
+
+@router.post("/servers/{server_id}/test")
+async def test_external_mcp_server(
+    server_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """Initialize an external MCP server and discover its tools."""
+    connector = (
+        _external_mcp_servers_query(db, current_user.tenant_id)
+        .filter(DynamicConnector.id == server_id)
+        .first()
+    )
+    if not connector:
+        raise HTTPException(status_code=404, detail="MCP server not found.")
+    if not connector.encrypted_config:
+        raise HTTPException(status_code=422, detail="MCP server has no connection configuration.")
+
+    try:
+        config = json.loads(decrypt_api_key(connector.encrypted_config))
+        client = ExternalMCPClient(config)
+        initialized = await client.initialize()
+        tools = await client.list_tools()
+        connector.status = "active"
+        connector.last_synced_at = datetime.now(timezone.utc)
+        db.commit()
+        return {
+            "status": "success",
+            "server": _external_mcp_server_response(connector),
+            "server_info": initialized.get("serverInfo", {}),
+            "protocol_version": initialized.get("protocolVersion"),
+            "tools": tools.get("tools", []) if isinstance(tools, dict) else [],
+        }
+    except (ExternalMCPError, ValueError, json.JSONDecodeError) as exc:
+        connector.status = "degraded"
+        db.commit()
+        raise HTTPException(status_code=502, detail=f"MCP connection failed: {exc}") from exc
+    except Exception as exc:
+        connector.status = "degraded"
+        db.commit()
+        raise HTTPException(status_code=502, detail="MCP connection failed.") from exc
+
+
+@router.delete("/servers/{server_id}")
+def delete_external_mcp_server(
+    server_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """Remove an external MCP server and its discovered objects."""
+    connector = (
+        _external_mcp_servers_query(db, current_user.tenant_id)
+        .filter(DynamicConnector.id == server_id)
+        .first()
+    )
+    if not connector:
+        raise HTTPException(status_code=404, detail="MCP server not found.")
+    db.delete(connector)
+    db.commit()
+    return {"status": "success", "message": f"MCP server '{connector.name}' removed."}
+
+
+@router.post("/servers/{server_id}/disable")
+def disable_external_mcp_server(
+    server_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """Disable an external MCP server without deleting its encrypted config."""
+    connector = (
+        _external_mcp_servers_query(db, current_user.tenant_id)
+        .filter(DynamicConnector.id == server_id)
+        .first()
+    )
+    if not connector:
+        raise HTTPException(status_code=404, detail="MCP server not found.")
+    connector.status = "suspended" if connector.status != "suspended" else "active"
+    db.commit()
+    db.refresh(connector)
+    return _external_mcp_server_response(connector)
+
+
 @router.post("/connectors/sync")
 async def trigger_sync(
     current_user: User = Depends(deps.get_current_user),
@@ -275,6 +487,8 @@ async def test_connection(
     cred = None
     if req.raw_key:
         cred = authenticate_mcp_key(db, req.raw_key)
+        if cred and cred.tenant_id != current_user.tenant_id:
+            cred = None
     elif req.credential_id:
         cred = (
             db.query(SystemMCPCredential)

@@ -225,6 +225,10 @@ class SalesReplyHandler(BaseAgent):
                     if booked:
                         sync_bridge.sync_meeting_booked(lead, auto_commit=True)
                 except Exception as book_exc:
+                    data["meeting_coordination_status"] = "needs_booking_details"
+                    data["meeting_booking_error"] = str(book_exc)[:300]
+                    lead.data = data
+                    self.db.commit()
                     self.log_activity("Meeting Booking Deferred", f"Auto-booking deferred ({book_exc}); coordinating slots.", "warning")
             else:
                 data["meeting_coordination_status"] = "coordinating_slots"
@@ -325,72 +329,105 @@ class SalesReplyHandler(BaseAgent):
         for msg in history[-10:]:
             history_text += f"{msg.get('direction', '?').upper()} ({msg.get('channel')}): {msg.get('content', '')}\n"
 
-        prompt = f"""You are an elite Sales Assistant analyzing a REAL inbound message from a prospect.
-Our Knowledge Base & Company Context:
-Company Overview: {ctx.company_overview if ctx else 'Enterprise System'}
-Products Catalog: {ctx.products_catalog if ctx else []}
-Objection Playbook: {ctx.objection_playbook if ctx else {{}}}
-Verified Knowledge Base Documents:
+        from app.services.sales_os.contracts.registry import render_prompts
+
+        rendered = render_prompts(
+            "sales.conversation",
+            {
+                "company_name": lead.company or "the prospect's company",
+                "inbound_text": content or "",
+            },
+        )
+        prompt = f"""Classify one real inbound sales reply using the contract below.
+
+VERIFIED COMPANY CONTEXT:
+Company overview: {ctx.company_overview if ctx else 'No verified company overview'}
+Products catalog: {ctx.products_catalog if ctx else []}
+Objection playbook: {ctx.objection_playbook if ctx else {}}
+Knowledge documents:
 {doc_snippets if doc_snippets else 'No extra knowledge documents available.'}
 
-Lead: {lead.name} at {lead.company}
+CONVERSATION CONTEXT:
+Lead: {lead.name or 'Unknown'} at {lead.company or 'Unknown company'}
 Our last outreach:
-{outbound}
+{outbound or 'No outbound message recorded.'}
+History:
+{history_text or 'No prior conversation.'}
+Subject: {subject or 'No subject'}
 
-Conversation History:
-{history_text}
+CONTRACT TASK:
+{rendered['task_prompt']}
 
-New inbound message ({subject or 'no subject'}):
-{content}
-
-Classify the prospect message and plan the response. Output JSON only:
-{{
-  "intent": "interested" | "question" | "objection" | "decline" | "neutral",
-  "interested": true/false,
-  "requires_human_clarification": true/false,
-  "unanswered_question": "string or null",
-  "confidence": 0.0 to 1.0,
-  "suggested_time": "meeting time they proposed or null",
-  "summary": "one line summary",
-  "should_auto_reply": true/false,
-  "suggested_reply": "professional reply text to send them (empty if decline or requires_human_clarification)"
-}}
-
-Strict Grounding & Human Escalation Rules:
-1. interested=true only if they clearly want a call, demo, or meeting.
-2. If the prospect asks a question or raises an objection that is ANSWERED by our Knowledge Base, Products Catalog, or Playbook:
-   - Provide a factual, concise suggested_reply directly grounded in those facts.
-   - Set requires_human_clarification = false and confidence >= 0.85.
-3. If the prospect asks about a feature, pricing detail, technical integration, or policy that is NOT covered in our Knowledge Base:
-   - You MUST set requires_human_clarification = true and confidence = 0.2.
-   - Set unanswered_question = the specific question or topic they asked about.
-   - Do NOT guess, simulate, or hallucinate an answer.
-4. If they decline/unsubscribe, set interested=false, should_auto_reply=false, requires_human_clarification=false.
-5. suggested_reply must sound human, concise, on-brand; never mention AI.
+Return only the JSON object required by the contract. Do not add facts, availability, pricing, or policy details that are not in the verified context.
 """
         response = await self.llm.complete(
-            prompt=prompt, provider="anthropic", model="claude-3-haiku-20240307"
+            prompt=prompt,
+            system_prompt=rendered["system_prompt"],
+            provider=rendered.get("provider") or "anthropic",
+            model=rendered.get("model_id") or "claude-3-haiku-20240307",
         )
         try:
-            cleaned = response.strip().strip("```json").strip("```").strip()
-            return json.loads(cleaned)
+            cleaned = response.strip()
+            if cleaned.startswith("```"):
+                lines = cleaned.splitlines()
+                cleaned = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:]).strip()
+            parsed = json.loads(cleaned)
+            if not isinstance(parsed, dict):
+                raise ValueError("Reply classifier returned a non-object")
+
+            allowed_intents = {
+                "interested", "question", "objection", "decline", "unsubscribe",
+                "wrong_person", "timing_later", "out_of_office", "needs_human_review",
+            }
+            intent = str(parsed.get("intent") or "needs_human_review").strip().lower()
+            if intent not in allowed_intents:
+                intent = "needs_human_review"
+            requires_clarification = bool(parsed.get("requires_human_clarification"))
+            interested = bool(parsed.get("interested")) and intent == "interested"
+            if intent in {"decline", "unsubscribe", "wrong_person", "out_of_office", "timing_later"}:
+                interested = False
+            if intent == "needs_human_review":
+                requires_clarification = True
+
+            return {
+                "intent": intent,
+                "interested": interested,
+                "requires_human_clarification": requires_clarification,
+                "unanswered_question": parsed.get("unanswered_question"),
+                "confidence": max(0.0, min(1.0, float(parsed.get("confidence", 0.0) or 0.0))),
+                "suggested_time": parsed.get("suggested_time"),
+                "summary": parsed.get("summary") or (content or "")[:120],
+                "should_auto_reply": bool(parsed.get("should_auto_reply")) and not requires_clarification and intent not in {"decline", "unsubscribe"},
+                "suggested_reply": str(parsed.get("suggested_reply") or ""),
+            }
         except Exception:
             lower = content.lower()
-            interested = any(
-                w in lower
-                for w in ("meet", "call", "demo", "schedule", "available", "yes", "interested")
-            )
+            unsubscribe = any(w in lower for w in ("unsubscribe", "remove me", "stop emailing", "do not contact", "don't contact"))
+            decline = any(w in lower for w in ("not interested", "no thanks", "not a fit", "please don't"))
+            meeting_interest = any(w in lower for w in ("meet", "meeting", "call", "demo", "schedule", "calendar"))
+            positive = any(w in lower for w in ("yes", "happy to", "sounds good", "interested", "let's"))
+            interested = meeting_interest and positive and not unsubscribe and not decline
             is_question = "?" in content or any(w in lower for w in ("how", "what", "pricing", "can you", "integrate", "support"))
+            if unsubscribe:
+                intent = "unsubscribe"
+            elif decline:
+                intent = "decline"
+            elif interested:
+                intent = "interested"
+            elif is_question:
+                intent = "question"
+            else:
+                intent = "needs_human_review"
             # If docs exist and question is asked, check if covered
             return {
-                "intent": "interested" if interested else ("question" if is_question else "neutral"),
+                "intent": intent,
                 "interested": interested,
-                "requires_human_clarification": is_question and not bool(docs),
+                "requires_human_clarification": intent == "needs_human_review" or (is_question and not bool(docs)),
                 "unanswered_question": content if (is_question and not bool(docs)) else None,
                 "confidence": 0.5,
                 "suggested_time": None,
                 "summary": content[:120],
-                "should_auto_reply": not is_question,
+                "should_auto_reply": not is_question and intent not in {"decline", "unsubscribe", "needs_human_review"},
                 "suggested_reply": (
                     "Thanks for getting back to me — happy to find a time that works. "
                     "What does your calendar look like this week?"
@@ -399,7 +436,6 @@ Strict Grounding & Human Escalation Rules:
 
     async def send_sales_reply(self, lead: Lead, channel: str, content: str) -> None:
         from app.services.email.sender import send_email
-        from app.services.agents.support import SupportAgent
 
         if channel == "email":
             subject = (lead.data or {}).get("outbound_subject", "Following up")
@@ -433,18 +469,32 @@ Strict Grounding & Human Escalation Rules:
                     "failed",
                 )
         elif channel == "whatsapp":
-            support = SupportAgent(self.db, self.tenant_id)
+            from app.services.sales.touch_dispatcher import extract_lead_phone, send_whatsapp_with_status
+
             phone = lead.phone or (lead.data or {}).get("whatsapp_from")
             if phone:
-                await support.send_message("whatsapp", phone, content)
-                self._append_conversation(
-                    lead, direction="outbound", channel=channel, content=content
-                )
-                self.db.commit()
+                result = send_whatsapp_with_status(self.db, self.tenant_id, extract_lead_phone(lead) or phone, content)
+                if result.get("sent"):
+                    self._append_conversation(
+                        lead, direction="outbound", channel=channel, content=content
+                    )
+                    self.db.commit()
+                    self.log_activity(
+                        "Sales Reply Sent",
+                        f"WhatsApp reply sent to {phone}.",
+                        "success",
+                    )
+                else:
+                    self.log_activity(
+                        "Sales Reply Failed",
+                        f"Could not send WhatsApp reply to {phone}. Reason: {result.get('reason')}",
+                        "failed",
+                    )
+            else:
                 self.log_activity(
-                    "Sales Reply Sent",
-                    f"WhatsApp reply sent to {phone}.",
-                    "success",
+                    "Sales Reply Failed",
+                    f"Could not send WhatsApp reply to {lead.name}: no phone number.",
+                    "failed",
                 )
 
     async def submit_human_clarification(

@@ -134,7 +134,11 @@ class DurableCadenceRunner:
             # 1. Drain due outbox items
             try:
                 drained = self.outbox.drain_due_items(limit=max_touches // 2, max_jitter_sec=1)
-                stats["touches_sent"] += drained.get("sent", 0)
+                # SalesOutboxService historically returned `dispatched`; it
+                # now also exposes `sent` for compatibility. Prefer the
+                # explicit sent count so cadence limits and audit metrics do
+                # not silently under-count outbox deliveries.
+                stats["touches_sent"] += drained.get("sent", drained.get("dispatched", 0))
                 stats["failures"] += drained.get("failed", 0)
                 stats["touches_suppressed"] += drained.get("suppressed", 0)
             except Exception as drain_err:

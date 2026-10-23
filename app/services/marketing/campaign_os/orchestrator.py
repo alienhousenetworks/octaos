@@ -332,6 +332,7 @@ class CampaignOSOrchestrator:
                     post_draft=draft,
                     approved_evidence=approved_evidence,
                     brand_brief=brand_brief,
+                    pack_id=campaign_projection.get("industry_pack_id"),
                     provider=strat_p,
                     model=strat_m,
                 )

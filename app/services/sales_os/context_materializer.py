@@ -52,7 +52,7 @@ Company Name: {profile.company_name if profile else 'Target Enterprise'}
 Website: {profile.website if profile else ''}
 Industry: {profile.industry if profile else ''}
 Service Description: {profile.service_description if profile else ''}
-Target Budget Range: {profile.target_budget_range if profile else '1L-5L'}
+Target Budget Range: {profile.target_budget_range if profile and profile.target_budget_range else 'unknown'}
 USP: {profile.usp if profile else ''}
 Offer Details: {profile.offer_details if profile else ''}
 
@@ -125,20 +125,15 @@ Return only valid JSON."""
                     inferred_industries.append("SaaS")
             if not inferred_industries and profile and profile.industry:
                 inferred_industries.append(profile.industry)
-            if not inferred_industries:
-                inferred_industries = ["SaaS", "Technology"]
-
             synthesized = {
                 "company_overview": {
                     "name": profile.company_name if profile else "Company",
-                    "industry": inferred_industries[0],
+                    "industry": inferred_industries[0] if inferred_industries else "unknown",
                 },
                 "products_catalog": [],
                 "services_catalog": [],
                 "icp_definitions": {
                     "industries": inferred_industries,
-                    "min_employees": 50,
-                    "max_employees": 1000,
                 },
                 "buyer_personas": [],
                 "proof_points": [e.claim for e in ev_records],

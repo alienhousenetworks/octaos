@@ -259,7 +259,18 @@ CONTRACTS: dict[str, AgentContract] = {
         variables=_vars("company_name", "inbound_text"),
         reads=["deal_room", "inbox"],
         writes=["reply_assessment"],
-        evaluation=["reply_taxonomy", "unsubscribe_requires_explicit_opt_out"],
+        output_schema={
+            "type": "object",
+            "required": [
+                "intent",
+                "interested",
+                "requires_human_clarification",
+                "confidence",
+                "should_auto_reply",
+                "suggested_reply",
+            ],
+        },
+        evaluation=["reply_taxonomy", "unsubscribe_requires_explicit_opt_out", "ambiguous_reply_abstention"],
     ),
     "sales.sales_manager": _code(
         "sales.sales_manager",

@@ -91,6 +91,8 @@ class PreSendGatekeeper:
         step_number: int = 1,
         max_words: Optional[int] = None,
         max_links: int = 1,
+        min_words: int = 8,
+        require_subject: bool = True,
     ) -> GatekeeperResult:
         """Validate an outreach touch against deliverability rules."""
         violations: List[str] = []
@@ -125,8 +127,8 @@ class PreSendGatekeeper:
         if word_count > ceiling:
             violations.append(f"Word count ({word_count}) exceeds ceiling of {ceiling} words for touch {step_number}")
 
-        if word_count < 8:
-            violations.append(f"Message is too short ({word_count} words); minimum is 8 words")
+        if word_count < min_words:
+            violations.append(f"Message is too short ({word_count} words); minimum is {min_words} words")
 
         # 4. Link Limits
         links = URL_REGEX.findall(cleaned_body)
@@ -134,9 +136,9 @@ class PreSendGatekeeper:
             violations.append(f"Found {len(links)} links; cold outreach allows at most {max_links} link")
 
         # 5. Subject checks
-        if not cleaned_subject:
+        if require_subject and not cleaned_subject:
             violations.append("Subject line is missing or empty")
-        elif len(cleaned_subject.split()) > 10:
+        elif cleaned_subject and len(cleaned_subject.split()) > 10:
             violations.append(f"Subject line is too long ({len(cleaned_subject.split())} words; max 10 words)")
 
         return GatekeeperResult(

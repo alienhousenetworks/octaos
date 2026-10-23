@@ -120,6 +120,38 @@ def test_mcp_credentials_crud_endpoint(api_test_data):
         assert del_res.status_code == 200
 
 
+def test_external_mcp_server_registration_accepts_arbitrary_provider(api_test_data):
+    token = api_test_data["jwt_token"]
+    with TestClient(app) as client:
+        add_res = client.post(
+            "/api/v1/mcp/servers",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "name": "Any Provider MCP",
+                "slug": "any-provider",
+                "transport": "streamable_http",
+                "endpoint": "https://mcp.example.test/provider",
+                "headers": {"Authorization": "Bearer secret"},
+            },
+        )
+        assert add_res.status_code == 200
+        server = add_res.json()
+        assert server["slug"] == "any-provider"
+        assert server["transport"] == "streamable_http"
+        assert server["target"] == "https://mcp.example.test/provider"
+        assert server["has_headers"] is True
+
+        list_res = client.get("/api/v1/mcp/servers", headers={"Authorization": f"Bearer {token}"})
+        assert list_res.status_code == 200
+        assert any(item["id"] == server["id"] for item in list_res.json()["servers"])
+
+        delete_res = client.delete(
+            f"/api/v1/mcp/servers/{server['id']}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert delete_res.status_code == 200
+
+
 def test_mcp_streamable_http_transport(api_test_data):
     raw_key = api_test_data["raw_mcp_key"]
     with TestClient(app) as client:

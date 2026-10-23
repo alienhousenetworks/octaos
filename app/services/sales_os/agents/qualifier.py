@@ -48,7 +48,10 @@ class QualifierAgent(BaseSalesAgent):
             .first()
         )
         icp = ctx.icp_definitions if ctx else {}
-        target_industries = list(icp.get("industries") or ["saas", "technology", "manufacturing", "healthcare"])
+        # Never inject a default industry list for a tenant that has not
+        # configured one. Unknown ICP evidence must remain unknown rather than
+        # silently turning every account into a SaaS/technology prospect.
+        target_industries = list(icp.get("industries") or [])
         decision_record = qualify_account(
             industry=deal_room.industry,
             employee_count=deal_room.employee_count,

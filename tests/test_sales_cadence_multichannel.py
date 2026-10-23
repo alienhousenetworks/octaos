@@ -20,6 +20,7 @@ from app.services.sales.touch_dispatcher import (
     extract_lead_linkedin_url,
 )
 from app.services.sales.outbox_service import SalesOutboxService
+from app.services.sales_os.governance.suppression import SuppressionService
 from app.core.security import encrypt_api_key
 
 
@@ -86,6 +87,58 @@ def test_whatsapp_dispatch_unconfigured(db_session):
     assert res["channel"] == "whatsapp"
     assert res["reason"] == "meta_whatsapp_not_configured"
     assert "not configured" in res["message"].lower()
+
+
+def test_whatsapp_only_lead_can_be_staged_in_durable_outbox(db_session):
+    lead = Lead(
+        tenant_id="test_tenant_cadence",
+        name="Phone Only Prospect",
+        phone="+1 555 010 2020",
+        company="Phone First Co",
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    staged = SalesOutboxService(db_session, "test_tenant_cadence").stage_sequence(
+        lead,
+        [{
+            "day": 1,
+            "channel": "whatsapp",
+            "content": "Hello, would a short conversation be useful this week?",
+        }],
+    )
+
+    assert len(staged) == 1
+    assert staged[0].channel == "whatsapp"
+    assert staged[0].recipient_email == "15550102020"
+
+
+def test_dispatcher_blocks_suppressed_email_before_provider_call(db_session):
+    lead = Lead(
+        tenant_id="test_tenant_cadence",
+        name="Opted Out",
+        email="opted-out@example.com",
+        company="Suppressed Co",
+    )
+    db_session.add(lead)
+    db_session.commit()
+    SuppressionService(db_session, "test_tenant_cadence").add_suppression(
+        "email", lead.email, reason="unsubscribe"
+    )
+
+    with patch("app.services.sales.touch_dispatcher.send_email_with_status") as send:
+        result = dispatch_sales_touch(
+            db_session,
+            "test_tenant_cadence",
+            lead,
+            channel="email",
+            subject="A relevant conversation",
+            body="Hello, I wanted to share a relevant idea for your team.",
+        )
+
+    assert result["sent"] is False
+    assert result["reason"] == "suppressed"
+    send.assert_not_called()
 
 
 def test_whatsapp_dispatch_with_mocked_meta_api(db_session):

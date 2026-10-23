@@ -110,6 +110,22 @@ class SalesAgent(BaseAgent):
             self.log_activity("V3 Workflow Error", "No Business Profile configured.", "failed")
             return {"status": "error", "message": "Business Profile not found."}
 
+        # Prompt-directed campaigns are intentionally allowed to run without a
+        # saved BusinessProfile. Keep all downstream steps on the same neutral
+        # context instead of dereferencing profile fields or assuming a
+        # particular industry/currency/budget model.
+        profile_company_name = (getattr(profile, "company_name", None) or "Your company").strip()
+        profile_website = getattr(profile, "website", None) or "unknown"
+        profile_industry = getattr(profile, "industry", None) or "unknown"
+        profile_description = getattr(profile, "service_description", None) or "unknown"
+        profile_offer = getattr(profile, "offer_details", None) or "unknown"
+        profile_usp = getattr(profile, "usp", None) or "unknown"
+        profile_budget = getattr(profile, "target_budget_range", None) or "unknown"
+        profile_countries = getattr(profile, "target_countries", None) or []
+        profile_target_industries = getattr(profile, "target_industries", None) or []
+        profile_decision_makers = getattr(profile, "target_decision_makers", None) or []
+        profile_extra_context = getattr(profile, "extra_context", None) or ""
+
         engine_name = "Prompt-Based Sales Agent" if mode == "prompt_agent" else "Configured Sales Engine"
         log_prefix = f"[{'Prompt Sales Agent' if mode == 'prompt_agent' else 'Configured Sales Engine'}]"
 
@@ -191,7 +207,7 @@ class SalesAgent(BaseAgent):
                 emit_activity(1, "ICP synthesized from prompt directive", f"{log_prefix} Generated criteria from prompt: {icp[:90]}...")
                 update_status(1, "completed", f"[Prompt Directive] {icp}", f"Generated ICP from prompt directive: {icp}")
             else:
-                effective_context = profile.extra_context if profile else ""
+                effective_context = profile_extra_context
                 from app.services.sales_os.context_materializer import SalesContextMaterializer
                 materializer = SalesContextMaterializer(self.db, self.tenant_id)
                 sales_ctx = materializer.get_active_context()
@@ -199,25 +215,25 @@ class SalesAgent(BaseAgent):
                     sales_ctx = await materializer.materialize_context()
 
                 domain_archetype = classify_archetype(
-                    brief=(profile.service_description if profile else "") or "",
-                    query=(profile.industry if profile else "") or "",
-                    offer=(profile.offer_details if profile else "") or ""
+                    brief=profile_description,
+                    query=profile_industry,
+                    offer=profile_offer,
                 )
 
-                company_name = profile.company_name if profile and profile.company_name else "Enterprise"
+                company_name = profile_company_name
                 emit_activity(1, f"Synthesizing Ideal Customer Profile for {company_name}...", f"{log_prefix} Classifying domain archetype and target criteria...")
                 rendered = render_prompts(
                     "sales.orchestrator",
                     {
-                        "company_name": profile.company_name if profile and profile.company_name else "Enterprise",
-                        "website": profile.website if profile and profile.website else "unknown",
-                        "industry": profile.industry if profile and profile.industry else "unknown",
+                        "company_name": profile_company_name,
+                        "website": profile_website,
+                        "industry": profile_industry,
                         "archetype": domain_archetype,
-                        "description": profile.service_description if profile and profile.service_description else "unknown",
-                        "countries": str(profile.target_countries if profile else []) or "unknown",
-                        "target_industries": str(profile.target_industries if profile else []) or "unknown",
-                        "target_budget": str(profile.target_budget_range if profile else "") or "unknown",
-                        "usp": profile.usp if profile and profile.usp else "unknown",
+                        "description": profile_description,
+                        "countries": str(profile_countries) or "unknown",
+                        "target_industries": str(profile_target_industries) or "unknown",
+                        "target_budget": str(profile_budget) or "unknown",
+                        "usp": profile_usp,
                         "analyst_notes": effective_context or "none",
                         "freshness_window": str(freshness_window),
                     },
@@ -255,7 +271,7 @@ class SalesAgent(BaseAgent):
                 lines = [line.strip() for line in effective_context.split("\n") if line.strip() and not line.strip().upper().startswith(("ROLE", "WHAT WE SELL"))]
                 query = lines[0][:100] if lines else "high-intent B2B target accounts"
             else:
-                query = profile.target_industries[0] if (profile and profile.target_industries) else "target clients"
+                query = profile_target_industries[0] if profile_target_industries else "target clients"
             
             # Filter to all registered discovery and signal sources (60+ channels)
             from app.services.sales_os.discovery.source_registry import get_all_source_ids
@@ -346,11 +362,11 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                             else:
                                 search_query = research_brief(
                                     query,
-                                    industries=profile.target_industries if profile else None,
-                                    countries=profile.target_countries if profile else None,
-                                    buyers=getattr(profile, "target_decision_makers", None) if profile else None,
-                                    budget=profile.target_budget_range if profile else None,
-                                    offer=profile.service_description if profile else None,
+                                    industries=profile_target_industries or None,
+                                    countries=profile_countries or None,
+                                    buyers=profile_decision_makers or None,
+                                    budget=profile_budget if profile_budget != "unknown" else None,
+                                    offer=profile_description if profile_description != "unknown" else None,
                                 )
                             fetch_extra["analyst_prompt"] = analyst_instructions(effective_context)
                             fetch_extra["on_progress"] = lambda msg: emit_activity(2, msg.split("]")[-1].strip() if "]" in msg else msg, f"{log_prefix} {msg}")
@@ -444,9 +460,13 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                 # Final Strict Validation and Suppression Check
                 has_name = bool(c.get("name") and c["name"].strip() not in ["Unknown Contact", "General Inquiry"])
                 # For open-web discovery, allow verified domain emails (sales@, contact@, info@) unless paid waterfall enrichment (Apollo/Hunter) is active
-                has_contact = bool(c.get("email") and "@" in c["email"])
-                if available_providers.get("hunter") or available_providers.get("apollo"):
-                    has_contact = has_contact and not c["email"].startswith("contact@") and not c["email"].startswith("info@")
+                email_value = str(c.get("email") or "").strip()
+                phone_value = str(c.get("phone") or "").strip()
+                has_email = "@" in email_value
+                has_phone = len(re.sub(r"\D", "", phone_value)) >= 8
+                has_contact = has_email or has_phone
+                if has_email and (available_providers.get("hunter") or available_providers.get("apollo")):
+                    has_contact = not email_value.startswith("contact@") and not email_value.startswith("info@")
                 
                 from app.services.sales_os.governance.suppression import SuppressionService
                 from app.services.sales_os.providers.honesty import is_fabricated_contact
@@ -473,8 +493,8 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                         "contact": {
                             "name": c.get("name", ""),
                             "title": c.get("title") or "Contact",
-                            "email": c.get("email", ""),
-                            "phone": c.get("phone", ""),
+                        "email": email_value,
+                        "phone": phone_value,
                             "linkedin_url": c.get("linkedin_url") or ""
                         }
                     })
@@ -482,7 +502,7 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
             if not companies:
                 import json
                 rejected_data_str = json.dumps(companies_data, indent=2)
-                raise Exception(f"API returned leads, but after strict waterfall enrichment, none had the mandatory real Name and Email. No simulated data is allowed.\nRaw Rejected Data: {rejected_data_str}")
+                raise Exception(f"API returned leads, but after strict waterfall enrichment, none had a real name and deliverable email or phone. No simulated data is allowed.\nRaw Rejected Data: {rejected_data_str}")
             
             import json
             leads_summary = [{"name": c["contact"]["name"], "email": c["contact"]["email"], "company": c["company_name"]} for c in companies]
@@ -502,12 +522,13 @@ Company Name: {c['company_name']}
 Industry: {c['industry']}
 Estimated Revenue: {c['estimated_revenue']}
 Estimated Employees: {c['estimated_employees']}
-Our Target Budget Range: {profile.target_budget_range}
+Our Target Budget / Pricing Context: {profile_budget}
+Target Industries: {profile_target_industries or 'unknown'}
+Offer: {profile_offer}
 
-Assess their purchasing capacity based on their profile, industry, estimated revenue and employee count. Choose one of: "20K–1L", "1L–3L", "3L–7L", "7L–15L", "15L+".
-Determine if they fit our target offer and budget range. If revenue or employee count is not explicitly known, evaluate if their industry and business scale typically aligns with our target budget range.
+Assess purchasing capacity only from the supplied evidence and the tenant's own budget context. Do not assume a currency, industry, company-size band, or fixed capacity taxonomy. If capacity is not evidenced, return "unknown". A lead is qualified only when the supplied evidence supports the tenant's target criteria; missing facts must not be filled with typical industry assumptions.
 Output a JSON object with:
-- capacity: string (one of the options above)
+- capacity: string (an evidence-backed label or "unknown")
 - qualified: boolean (true if budget, industry and size align with ICP, false otherwise)
 - reason: string (concise, factual explanation grounded in provided data)
 Only return JSON, no other text."""
@@ -533,25 +554,31 @@ Only return JSON, no other text."""
             # Persist qualified leads to database immediately so they appear in the pipeline board in real time
             for c in qualified_companies:
                 email_val = c.get("contact", {}).get("email") or ""
-                if not email_val:
+                phone_val = c.get("contact", {}).get("phone") or ""
+                if not email_val and not phone_val:
                     continue
-                exists = self.db.query(Lead).filter_by(tenant_id=self.tenant_id, email=email_val).first()
+                query = self.db.query(Lead).filter(Lead.tenant_id == self.tenant_id)
+                if email_val:
+                    query = query.filter(Lead.email == email_val)
+                else:
+                    query = query.filter(Lead.phone == phone_val)
+                exists = query.first()
                 if not exists:
                     lead = Lead(
                         tenant_id=self.tenant_id,
                         name=c["contact"]["name"],
-                        email=email_val,
-                        phone=c["contact"].get("phone", ""),
+                        email=email_val or None,
+                        phone=phone_val,
                         company=c["company_name"],
                         source=f"{c['source']}: V3 Workflow",
                         status="qualified",
                         score=50,
                         priority="medium",
                         assigned_to="Sales AI Agent",
-                        personal_email=email_val,
-                        company_email=email_val,
-                        mobile_no=c["contact"].get("phone", ""),
-                        need_of_what=profile.offer_details,
+                        personal_email=email_val or None,
+                        company_email=email_val or None,
+                        mobile_no=phone_val,
+                        need_of_what=profile_offer,
                         why=c.get("why_now") or c["qualification_reason"],
                         data=_build_lead_data(c),
                         target_context=f"Archetype: {domain_archetype} | Capacity: {c.get('purchasing_capacity', 'Unknown')}"
@@ -608,8 +635,8 @@ Only return JSON, no other text."""
                         "industry": c.get("industry") or "unknown",
                         "news": news_context,
                         "jobs": jobs_context,
-                        "offer": profile.offer_details or "unknown",
-                        "usp": profile.usp or "unknown",
+                        "offer": profile_offer,
+                        "usp": profile_usp,
                     },
                     task="pain",
                 )
@@ -654,7 +681,7 @@ Only return JSON, no other text."""
                         "company_name": c["company_name"],
                         "industry": c.get("industry") or "unknown",
                         "pain_points": str(c.get("pain_points") or []),
-                        "usp": profile.usp or "unknown",
+                        "usp": profile_usp,
                     },
                     task="score",
                 )
@@ -685,7 +712,7 @@ Only return JSON, no other text."""
                     try:
                         why_now = (await self.llm.complete(
                             f"In 2 sentences, explain why {c['company_name']} is worth contacting NOW for our offer "
-                            f"({profile.offer_details}). Use ONLY these facts, invent nothing.\n"
+                            f"({profile_offer}). Use ONLY these facts, invent nothing.\n"
                             f"Signal ({fresh_info.get('freshness_label') or 'unknown age'}): {snippet}\n"
                             f"News: {[n.get('title') for n in c.get('news', [])]}\n"
                             f"Jobs: {[j.get('title') for j in c.get('jobs', [])]}\n"
@@ -734,21 +761,21 @@ Only return JSON, no other text."""
                 user = self.db.query(User).filter_by(tenant_id=self.tenant_id).order_by(User.is_superuser.desc(), User.id.asc()).first()
                 employee_name = user.name.strip() if (user and user.name and user.name.strip()) else None
                 if employee_name:
-                    behalf_instruction = f"Write on behalf of {employee_name} at {profile.company_name}. Sign off with: Best regards, {employee_name}, {profile.company_name}."
+                    behalf_instruction = f"Write on behalf of {employee_name} at {profile_company_name}. Sign off with: Best regards, {employee_name}, {profile_company_name}."
                 else:
-                    behalf_instruction = f"Write on behalf of {profile.company_name}. Do NOT invent any employee or sender name. Sign off strictly with: Best regards, {profile.company_name} (or The {profile.company_name} Team)."
+                    behalf_instruction = f"Write on behalf of {profile_company_name}. Do NOT invent any employee or sender name. Sign off strictly with: Best regards, {profile_company_name} (or The {profile_company_name} Team)."
 
                 for i, c in enumerate(scored_leads):
                     emit_activity(7, f"Drafting tailored outreach email for {c['contact']['name']} at {c['company_name']} ({i+1}/{len(scored_leads)})...")
                     news_context = ", ".join([n["title"] for n in c.get("news", [])]) if c.get("news") else "None recent"
                     jobs_context = ", ".join([j["title"] for j in c.get("jobs", [])]) if c.get("jobs") else "None recent"
 
-                    prompt = f"""Write a highly personalized outbound sales email from {profile.company_name} to {c['contact']['name']} ({c['contact']['title']}) at {c['company_name']}.
+                    prompt = f"""Write a highly personalized outbound sales email from {profile_company_name} to {c['contact']['name']} ({c['contact']['title']}) at {c['company_name']}.
 Tailor it to their specific pain points: {c['pain_points']}.
 Recent Company News to reference (if relevant): {news_context}
 Recent Job Openings to reference (if relevant): {jobs_context}
-Use our USP: {profile.usp}
-Offer: {profile.offer_details}{proof_text}
+Use our USP: {profile_usp}
+Offer: {profile_offer}{proof_text}
 
 Sender & Context Instructions:
 - {behalf_instruction}
@@ -778,7 +805,14 @@ Strict Tone & Quality Rules:
             for idx, c in enumerate(scored_leads):
                 emit_activity(8, f"Sequencing multi-channel touchpoints for {c['company_name']} ({idx+1}/{len(scored_leads)})...")
                 # Save lead in DB
-                exists = self.db.query(Lead).filter_by(tenant_id=self.tenant_id, email=c["contact"]["email"]).first()
+                contact_email = c["contact"].get("email") or ""
+                contact_phone = c["contact"].get("phone") or ""
+                lead_query = self.db.query(Lead).filter(Lead.tenant_id == self.tenant_id)
+                if contact_email:
+                    lead_query = lead_query.filter(Lead.email == contact_email)
+                else:
+                    lead_query = lead_query.filter(Lead.phone == contact_phone)
+                exists = lead_query.first()
                 if exists:
                     lead = exists
                     lead.score = c["scoring"]["total"]
@@ -790,18 +824,18 @@ Strict Tone & Quality Rules:
                     lead = Lead(
                         tenant_id=self.tenant_id,
                         name=c["contact"]["name"],
-                        email=c["contact"]["email"],
-                        phone=c["contact"]["phone"],
+                        email=contact_email or None,
+                        phone=contact_phone,
                         company=c["company_name"],
                         source=f"{c['source']}: V3 Workflow",
                         status="scored",
                         score=c["scoring"]["total"],
                         priority="high" if c["scoring"]["category"] == "Hot Lead" else "medium",
                         assigned_to="Sales AI Agent",
-                        personal_email=c["contact"]["email"],
-                        company_email=c["contact"]["email"],
-                        mobile_no=c["contact"]["phone"],
-                        need_of_what=profile.offer_details,
+                        personal_email=contact_email or None,
+                        company_email=contact_email or None,
+                        mobile_no=contact_phone,
+                        need_of_what=profile_offer,
                         why=c.get("why_now") or c["qualification_reason"],
                         target_context=f"Archetype: {domain_archetype} | Pain points: {', '.join(c.get('pain_points', []))}"
                     )
@@ -826,65 +860,60 @@ Strict Tone & Quality Rules:
 
                 channel_schedule = [
                     {"day": 1, "channel": "Email", "content": c["outreach_message"], "status": "pending"},
-                    {"day": 1 + cadence, "channel": "LinkedIn", "content": f"Hi {c['contact']['name']}, noticed your work at {c['company_name']}. I sent over an email regarding {profile.company_name}'s {profile.offer_details} to tackle your {first_pain}. Let's connect!", "status": "pending"},
+                    {"day": 1 + cadence, "channel": "LinkedIn", "content": f"Hi {c['contact']['name']}, noticed your work at {c['company_name']}. I sent over an email regarding {profile_company_name}'s {profile_offer} to tackle your {first_pain}. Let's connect!", "status": "pending"},
                     {"day": 1 + 2 * cadence, "channel": "Email", "content": f"Hi {c['contact']['name']}, following up on my previous message. We help {c['company_name']} automate {second_pain} to optimize your revenue. Let me know if you are free for a quick call.", "status": "pending"},
-                    {"day": 1 + 3 * cadence, "channel": "WhatsApp", "content": f"Hello {c['contact']['name']}, this is {profile.company_name} following up. Are you available for a brief chat this week?", "status": "pending"},
+                    {"day": 1 + 3 * cadence, "channel": "WhatsApp", "content": f"Hello {c['contact']['name']}, this is {profile_company_name} following up. Are you available for a brief chat this week?", "status": "pending"},
                     {"day": 1 + 4 * cadence, "channel": "Follow-Up Call", "content": "Scheduled follow-up phone call.", "status": "pending"}
                 ]
                 
-                conv = [
-                    {
-                        "direction": "outbound",
-                        "channel": "email",
-                        "content": c["outreach_message"],
-                        "subject": f"Partnership Opportunity - {profile.company_name} x {c['company_name']}",
-                        "author": "Sales AI Agent",
-                        "at": datetime.now(timezone.utc).isoformat()
-                    }
-                ]
-                
-                # Attempt to send email
-                subject = f"Partnership Opportunity - {profile.company_name} x {c['company_name']}"
+                # Route the first touch through the same real dispatcher used
+                # by the durable outbox. This prevents the initial email from
+                # bypassing suppression, deliverability gates, or WhatsApp's
+                # configured Meta provider.
+                subject = f"Partnership Opportunity - {profile_company_name} x {c['company_name']}"
                 body = c["outreach_message"]
-                
-                # Pre-send socket suppression check
-                from app.services.sales_os.governance.suppression import SuppressionService
-                suppression_service = SuppressionService(self.db, self.tenant_id)
-                is_supp, supp_reason = suppression_service.is_suppressed(email=c["contact"]["email"], phone=c["contact"].get("phone"))
-                if is_supp:
-                    self.log_activity("Outreach Skipped", f"Contact {c['contact']['email']} is suppressed: {supp_reason}", "pending")
-                    continue
+                from app.services.sales.touch_dispatcher import dispatch_sales_touch
 
-                sent_successfully = False
-                smtp_cred = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id, provider="smtp").first()
-                if smtp_cred and smtp_cred.encrypted_key and "your_api_key" not in smtp_cred.encrypted_key:
-                    try:
-                        smtp_credentials = parse_smtp_credentials(decrypt_api_key(smtp_cred.encrypted_key))
-                        sent_successfully = send_smtp_email(smtp_credentials, c["contact"]["email"], subject, body)
-                    except Exception:
-                        pass
-                
-                if not sent_successfully:
-                    gmail_cred = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id, provider="gmail").first()
-                    if gmail_cred and gmail_cred.encrypted_key and "your_api_key" not in gmail_cred.encrypted_key:
-                        try:
-                            gmail_credentials = json.loads(decrypt_api_key(gmail_cred.encrypted_key))
-                            result = send_gmail_email(gmail_credentials, c["contact"]["email"], subject, body)
-                            sent_successfully = bool(result and result.get("ok"))
-                        except Exception:
-                            pass
-                            
-                channel_used = "email"
-                if not sent_successfully and c["contact"].get("phone"):
-                    try:
-                        from app.services.agents.support import SupportAgent
-                        support = SupportAgent(self.db, self.tenant_id)
-                        await support.send_message("whatsapp", c["contact"]["phone"], body)
-                        sent_successfully = True
-                        channel_used = "whatsapp"
-                        conv[0]["channel"] = "whatsapp"
-                    except Exception:
-                        pass
+                delivery = dispatch_sales_touch(
+                    self.db,
+                    self.tenant_id,
+                    lead,
+                    channel="email",
+                    body=body,
+                    subject=subject,
+                    step_number=1,
+                )
+                if not delivery.get("sent") and c["contact"].get("phone"):
+                    whatsapp_delivery = dispatch_sales_touch(
+                        self.db,
+                        self.tenant_id,
+                        lead,
+                        channel="whatsapp",
+                        body=body,
+                        subject=subject,
+                        step_number=1,
+                    )
+                    if whatsapp_delivery.get("sent"):
+                        delivery = whatsapp_delivery
+
+                sent_successfully = bool(delivery.get("sent"))
+                channel_used = delivery.get("channel") or "email"
+                channel_schedule[0]["status"] = "sent" if sent_successfully else "failed"
+                channel_schedule[0]["delivery_reason"] = delivery.get("reason")
+                conv = []
+                if sent_successfully:
+                    conv.append(
+                        {
+                            "direction": "outbound",
+                            "channel": channel_used,
+                            "content": body,
+                            "subject": subject,
+                            "author": "Sales AI Agent",
+                            "at": datetime.now(timezone.utc).isoformat(),
+                            "sent": True,
+                            "delivery_details": delivery.get("message"),
+                        }
+                    )
                             
                 if sent_successfully:
                     lead.status = "contacted"
@@ -969,15 +998,24 @@ Strict Tone & Quality Rules:
                 if (lead.data or {}).get("reply_classification", {}).get("interested"):
                     real_interested_lead = lead
                     break
-            
+
             if real_interested_lead:
+                suggested_time = (real_interested_lead.data or {}).get("reply_classification", {}).get("suggested_time")
+                if not suggested_time:
+                    data = dict(real_interested_lead.data or {})
+                    data["meeting_coordination_status"] = "coordinating_slots"
+                    real_interested_lead.data = data
+                    self.db.commit()
+                    update_status(10, "completed", f"{real_interested_lead.company} expressed interest; awaiting an explicit time proposal.", "Meeting coordination is waiting for a prospect-confirmed time.", "completed")
+                    return {"status": "success", "meeting_coordination": "awaiting_time"}
+
                 from app.services.sales.meeting_booking import book_meeting_for_lead
                 booked = book_meeting_for_lead(
                     db=self.db,
                     tenant_id=self.tenant_id,
                     lead=real_interested_lead,
                     tool="google_calendar",
-                    suggested_time=real_interested_lead.data.get("reply_classification", {}).get("suggested_time") or "Next Thursday at 11:00 AM IST",
+                    suggested_time=suggested_time,
                     log_activity=self.log_activity
                 )
                 if booked:
@@ -1038,20 +1076,29 @@ Strict Tone & Quality Rules:
         created_count = 0
         new_lead_ids = []
         for data in leads_data:
-            exists = self.db.query(Lead).filter_by(tenant_id=self.tenant_id, email=data["email"]).first()
+            email_value = data.get("email") or data.get("personal_email") or data.get("company_email")
+            phone_value = data.get("phone") or data.get("mobile_no") or data.get("company_contact_no")
+            if not email_value and not phone_value:
+                continue
+            lead_query = self.db.query(Lead).filter(Lead.tenant_id == self.tenant_id)
+            if email_value:
+                lead_query = lead_query.filter(Lead.email == email_value)
+            else:
+                lead_query = lead_query.filter(Lead.phone == phone_value)
+            exists = lead_query.first()
             if not exists:
                 lead = Lead(
                     tenant_id=self.tenant_id,
                     name=data["name"],
-                    email=data["email"],
-                    phone=data.get("phone", data.get("mobile_no", "")),
+                    email=email_value,
+                    phone=phone_value,
                     company=data["company"],
                     source=f"{provider.upper()}: {query}",
                     status="captured",
                     score=0,
-                    personal_email=data.get("personal_email"),
-                    company_email=data.get("company_email"),
-                    mobile_no=data.get("mobile_no", data.get("phone")),
+                    personal_email=data.get("personal_email") or email_value,
+                    company_email=data.get("company_email") or email_value,
+                    mobile_no=data.get("mobile_no") or phone_value,
                     company_contact_no=data.get("company_contact_no"),
                     need_of_what=data.get("need_of_what"),
                     how_much=data.get("how_much"),
@@ -1576,6 +1623,8 @@ Only output valid JSON. No other text."""
 
     async def _sales_outreach(self, params: dict):
         channel = params.get("channel", "smtp")
+        provider = params.get("provider")
+        model = params.get("model")
         subject = params.get("subject", "Partnership opportunity")
         body_template = params.get("body_template", "Hello {name}, I noticed {company} has great potential...")
 
@@ -1650,6 +1699,37 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
             except Exception:
                 outbound_subject = subject
                 outbound_body = body_template.format(name=lead.name, company=lead.company)
+
+            from app.services.sales_os.governance.gatekeeper import PreSendGatekeeper
+            from app.services.sales_os.governance.suppression import SuppressionService
+
+            is_suppressed, suppression_reason = SuppressionService(self.db, self.tenant_id).is_suppressed(
+                email=lead.email,
+                phone=lead.phone,
+                channel="whatsapp" if channel == "whatsapp" else "email",
+            )
+            if is_suppressed:
+                self.log_activity(
+                    "Outreach Skipped",
+                    f"Contact {lead.email or lead.phone} is suppressed: {suppression_reason}",
+                    "pending",
+                )
+                continue
+
+            gate = PreSendGatekeeper.evaluate(
+                outbound_subject,
+                outbound_body,
+                step_number=1,
+                min_words=8 if channel in ("smtp", "gmail", "email") else 3,
+                require_subject=channel in ("smtp", "gmail", "email"),
+            )
+            if not gate.is_valid:
+                self.log_activity(
+                    "Outreach Blocked",
+                    f"Could not send to {lead.email or lead.phone}: {'; '.join(gate.violations)}",
+                    "failed",
+                )
+                continue
             
             # Send
             sent_successfully = False
@@ -1674,20 +1754,21 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
                         }
                 except Exception as e:
                     self.log_activity("Gmail Send Fail", f"Gmail error for {lead.email}: {str(e)}.", "failed")
-            elif channel == "whatsapp" and lead.phone:
-                from app.services.agents.support import SupportAgent
+            elif channel == "whatsapp":
+                from app.services.sales.touch_dispatcher import dispatch_sales_touch
 
-                try:
-                    support = SupportAgent(self.db, self.tenant_id)
-                    await support.send_message("whatsapp", lead.phone, outbound_body)
-                    sent_successfully = True
+                delivery = dispatch_sales_touch(
+                    self.db,
+                    self.tenant_id,
+                    lead,
+                    channel="whatsapp",
+                    body=outbound_body,
+                    subject=outbound_subject,
+                    step_number=1,
+                )
+                sent_successfully = bool(delivery.get("sent"))
+                if sent_successfully:
                     lead.data = {**(lead.data or {}), "whatsapp_from": lead.phone}
-                except Exception as e:
-                    self.log_activity(
-                        "WhatsApp Send Fail",
-                        f"WhatsApp error for {lead.phone}: {str(e)}.",
-                        "pending",
-                    )
 
             if not sent_successfully:
                 self.log_activity(
@@ -1751,12 +1832,18 @@ Output a JSON object with keys 'subject' and 'body'. No other text."""
                 continue
             if lead.status == "meeting_scheduled":
                 continue
+            suggested_time = data.get("reply_classification", {}).get("suggested_time")
+            if not suggested_time:
+                waiting += 1
+                data["meeting_coordination_status"] = "coordinating_slots"
+                lead.data = data
+                continue
             if book_meeting_for_lead(
                 self.db,
                 self.tenant_id,
                 lead,
                 tool=tool,
-                suggested_time=data.get("reply_classification", {}).get("suggested_time"),
+                suggested_time=suggested_time,
                 log_activity=self.log_activity,
             ):
                 booked_count += 1

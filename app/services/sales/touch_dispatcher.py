@@ -23,6 +23,7 @@ from app.models.enterprise import ApprovalRequest
 from app.models.verticals import Lead
 from app.services.credentials import get_decrypted_credential
 from app.services.email.sender import send_email_with_status
+from app.services.sales_os.governance.gatekeeper import PreSendGatekeeper
 from app.services.sales_os.governance.suppression import SuppressionService
 
 logger = logging.getLogger(__name__)
@@ -290,8 +291,70 @@ def dispatch_sales_touch(
     """
     ch = (channel or "email").lower().strip()
 
+    # The outbox and the legacy cadence schedule both call this dispatcher.
+    # Keep the final policy checks here as the last line of defense so direct
+    # callers cannot bypass suppression or deliverability rules.
+    recipient_email = None
+    phone = None
     if ch == "email":
         recipient_email = lead.email or lead.company_email or lead.personal_email
+        if not recipient_email:
+            return {
+                "sent": False,
+                "channel": "email",
+                "reason": "no_recipient",
+                "message": "No email address available for this lead.",
+            }
+        if not re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", recipient_email):
+            return {
+                "sent": False,
+                "channel": "email",
+                "reason": "invalid_recipient",
+                "message": "Lead email address is not valid for delivery.",
+            }
+        is_supp, supp_reason = SuppressionService(db, tenant_id).is_suppressed(
+            email=recipient_email,
+            channel="email",
+        )
+        if is_supp:
+            return {
+                "sent": False,
+                "channel": "email",
+                "reason": "suppressed",
+                "message": f"Email recipient is suppressed: {supp_reason}",
+            }
+    elif ch == "whatsapp":
+        phone = extract_lead_phone(lead)
+        is_supp, supp_reason = SuppressionService(db, tenant_id).is_suppressed(
+            phone=phone,
+            channel="whatsapp",
+        )
+        if is_supp:
+            return {
+                "sent": False,
+                "channel": "whatsapp",
+                "reason": "suppressed",
+                "message": f"WhatsApp recipient is suppressed: {supp_reason}",
+            }
+
+    if ch not in ("call", "follow-up call", "phone"):
+        gate = PreSendGatekeeper.evaluate(
+            subject=subject or f"{ch.title()} touch",
+            body=body or "",
+            step_number=step_number,
+            min_words=8 if ch == "email" else 3,
+            require_subject=ch == "email",
+        )
+        if not gate.is_valid:
+            return {
+                "sent": False,
+                "channel": ch,
+                "reason": "deliverability_gate_blocked",
+                "message": "; ".join(gate.violations),
+                "violations": gate.violations,
+            }
+
+    if ch == "email":
         res = send_email_with_status(
             db,
             tenant_id,
@@ -302,7 +365,6 @@ def dispatch_sales_touch(
         return res
 
     elif ch == "whatsapp":
-        phone = extract_lead_phone(lead)
         res = send_whatsapp_with_status(db, tenant_id, phone, body)
         return res
 

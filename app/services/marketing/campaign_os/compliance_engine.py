@@ -47,7 +47,12 @@ class ComplianceRulesEngine:
     """Zero-LLM deterministic rules engine for marketing copy safety."""
 
     @classmethod
-    def audit_post(cls, content: str, platform: str = "linkedin") -> ComplianceResult:
+    def audit_post(
+        cls,
+        content: str,
+        platform: str = "linkedin",
+        pack_id: str | None = None,
+    ) -> ComplianceResult:
         violations = []
         warnings = []
         cleaned = content
@@ -79,6 +84,18 @@ class ComplianceRulesEngine:
             warnings.append(
                 f"Hashtag count ({len(hashtags)}) exceeds recommended {platform} limit ({limits['max_hashtags']})"
             )
+
+        # 4. Industry Vertical Specific Checks
+        if pack_id:
+            from app.services.marketing.verticals.compliance import IndustryComplianceEngine
+
+            ind_res = IndustryComplianceEngine.audit_post(content, platform, pack_id)
+            for v in ind_res.violations:
+                if v not in violations:
+                    violations.append(v)
+            for w in ind_res.warnings:
+                if w not in warnings:
+                    warnings.append(w)
 
         passed = len(violations) == 0
         return ComplianceResult(

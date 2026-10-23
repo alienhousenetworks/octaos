@@ -29,6 +29,7 @@ class CampaignContextProjection(BaseModel):
     company_name: str
     website: str
     industry: str
+    industry_pack_id: Optional[str] = None
     brand_voice: Dict[str, Any] = Field(
         default_factory=lambda: {
             "tone": "Authoritative, Innovative, Pragmatic",
@@ -244,6 +245,7 @@ class CompanyContextProjectionEngine:
             company_name=company_name,
             website=website,
             industry=industry,
+            industry_pack_id=profile.industry_pack_id if profile else None,
             brand_voice=brand_voice,
             visual_style=visual_style,
             approved_claims=approved_claims,

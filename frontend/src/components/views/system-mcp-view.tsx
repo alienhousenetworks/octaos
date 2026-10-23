@@ -64,6 +64,20 @@ interface DiscoveredObject {
   properties: string[];
 }
 
+interface ExternalMCPServer {
+  id: string;
+  name: string;
+  slug: string;
+  transport: string;
+  target: string | null;
+  status: string;
+  enabled: boolean;
+  has_headers: boolean;
+  has_environment: boolean;
+  last_synced_at: string | null;
+  created_at: string | null;
+}
+
 export default function SystemMcpView({
   token,
   API_URL,
@@ -75,8 +89,22 @@ export default function SystemMcpView({
     domain_wrappers: [],
   });
   const [connectors, setConnectors] = useState<any[]>([]);
+  const [externalServers, setExternalServers] = useState<ExternalMCPServer[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+
+  // External MCP server registration
+  const [serverDialogOpen, setServerDialogOpen] = useState(false);
+  const [serverName, setServerName] = useState('');
+  const [serverSlug, setServerSlug] = useState('');
+  const [serverTransport, setServerTransport] = useState<'streamable_http' | 'sse' | 'stdio'>('streamable_http');
+  const [serverEndpoint, setServerEndpoint] = useState('');
+  const [serverCommand, setServerCommand] = useState('');
+  const [serverArgs, setServerArgs] = useState('');
+  const [serverHeaders, setServerHeaders] = useState('');
+  const [serverEnv, setServerEnv] = useState('');
+  const [serverSaving, setServerSaving] = useState(false);
+  const [testingServerId, setTestingServerId] = useState<string | null>(null);
 
   // One-Click Setup Wizard State
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -107,10 +135,11 @@ export default function SystemMcpView({
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [credsRes, catRes, connRes] = await Promise.allSettled([
+      const [credsRes, catRes, connRes, serversRes] = await Promise.allSettled([
         fetchWithAuth(`${API_URL}/mcp/credentials`),
         fetchWithAuth(`${API_URL}/mcp/catalog`),
         fetchWithAuth(`${API_URL}/mcp/connectors`),
+        fetchWithAuth(`${API_URL}/mcp/servers`),
       ]);
 
       if (credsRes.status === 'fulfilled' && credsRes.value.ok) {
@@ -124,6 +153,10 @@ export default function SystemMcpView({
       if (connRes.status === 'fulfilled' && connRes.value.ok) {
         const d = await connRes.value.json();
         setConnectors(d.connectors || []);
+      }
+      if (serversRes.status === 'fulfilled' && serversRes.value.ok) {
+        const d = await serversRes.value.json();
+        setExternalServers(d.servers || []);
       }
     } finally {
       setLoading(false);
@@ -210,6 +243,79 @@ export default function SystemMcpView({
       }
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const parseJsonObject = (value: string, label: string): Record<string, string> => {
+    if (!value.trim()) return {};
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`${label} must be a JSON object.`);
+    }
+    return Object.fromEntries(Object.entries(parsed).map(([key, item]) => [key, String(item)]));
+  };
+
+  const handleAddExternalServer = async () => {
+    if (!serverName.trim()) return;
+    setServerSaving(true);
+    try {
+      const body: Record<string, any> = {
+        name: serverName.trim(),
+        slug: serverSlug.trim() || undefined,
+        transport: serverTransport,
+        endpoint: serverTransport === 'stdio' ? undefined : serverEndpoint.trim(),
+        command: serverTransport === 'stdio' ? serverCommand.trim() : undefined,
+        args: serverTransport === 'stdio' ? serverArgs.split(/\s+/).filter(Boolean) : [],
+        headers: parseJsonObject(serverHeaders, 'Headers'),
+        env: parseJsonObject(serverEnv, 'Environment'),
+      };
+      const res = await fetchWithAuth(`${API_URL}/mcp/servers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'Failed to add MCP server.');
+      setExternalServers((current) => [data, ...current]);
+      setServerDialogOpen(false);
+      setServerName('');
+      setServerSlug('');
+      setServerEndpoint('');
+      setServerCommand('');
+      setServerArgs('');
+      setServerHeaders('');
+      setServerEnv('');
+      showToast('✓ External MCP server added.');
+    } catch (error: any) {
+      showToast(error?.message || 'Failed to add MCP server.', 'err');
+    } finally {
+      setServerSaving(false);
+    }
+  };
+
+  const handleTestExternalServer = async (serverId: string) => {
+    setTestingServerId(serverId);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/mcp/servers/${serverId}/test`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'MCP connection failed.');
+      setExternalServers((current) => current.map((server) => server.id === serverId ? data.server : server));
+      showToast(`✓ Connected. Discovered ${(data.tools || []).length} tools.`);
+    } catch (error: any) {
+      showToast(error?.message || 'MCP connection failed.', 'err');
+    } finally {
+      setTestingServerId(null);
+    }
+  };
+
+  const handleDeleteExternalServer = async (serverId: string) => {
+    if (!confirm('Remove this external MCP server? Its stored connection configuration will be deleted.')) return;
+    const res = await fetchWithAuth(`${API_URL}/mcp/servers/${serverId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setExternalServers((current) => current.filter((server) => server.id !== serverId));
+      showToast('External MCP server removed.');
+    } else {
+      showToast('Failed to remove external MCP server.', 'err');
     }
   };
 
@@ -318,6 +424,70 @@ export default function SystemMcpView({
             Connect New AI / Client
           </Button>
         </div>
+      </div>
+
+      {/* External MCP Server Registry */}
+      <div className="rounded-xl border border-indigo-500/20 bg-[#111318] overflow-hidden">
+        <div className="p-4 border-b border-white/[0.08] flex items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-indigo-400" />
+              <h3 className="text-sm font-semibold text-white">External MCP Servers</h3>
+              <span className="text-xs font-mono text-zinc-400">({externalServers.length})</span>
+            </div>
+            <p className="text-[11px] text-zinc-400 mt-1">
+              Add any compatible MCP server by URL or stdio command. Provider names are not hardcoded.
+            </p>
+          </div>
+          <Button
+            onClick={() => setServerDialogOpen(true)}
+            size="sm"
+            className="h-8 bg-indigo-600 hover:bg-indigo-500 text-white text-xs gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add MCP Server
+          </Button>
+        </div>
+
+        {externalServers.length === 0 ? (
+          <div className="p-6 text-center text-zinc-500 text-xs">
+            No external MCP servers connected yet. Add a remote HTTP/SSE server or a local stdio server.
+          </div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {externalServers.map((server) => (
+              <div key={server.id} className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${server.status === 'active' ? 'bg-emerald-400' : server.status === 'degraded' ? 'bg-amber-400' : 'bg-zinc-600'}`} />
+                    <span className="text-sm font-medium text-white">{server.name}</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">{server.transport}</span>
+                    <span className="text-[10px] font-mono text-zinc-500">{server.slug}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-zinc-400 truncate max-w-3xl">{server.target || 'Configured stdio server'}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    onClick={() => handleTestExternalServer(server.id)}
+                    disabled={testingServerId === server.id}
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-[11px] border-white/10 hover:bg-zinc-800 text-zinc-300"
+                  >
+                    {testingServerId === server.id ? 'Testing...' : 'Discover Tools'}
+                  </Button>
+                  <Button
+                    onClick={() => handleDeleteExternalServer(server.id)}
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-[11px] text-red-400 hover:text-red-300 hover:bg-red-950/30"
+                  >
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Quick Setup Cards for Clients */}
@@ -470,6 +640,82 @@ export default function SystemMcpView({
           )}
         </div>
       </div>
+
+      {/* Add External MCP Server Modal */}
+      <Dialog open={serverDialogOpen} onOpenChange={setServerDialogOpen}>
+        <DialogContent className="sm:max-w-xl bg-zinc-950 border border-indigo-500/30 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold flex items-center gap-2">
+              <Globe className="w-4 h-4 text-indigo-400" /> Add External MCP Server
+            </DialogTitle>
+            <DialogDescription className="text-xs text-zinc-400">
+              Connect any MCP-compatible server. HTTP/SSE headers and stdio environment variables are encrypted at rest.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-300">Display Name</label>
+                <Input value={serverName} onChange={(event) => setServerName(event.target.value)} placeholder="HeyGen MCP" className="bg-zinc-900 border-white/10 text-xs text-white" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-300">Slug (optional)</label>
+                <Input value={serverSlug} onChange={(event) => setServerSlug(event.target.value)} placeholder="heygen" className="bg-zinc-900 border-white/10 text-xs text-white" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-zinc-300">Transport</label>
+              <select
+                value={serverTransport}
+                onChange={(event) => setServerTransport(event.target.value as 'streamable_http' | 'sse' | 'stdio')}
+                className="w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-xs text-white"
+              >
+                <option value="streamable_http">Streamable HTTP</option>
+                <option value="sse">Legacy SSE</option>
+                <option value="stdio">Local stdio</option>
+              </select>
+            </div>
+
+            {serverTransport === 'stdio' ? (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-zinc-300">Command</label>
+                  <Input value={serverCommand} onChange={(event) => setServerCommand(event.target.value)} placeholder="npx -y @provider/mcp-server" className="bg-zinc-900 border-white/10 text-xs text-white font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-zinc-300">Arguments (space separated)</label>
+                  <Input value={serverArgs} onChange={(event) => setServerArgs(event.target.value)} placeholder="--api-key $MCP_API_KEY" className="bg-zinc-900 border-white/10 text-xs text-white font-mono" />
+                </div>
+              </>
+            ) : (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-300">Server Endpoint</label>
+                <Input value={serverEndpoint} onChange={(event) => setServerEndpoint(event.target.value)} placeholder="https://provider.example.com/mcp" className="bg-zinc-900 border-white/10 text-xs text-white font-mono" />
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-300">Headers JSON (optional)</label>
+                <textarea value={serverHeaders} onChange={(event) => setServerHeaders(event.target.value)} placeholder={'{"Authorization":"Bearer ..."}'} className="min-h-20 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-[11px] text-white font-mono" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-300">Environment JSON (stdio)</label>
+                <textarea value={serverEnv} onChange={(event) => setServerEnv(event.target.value)} placeholder={'{"API_KEY":"..."}'} className="min-h-20 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-[11px] text-white font-mono" />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+            <Button variant="ghost" size="sm" onClick={() => setServerDialogOpen(false)} className="text-zinc-400 text-xs">Cancel</Button>
+            <Button size="sm" disabled={serverSaving || !serverName.trim()} onClick={handleAddExternalServer} className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs">
+              {serverSaving ? 'Adding...' : 'Add MCP Server'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* One-Click Connect Wizard Modal */}
       <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>

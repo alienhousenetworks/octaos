@@ -1416,3 +1416,184 @@ async def trigger_autonomous_marketing_pulse(
         result = await agent.autonomous_marketing_pulse(payload)
         return result
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Marketing Industry Vertical Packs & Domain Hub
+# ─────────────────────────────────────────────────────────────────────────────
+
+class MarketingPackSelect(BaseModel):
+    pack_id: str = Field(min_length=1, max_length=64)
+
+
+class ComplianceAuditRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=10000)
+    platform: Optional[str] = "linkedin"
+    pack_id: Optional[str] = None
+
+
+class RealEstateCampaignGenerateRequest(BaseModel):
+    project_id: str = Field(min_length=1)
+    campaign_type: Optional[str] = "project_showcase"
+    unit_id: Optional[str] = None
+    platform: Optional[str] = "linkedin"
+    persist_post: Optional[bool] = True
+
+
+@router.get("/verticals")
+def read_marketing_verticals(
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.READ)),
+) -> Dict[str, Any]:
+    """List all 18 registered marketing vertical packs."""
+    from app.services.marketing.verticals.registry import list_marketing_packs
+    packs = list_marketing_packs()
+    return {
+        "count": len(packs),
+        "note": "Packs customize marketing funnels, content pillars, compliance rules, and visual tokens. They never delete records.",
+        "packs": packs,
+    }
+
+
+@router.get("/verticals/active")
+def read_active_marketing_vertical(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.READ)),
+) -> Dict[str, Any]:
+    """Get the active marketing pack for the current tenant."""
+    from app.models.verticals import BusinessProfile, ContentPost, Campaign
+    from app.services.marketing.verticals.registry import get_marketing_pack, resolve_marketing_pack_id
+
+    profile = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant_id).first()
+    pack_id = resolve_marketing_pack_id(getattr(profile, "industry_pack_id", None) if profile else None)
+    pack = get_marketing_pack(pack_id) if pack_id else None
+
+    posts_count = db.query(ContentPost).filter(ContentPost.tenant_id == tenant_id).count()
+    campaigns_count = db.query(Campaign).filter(Campaign.tenant_id == tenant_id).count()
+
+    return {
+        "selected": pack is not None,
+        "pack_id": pack_id,
+        "pack": pack,
+        "posts_count": posts_count,
+        "campaigns_count": campaigns_count,
+    }
+
+
+@router.post("/verticals/active")
+def select_marketing_vertical(
+    body: MarketingPackSelect,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.CREATE)),
+) -> Dict[str, Any]:
+    """Set or switch the tenant's active marketing vertical pack without deleting any records."""
+    from app.models.verticals import BusinessProfile, ContentPost, Campaign
+    from app.services.marketing.verticals.registry import (
+        get_marketing_pack,
+        preview_marketing_switch,
+        resolve_marketing_pack_id,
+    )
+
+    pack_id = resolve_marketing_pack_id(body.pack_id)
+    if not pack_id:
+        raise HTTPException(status_code=404, detail=f"Unknown marketing industry pack '{body.pack_id}'")
+
+    profile = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant_id).first()
+    current = resolve_marketing_pack_id(getattr(profile, "industry_pack_id", None) if profile else None)
+
+    posts_count = db.query(ContentPost).filter(ContentPost.tenant_id == tenant_id).count()
+    campaigns_count = db.query(Campaign).filter(Campaign.tenant_id == tenant_id).count()
+
+    if profile is None:
+        profile = BusinessProfile(tenant_id=tenant_id, industry_pack_id=pack_id)
+        db.add(profile)
+    else:
+        profile.industry_pack_id = pack_id
+    db.commit()
+
+    preview = preview_marketing_switch(current, pack_id, campaigns_count, posts_count)
+    return preview
+
+
+@router.get("/verticals/{pack_id}")
+def read_marketing_vertical(
+    pack_id: str,
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.READ)),
+) -> Dict[str, Any]:
+    """Get full details of a specific marketing industry pack."""
+    from app.services.marketing.verticals.registry import get_marketing_pack
+    pack = get_marketing_pack(pack_id)
+    if not pack:
+        raise HTTPException(status_code=404, detail=f"Marketing pack '{pack_id}' not found")
+    return pack
+
+
+@router.post("/verticals/compliance/audit")
+def audit_marketing_compliance(
+    body: ComplianceAuditRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.READ)),
+) -> Dict[str, Any]:
+    """Audit marketing copy against universal and industry-specific statutory guardrails."""
+    from app.models.verticals import BusinessProfile
+    from app.services.marketing.verticals.compliance import IndustryComplianceEngine
+    from app.services.marketing.verticals.registry import resolve_marketing_pack_id
+
+    pack_id = body.pack_id
+    if not pack_id:
+        profile = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant_id).first()
+        pack_id = resolve_marketing_pack_id(getattr(profile, "industry_pack_id", None) if profile else None)
+
+    result = IndustryComplianceEngine.audit_post(
+        content=body.content,
+        platform=body.platform or "linkedin",
+        pack_id=pack_id,
+    )
+    return result.model_dump()
+
+
+@router.get("/verticals/real-estate/projects")
+def list_real_estate_marketing_projects(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.READ)),
+) -> Dict[str, Any]:
+    """List tenant's real estate projects, towers, and unit configurations for marketing."""
+    from app.services.marketing.verticals.real_estate.project_campaign_service import (
+        RealEstateMarketingService,
+    )
+    service = RealEstateMarketingService(db, tenant_id)
+    projects = service.list_available_projects()
+    return {
+        "count": len(projects),
+        "projects": projects,
+    }
+
+
+@router.post("/verticals/real-estate/generate-campaign")
+async def generate_real_estate_project_campaign(
+    body: RealEstateCampaignGenerateRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.CREATE)),
+) -> Dict[str, Any]:
+    """Generate a fact-checked, RERA-compliant property campaign from real project inventory."""
+    from app.services.marketing.verticals.real_estate.project_campaign_service import (
+        RealEstateMarketingService,
+    )
+    service = RealEstateMarketingService(db, tenant_id)
+    try:
+        result = await service.generate_project_campaign(
+            project_id=body.project_id,
+            campaign_type=body.campaign_type or "project_showcase",
+            unit_id=body.unit_id,
+            platform=body.platform or "linkedin",
+            persist_post=body.persist_post if body.persist_post is not None else True,
+        )
+        return result
+    except KeyError as ke:
+        raise HTTPException(status_code=404, detail=str(ke))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to generate property campaign: {exc}")
+
