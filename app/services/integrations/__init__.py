@@ -6,6 +6,7 @@ from app.services.integrations.landingi_forms_service import LandingiFormsServic
 from app.services.integrations.zapier_workato_service import ZapierWorkatoService
 from app.services.integrations.twilio_service import TwilioService
 from app.services.integrations.analytics_connectors import AnalyticsConnectorsService
+from app.services.integrations.heygen import HeyGenClient, HeyGenError, get_heygen_client
 
 __all__ = [
     "SendGridService",
@@ -15,4 +16,7 @@ __all__ = [
     "ZapierWorkatoService",
     "TwilioService",
     "AnalyticsConnectorsService",
+    "HeyGenClient",
+    "HeyGenError",
+    "get_heygen_client",
 ]

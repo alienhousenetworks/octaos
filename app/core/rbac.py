@@ -148,15 +148,40 @@ def has_permission(user_role: str, resource: str, action: str) -> bool:
 
 
 def require_permission(resource: Resource, action: Action):
-    def dependency(current_user: User = Depends(deps.get_current_user)) -> User:
+    def dependency(
+        current_user: User = Depends(deps.get_current_user),
+        db: Session = Depends(deps.get_db),
+    ) -> User:
         if getattr(current_user, "is_system_admin", False) or getattr(current_user, "is_superuser", False):
             return current_user
 
-        if not has_permission(current_user.role, resource.value, action.value):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission denied: you do not have permission to {action.value} {resource.value}.",
-            )
-        return current_user
+        # 1. Check database-backed permissions from groups and direct assignments
+        try:
+            from app.services.rbac_service import get_user_all_permissions
+            user_perms = get_user_all_permissions(db, current_user)
+            if "*" in user_perms:
+                return current_user
+
+            # Match exact codename or resource prefix
+            req_prefix = f"{resource.value}."
+            for p in user_perms:
+                if p == f"{resource.value}.{action.value}" or p.startswith(req_prefix):
+                    return current_user
+        except Exception:
+            pass
+
+        # 2. Check legacy role-based permissions table
+        if has_permission(current_user.role, resource.value, action.value):
+            return current_user
+
+        # 3. Check allowed_sections fallback
+        allowed = getattr(current_user, "allowed_sections", None)
+        if allowed and ("all" in allowed or resource.value in allowed):
+            return current_user
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permission denied: you do not have permission to {action.value} {resource.value}.",
+        )
 
     return dependency

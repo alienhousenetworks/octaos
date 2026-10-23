@@ -469,18 +469,50 @@ Output JSON format:
         provider: Optional[str] = None,
         model: Optional[str] = None,
         reference_image_url: Optional[str] = None,
+        target_provider: Optional[str] = None,
+        brand_dna: Optional[Any] = None,
     ) -> VideoShotPlan:
-        """Design structured video shot plan with camera kinematics using AI."""
+        """Design structured video shot plan with camera kinematics or brand spokesperson framing using AI."""
         from app.services.marketing.visual_creative.analyzer import VisualIntentAnalyzer
 
         ar = "9:16" if platform in ("instagram", "reels", "tiktok", "shorts") else "16:9"
-        archetype = VisualIntentAnalyzer.classify_archetype(draft.formatted_full_post, deliverable="video")
-        system_prompt = (
-            f"You are a Cinematic Director and DP specializing in {archetype}. "
-            "Design a realistic 5-second video shot plan with motivated camera kinetics for this marketing post. "
-            "Output JSON only."
-        )
-        prompt = f"""Post Hook: {draft.hook}
+        is_heygen = (target_provider or "").lower() == "heygen"
+
+        if is_heygen:
+            brand_voice = getattr(brand_dna, "brand_voice_summary", "") if brand_dna else "Authoritative, modern enterprise voice"
+            tone_words = ", ".join(getattr(brand_dna, "tone_keywords", [])) if brand_dna else "confident, poised, articulate"
+            system_prompt = (
+                "You are an Executive Creative Director and Brand Producer. "
+                "Design a photorealistic HeyGen AI avatar video presenter prompt written strictly from the BRAND PERSPECTIVE. "
+                "The scene features a polished, professional brand spokesperson delivering the key takeaway in a contemporary branded studio. "
+                "Output JSON only."
+            )
+            prompt = f"""Brand Context:
+Voice: {brand_voice}
+Tone: {tone_words}
+Brand Colors: {visual_tokens.primary_color}, {visual_tokens.secondary_color}, {visual_tokens.accent_color}
+Aesthetic: {visual_tokens.aesthetic_mood}
+Topic Hook: {draft.hook}
+Platform: {platform}
+Aspect Ratio: {ar}
+
+Output JSON format:
+{{
+  "scene_description": "Detailed description of professional brand spokesperson in modern studio with brand color accents delivering the hook",
+  "duration_seconds": 5,
+  "camera_movement": "locked-off medium-close portrait framing with soft studio depth of field",
+  "focal_motion": "natural micro-expressions, composed hand gesture, clear articulate speech",
+  "atmosphere_notes": "warm rim lighting with {visual_tokens.primary_color} subtle ambient wash, crisp corporate aesthetic",
+  "aspect_ratio": "{ar}"
+}}"""
+        else:
+            archetype = VisualIntentAnalyzer.classify_archetype(draft.formatted_full_post, deliverable="video")
+            system_prompt = (
+                f"You are a Cinematic Director and DP specializing in {archetype}. "
+                "Design a realistic 5-second video shot plan with motivated camera kinetics for this marketing post. "
+                "Output JSON only."
+            )
+            prompt = f"""Post Hook: {draft.hook}
 Platform: {platform}
 Aspect Ratio: {ar}
 Aesthetic: {visual_tokens.aesthetic_mood}
@@ -495,6 +527,7 @@ Output JSON format:
   "atmosphere_notes": "lighting and atmospheric details",
   "aspect_ratio": "{ar}"
 }}"""
+
         try:
             resp = await self.llm.complete(prompt, system_prompt=system_prompt, provider=provider, model=model)
             data = extract_json_safe(resp)
@@ -502,6 +535,20 @@ Output JSON format:
                 return VideoShotPlan(**data)
         except Exception as e:
             logger.warning(f"[VideoShotPlanner] LLM call failed ({e}), creating contextual plan from hook.")
+
+        if is_heygen:
+            return VideoShotPlan(
+                scene_description=(
+                    f"A poised and professional enterprise brand spokesperson in tailored executive attire, "
+                    f"presenting with calm confidence in a sleek modern studio with subtle {visual_tokens.primary_color} "
+                    f"ambient illumination. Delivering: '{draft.hook[:120]}'"
+                ),
+                duration_seconds=5,
+                camera_movement="static eye-level medium closeup with soft bokeh and clean framing",
+                focal_motion="natural subtle head movement and realistic articulation",
+                atmosphere_notes=f"studio 3-point key light with subtle {visual_tokens.accent_color} edge accent",
+                aspect_ratio=ar,
+            )
 
         return VideoShotPlan(
             scene_description=f"A cinematic editorial scene visually representing: {draft.hook[:100]}",

@@ -49,8 +49,9 @@ class ProjectAssignmentService:
         """
         List all sales employees in the tenant with their live shift status,
         daily capacity, and currently assigned projects.
+        Strictly excludes HR, marketing, and non-sales personnel.
         """
-        users = (
+        all_tenant_users = (
             self.db.query(User)
             .filter(
                 User.tenant_id == self.tenant_id,
@@ -59,6 +60,53 @@ class ProjectAssignmentService:
             .order_by(User.name.asc())
             .all()
         )
+
+        # Pre-query user IDs who have field sales status or project assignments
+        field_status_user_ids = {
+            row[0]
+            for row in self.db.query(SalespersonFieldStatus.user_id)
+            .filter(SalespersonFieldStatus.tenant_id == self.tenant_id)
+            .all()
+        }
+        assignment_user_ids = {
+            row[0]
+            for row in self.db.query(RealEstateProjectAssignment.user_id)
+            .filter(RealEstateProjectAssignment.tenant_id == self.tenant_id, RealEstateProjectAssignment.is_active == True)
+            .all()
+        }
+
+        users = []
+        for u in all_tenant_users:
+            u_role = (getattr(u, "role", "") or "").lower()
+            u_dept = (getattr(u, "department", "") or "").lower()
+
+            # Check group memberships
+            group_names = [g.name.lower() for g in getattr(u, "groups", [])] if getattr(u, "groups", None) else []
+            has_sales_group = any("sales" in gn for gn in group_names)
+            is_hr_group = any("hr" in gn or "talent" in gn for gn in group_names)
+
+            is_hr = u_dept in ("hr", "people", "human resources") or u_role in ("hr", "hr_admin", "hr_recruiter", "recruiter") or is_hr_group
+            has_sales_record = u.id in field_status_user_ids or u.id in assignment_user_ids
+
+            # Explicitly exclude non-sales HR employees
+            if is_hr and not (has_sales_record or has_sales_group):
+                continue
+
+            # Qualify as salesperson if:
+            # 1. Has explicit sales status or project assignment
+            # 2. Member of a sales group
+            # 3. Department is Sales or role is sales_agent/sales/salesperson
+            # 4. Or if tenant has no specific roles/groups set yet and user is not HR/marketing
+            is_sales = (
+                has_sales_record
+                or has_sales_group
+                or u_dept == "sales"
+                or u_role in ("sales", "sales_agent", "salesperson")
+                or (not u_role and not u_dept and not group_names)
+            )
+
+            if is_sales:
+                users.append(u)
 
         today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         results = []
@@ -162,6 +210,7 @@ class ProjectAssignmentService:
             user.name = name
             if phone:
                 user.phone_no = phone
+            user.department = "Sales"
             user.is_active = True
         else:
             default_pw = password or "OctaSales#2026"
@@ -171,6 +220,7 @@ class ProjectAssignmentService:
                 name=name,
                 phone_no=phone,
                 role="sales_agent",
+                department="Sales",
                 hashed_password=get_password_hash(default_pw),
                 is_active=True,
                 is_verified=True,
@@ -178,6 +228,19 @@ class ProjectAssignmentService:
             )
             self.db.add(user)
             self.db.flush()
+
+        # Try to link user to the tenant's Sales Team group if groups are enabled
+        try:
+            from app.models.rbac import Group
+            sales_group = (
+                self.db.query(Group)
+                .filter(Group.tenant_id == self.tenant_id, Group.name.ilike("%sales%"))
+                .first()
+            )
+            if sales_group and sales_group not in user.groups:
+                user.groups.append(sales_group)
+        except Exception:
+            pass
 
         # Provision or update SalespersonFieldStatus
         field_status = (
@@ -651,11 +714,13 @@ class ProjectAssignmentService:
                 candidate_users.append((u, pa.role))
         else:
             # If no specialist assigned yet to project, fallback to active tenant salespeople
+            sales_directory = self.list_salespeople()
+            sales_user_ids = {sp["user_id"] for sp in sales_directory}
             all_agents = (
                 self.db.query(User)
-                .filter(User.tenant_id == self.tenant_id, User.is_active == True)
+                .filter(User.id.in_(sales_user_ids))
                 .all()
-            )
+            ) if sales_user_ids else []
             for u in all_agents:
                 candidate_users.append((u, "site_specialist"))
             is_fallback_team = True

@@ -18,6 +18,7 @@ import SalesView from '@/features/crm/sales-view';
 import { salesSectionFromPath } from '@/features/crm/routes';
 import AIOptimizationView from '@/components/views/ai-optimization-view';
 import MembersView from '@/components/views/members-view';
+import DjangoAdminRBACView from '@/features/rbac/django-admin-rbac-view';
 import SystemAdminView from '@/components/views/system-admin-view';
 import ApiManagementView from '@/components/views/api-management-view';
 import ProfileView from '@/components/views/profile-view';
@@ -281,6 +282,16 @@ export default function WorkspaceScreen() {
   }
   if (pathname === '/app/settings/members') {
     return <MembersView {...shared} />;
+  }
+  if (pathname === '/app/admin/rbac' || pathname === '/app/settings/rbac') {
+    return (
+      <DjangoAdminRBACView
+        token={workspace.token}
+        API_URL={workspace.apiUrl}
+        fetchWithAuth={workspace.fetchWithAuth}
+        currentUserEmail={workspace.userProfile?.email}
+      />
+    );
   }
   if (pathname === '/app/admin') {
     return (

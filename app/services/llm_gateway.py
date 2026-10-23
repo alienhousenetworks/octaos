@@ -494,7 +494,7 @@ class LLMGateway:
             return error_msg
 
         try:
-            if provider in ("together", "openrouter"):
+            if provider in ("together", "openrouter", "heygen"):
                 from app.services.ai_gateway.registry import ModelRegistry
                 from app.services.ai_gateway.providers.base import VideoReq
                 import asyncio
@@ -507,6 +507,8 @@ class LLMGateway:
                 if not chosen_model:
                     if provider == "together":
                         chosen_model = "Wan-AI/Wan2.1-I2V-14B" if reference_image_url else "minimax/video-01"
+                    elif provider == "heygen":
+                        chosen_model = "heygen/v3-video-agent"
                     else:
                         chosen_model = "kling-ai/kling-v1.5"
 

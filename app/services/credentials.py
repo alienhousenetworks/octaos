@@ -17,6 +17,7 @@ PROVIDER_ALIASES: Dict[str, str] = {
     "googleads": "google_ads",
     "twilio_sms": "twilio",
     "twilio_voice": "twilio",
+    "hey_gen": "heygen",
 }
 
 

@@ -16,6 +16,7 @@ from app.services.ai_gateway.providers.base import (
 from app.services.ai_gateway.providers.openrouter import OpenRouterAdapter
 from app.services.ai_gateway.providers.together import TogetherAdapter
 from app.services.ai_gateway.providers.nvidia import NvidiaAdapter
+from app.services.ai_gateway.providers.heygen import HeyGenAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class ModelRegistry:
             "openrouter": OpenRouterAdapter(),
             "together": TogetherAdapter(),
             "nvidia": NvidiaAdapter(),
+            "heygen": HeyGenAdapter(),
         }
 
     @classmethod
@@ -46,6 +48,8 @@ class ModelRegistry:
             p = "together"
         elif p in ("nim", "nvidia_nim"):
             p = "nvidia"
+        elif p in ("hey_gen",):
+            p = "heygen"
         return self.adapters.get(p)
 
     def _get_api_key(self, db: Session, tenant_id: str, provider: str) -> str:

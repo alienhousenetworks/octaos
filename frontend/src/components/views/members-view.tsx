@@ -282,6 +282,13 @@ export default function MembersView({
 
         <div className="flex items-center gap-2">
           <Button
+            onClick={() => window.location.href = '/app/admin/rbac'}
+            className="h-8 bg-[#1f2f3f] hover:bg-[#283e54] text-[#79aec8] border border-[#2b4156] font-medium text-xs rounded-md px-3.5 flex items-center gap-1.5 shadow-sm"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-[#79aec8]" />
+            Django Admin RBAC
+          </Button>
+          <Button
             onClick={() => {
               setInviteEmail('');
               setGeneratedLink('');

@@ -34,6 +34,7 @@ SUPPORTED_AI_PROVIDERS = {
     "cohere",
     "local",
     "nvidia",
+    "heygen",
 }
 
 def normalize_ai_provider(provider: Optional[str]) -> Optional[str]:
@@ -46,6 +47,8 @@ def normalize_ai_provider(provider: Optional[str]) -> Optional[str]:
         return "grok"
     elif p in ("nim", "nvidia_nim"):
         return "nvidia"
+    elif p in ("hey_gen",):
+        return "heygen"
     if p in SUPPORTED_AI_PROVIDERS:
         return p
     return None
@@ -199,6 +202,8 @@ class AIProviderGateway:
             return os.getenv("MISTRAL_API_KEY") or ""
         elif p == "cohere":
             return os.getenv("COHERE_API_KEY") or ""
+        elif p == "heygen":
+            return getattr(settings, "HEYGEN_API_KEY", None) or os.getenv("HEYGEN_API_KEY") or ""
         elif p == "firecrawl":
             return getattr(settings, "FIRECRAWL_API_KEY", None) or os.getenv("FIRECRAWL_API_KEY") or ""
         return ""

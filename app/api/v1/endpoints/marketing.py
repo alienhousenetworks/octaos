@@ -886,6 +886,7 @@ def get_generation_job_status(
 class SuggestPromptRequest(BaseModel):
     content: str
     media_type: str  # "image" or "video"
+    provider: Optional[str] = None
 
 
 @router.post("/suggest-prompt")
@@ -897,25 +898,53 @@ async def suggest_prompt(
     req: SuggestPromptRequest,
 ) -> Any:
     from app.services.llm_gateway import LLMGateway
+    from app.models.verticals import BusinessProfile
     gateway = LLMGateway(db, tenant_id)
 
+    profile = db.query(BusinessProfile).filter_by(tenant_id=tenant_id).first()
+    company_name = profile.company_name if profile and profile.company_name else "Enterprise Brand"
+    industry = profile.industry if profile and profile.industry else "Technology & AI"
+    usp = profile.usp if profile and profile.usp else "Autonomous multi-agent intelligence"
+
+    is_heygen = (req.provider or "").lower() == "heygen"
+
     if req.media_type == "video":
-        prompt = (
-            f"Based on the following social media post text, write a detailed, highly descriptive prompt to generate a 5-second video loop/cinemagraph (e.g. for Pika, Runway, or Sora). "
-            f"The video should match the tone and subject of the post. Keep the prompt descriptive, focused on visual actions, movement, lighting, and style. Do not write any introduction or explanation, only output the final prompt text itself.\n\n"
-            f"Post Text:\n{req.content}"
-        )
+        if is_heygen:
+            prompt = (
+                f"You are an Executive Brand Creative Director designing an AI video presenter prompt for HeyGen from the BRAND PERSPECTIVE.\n"
+                f"Company Name: {company_name}\n"
+                f"Industry: {industry}\n"
+                f"Brand Value / USP: {usp}\n\n"
+                f"Craft a detailed, photorealistic prompt for HeyGen depicting a poised, articulate brand spokesperson in modern executive attire "
+                f"standing in an architectural corporate studio with brand accent lighting, delivering the core insight of this post with calm authority.\n"
+                f"Focus on visual presentation, medium-close framing, natural facial articulation, executive presence, and high-fidelity production.\n"
+                f"Output ONLY the prompt text itself, with no intro, markdown styling, quotes, or conversational wrap-up.\n\n"
+                f"Post Text:\n{req.content}"
+            )
+            system_prompt = "You are an expert AI Video Producer specializing in brand-grounded HeyGen avatar prompts. Output only the prompt text itself."
+        else:
+            prompt = (
+                f"You are a Brand Creative Director. Based on the following social media post for {company_name} ({industry}), "
+                f"write a detailed, highly descriptive prompt to generate a 5-second cinematic video loop (e.g. for Pika, Runway, or Sora). "
+                f"Reflect the company's brand tone ({usp}). Describe visual actions, kinetics, lighting, and style. "
+                f"Output ONLY the final prompt text itself.\n\n"
+                f"Post Text:\n{req.content}"
+            )
+            system_prompt = "You are an expert AI prompt engineer specializing in cinematic Text-to-Video models. Respond with only the prompt itself."
     else:
         prompt = (
-            f"Based on the following social media post text, write a detailed, highly descriptive prompt to generate a high-quality illustration/photo/graphic (e.g. for Midjourney or DALL-E). "
-            f"The image should visually represent the theme of the post. Describe the subject, composition, background, color palette, lighting, and style (e.g., modern photography, warm corporate style, minimalist illustration). Do not write any introduction or explanation, only output the final prompt text itself.\n\n"
+            f"Based on the following social media post for {company_name} ({industry}), "
+            f"write a detailed prompt to generate a high-quality illustration/photo/graphic aligned with our brand visual identity. "
+            f"Describe the focal subject, composition, brand color palette, lighting, and style (e.g., modern editorial photography, crisp vector). "
+            f"Output ONLY the final prompt text itself.\n\n"
             f"Post Text:\n{req.content}"
         )
+        system_prompt = "You are an expert AI prompt engineer specializing in generating brand-aligned visual prompts for DALL-E, Midjourney, and FLUX. Respond with only the prompt itself."
 
     suggestion = await gateway.complete(
         prompt=prompt,
         provider="gemini",
-        system_prompt="You are an expert AI prompt engineer specializing in generating highly effective prompts for Text-to-Image (DALL-E, Midjourney) and Text-to-Video (Pika, Runway, Sora) models based on social media content. Respond with only the prompt itself, clean of markdown formatting, quotes, intro, or wrap-up."
+        system_prompt=system_prompt,
     )
     clean_suggestion = suggestion.strip().strip('"\'')
     return {"prompt": clean_suggestion}

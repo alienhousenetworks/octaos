@@ -84,6 +84,7 @@ const PROVIDERS: ProviderDef[] = [
   // Social & Media
   { id: 'linkedin', label: 'LinkedIn Share API', category: 'social', hint: 'OAuth Access Token', url: 'https://developer.linkedin.com/', placeholder: 'AQXTs...', description: 'Publishing B2B thought leadership updates and company posts' },
   { id: 'meta', label: 'Meta Graph API & Lead Ads', category: 'social', hint: 'Page Access Token', url: 'https://developers.facebook.com/', placeholder: 'EAABsbCS...', description: 'Publishing carousels, video reels on IG & FB, and Meta Lead Ads sync' },
+  { id: 'heygen', label: 'HeyGen Video AI', category: 'social', hint: 'HeyGen API Key', url: 'https://platform.heygen.com/api-keys', placeholder: 'your_heygen_api_key...', description: 'AI avatars, brand spokesperson videos, and automated video-agent generation' },
   { id: 'hootsuite', label: 'Hootsuite Publishing', category: 'social', hint: 'Access Token', url: 'https://developer.hootsuite.com/', placeholder: 'Bearer token...', description: 'Multi-network social post scheduling, queue management, and stream monitoring' },
 
   // Communications & Support

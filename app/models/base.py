@@ -59,8 +59,12 @@ class User(Base):
     role = Column(String, default="member")
     allowed_sections = Column(JSON, nullable=True)
     is_system_admin = Column(Boolean, default=False)
-    
+    is_staff = Column(Boolean, default=False)
+    department = Column(String, nullable=True)
+
     tenant = relationship("Tenant", back_populates="users")
+    groups = relationship("Group", secondary="user_groups", back_populates="users", lazy="selectin")
+    user_permissions = relationship("Permission", secondary="user_permissions", lazy="selectin")
 
 class Invitation(Base):
     __tablename__ = "invitations"

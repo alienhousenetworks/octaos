@@ -247,6 +247,14 @@
       "specialty": "4K High-Definition Documentary Aesthetic",
       "badge": "4K Ultra-HD",
       "modes": ["text_to_video"]
+    },
+    {
+      "provider": "heygen",
+      "slug": "heygen/v3-video-agent",
+      "display_name": "HeyGen Video Agent",
+      "specialty": "AI Avatar & Brand Spokesperson Explainer",
+      "badge": "Avatar & Voice",
+      "modes": ["text_to_video"]
     }
   ]
 }

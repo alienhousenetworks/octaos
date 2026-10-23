@@ -312,6 +312,8 @@ class CampaignOSOrchestrator:
                         provider=strat_p,
                         model=strat_m,
                         reference_image_url=reference_image_url,
+                        target_provider=vid_p,
+                        brand_dna=brand_anchor.brand_dna if brand_anchor else None,
                     )
                     video_res = MediaPromptCompiler.compile_video_shot_list(
                         shot_plan=video_plan,

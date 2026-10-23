@@ -1126,7 +1126,11 @@ export default function CampaignsView({
       const res = await fetchWithAuth(`${API_URL}/marketing/suggest-prompt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, media_type: mediaType })
+        body: JSON.stringify({
+          content,
+          media_type: mediaType,
+          provider: mediaType === 'video' ? videoProvider : imageProvider
+        })
       });
       const data = await res.json();
       if (res.ok && data.prompt) {
@@ -1386,13 +1390,32 @@ export default function CampaignsView({
                 )}
                 {ENABLE_IN_APP_VIDEO && editingVideoPromptEnabled && (
                   <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground pb-1">
+                      <span>Video Engine:</span>
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => { setVideoProvider('heygen'); setVideoModel('heygen/v3-video-agent'); }}
+                          className={`px-2 py-0.5 rounded text-xs border transition-colors ${videoProvider === 'heygen' ? 'bg-primary text-primary-foreground border-primary font-medium' : 'border-border hover:bg-accent'}`}
+                        >
+                          HeyGen (Avatar)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setVideoProvider('together'); setVideoModel('minimax/video-01'); }}
+                          className={`px-2 py-0.5 rounded text-xs border transition-colors ${videoProvider === 'together' ? 'bg-primary text-primary-foreground border-primary font-medium' : 'border-border hover:bg-accent'}`}
+                        >
+                          Together AI (Cinematic)
+                        </button>
+                      </div>
+                    </div>
                     <Textarea value={editingVideoPrompt} onChange={(event) => setEditingVideoPrompt(event.target.value)} placeholder="Describe the video" className="min-h-16" aria-label="Video prompt" />
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <Button type="button" size="sm" variant="outline" className="flex-1" disabled={suggestingPrompt} onClick={() => handleSuggestPrompt(editingContent || post.content, 'video', true)}>
-                        {suggestingPrompt ? 'Suggesting' : 'Suggest prompt'}
+                        {suggestingPrompt ? 'Suggesting' : `Suggest ${videoProvider === 'heygen' ? 'HeyGen' : 'video'} prompt`}
                       </Button>
                       <Button type="button" size="sm" className="flex-1" disabled={generatingMedia || !editingVideoPrompt} onClick={() => handleGenerateMedia(post.id, 'video', editingVideoPrompt)}>
-                        {generatingMedia ? 'Generating' : 'Generate video'}
+                        {generatingMedia ? 'Generating' : `Generate ${videoProvider === 'heygen' ? 'HeyGen avatar' : 'video'}`}
                       </Button>
                     </div>
                   </div>
@@ -2211,12 +2234,14 @@ export default function CampaignsView({
                             if (!value) return;
                             setVideoProvider(value);
                             if (value === 'together') setVideoModel('minimax/video-01');
+                            else if (value === 'heygen') setVideoModel('heygen/v3-video-agent');
                             else if (value === 'openrouter') setVideoModel('runway/gen-3-alpha');
                             else if (value === 'pika') setVideoModel('pika-core');
                           }}>
                             <SelectTrigger className="w-full" aria-label="Video provider"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="together">Together</SelectItem>
+                              <SelectItem value="together">Together (Cinematic)</SelectItem>
+                              <SelectItem value="heygen">HeyGen (Brand Avatar)</SelectItem>
                               <SelectItem value="openrouter">OpenRouter</SelectItem>
                               <SelectItem value="pika">Pika</SelectItem>
                             </SelectContent>

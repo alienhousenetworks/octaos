@@ -1,5 +1,6 @@
 """Import all models so that Base.metadata contains the full table schema."""
 from app.models.base import Base, Tenant, User, Invitation, APICredential, ProviderUsage, AIBatchJob, SystemSetting
+from app.models.rbac import Permission, Group, group_permissions, user_groups, user_permissions
 from app.models.teams import AITeam, InstalledApp, AgentMetric
 from app.models.agents import ActivityLog, KnowledgeDocument
 from app.models.verticals import (
