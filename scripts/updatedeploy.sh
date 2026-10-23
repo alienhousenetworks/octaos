@@ -179,12 +179,36 @@ cd "$APP_DIR"
 # =============================================================================
 header "Restarting Services"
 
+# Harmonize backend service names: octaos-backend vs octaos-api
+if [[ -f /etc/systemd/system/octaos-backend.service && ! -f /etc/systemd/system/octaos-api.service ]]; then
+  info "Aliasing octaos-api to octaos-backend..."
+  ln -sf /etc/systemd/system/octaos-backend.service /etc/systemd/system/octaos-api.service
+  systemctl daemon-reload
+elif [[ -f /etc/systemd/system/octaos-api.service && ! -f /etc/systemd/system/octaos-backend.service ]]; then
+  info "Aliasing octaos-backend to octaos-api..."
+  ln -sf /etc/systemd/system/octaos-api.service /etc/systemd/system/octaos-backend.service
+  systemctl daemon-reload
+fi
+
+# Detect registered backend service
+BACKEND_SVC="octaos-backend"
+if systemctl list-unit-files 2>/dev/null | grep -q "octaos-backend.service"; then
+  BACKEND_SVC="octaos-backend"
+elif systemctl list-unit-files 2>/dev/null | grep -q "octaos-api.service"; then
+  BACKEND_SVC="octaos-api"
+fi
+
+SERVICES_TO_RESTART=("$BACKEND_SVC" "octaos-worker" "octaos-beat" "octaos-frontend")
+if systemctl list-unit-files 2>/dev/null | grep -q "octaos-video-renderer.service"; then
+  SERVICES_TO_RESTART+=("octaos-video-renderer")
+fi
+
 info "Restarting OctaOS systemd services..."
-for svc in octaos-api octaos-worker octaos-beat octaos-frontend octaos-video-renderer; do
+for svc in "${SERVICES_TO_RESTART[@]}"; do
   if systemctl restart "$svc" 2>/dev/null; then
     success "$svc restarted"
   else
-    warn "Service $svc could not be restarted (may not be registered)"
+    warn "Service $svc could not be restarted (check: journalctl -u $svc -n 30 --no-pager)"
   fi
 done
 
@@ -210,14 +234,18 @@ check_service() {
   fi
 }
 
-for svc in postgresql redis-server nginx octaos-api octaos-worker octaos-beat octaos-frontend; do
+for svc in postgresql redis-server nginx "$BACKEND_SVC" octaos-worker octaos-beat octaos-frontend; do
   check_service "$svc"
 done
 
-# HTTP smoke test – retry for up to 30 seconds (uvicorn takes a few seconds with 4 workers)
+# HTTP smoke test – check backend on port 8000, 8001, or via Nginx
 BACKEND_OK=false
-for i in 1 2 3 4 5 6 7 8 9 10; do
-  if curl -sf "http://localhost:8001/" > /dev/null 2>&1; then
+for i in {1..10}; do
+  if curl -sf "http://localhost:8000/docs" > /dev/null 2>&1 || \
+     curl -sf "http://localhost:8000/api/" > /dev/null 2>&1 || \
+     curl -sf "http://localhost:8001/" > /dev/null 2>&1 || \
+     curl -sf "http://localhost:8000/" > /dev/null 2>&1 || \
+     curl -sf "http://localhost/api/v1/health" > /dev/null 2>&1; then
     BACKEND_OK=true
     break
   fi
@@ -227,10 +255,22 @@ done
 if $BACKEND_OK; then
   success "Backend API responding ✓"
 else
-  warn "Backend API not responding after 30s – check: journalctl -u octaos-api -n 50"
+  warn "Backend API not responding after 30s – check: journalctl -u $BACKEND_SVC -n 50"
 fi
 
-if curl -sf "http://localhost:3001/" > /dev/null 2>&1; then
+# HTTP smoke test – check frontend on port 3000, 3001, or via Nginx
+FRONTEND_OK=false
+for i in {1..10}; do
+  if curl -sf "http://localhost:3000/" > /dev/null 2>&1 || \
+     curl -sf "http://localhost:3001/" > /dev/null 2>&1 || \
+     curl -sf "http://localhost/" > /dev/null 2>&1; then
+    FRONTEND_OK=true
+    break
+  fi
+  sleep 2
+done
+
+if $FRONTEND_OK; then
   success "Frontend responding ✓"
 else
   warn "Frontend not responding yet"

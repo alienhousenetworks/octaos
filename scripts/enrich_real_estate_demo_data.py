@@ -11,8 +11,9 @@ from datetime import datetime, timedelta, timezone
 # Ensure repository root is in sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app.db.session import SessionLocal
-from app.models.base import Tenant, User
+from app.db.session import SessionLocal, engine
+from app.models.base import Base, Tenant, User
+import app.models  # noqa: F401
 from app.core.security import get_password_hash
 from app.models.real_estate import (
     RealEstateProject,
@@ -26,6 +27,13 @@ from app.models.verticals import Lead
 
 
 def enrich_demo_data(target_email: str = "salesperson@octaos.com", password: str = "password123"):
+    print("[*] Ensuring database tables exist...")
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("    [✓] Database schema verified & operational tables ready.")
+    except Exception as e:
+        print(f"    [!] Warning checking tables: {e}")
+
     db = SessionLocal()
     try:
         print("[*] Starting OctaOS Real Estate & Field Sales Demo Data Enrichment...")
