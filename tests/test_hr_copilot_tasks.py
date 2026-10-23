@@ -176,3 +176,62 @@ async def test_ask_hr_answers_analytics_and_executes_workflow_tasks(test_db, mon
     test_db.refresh(approval)
     assert start.status == "completed"
     assert approval.status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_ask_hr_evaluates_why_candidate_is_not_good(test_db):
+    tenant_id = "tenant-fit-eval"
+    orchestrator = HREnterpriseOrchestrator(test_db, tenant_id, "user-eval")
+
+    cand = Candidate(
+        tenant_id=tenant_id,
+        name="Bob Williams",
+        role="Senior DevOps Engineer",
+        email="bob@example.com",
+        status="sourced",
+        scorecard={
+            "rank": 2,
+            "composite_score": 48,
+            "recommendation": "Review Needed",
+            "fit_verdict": "Candidate lacks necessary Kubernetes and Terraform depth for a senior role.",
+            "missing_skills": ["Kubernetes", "Terraform", "CI/CD"],
+            "matched_skills": ["Linux", "Bash"],
+            "is_internship_only": True,
+            "experience_years": 0,
+            "experience_summary": "Internship profile (< 1 yr)",
+            "extra_remarks": "Reject for senior post; consider for junior internship."
+        }
+    )
+    test_db.add(cand)
+    test_db.commit()
+
+    # 1. Ask why specific candidate is not good
+    reply_obj = await orchestrator.handle_message(
+        CopilotChatRequest(message="Why is Bob Williams not good for Senior DevOps Engineer?")
+    )
+    assert "Candidate Fit Evaluation" in reply_obj.reply
+    assert "Bob Williams" in reply_obj.reply
+    assert "Kubernetes" in reply_obj.reply
+    assert "Terraform" in reply_obj.reply
+    assert "Seniority Mismatch" in reply_obj.reply
+    assert "REVIEW NEEDED" in reply_obj.reply
+    # Ensure it did NOT return generic candidate count
+    assert "There are currently 1 candidate(s) tracked" not in reply_obj.reply
+
+    # 2. Ask "why this person not good" with resource_id
+    reply_res = await orchestrator.handle_message(
+        CopilotChatRequest(message="why is this person not good", resource_id=cand.id)
+    )
+    assert "Candidate Fit Evaluation" in reply_res.reply
+    assert "Bob Williams" in reply_res.reply
+    assert "Missing Required Skills" in reply_res.reply
+    assert "Kubernetes" in reply_res.reply
+
+    # 3. Create resume sheet
+    reply_sheet = await orchestrator.handle_message(
+        CopilotChatRequest(message="Create resume sheet for Data Engineer")
+    )
+    assert "Resume Sheet Initialized for Data Engineer" in reply_sheet.reply
+    req = test_db.query(JobRequisition).filter_by(tenant_id=tenant_id, title="Data Engineer").first()
+    assert req is not None
+    assert req.status == "open"

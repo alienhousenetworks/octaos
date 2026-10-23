@@ -451,12 +451,31 @@ class HREnterpriseOrchestrator:
             lines.append(f"- Candidate Stages: {', '.join(status_strs)}")
             lines.append("\nCandidates Tracked in ATS (Live Database):")
             for c in data["candidates"][:25]:
-                extra = ""
+                extra = []
                 if c.scorecard and isinstance(c.scorecard, dict):
-                    m = c.scorecard.get("match_score")
+                    sc = c.scorecard
+                    m = sc.get("composite_score") or sc.get("match_score")
                     if m is not None:
-                        extra += f" | Match: {m}%"
-                lines.append(f"  • {c.name} | Role: {c.role or 'N/A'} | Status: {c.status} | Email: {c.email}{extra}")
+                        extra.append(f"Match: {m}%")
+                    rec = sc.get("recommendation")
+                    if rec:
+                        extra.append(f"Recommendation: {rec}")
+                    gaps = sc.get("missing_skills") or sc.get("gaps")
+                    if gaps:
+                        gaps_str = ", ".join(gaps[:4]) if isinstance(gaps, list) else str(gaps)
+                        extra.append(f"Missing Skills/Gaps: [{gaps_str}]")
+                    strengths = sc.get("matched_skills") or sc.get("strengths")
+                    if strengths:
+                        str_str = ", ".join(strengths[:4]) if isinstance(strengths, list) else str(strengths)
+                        extra.append(f"Strengths: [{str_str}]")
+                    exp = sc.get("experience_summary")
+                    if exp:
+                        extra.append(f"Experience: {exp}")
+                    verdict = sc.get("fit_verdict")
+                    if verdict:
+                        extra.append(f"Verdict: {verdict}")
+                extra_str = f" | {' | '.join(extra)}" if extra else ""
+                lines.append(f"  • {c.name} (ID: {c.id}) | Role: {c.role or 'N/A'} | Status: {c.status} | Email: {c.email}{extra_str}")
 
         if data["open_reqs"]:
             lines.append("\nOpen Job Requisitions (Live Database):")
@@ -918,6 +937,58 @@ class HREnterpriseOrchestrator:
             )
 
         # ---------------------------------------------------------------------
+        # 5b. TASK: CREATE RESUME SHEET / JOB CANDIDATE SHEET
+        # ---------------------------------------------------------------------
+        is_create_sheet = bool(re.search(
+            r"\b(create|setup|new|generate|open)\s+(?:a\s+|an\s+)?(?:resume|candidate|extraction)\s+sheet\b",
+            lower
+        )) or bool(re.search(r"\bcreate\s+sheet\s+for\b", lower))
+        if is_create_sheet:
+            role_match = re.search(r"(?:for|role|position)[:\s]+([^,\n\.]+?)(?:,|\bwith|\bopenings|$)", text, re.IGNORECASE)
+            sheet_role = role_match.group(1).strip() if role_match else "General Role"
+            req = JobRequisition(
+                tenant_id=self.tenant_id,
+                title=sheet_role,
+                status="open",
+                headcount_approved=1,
+                headcount_filled=0
+            )
+            self.db.add(req)
+            self.db.commit()
+            self.db.refresh(req)
+            action = ProposedAction(
+                action_type="resume_sheet.create",
+                title=f"Created Resume Sheet: {sheet_role}",
+                resource_id=req.id,
+                payload={"requisition_id": req.id, "title": sheet_role},
+                risk_tier=RiskTier.R1_LOW_IMPACT,
+                requires_approval=False,
+                executed=True
+            )
+            return CopilotChatResponse(
+                conversation_id=conv_id,
+                reply=(
+                    f"✅ **Resume Sheet Initialized for {sheet_role}**\n\n"
+                    f"- **Target Role**: **{sheet_role}**\n"
+                    f"- **Job Requisition ID**: `{req.id[:8]}` (Status: `OPEN`)\n"
+                    f"- **Spreadsheet View**: Ready in the **Hiring -> Candidates Hub -> Sheet** tab.\n\n"
+                    f"**Next Steps**:\n"
+                    f"- Upload resumes in the **Ingest Resumes** tab to automatically populate this sheet.\n"
+                    f"- Or tell me: *\"Add candidate [Name] for {sheet_role}\"* to insert records directly."
+                ),
+                specialist_agent="Talent Acquisition Agent",
+                autonomy_level=AutonomyLevel.L1_SUGGESTIVE,
+                task_result=AgentTaskResult(
+                    task_id=f"task-sheet-{uuid.uuid4().hex[:6]}",
+                    agent_id="talent_agent",
+                    intent="create_resume_sheet",
+                    status="completed",
+                    summary=f"Created resume sheet for role {sheet_role}.",
+                    proposed_actions=[action]
+                )
+            )
+
+        # ---------------------------------------------------------------------
         # 6. TASK: UPDATE CANDIDATE STAGE (MOVE CANDIDATE)
         # ---------------------------------------------------------------------
         is_move_cand = bool(re.search(
@@ -1250,12 +1321,148 @@ class HREnterpriseOrchestrator:
         )
         return "\n".join(lines)
 
+    def _evaluate_candidate_fit_query(
+        self,
+        text: str,
+        data: Dict[str, Any],
+        resource_id: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Answers inquiries regarding candidate fit, skill gaps, rejection reasons,
+        and why a candidate or person is or is not suitable for a role.
+        """
+        lower = text.lower()
+        is_fit_inquiry = (
+            any(phrase in lower for phrase in [
+                "not good", "not a good", "not a fit", "bad fit", "poor fit", "why is", "why this",
+                "why was", "why are", "why not", "why candidate", "why applicant", "why person",
+                "what are the gaps", "missing skills", "strengths and gaps", "fit verdict",
+                "why rejected", "rejection reason", "is this person good", "is he good",
+                "is she good", "how good", "candidate fit", "evaluate candidate", "suitability",
+                "skill gaps", "why did he", "why did she", "weaknesses"
+            ])
+            or (resource_id and any(w in lower for w in ["why", "fit", "good", "gap", "eval", "score", "reject", "recommendation"]))
+        )
+        if not is_fit_inquiry:
+            return None
+
+        candidates = data.get("candidates") or []
+        if not candidates:
+            candidates = self.db.query(Candidate).filter_by(tenant_id=self.tenant_id).all()
+        if not candidates:
+            return (
+                "### 🔍 Candidate Fit Evaluation\n\n"
+                "There are currently no candidates tracked in your ATS database to evaluate.\n\n"
+                "Please upload resumes in the **Hiring -> Ingest Resumes** tab to run ATS keyword and AI fit analysis."
+            )
+
+        target_candidate = None
+
+        # 1. Match by resource_id if provided
+        if resource_id:
+            for c in candidates:
+                if str(c.id) == str(resource_id):
+                    target_candidate = c
+                    break
+
+        # 2. Match by candidate name mentioned in query
+        if not target_candidate:
+            for c in candidates:
+                c_name = (c.name or "").strip().lower()
+                if c_name and c_name != "candidate":
+                    first_name = c_name.split()[0] if " " in c_name else c_name
+                    if c_name in lower or (len(first_name) >= 3 and f" {first_name} " in f" {lower} "):
+                        target_candidate = c
+                        break
+
+        # 3. Match by target role if mentioned in query
+        if not target_candidate:
+            for c in candidates:
+                c_role = (c.role or "").strip().lower()
+                if c_role and c_role in lower:
+                    target_candidate = c
+                    break
+
+        # 4. If query is generic like "why this person not good" or "who is not good"
+        if not target_candidate:
+            # Find candidate with lowest match score or marked Reject / Consider
+            sorted_by_score = sorted(
+                candidates,
+                key=lambda x: (
+                    (x.scorecard or {}).get("composite_score")
+                    or (x.scorecard or {}).get("match_score")
+                    or 50
+                )
+            )
+            if sorted_by_score:
+                target_candidate = sorted_by_score[0]
+
+        if not target_candidate:
+            return None
+
+        c = target_candidate
+        sc = c.scorecard or {}
+        score = sc.get("composite_score") or sc.get("match_score") or 60
+        role = c.role or "Unassigned Role"
+        recommendation = sc.get("recommendation") or ("Recommended" if score >= 75 else "Consider" if score >= 60 else "Review Needed")
+        verdict = sc.get("fit_verdict") or sc.get("summary") or "Profile screened against core target qualifications."
+
+        missing_skills = sc.get("missing_skills") or sc.get("gaps") or []
+        if isinstance(missing_skills, str):
+            missing_skills = [s.strip() for s in missing_skills.split(",") if s.strip()]
+
+        matched_skills = sc.get("matched_skills") or sc.get("skills") or []
+        if isinstance(matched_skills, str):
+            matched_skills = [s.strip() for s in matched_skills.split(",") if s.strip()]
+
+        is_intern = sc.get("is_internship_only", False)
+        exp_years = sc.get("experience_years", 0)
+        exp_summary = sc.get("experience_summary") or ("Internship profile (< 1 yr)" if is_intern else f"{exp_years} years experience")
+        extra_remarks = sc.get("extra_remarks") or sc.get("requirements_match") or f"{recommendation}: {verdict}"
+
+        lines = [
+            f"### 🔍 Candidate Fit Evaluation: **{c.name}**",
+            f"- **Target Role**: {role}",
+            f"- **Overall Match Score**: `{score}%`",
+            f"- **Hiring Recommendation**: **`{recommendation.upper()}`**",
+            f"- **Pipeline Stage**: `{c.status.upper()}`",
+            "",
+            f"#### 📋 Executive Fit Verdict",
+            f"> {verdict}",
+            "",
+            f"#### ⚠️ Key Gaps & Why Candidate May Not Be a Fit",
+        ]
+
+        if missing_skills:
+            missing_str = ", ".join([f"`{s}`" for s in missing_skills[:6]])
+            lines.append(f"- **Missing Required Skills**: {missing_str}")
+        else:
+            lines.append("- **Missing Required Skills**: No major skill gaps detected based on listed requirements.")
+
+        if is_intern or exp_years == 0:
+            lines.append(f"- **Seniority Mismatch**: Candidate background reflects **{exp_summary}**. May lack independent production execution required for senior responsibilities.")
+        elif exp_summary:
+            lines.append(f"- **Experience Profile**: {exp_summary}")
+
+        if matched_skills:
+            matched_str = ", ".join([f"`{s}`" for s in matched_skills[:6]])
+            lines.append(f"\n#### ✅ Demonstrated Strengths\n- **Matched Competencies**: {matched_str}")
+
+        lines.extend([
+            f"\n#### 💡 Recommendation & Next Steps",
+            f"{extra_remarks}",
+            f"\n*You can advance stage via: \"Move candidate {c.name} to screened\" or issue a rejection notification.*"
+        ])
+
+        return "\n".join(lines)
+
     def _generate_fallback_response(
         self,
         text: str,
         data: Dict[str, Any],
         rag_hits: Optional[List[Dict[str, Any]]] = None,
         specific_only: bool = False,
+        resource_id: Optional[str] = None,
     ) -> Optional[str]:
         """Deterministic response powered by real database records and authorized RAG retrieval."""
         lower = text.lower()
@@ -1271,8 +1478,18 @@ class HREnterpriseOrchestrator:
         pending_leaves = data["pending_leaves"]
         pending_leaves_records = data.get("pending_leaves_records", [])
 
-        # 1. Candidate & Talent Pipeline Queries
-        is_candidate_query = (
+        # 0. Candidate Fit & Reasoning Queries (Prioritize exact fit evaluation)
+        fit_reply = self._evaluate_candidate_fit_query(text, data, resource_id=resource_id)
+        if fit_reply:
+            return fit_reply
+
+        # 1. Candidate & Talent Pipeline Queries (General Headcounts and Lists ONLY)
+        is_reasoning_query = any(w in lower for w in [
+            "why", "not good", "not a fit", "fit", "gap", "gaps", "missing", "weakness",
+            "reject", "rejected", "scorecard", "reason", "evaluate", "evaluation",
+            "assessment", "compare", "strengths", "suitability", "qualify", "qualified"
+        ])
+        is_candidate_query = not is_reasoning_query and (
             any(w in lower for w in [
                 "candidate", "candidates", "cancdiate", "cancdiates", "candidat",
                 "applicant", "applicants", "who applied", "talent pipeline"
@@ -1608,14 +1825,14 @@ class HREnterpriseOrchestrator:
         )
         is_policy_query = any(w in lower for w in ["policy", "handbook", "guideline", "rule", "remote work", "overtime", "wfh"])
         rag_hits = self._retrieve_rag_context(text)
-        specific_reply = self._generate_fallback_response(text, workforce_data, rag_hits, specific_only=True)
+        specific_reply = self._generate_fallback_response(text, workforce_data, rag_hits, specific_only=True, resource_id=request.resource_id)
         if specific_reply:
             is_analytics = "hiring analytics" in specific_reply.lower()
             return CopilotChatResponse(
                 conversation_id=conv_id,
                 reply=specific_reply,
                 specialist_agent=(
-                    "Talent Acquisition Agent" if is_candidate_query or is_analytics
+                    "Talent Acquisition Agent" if is_candidate_query or is_analytics or "Candidate Fit Evaluation" in specific_reply
                     else "People & Policy Administration Agent" if is_policy_query
                     else "Universal HR Copilot"
                 ),
@@ -1645,16 +1862,17 @@ class HREnterpriseOrchestrator:
             "You are the OctaOS Universal HR Copilot, an enterprise-grade AI assistant with direct access to live workforce data and company knowledge.\n"
             "Your role is to assist HR managers, administrators, and employees across all 16 HR submodules:\n"
             "- People Management (Directory, headcount, profiles, departments, onboarding)\n"
-            "- Talent Management (ATS, recruitment, requisitions, candidates, sourcing)\n"
+            "- Talent Management (ATS, recruitment, requisitions, candidates, sourcing, resume evaluation)\n"
             "- Compensation & Workforce (Leave management, balances, attendance, shifts)\n"
             "- Culture & Compliance (Policies, reviews, training)\n\n"
             "CRITICAL INSTRUCTIONS:\n"
             "1. Always give direct, authoritative, and helpful answers grounded in the provided LIVE ENTERPRISE WORKFORCE DATA.\n"
-            "2. If asked about candidate count or candidates in the pipeline, report the exact numbers and candidate names/details from the LIVE ATS DATA.\n"
-            "3. If asked about employees, headcount, or open roles, report the exact live numbers and records.\n"
-            "4. If asked about company policies, ground your answer in the RETRIEVED HR KNOWLEDGE & POLICIES (RAG) section. If no policy is found, say so.\n"
-            "5. Format your answers cleanly with markdown (bold headers, bullet points, code tags).\n"
-            "6. Be friendly, professional, and concise. Never repeat generic canned intros or greetings unless directly greeted.\n\n"
+            "2. If asked about why a candidate/applicant/person is not good or not a fit, evaluate their exact match score, missing skills/gaps, experience seniority, and recommendation from their scorecard in the live ATS data.\n"
+            "3. If asked about candidate count or candidates in the pipeline, report the exact numbers and candidate names/details from the LIVE ATS DATA.\n"
+            "4. If asked about employees, headcount, or open roles, report the exact live numbers and records.\n"
+            "5. If asked about company policies, ground your answer in the RETRIEVED HR KNOWLEDGE & POLICIES (RAG) section. If no policy is found, say so.\n"
+            "6. Format your answers cleanly with markdown (bold headers, bullet points, code tags).\n"
+            "7. Be friendly, professional, and concise. Never repeat generic canned intros or greetings unless directly greeted.\n\n"
             f"LIVE ENTERPRISE WORKFORCE DATA:\n{workforce_context}"
         )
 
@@ -1685,7 +1903,7 @@ class HREnterpriseOrchestrator:
             logger.warning(f"HR Copilot AI completion error, falling back to deterministic answer: {e}")
 
         # Deterministic fallback response with live database records
-        fallback_reply = self._generate_fallback_response(text, workforce_data, rag_hits) or (
+        fallback_reply = self._generate_fallback_response(text, workforce_data, rag_hits, resource_id=request.resource_id) or (
             "I could not match that to a live HR record. Ask for hiring analytics, headcount, or the pipeline, "
             "or command a task such as opening a requisition or moving a candidate."
         )

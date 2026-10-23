@@ -236,12 +236,24 @@ export default function HREnterpriseSuite({
     }
   };
 
-  const handleSendCopilot = async () => {
-    if (!copilotInput.trim()) return;
-    const msg = copilotInput.trim();
-    setCopilotInput('');
+  const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null);
+
+  const handleAskCopilot = (message: string, resourceId?: string) => {
+    if (resourceId) setActiveCandidateId(resourceId);
+    setCopilotInput(message);
+    setIsCopilotOpen(true);
+    handleSendCopilot(message, resourceId);
+  };
+
+  const handleSendCopilot = async (overrideMsg?: string, overrideResourceId?: string) => {
+    const rawMsg = overrideMsg !== undefined ? overrideMsg : copilotInput;
+    if (!rawMsg.trim()) return;
+    const msg = rawMsg.trim();
+    if (overrideMsg === undefined) setCopilotInput('');
     setCopilotMessages((prev) => [...prev, { role: 'user', content: msg }]);
     setCopilotLoading(true);
+
+    const resourceIdToSend = overrideResourceId || activeCandidateId || (screen === 'leave' ? selectedEmpForLeave : undefined);
 
     try {
       const res = await fetchWithAuth(`${API_URL}/hr/copilot/chat`, {
@@ -255,7 +267,7 @@ export default function HREnterpriseSuite({
           })),
           context_pillar: screen === 'hiring' ? 'talent' : screen === 'leave' ? 'compensation' : 'people',
           context_submodule: screen === 'hiring' ? 'recruitment' : screen === 'leave' ? 'leave_management' : 'employee_management',
-          resource_id: selectedEmpForLeave || undefined
+          resource_id: resourceIdToSend || undefined
         })
       });
       if (res.ok) {
@@ -383,6 +395,7 @@ export default function HREnterpriseSuite({
             fetchData={fetchData}
             initialRoomSlug={initialRoomSlug}
             dataRevision={hiringRevision}
+            onAskCopilot={handleAskCopilot}
           />
         )}
 
@@ -398,6 +411,13 @@ export default function HREnterpriseSuite({
               </div>
 
               <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => router.push(PEOPLE_ROUTES.hiring)}
+                  className="bg-card border-border hover:bg-muted text-xs gap-1.5"
+                >
+                  <FileText className="w-3.5 h-3.5 text-primary" /> Resume Sheets &amp; ATS
+                </Button>
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-500" />
                   <Input
@@ -679,7 +699,7 @@ export default function HREnterpriseSuite({
               className="bg-slate-900 border-slate-800 text-xs text-white"
             />
             <Button
-              onClick={handleSendCopilot}
+              onClick={() => handleSendCopilot()}
               disabled={copilotLoading}
               className="bg-indigo-600 hover:bg-indigo-500 text-white h-9 px-3"
             >

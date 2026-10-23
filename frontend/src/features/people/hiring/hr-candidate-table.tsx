@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
   Loader2,
   FileSpreadsheet,
+  Upload,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -40,6 +41,7 @@ interface HRCandidateTableProps {
   onExportExcel: () => void;
   onOpenImportExcel: () => void;
   exportingExcel: boolean;
+  onOpenIngest?: () => void;
 }
 
 export default function HRCandidateTable({
@@ -57,6 +59,7 @@ export default function HRCandidateTable({
   onExportExcel,
   onOpenImportExcel,
   exportingExcel,
+  onOpenIngest,
 }: HRCandidateTableProps) {
   const isAllSelected = candidates.length > 0 && selectedIds.length === candidates.length;
 
@@ -113,6 +116,17 @@ export default function HRCandidateTable({
             </Button>
           )}
 
+          {onOpenIngest && (
+            <Button
+              size="sm"
+              onClick={onOpenIngest}
+              className="h-8 text-xs font-semibold flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
+            >
+              <Upload size={13} />
+              <span>Ingest Resumes</span>
+            </Button>
+          )}
+
           <Button
             size="sm"
             variant="outline"
@@ -155,6 +169,7 @@ export default function HRCandidateTable({
                 <th className="py-3 px-3 font-semibold">Stage</th>
                 <th className="py-3 px-4 font-semibold">Contact</th>
                 <th className="py-3 px-4 font-semibold">Skills Extracted</th>
+                <th className="py-3 px-3 font-semibold">Gaps &amp; Fit</th>
                 <th className="py-3 px-3 font-semibold">Experience</th>
                 <th className="py-3 px-3 text-center font-semibold">Resume</th>
                 <th className="py-3 px-3 w-12 text-center">Actions</th>
@@ -164,7 +179,7 @@ export default function HRCandidateTable({
             <tbody className="divide-y divide-border/60">
               {candidates.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={11} className="py-12 text-center text-muted-foreground">
                     No candidates found matching the criteria.
                   </td>
                 </tr>
@@ -255,6 +270,37 @@ export default function HRCandidateTable({
                               +{skillsList.length - 3}
                             </span>
                           )}
+                        </div>
+                      </td>
+
+                      {/* Gaps & Fit */}
+                      <td className="py-2.5 px-3">
+                        <div className="max-w-[200px] space-y-1">
+                          {sc.missing_skills && sc.missing_skills.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {sc.missing_skills.slice(0, 2).map((gap: string, i: number) => (
+                                <span
+                                  key={i}
+                                  className="px-1.5 py-0.2 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] truncate max-w-[90px]"
+                                  title={`Missing skill: ${gap}`}
+                                >
+                                  -{gap}
+                                </span>
+                              ))}
+                              {sc.missing_skills.length > 2 && (
+                                <span className="text-[10px] text-rose-400 font-mono">
+                                  +{sc.missing_skills.length - 2}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-[#64B99A] font-semibold">
+                              ✓ Skills matched
+                            </span>
+                          )}
+                          <div className="text-[10px] text-muted-foreground truncate" title={sc.fit_verdict || sc.extra_remarks || ''}>
+                            {sc.recommendation || 'Consider'}
+                          </div>
                         </div>
                       </td>
 

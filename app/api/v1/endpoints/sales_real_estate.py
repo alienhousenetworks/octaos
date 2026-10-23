@@ -161,6 +161,31 @@ class PaymentEventCreate(BaseModel):
     notes: str | None = None
 
 
+from app.services.sales_os.real_estate.cost_sheet_service import CostSheetService
+
+
+class CostSheetCalculateRequest(BaseModel):
+    unit_id: str
+    lead_id: str | None = None
+    base_rate_per_sqft: float | None = None
+    floor_rise_rate_per_sqft: float = 45.0
+    plc_type: str | None = None
+    plc_rate_per_sqft: float | None = None
+    car_parking_slots: int = 1
+    car_parking_charges_per_slot: float = 300000.0
+    clubhouse_charges: float = 250000.0
+    infrastructure_development_charges: float = 150000.0
+    gst_rate_pct: float = 5.0
+    stamp_duty_pct: float = 5.6
+    registration_fee_est: float = 30000.0
+    payment_plan_type: str = "construction_linked"
+    notes: str | None = None
+
+
+class CostSheetSaveRequest(CostSheetCalculateRequest):
+    pass
+
+
 class CommissionPayout(BaseModel):
     payout_reference: str = Field(..., min_length=3)
 
@@ -674,5 +699,86 @@ def trigger_expire_holds_job(
 def trigger_dispatch_reminders_job() -> dict[str, Any]:
     from app.workers.real_estate_jobs import dispatch_upcoming_visit_reminders_job
     return dispatch_upcoming_visit_reminders_job(window_minutes=120)
+
+
+# --- Enterprise CPQ & Cost Sheets ---
+@router.post("/cost-sheets/calculate")
+def calculate_cost_sheet(
+    body: CostSheetCalculateRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> dict[str, Any]:
+    """Calculate dynamic price breakdown, FRC, PLC, amenities, and milestone schedule on-the-fly."""
+    svc = CostSheetService(db, tenant_id)
+    return svc.calculate_cost_sheet(
+        unit_id=body.unit_id,
+        lead_id=body.lead_id,
+        base_rate_per_sqft=body.base_rate_per_sqft,
+        floor_rise_rate_per_sqft=body.floor_rise_rate_per_sqft,
+        plc_type=body.plc_type,
+        plc_rate_per_sqft=body.plc_rate_per_sqft,
+        car_parking_slots=body.car_parking_slots,
+        car_parking_charges_per_slot=body.car_parking_charges_per_slot,
+        clubhouse_charges=body.clubhouse_charges,
+        infrastructure_development_charges=body.infrastructure_development_charges,
+        gst_rate_pct=body.gst_rate_pct,
+        stamp_duty_pct=body.stamp_duty_pct,
+        registration_fee_est=body.registration_fee_est,
+        payment_plan_type=body.payment_plan_type,
+    )
+
+
+@router.post("/cost-sheets")
+def create_official_cost_sheet(
+    body: CostSheetSaveRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> dict[str, Any]:
+    """Calculate and persist an authoritative Cost Sheet specification for a buyer and unit."""
+    svc = CostSheetService(db, tenant_id)
+    return svc.save_cost_sheet(
+        unit_id=body.unit_id,
+        lead_id=body.lead_id,
+        base_rate_per_sqft=body.base_rate_per_sqft,
+        floor_rise_rate_per_sqft=body.floor_rise_rate_per_sqft,
+        plc_type=body.plc_type,
+        plc_rate_per_sqft=body.plc_rate_per_sqft,
+        car_parking_slots=body.car_parking_slots,
+        car_parking_charges_per_slot=body.car_parking_charges_per_slot,
+        clubhouse_charges=body.clubhouse_charges,
+        infrastructure_development_charges=body.infrastructure_development_charges,
+        gst_rate_pct=body.gst_rate_pct,
+        stamp_duty_pct=body.stamp_duty_pct,
+        registration_fee_est=body.registration_fee_est,
+        payment_plan_type=body.payment_plan_type,
+        notes=body.notes,
+    )
+
+
+@router.get("/cost-sheets/{cost_sheet_id}")
+def get_cost_sheet_by_id(
+    cost_sheet_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> dict[str, Any]:
+    """Fetch an official cost sheet by ID."""
+    svc = CostSheetService(db, tenant_id)
+    return svc.get_cost_sheet(cost_sheet_id)
+
+
+@router.get("/units/{unit_id}/cost-sheet")
+def get_unit_latest_cost_sheet(
+    unit_id: str,
+    lead_id: str | None = Query(None),
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+) -> dict[str, Any]:
+    """Fetch latest active cost sheet or generate standard on-the-fly."""
+    svc = CostSheetService(db, tenant_id)
+    existing = svc.get_latest_cost_sheet_for_unit(unit_id, lead_id=lead_id)
+    if existing:
+        return existing
+    # Generate default
+    return svc.calculate_cost_sheet(unit_id=unit_id, lead_id=lead_id)
 
 

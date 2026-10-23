@@ -12,6 +12,7 @@ from app.models.real_estate import (
     RealEstateProjectAssignment,
 )
 from app.models.base import User
+from app.services.sales_os.real_estate.concurrency import inventory_unit_lock
 
 
 class InventoryService:
@@ -245,64 +246,65 @@ class InventoryService:
         return {"id": unit.id, "unit_number": unit.unit_number, "status": unit.status}
 
     def request_unit_hold(self, unit_id: str, lead_id: str, deposit_amount: float = 0.0, notes: str | None = None) -> dict:
-        """Atomically request or confirm a unit hold using optimistic concurrency locking."""
-        unit = (
-            self.db.query(RealEstateUnit)
-            .filter(RealEstateUnit.id == unit_id, RealEstateUnit.tenant_id == self.tenant_id)
-            .with_for_update()
-            .first()
-        )
-        if not unit:
-            raise HTTPException(status_code=404, detail="Unit not found")
+        """Atomically request or confirm a unit hold using distributed inventory lock and database optimistic locking."""
+        with inventory_unit_lock(unit_id):
+            unit = (
+                self.db.query(RealEstateUnit)
+                .filter(RealEstateUnit.id == unit_id, RealEstateUnit.tenant_id == self.tenant_id)
+                .with_for_update()
+                .first()
+            )
+            if not unit:
+                raise HTTPException(status_code=404, detail="Unit not found")
 
-        # Lazy reconcile if hold expired
-        if unit.status != "available":
-            self.reconcile_unit_status(unit)
+            # Lazy reconcile if hold expired
             if unit.status != "available":
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Unit {unit.unit_number} is currently {unit.status.replace('_', ' ')} and cannot be held."
-                )
+                self.reconcile_unit_status(unit)
+                if unit.status != "available":
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Unit {unit.unit_number} is currently {unit.status.replace('_', ' ')} and cannot be held."
+                    )
 
-        project = self.db.query(RealEstateProject).filter(
-            RealEstateProject.id == unit.project_id,
-            RealEstateProject.tenant_id == self.tenant_id
-        ).first()
-        hold_hours = project.hold_duration_hours if project else 48
-        expires_at = datetime.now(timezone.utc) + timedelta(hours=hold_hours)
+            project = self.db.query(RealEstateProject).filter(
+                RealEstateProject.id == unit.project_id,
+                RealEstateProject.tenant_id == self.tenant_id
+            ).first()
+            hold_hours = project.hold_duration_hours if project else 48
+            expires_at = datetime.now(timezone.utc) + timedelta(hours=hold_hours)
 
-        token = str(uuid.uuid4())
-        is_confirmed = deposit_amount > 0
-        hold = RealEstateUnitHold(
-            tenant_id=self.tenant_id,
-            unit_id=unit.id,
-            lead_id=lead_id,
-            status="confirmed" if is_confirmed else "requested",
-            confirmed_at=datetime.now(timezone.utc) if is_confirmed else None,
-            expires_at=expires_at,
-            deposit_amount=deposit_amount,
-            deposit_verified=is_confirmed,
-            concurrency_token=token,
-            notes=notes,
-        )
-        unit.status = "confirmed_hold" if is_confirmed else "hold_requested"
-        unit.version += 1
-        if project and project.available_units and project.available_units > 0:
-            project.available_units -= 1
+            token = str(uuid.uuid4())
+            is_confirmed = deposit_amount > 0
+            hold = RealEstateUnitHold(
+                tenant_id=self.tenant_id,
+                unit_id=unit.id,
+                lead_id=lead_id,
+                status="confirmed" if is_confirmed else "requested",
+                confirmed_at=datetime.now(timezone.utc) if is_confirmed else None,
+                expires_at=expires_at,
+                deposit_amount=deposit_amount,
+                deposit_verified=is_confirmed,
+                concurrency_token=token,
+                notes=notes,
+            )
+            unit.status = "confirmed_hold" if is_confirmed else "hold_requested"
+            unit.version += 1
+            if project and project.available_units and project.available_units > 0:
+                project.available_units -= 1
 
-        self.db.add(hold)
-        self.db.commit()
-        self.db.refresh(hold)
+            self.db.add(hold)
+            self.db.commit()
+            self.db.refresh(hold)
 
-        return {
-            "hold_id": hold.id,
-            "unit_id": unit.id,
-            "unit_number": unit.unit_number,
-            "status": hold.status,
-            "expires_at": hold.expires_at.isoformat(),
-            "deposit_amount": hold.deposit_amount,
-            "concurrency_token": token,
-        }
+            return {
+                "hold_id": hold.id,
+                "unit_id": unit.id,
+                "unit_number": unit.unit_number,
+                "status": hold.status,
+                "expires_at": hold.expires_at.isoformat(),
+                "deposit_amount": hold.deposit_amount,
+                "concurrency_token": token,
+            }
 
     def release_hold(self, hold_id: str, reason: str = "Released by user") -> dict:
         """Release a hold and return the unit to available status."""

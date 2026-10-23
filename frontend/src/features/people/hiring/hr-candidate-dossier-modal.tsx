@@ -23,6 +23,7 @@ import {
   Edit2,
   Trash2,
   Award,
+  Bot,
 } from 'lucide-react';
 import { Candidate, STAGES, getScoreBadgeClass } from './hr-types';
 
@@ -35,6 +36,7 @@ interface HRCandidateDossierModalProps {
   onOpenInterview: (candidate: Candidate) => void;
   onOpenOffer: (candidate: Candidate) => void;
   onDeleteCandidate: (candidateId: string) => void;
+  onAskCopilot?: (message: string, resourceId?: string) => void;
 }
 
 export default function HRCandidateDossierModal({
@@ -46,6 +48,7 @@ export default function HRCandidateDossierModal({
   onOpenInterview,
   onOpenOffer,
   onDeleteCandidate,
+  onAskCopilot,
 }: HRCandidateDossierModalProps) {
   const [activeDossierTab, setActiveDossierTab] = useState<'overview' | 'scorecard' | 'resume'>('overview');
 
@@ -335,6 +338,23 @@ export default function HRCandidateDossierModal({
             >
               <Trash2 size={13} /> Delete
             </Button>
+
+            {onAskCopilot && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  onClose();
+                  onAskCopilot(
+                    `Why is ${candidate.name || 'this candidate'} not good for ${candidate.role || 'this role'}?`,
+                    candidate.id
+                  );
+                }}
+                className="h-8.5 text-xs font-semibold flex items-center gap-1.5 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
+              >
+                <Bot size={13} /> Ask HR: Fit Analysis
+              </Button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">

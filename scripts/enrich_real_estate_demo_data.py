@@ -21,6 +21,7 @@ from app.models.real_estate import (
     RealEstateUnitHold,
     RealEstateSiteVisit,
     RealEstateProjectAssignment,
+    RealEstateCostSheet,
 )
 from app.models.field_sales import SalespersonFieldStatus
 from app.models.verticals import Lead

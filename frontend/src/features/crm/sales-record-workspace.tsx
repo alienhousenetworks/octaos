@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Loader2, Lock, Send, Sparkles, Building, CheckCircle, FileText, Check, Zap } from 'lucide-react';
+import { ArrowLeft, Loader2, Lock, Send, Sparkles, Building, CheckCircle, FileText, Check, Zap, Calculator } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { notify } from '@/lib/notify';
 import { CopilotAdvice, SalesTerminology, SHARED_TERMS } from './sales-platform';
 import { Lead } from './sales-types';
 
@@ -75,6 +76,10 @@ export default function SalesRecordWorkspace({
   const [bookingPrice, setBookingPrice] = useState('');
   const [bookingBuyerName, setBookingBuyerName] = useState('');
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [activeCostSheetUnitId, setActiveCostSheetUnitId] = useState<string | null>(null);
+  const [costSheetData, setCostSheetData] = useState<any | null>(null);
+  const [costSheetLoading, setCostSheetLoading] = useState(false);
+  const [costSheetPlanType, setCostSheetPlanType] = useState('construction_linked');
   const [draftPreview, setDraftPreview] = useState<{ subject: string; body: string } | null>(
     lead.data?.draft_subject || lead.data?.draft_body
       ? { subject: lead.data?.draft_subject || '', body: lead.data?.draft_body || '' }
@@ -236,6 +241,43 @@ export default function SalesRecordWorkspace({
     } finally {
       setMatchesLoading(false);
     }
+  };
+
+  const handleLoadCostSheet = async (unitId: string, planType: string = costSheetPlanType) => {
+    setActiveCostSheetUnitId(unitId);
+    setCostSheetLoading(true);
+    try {
+      const res = await fetchWithAuth(
+        `${API_URL}/sales-os/real-estate/cost-sheets/calculate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            unit_id: unitId,
+            lead_id: lead.id,
+            payment_plan_type: planType,
+          }),
+        }
+      );
+      if (res.ok) {
+        setCostSheetData(await res.json());
+      } else {
+        const err = await res.json().catch(() => ({}));
+        notify.error(err.detail || 'Failed to calculate cost sheet');
+      }
+    } catch (err: any) {
+      notify.error(err.message || 'Error calculating cost sheet');
+    } finally {
+      setCostSheetLoading(false);
+    }
+  };
+
+  const handleApplyCostSheetToBooking = (cs: any) => {
+    setBookingUnitId(cs.unit_id);
+    setBookingPrice(String(cs.gross_consideration));
+    setBookingBuyerName(lead.name || '');
+    setActiveCostSheetUnitId(null);
+    notify.success(`CPQ Price of ₹${Number(cs.gross_consideration).toLocaleString()} pre-filled for Booking!`);
   };
 
   const handleQuickHoldUnit = async (unitId: string) => {
@@ -539,7 +581,22 @@ export default function SalesRecordWorkspace({
                         </div>
 
                         {/* Booking or Hold Action */}
-                        <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/50">
+                        <div className="flex flex-wrap items-center justify-end gap-2 pt-1 border-t border-border/50">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              if (activeCostSheetUnitId === m.unit_id) {
+                                setActiveCostSheetUnitId(null);
+                              } else {
+                                void handleLoadCostSheet(m.unit_id);
+                              }
+                            }}
+                            className="h-7 text-xs font-medium gap-1 border-primary/40 text-primary hover:bg-primary/10"
+                          >
+                            <Calculator size={12} />
+                            {activeCostSheetUnitId === m.unit_id ? 'Hide CPQ Cost Sheet' : 'CPQ Cost Sheet'}
+                          </Button>
                           <Button
                             size="sm"
                             variant="outline"
@@ -560,6 +617,122 @@ export default function SalesRecordWorkspace({
                             Book Unit
                           </Button>
                         </div>
+
+                        {/* CPQ Cost Sheet Drawer / Expanded Panel */}
+                        {activeCostSheetUnitId === m.unit_id ? (
+                          <div className="mt-3 p-3 rounded-lg border border-primary/30 bg-card text-xs space-y-3">
+                            <div className="flex items-center justify-between border-b border-border pb-2">
+                              <div className="flex items-center gap-1.5">
+                                <Calculator size={14} className="text-primary" />
+                                <span className="font-bold text-foreground">Enterprise CPQ Cost Sheet & Tax Breakdown</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={costSheetPlanType}
+                                  onChange={(e) => {
+                                    setCostSheetPlanType(e.target.value);
+                                    void handleLoadCostSheet(m.unit_id, e.target.value);
+                                  }}
+                                  className="rounded border border-border bg-background px-2 py-1 text-[11px]"
+                                >
+                                  <option value="construction_linked">Construction-Linked (CLP)</option>
+                                  <option value="down_payment">Down Payment (DPP)</option>
+                                  <option value="subvention">Subvention (10:75:15)</option>
+                                </select>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setActiveCostSheetUnitId(null)}
+                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                                >
+                                  ✕
+                                </Button>
+                              </div>
+                            </div>
+
+                            {costSheetLoading ? (
+                              <div className="py-4 flex justify-center items-center gap-2 text-muted-foreground text-xs">
+                                <Loader2 size={14} className="animate-spin" />
+                                <span>Calculating authoritative pricing & milestone schedule...</span>
+                              </div>
+                            ) : costSheetData ? (
+                              <div className="space-y-2.5">
+                                {/* Core Pricing Grid */}
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] bg-muted/30 p-2.5 rounded-lg border border-border/60">
+                                  <div>
+                                    <span className="text-muted-foreground block">Carpet / Super Area</span>
+                                    <span className="font-semibold text-foreground">{costSheetData.carpet_sqft} / {costSheetData.super_builtup_sqft} sqft</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground block">Base Rate</span>
+                                    <span className="font-semibold text-foreground">₹{Number(costSheetData.base_rate_per_sqft).toLocaleString()} / sqft</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground block">Floor Rise (Floor {costSheetData.floor_number})</span>
+                                    <span className="font-semibold text-foreground">₹{Number(costSheetData.floor_rise_total).toLocaleString()}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground block">PLC Premium ({costSheetData.plc_type || 'None'})</span>
+                                    <span className="font-semibold text-foreground">₹{Number(costSheetData.plc_total).toLocaleString()}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground block">Clubhouse & Infra</span>
+                                    <span className="font-semibold text-foreground">₹{Number(costSheetData.clubhouse_charges + costSheetData.infrastructure_development_charges).toLocaleString()}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground block">Car Parking ({costSheetData.car_parking_slots} slot)</span>
+                                    <span className="font-semibold text-foreground">₹{Number(costSheetData.car_parking_charges).toLocaleString()}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground block">GST ({costSheetData.gst_rate_pct}%)</span>
+                                    <span className="font-semibold text-amber-400">₹{Number(costSheetData.gst_amount).toLocaleString()}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground block">Stamp Duty & Reg.</span>
+                                    <span className="font-semibold text-amber-400">₹{Number(costSheetData.stamp_duty_amount + costSheetData.registration_fee_est).toLocaleString()}</span>
+                                  </div>
+                                </div>
+
+                                {/* Totals Summary */}
+                                <div className="flex flex-wrap items-center justify-between p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+                                  <div>
+                                    <span className="text-[11px] text-muted-foreground block">Gross Consideration (Agreement Value)</span>
+                                    <span className="font-bold text-foreground text-sm">₹{Number(costSheetData.gross_consideration).toLocaleString()}</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="text-[11px] text-muted-foreground block">All-Inclusive Total Effective</span>
+                                    <span className="font-bold text-emerald-400 text-sm">₹{Number(costSheetData.total_effective_price).toLocaleString()}</span>
+                                  </div>
+                                </div>
+
+                                {/* Milestone Schedule preview */}
+                                <div className="space-y-1">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Milestone Payment Plan ({costSheetData.payment_plan_type})</span>
+                                  <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                                    {(costSheetData.milestone_schedule || []).map((ms: any, idx: number) => (
+                                      <div key={idx} className="flex items-center justify-between text-[11px] py-1 px-2 rounded bg-muted/40 border border-border/40">
+                                        <span className="text-foreground">{ms.stage_index}. {ms.milestone_name} ({ms.percentage}%)</span>
+                                        <span className="font-semibold text-foreground">₹{Number(ms.amount).toLocaleString()}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Action Button */}
+                                <div className="flex justify-end gap-2 pt-1 border-t border-border/50">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleApplyCostSheetToBooking(costSheetData)}
+                                    className="h-7 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5"
+                                  >
+                                    <Check size={12} />
+                                    Apply to Booking Application
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
 
                         {/* Inline Booking Form */}
                         {bookingUnitId === m.unit_id ? (

@@ -9,6 +9,13 @@ from app.services.sales_os.real_estate.commission_ledger_service import Commissi
 from app.services.sales_os.real_estate.property_matching_service import PropertyMatchingService
 from app.services.sales_os.real_estate.project_assignment_service import ProjectAssignmentService
 
+from app.services.sales_os.real_estate.cost_sheet_service import CostSheetService
+from app.services.sales_os.real_estate.concurrency import (
+    inventory_unit_lock,
+    acquire_inventory_lock,
+    release_inventory_lock,
+)
+
 __all__ = [
     "InventoryService",
     "VisitService",
@@ -19,5 +26,9 @@ __all__ = [
     "CommissionLedgerService",
     "PropertyMatchingService",
     "ProjectAssignmentService",
+    "CostSheetService",
+    "inventory_unit_lock",
+    "acquire_inventory_lock",
+    "release_inventory_lock",
 ]
 

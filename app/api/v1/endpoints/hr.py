@@ -1267,6 +1267,8 @@ def execute_contract_and_provision(
 
 @router.get("/candidates/export-excel")
 def export_candidates_excel(
+    role: Optional[str] = None,
+    room_id: Optional[str] = None,
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
     _: User = Depends(require_permission(Resource.HR, Action.READ)),
@@ -1282,9 +1284,21 @@ def export_candidates_excel(
             return ILLEGAL_CHARACTERS_RE.sub("", v)
         return v
 
-    candidates = db.query(models.Candidate).filter(
-        models.Candidate.tenant_id == tenant_id
-    ).order_by(models.Candidate.created_at.desc()).all()
+    q = db.query(models.Candidate).filter(models.Candidate.tenant_id == tenant_id)
+    if role and role.strip():
+        q = q.filter(models.Candidate.role.ilike(f"%{role.strip()}%"))
+    if room_id and room_id.strip():
+        q = q.filter(models.Candidate.room_id == room_id.strip())
+    candidates = q.all()
+
+    # Sort candidates by composite match score / rank descending
+    def get_cand_sort_key(c: Any) -> Tuple[int, int]:
+        sc = c.scorecard or {}
+        comp = sc.get("composite_score") or sc.get("match_score") or 0
+        rank = sc.get("rank") or 9999
+        return (-int(comp), int(rank))
+
+    candidates = sorted(candidates, key=get_cand_sort_key)
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -1298,12 +1312,14 @@ def export_candidates_excel(
         "Email",
         "Address",
         "Skills",
+        "Missing Skills / Gaps",
         "Projects",
         "Experiences",
         "Resume Link (Inside OctaOS)",
         "Shortlisting Status",
         "Match Score (%)",
-        "Extra Remarks"
+        "Recommendation",
+        "Fit Verdict & Remarks"
     ]
 
     header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
@@ -1340,6 +1356,12 @@ def export_candidates_excel(
         skills_list = scorecard.get("skills") or []
         skills_str = ", ".join(skills_list) if isinstance(skills_list, list) else str(skills_list)
 
+        # Missing skills / gaps list
+        missing_skills_list = scorecard.get("missing_skills") or scorecard.get("gaps") or []
+        missing_skills_str = ", ".join(missing_skills_list) if isinstance(missing_skills_list, list) else str(missing_skills_list)
+        if not missing_skills_str:
+            missing_skills_str = "None identified"
+
         # Projects list
         proj_list = scorecard.get("projects") or []
         if isinstance(proj_list, list):
@@ -1369,7 +1391,8 @@ def export_candidates_excel(
 
         status = (cand.status or "sourced").capitalize()
         match_score = scorecard.get("composite_score") or scorecard.get("match_score") or 60
-        extra_remarks = scorecard.get("extra_remarks") or scorecard.get("fit_verdict") or scorecard.get("recommendation") or "Shortlisted profile."
+        recommendation = scorecard.get("recommendation") or ("Recommended" if match_score >= 75 else "Consider" if match_score >= 60 else "Review Needed")
+        extra_remarks = scorecard.get("fit_verdict") or scorecard.get("extra_remarks") or scorecard.get("requirements_match") or "Shortlisted profile."
 
         row_values = [
             rank,
@@ -1378,11 +1401,13 @@ def export_candidates_excel(
             email,
             address,
             skills_str,
+            missing_skills_str,
             proj_str,
             experiences_str,
             resume_link,
             status,
             f"{match_score}%",
+            recommendation,
             extra_remarks
         ]
         clean_row_values = [sanitize_val(v) for v in row_values]
@@ -1394,13 +1419,13 @@ def export_candidates_excel(
             c = ws.cell(row=row_idx, column=col_idx)
             c.border = cell_border
             c.font = Font(name="Calibri", size=10)
-            if col_idx in [1, 3, 10, 11]:
+            if col_idx in [1, 3, 11, 12, 13]:
                 c.alignment = center_align
             else:
                 c.alignment = left_align
 
-            # If it's a resume link, make it a clickable hyperlink in Excel
-            if col_idx == 9 and resume_link:
+            # If it's a resume link (col 10), make it a clickable hyperlink in Excel
+            if col_idx == 10 and resume_link:
                 c.hyperlink = resume_link
                 c.font = Font(name="Calibri", size=10, color="2563EB", underline="single")
 

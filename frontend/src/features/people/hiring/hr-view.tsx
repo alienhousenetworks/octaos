@@ -34,6 +34,7 @@ interface HRViewProps {
   fetchData: () => Promise<void>;
   initialRoomSlug?: string;
   dataRevision?: number;
+  onAskCopilot?: (message: string, resourceId?: string) => void;
 }
 
 export default function HRView({
@@ -43,6 +44,7 @@ export default function HRView({
   fetchData,
   initialRoomSlug,
   dataRevision = 0,
+  onAskCopilot,
 }: HRViewProps) {
   // ── Section Room State ──
   const [rooms, setRooms] = useState<SectionRoomData[]>([]);
@@ -466,7 +468,11 @@ export default function HRView({
   const handleExportExcel = async () => {
     try {
       setExportingExcel(true);
-      const res = await fetchWithAuth(`${API_URL}/hr/candidates/export-excel`);
+      const queryParams = new URLSearchParams();
+      if (hrRole) queryParams.append('role', hrRole);
+      if (currentRoom?.id && currentRoom.id !== 'default') queryParams.append('room_id', currentRoom.id);
+      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+      const res = await fetchWithAuth(`${API_URL}/hr/candidates/export-excel${queryString}`);
       if (!res.ok) {
         notify('Failed to export Excel spreadsheet.');
         return;
@@ -950,6 +956,8 @@ export default function HRView({
             onExportExcel={handleExportExcel}
             onOpenImportExcel={() => setIsImportModalOpen(true)}
             exportingExcel={exportingExcel}
+            onOpenIngest={() => setActiveTab('ingestion')}
+            onAskCopilot={onAskCopilot}
           />
         )}
 

@@ -268,3 +268,72 @@ class RealEstateProjectAssignment(Base):
         UniqueConstraint("tenant_id", "project_id", "user_id", name="uq_project_agent_assignment"),
     )
 
+
+class RealEstateCostSheet(Base):
+    """
+    Enterprise CPQ Cost Sheet & Price Breakdown.
+    Calculates detailed pricing components:
+    - Base Rate per SqFt * Carpet / Built-up area
+    - Floor Rise Charges (FRC)
+    - Preferential Location Charges (PLC) (e.g. Corner, Garden, Skyline, Pool)
+    - Infrastructure, Clubhouse & Amenity Charges
+    - Dedicated Car Parking Allocation
+    - Statutory Levies: GST, Stamp Duty, Registration
+    - Construction-Linked (CLP) or Down Payment (DPP) milestone payment schedules
+    """
+
+    __tablename__ = "real_estate_cost_sheets"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    unit_id = Column(String, ForeignKey("real_estate_units.id"), nullable=False, index=True)
+    project_id = Column(String, ForeignKey("real_estate_projects.id"), nullable=False, index=True)
+    lead_id = Column(String, ForeignKey("leads.id"), nullable=True, index=True)
+
+    # Currency
+    currency = Column(String, default="INR")
+
+    # Base Pricing
+    carpet_sqft = Column(Float, nullable=False)
+    super_builtup_sqft = Column(Float, nullable=True)
+    base_rate_per_sqft = Column(Float, nullable=False)
+    base_unit_value = Column(Float, nullable=False)
+
+    # Premium / Location / Floor Adjustments
+    floor_number = Column(Integer, default=1)
+    floor_rise_rate_per_sqft = Column(Float, default=0.0)
+    floor_rise_total = Column(Float, default=0.0)
+
+    plc_type = Column(String, nullable=True)  # Corner, Pool Facing, Garden Facing, Sky Suite
+    plc_rate_per_sqft = Column(Float, default=0.0)
+    plc_total = Column(Float, default=0.0)
+
+    # Amenities & Infrastructure
+    clubhouse_charges = Column(Float, default=0.0)
+    infrastructure_development_charges = Column(Float, default=0.0)
+    car_parking_slots = Column(Integer, default=1)
+    car_parking_charges = Column(Float, default=0.0)
+
+    # Gross Consideration (Agreement Value)
+    gross_consideration = Column(Float, nullable=False)
+
+    # Statutory Taxes & Levies
+    gst_rate_pct = Column(Float, default=5.0)
+    gst_amount = Column(Float, nullable=False)
+    stamp_duty_pct = Column(Float, default=5.6)
+    stamp_duty_amount = Column(Float, default=0.0)
+    registration_fee_est = Column(Float, default=0.0)
+    maintenance_advance = Column(Float, default=0.0)
+
+    # Net Effective Price
+    total_effective_price = Column(Float, nullable=False)
+
+    # Payment Plan Specification
+    payment_plan_type = Column(String, default="construction_linked")  # construction_linked, down_payment, subvention
+    milestone_schedule = Column(JSON, default=list)
+
+    status = Column(String, default="active")  # active, superseded, booked
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+

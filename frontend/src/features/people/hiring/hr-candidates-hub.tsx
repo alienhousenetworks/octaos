@@ -37,6 +37,8 @@ interface HRCandidatesHubProps {
   onExportExcel: () => void;
   onOpenImportExcel: () => void;
   exportingExcel: boolean;
+  onOpenIngest?: () => void;
+  onAskCopilot?: (message: string, resourceId?: string) => void;
 }
 
 export default function HRCandidatesHub({
@@ -51,6 +53,8 @@ export default function HRCandidatesHub({
   onExportExcel,
   onOpenImportExcel,
   exportingExcel,
+  onOpenIngest,
+  onAskCopilot,
 }: HRCandidatesHubProps) {
   const [viewMode, setViewMode] = useState<CandidateViewMode>('kanban');
   const [searchQuery, setSearchQuery] = useState('');
@@ -234,6 +238,7 @@ export default function HRCandidatesHub({
           onExportExcel={onExportExcel}
           onOpenImportExcel={onOpenImportExcel}
           exportingExcel={exportingExcel}
+          onOpenIngest={onOpenIngest}
         />
       )}
 
@@ -252,6 +257,7 @@ export default function HRCandidatesHub({
         onOpenInterview={onOpenInterview}
         onOpenOffer={onOpenOffer}
         onDeleteCandidate={onDeleteCandidate}
+        onAskCopilot={onAskCopilot}
       />
     </div>
   );
