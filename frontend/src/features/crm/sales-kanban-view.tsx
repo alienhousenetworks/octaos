@@ -118,11 +118,13 @@ export default function SalesKanbanView({
   const matchesColumn = (leadStatus: string | undefined, colId: string) => {
     if (leadStatus === colId) return true;
     if (activePack?.id === 'real_estate') {
-      if (colId === 'inquiry' && (leadStatus === 'new' || leadStatus === 'contacted')) return true;
+      if (colId === 'inquiry' && (leadStatus === 'new' || leadStatus === 'contacted' || leadStatus === 'captured' || !leadStatus)) return true;
       if (colId === 'site_visit' && leadStatus === 'meeting_scheduled') return true;
       if (colId === 'booking' && leadStatus === 'closed_won') return true;
       if (colId === 'cancelled' && leadStatus === 'closed_lost') return true;
     }
+    // If status is captured or empty, map to the first pipeline column
+    if (colId === activeColumns[0]?.id && (leadStatus === 'captured' || !leadStatus)) return true;
     return false;
   };
 

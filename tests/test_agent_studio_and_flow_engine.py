@@ -177,3 +177,48 @@ def test_inbuilt_packages_auto_installation():
         ensure_default_installations(mock_db, "tenant-test-123")
     assert mock_db.commit.called
 
+
+@pytest.mark.asyncio
+async def test_flow_engine_condition_evaluation_and_halting():
+    """Verify condition evaluates dynamically and halts flow on false."""
+    from app.services.agents.flow_engine import FlowExecutionEngine
+
+    # Test condition evaluation logic directly
+    assert FlowExecutionEngine._eval_condition("score >= 70", {"score": 85}, {}) is True
+    assert FlowExecutionEngine._eval_condition("score >= 70", {"score": 50}, {}) is False
+    assert FlowExecutionEngine._eval_condition("score < 70", {}, {"step_1": {"score": 65}}) is True
+    assert FlowExecutionEngine._eval_condition("score < 70", {}, {"step_1": {"score": 88}}) is False
+    assert FlowExecutionEngine._eval_condition("score >= 70", {}, {"step_1": "Candidate evaluated. Score: 88/100"}) is True
+    assert FlowExecutionEngine._eval_condition("score >= 70", {}, {"step_1": "Candidate evaluated. Score: 45/100"}) is False
+
+    # Test halting in state machine
+    engine = FlowExecutionEngine()
+    mock_db = MagicMock()
+    flow_run = FlowRun(
+        id="run-test-cond",
+        tenant_id="tenant-test",
+        flow_id="flow-cond",
+        flow_version_id="ver-cond",
+        status="running",
+        inputs={"score": 40},
+        outputs={},
+    )
+    flow_ver = FlowVersion(
+        id="ver-cond",
+        flow_id="flow-cond",
+        version=1,
+        definition=[
+            {"id": "step_cond", "name": "Check Score", "type": "condition", "expression": "score >= 70"},
+            {"id": "step_next", "name": "Send Email", "type": "tool", "tool": "email.send"},
+        ],
+    )
+    mock_db.query.return_value.filter_by.side_effect = [
+        MagicMock(first=lambda: flow_run),
+        MagicMock(first=lambda: flow_ver),
+        MagicMock(first=lambda: None),
+    ]
+
+    await engine.execute_flow_run(mock_db, flow_run.id)
+    assert flow_run.status == "halted"
+    assert "Condition 'score >= 70' evaluated to False" in (flow_run.error or "")
+

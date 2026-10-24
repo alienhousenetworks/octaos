@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
@@ -155,15 +156,19 @@ class FlowExecutionEngine:
                 # ── 3. CONDITION STEP ──
                 elif step_type == "condition":
                     expr = step.get("expression", "True")
-                    # Evaluate condition
-                    is_true = True
-                    if "score < 70" in expr:
-                        prev_output = str(step_outputs)
-                        if "score" in prev_output and "score: 8" in prev_output:
-                            is_true = False
+                    is_true = self._eval_condition(expr, flow_run.inputs or {}, step_outputs)
                     step_run.outputs = {"passed": is_true, "condition": expr}
-                    step_run.status = "succeeded"
-                    step_outputs[step_id] = step_run.outputs
+                    if is_true:
+                        step_run.status = "succeeded"
+                        step_outputs[step_id] = step_run.outputs
+                    else:
+                        step_run.status = "failed"
+                        step_run.error = f"Condition '{expr}' evaluated to False."
+                        flow_run.status = "halted"
+                        flow_run.error = f"Flow halted: Condition '{expr}' evaluated to False."
+                        flow_run.finished_at = datetime.now(timezone.utc)
+                        db.commit()
+                        return
 
                 # ── 4. APPROVAL STEP ──
                 elif step_type == "approval":
@@ -267,6 +272,70 @@ class FlowExecutionEngine:
         await self.execute_flow_run(db, flow_run.id)
         db.refresh(flow_run)
         return flow_run
+
+    @staticmethod
+    def _eval_condition(expr: str, flow_inputs: Dict[str, Any], step_outputs: Dict[str, Any]) -> bool:
+        """Evaluates comparison expressions like 'score >= 70' against flow inputs and step outputs."""
+        expr = (expr or "").strip()
+        if not expr or expr.lower() in ("true", "1"):
+            return True
+        if expr.lower() in ("false", "0"):
+            return False
+
+        match = re.search(r"(\w+)\s*(>=|<=|>|<|==|!=)\s*(-?\d+(?:\.\d+)?)", expr)
+        if not match:
+            return True
+
+        var_name, op, target_val_str = match.groups()
+        target_val = float(target_val_str)
+
+        actual_val = None
+        if var_name in flow_inputs:
+            try:
+                actual_val = float(flow_inputs[var_name])
+            except (ValueError, TypeError):
+                pass
+
+        if actual_val is None:
+            for out in step_outputs.values():
+                if isinstance(out, dict):
+                    if var_name in out:
+                        try:
+                            actual_val = float(out[var_name])
+                            break
+                        except (ValueError, TypeError):
+                            pass
+                    if isinstance(out.get("data"), dict) and var_name in out["data"]:
+                        try:
+                            actual_val = float(out["data"][var_name])
+                            break
+                        except (ValueError, TypeError):
+                            pass
+                elif isinstance(out, str):
+                    text_match = re.search(rf"\b{var_name}\b[^\d]*(\d+(?:\.\d+)?)", out, re.IGNORECASE)
+                    if text_match:
+                        try:
+                            actual_val = float(text_match.group(1))
+                            break
+                        except (ValueError, TypeError):
+                            pass
+
+        if actual_val is None:
+            return False
+
+        if op == ">=":
+            return actual_val >= target_val
+        elif op == "<=":
+            return actual_val <= target_val
+        elif op == ">":
+            return actual_val > target_val
+        elif op == "<":
+            return actual_val < target_val
+        elif op == "==":
+            return actual_val == target_val
+        elif op == "!=":
+            return actual_val != target_val
+        return True
 
     def _resolve_inputs(
         self, step_input: Dict[str, Any], flow_inputs: Dict[str, Any], step_outputs: Dict[str, Any]

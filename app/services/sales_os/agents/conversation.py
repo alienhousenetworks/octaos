@@ -15,7 +15,7 @@ from app.models.deal_room import DealRoom, DealObjection, CompanySalesContext, B
 from app.services.sales_os.governance.suppression import SuppressionService
 from app.services.knowledge_os.entity_extractor import extract_json_safe
 from app.services.rag.hybrid_engine import HybridRAGEngine
-from app.services.sales_os.aso.reply_taxonomy import normalize_reply_intent
+from app.services.sales_os.aso.reply_taxonomy import normalize_reply_intent, detect_reply_intent_from_text
 from app.services.sales_os.aso.state_machine import apply_transition
 from app.services.sales_os.contracts.registry import render_prompts
 
@@ -59,21 +59,10 @@ class ConversationAgent(BaseSalesAgent):
 
         lower_inbound = inbound_text.lower()
         parsed: dict = {}
-        if any(w in lower_inbound for w in ["unsubscribe", "remove me", "stop emailing", "take me off"]):
-            intent = "unsubscribe"
-            parsed = {"intent": "unsubscribe"}
-        elif any(w in lower_inbound for w in ["out of office", "automatic reply", "i am away"]):
-            intent = "out_of_office"
-            parsed = {"intent": "out_of_office"}
-        elif any(w in lower_inbound for w in ["not interested", "no thanks", "not a fit"]):
-            intent = "decline"
-            parsed = {"intent": "decline"}
-        elif any(w in lower_inbound for w in ["wrong person", "no longer at", "talk to someone else"]):
-            intent = "wrong_person"
-            parsed = {"intent": "wrong_person"}
-        elif any(w in lower_inbound for w in ["next quarter", "next month", "next year", "circle back"]):
-            intent = "timing_later"
-            parsed = {"intent": "timing_later"}
+        detected = detect_reply_intent_from_text(inbound_text)
+        if detected in ("unsubscribe", "out_of_office", "decline", "wrong_person", "timing_later"):
+            intent = detected
+            parsed = {"intent": detected}
         elif any(w in lower_inbound for w in ["expensive", "cost", "pricing", "budget"]):
             intent = "objection"
             parsed = {"intent": "objection", "objection_category": "pricing"}

@@ -46,21 +46,22 @@ class PipelineForecasterAgent(BaseSalesAgent):
         deal_audits: List[DealRiskAudit] = []
         at_risk_count = 0
 
-        # Calibrated stage win baselines
-        STAGE_DEFAULTS = {
-            "discovered": (0.05, 15000.0),
-            "qualified": (0.15, 20000.0),
-            "researching": (0.20, 25000.0),
-            "outreach_ready": (0.25, 25000.0),
-            "in_cadence": (0.30, 25000.0),
-            "replied": (0.45, 30000.0),
-            "meeting_booked": (0.60, 35000.0),
-            "proposal": (0.75, 45000.0),
-            "closing": (0.90, 50000.0),
+        from app.services.sales_os.aso.state_machine import STAGE_WIN_PROBABILITIES
+        STAGE_DEAL_SIZES = {
+            "discovered": 15000.0,
+            "qualified": 20000.0,
+            "researching": 25000.0,
+            "outreach_ready": 25000.0,
+            "in_cadence": 25000.0,
+            "replied": 30000.0,
+            "meeting_booked": 35000.0,
+            "proposal": 45000.0,
+            "closing": 50000.0,
         }
 
         for r in rooms:
-            baseline_prob, default_deal_size = STAGE_DEFAULTS.get(r.stage, (0.10, 20000.0))
+            baseline_prob = STAGE_WIN_PROBABILITIES.get(r.stage, 0.10)
+            default_deal_size = STAGE_DEAL_SIZES.get(r.stage, 20000.0)
             deal_val = float(r.annual_revenue_usd or default_deal_size)
             win_prob = float(r.calibrated_win_prob or baseline_prob)
 

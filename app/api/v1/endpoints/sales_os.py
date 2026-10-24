@@ -207,9 +207,9 @@ def list_companies(
     limit: int = 100,
 ) -> Any:
     store = SalesIntelligenceStore(db, tenant_id)
+    records = store.list_companies_with_opportunity(limit=min(limit, 200))
     rows = []
-    for company in store.list_companies(limit=min(limit, 200)):
-        opportunity = store.latest_opportunity(company.id)
+    for company, opportunity in records:
         item = store.company_dict(company)
         item["tier6_state"] = opportunity.tier6_state if opportunity else None
         item["score"] = opportunity.score if opportunity else None

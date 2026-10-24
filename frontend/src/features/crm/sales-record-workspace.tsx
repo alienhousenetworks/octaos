@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { notify } from '@/lib/notify';
-import { CopilotAdvice, SalesTerminology, SHARED_TERMS } from './sales-platform';
+import { CopilotAdvice, SalesTerminology, SHARED_TERMS, VerticalPack } from './sales-platform';
 import { Lead } from './sales-types';
 
 interface SalesRecordWorkspaceProps {
   lead: Lead;
+  activePack?: VerticalPack | null;
   terms: SalesTerminology;
   API_URL: string;
   fetchWithAuth: (url: string, options?: RequestInit) => Promise<Response>;
@@ -31,6 +32,7 @@ type Tab = 'overview' | 'property' | 'activity' | 'sales' | 'history';
 
 export default function SalesRecordWorkspace({
   lead,
+  activePack,
   terms,
   API_URL,
   fetchWithAuth,
@@ -48,6 +50,38 @@ export default function SalesRecordWorkspace({
   const [pane, setPane] = useState<Pane>('record');
   const [tab, setTab] = useState<Tab>('overview');
   const [advice, setAdvice] = useState<CopilotAdvice | null>(null);
+
+  const isRealEstate = (activePack?.id === 'real_estate' || advice?.pack?.id === 'real_estate');
+
+  const availableStages = React.useMemo(() => {
+    if (activePack?.pipeline_stages && activePack.pipeline_stages.length > 0) {
+      return activePack.pipeline_stages.map((s) => ({ id: s.id, label: s.label }));
+    }
+    if (activePack?.stages && activePack.stages.length > 0) {
+      return activePack.stages.map((st) => ({
+        id: st.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''),
+        label: st,
+      }));
+    }
+    if (isRealEstate) {
+      return [
+        { id: 'inquiry', label: 'New Inquiry' },
+        { id: 'qualified', label: 'Buyer Qualified' },
+        { id: 'site_visit', label: 'Site Visit Scheduled' },
+        { id: 'hold_requested', label: 'Hold Requested' },
+        { id: 'booking', label: 'Confirmed Booking' },
+        { id: 'cancelled', label: 'Cancelled / Lost' },
+      ];
+    }
+    return [
+      { id: 'new', label: 'New' },
+      { id: 'qualified', label: 'Qualified' },
+      { id: 'contacted', label: 'Contacted' },
+      { id: 'meeting_scheduled', label: 'Meeting Scheduled' },
+      { id: 'closed_won', label: 'Closed Won' },
+      { id: 'closed_lost', label: 'Closed Lost' },
+    ];
+  }, [activePack, isRealEstate]);
   const [copilotError, setCopilotError] = useState<string | null>(null);
   const [copilotLoading, setCopilotLoading] = useState(false);
   const [question, setQuestion] = useState('What should we do next with this customer?');
@@ -433,52 +467,49 @@ export default function SalesRecordWorkspace({
 
         <section className={`${pane === 'record' ? 'block' : 'hidden'} space-y-3 xl:block`}>
           <div className="flex flex-wrap gap-2">
-            {((advice?.pack?.id === 'real_estate' || labels.account === 'Project')
+            {(isRealEstate
               ? (['overview', 'property', 'activity', 'sales', 'history'] as Tab[])
               : (['overview', 'activity', 'sales', 'history'] as Tab[])
             ).map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setTab(item)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${tab === item ? 'bg-[#2563eb] text-white' : 'bg-muted text-muted-foreground'}`}
-              >
-                {item === 'property' ? 'Property & Showings' : item}
-              </button>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Metric
-              title={advice?.readiness.label || 'Readiness'}
-              value={advice?.readiness.value || '—'}
-              note={advice?.readiness.note || 'Waiting for the copilot.'}
-            />
-            <Metric
-              title={advice?.deal_health.label || 'Deal health'}
-              value={advice?.deal_health.value || '—'}
-              note={advice?.deal_health.note || 'Status comes from the record.'}
-            />
-          </div>
-          {tab === 'overview' ? (
-            <Panel>
-              <h2 className="font-semibold">{labels.account} / {labels.opportunity} details</h2>
-              <label className="mt-3 block text-xs text-muted-foreground">Why this record</label>
-              <Textarea value={why} onChange={(event) => setWhy(event.target.value)} className="mt-1" />
-              <label className="mt-3 block text-xs text-muted-foreground">Status</label>
-              <select
-                className="mt-1 w-full rounded-md border border-border bg-background px-2 py-2 text-sm"
-                value={lead.status || 'new'}
-                onChange={(event) => void onUpdateStatus(lead.id, event.target.value)}
-              >
-                {((advice?.pack?.id === 'real_estate' || labels.account === 'Project')
-                  ? ['inquiry', 'qualified', 'site_visit', 'hold_requested', 'booking', 'cancelled']
-                  : ['new', 'qualified', 'contacted', 'meeting_scheduled', 'closed_won', 'closed_lost']
-                ).map((status) => (
-                  <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>
-                ))}
-              </select>
-            </Panel>
-          ) : null}
+            <button
+              key={item}
+              type="button"
+              onClick={() => setTab(item)}
+              className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${tab === item ? 'bg-[#2563eb] text-white' : 'bg-muted text-muted-foreground'}`}
+            >
+              {item === 'property' ? 'Property & Showings' : item}
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Metric
+            title={advice?.readiness.label || 'Readiness'}
+            value={advice?.readiness.value || '—'}
+            note={advice?.readiness.note || 'Waiting for the copilot.'}
+          />
+          <Metric
+            title={advice?.deal_health.label || 'Deal health'}
+            value={advice?.deal_health.value || '—'}
+            note={advice?.deal_health.note || 'Status comes from the record.'}
+          />
+        </div>
+        {tab === 'overview' ? (
+          <Panel>
+            <h2 className="font-semibold">{labels.account} / {labels.opportunity} details</h2>
+            <label className="mt-3 block text-xs text-muted-foreground">Why this record</label>
+            <Textarea value={why} onChange={(event) => setWhy(event.target.value)} className="mt-1" />
+            <label className="mt-3 block text-xs text-muted-foreground">Status</label>
+            <select
+              className="mt-1 w-full rounded-md border border-border bg-background px-2 py-2 text-sm"
+              value={lead.status || availableStages[0]?.id || 'new'}
+              onChange={(event) => void onUpdateStatus(lead.id, event.target.value)}
+            >
+              {availableStages.map((stage) => (
+                <option key={stage.id} value={stage.id}>{stage.label}</option>
+              ))}
+            </select>
+          </Panel>
+        ) : null}
 
           {tab === 'property' ? (
             <Panel>

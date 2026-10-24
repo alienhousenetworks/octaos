@@ -14,6 +14,14 @@ DEFAULT_TERMINOLOGY = {
 }
 
 
+PACK_ALIASES: Dict[str, str] = {
+    "service_company": "business_services",
+    "services": "business_services",
+    "professional_services": "business_services",
+    "agency": "business_services",
+}
+
+
 def list_marketing_packs() -> List[Dict[str, Any]]:
     """Return all registered 18 marketing vertical packs."""
     return [dict(PACKS[pack_id]) for pack_id in PACK_ORDER]
@@ -21,15 +29,21 @@ def list_marketing_packs() -> List[Dict[str, Any]]:
 
 def get_marketing_pack(pack_id: Optional[str]) -> Optional[Dict[str, Any]]:
     """Get a marketing pack by ID."""
-    if not pack_id or pack_id not in PACKS:
+    resolved = resolve_marketing_pack_id(pack_id)
+    if not resolved or resolved not in PACKS:
         return None
-    return dict(PACKS[pack_id])
+    return dict(PACKS[resolved])
 
 
 def resolve_marketing_pack_id(pack_id: Optional[str]) -> Optional[str]:
     """Validate and resolve a marketing pack ID."""
-    if pack_id and pack_id in PACKS:
-        return pack_id
+    if not pack_id:
+        return None
+    normalized = pack_id.lower().strip().replace(" ", "_").replace("-", "_")
+    if normalized in PACKS:
+        return normalized
+    if normalized in PACK_ALIASES:
+        return PACK_ALIASES[normalized]
     return None
 
 
@@ -74,11 +88,35 @@ def get_calendar_events(pack_id: Optional[str]) -> List[Dict[str, Any]]:
 
 def preview_marketing_switch(
     current_id: Optional[str],
-    next_id: str,
+    next_id: Optional[str],
     campaigns_count: int = 0,
     posts_count: int = 0,
 ) -> Dict[str, Any]:
     """Describe a marketing pack change without deleting or mutating records."""
+    if not next_id or str(next_id).lower().strip() in ("general", "none", "clear", "default"):
+        current = get_marketing_pack(current_id) if current_id else None
+        return {
+            "from_pack_id": current["id"] if current else None,
+            "to_pack_id": None,
+            "to_name": "General (Standard)",
+            "to_version": "1.0.0",
+            "campaigns_preserved": campaigns_count,
+            "posts_preserved": posts_count,
+            "records_deleted": 0,
+            "terminology": default_terminology(),
+            "readiness": "ready",
+            "domain_status": "available",
+            "domain_note": "Standard marketing campaign mode for any business.",
+            "funnel_stages": [],
+            "content_pillars": [],
+            "compliance_guardrails": {"prohibited_guarantees": [], "taboo_words": [], "required_disclosures": []},
+            "visual_creative_tokens": {},
+            "industry_calendar_events": [],
+            "capabilities": {},
+            "incompatible": [],
+            "effect": "Marketing workspace returned to General standard campaign mode. All existing posts and campaigns remain intact.",
+        }
+
     nxt = get_marketing_pack(next_id)
     if nxt is None:
         raise KeyError(f"Unknown marketing pack ID: {next_id}")

@@ -7,6 +7,7 @@ Generates an Executive Account Intelligence Brief in under 60 seconds:
 4. 2 Grounded Pain Hypotheses (Signal + Inference + Confidence)
 5. Matched Proof Point from Tenant Knowledge Base
 """
+import logging
 import time
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
@@ -16,6 +17,8 @@ from app.models.deal_room import DealRoom, AccountSignal, BuyingCommitteeMember,
 from app.services.knowledge_os.entity_extractor import extract_json_safe
 from app.services.sales_os.aso.state_machine import apply_transition
 from app.services.sales_os.contracts.registry import render_prompts
+
+logger = logging.getLogger(__name__)
 
 
 class AccountResearcherAgent(BaseSalesAgent):
@@ -70,8 +73,8 @@ class AccountResearcherAgent(BaseSalesAgent):
                         .filter(AccountSignal.deal_room_id == deal_room_id, AccountSignal.is_active == True)
                         .all()
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Direct web profiling skipped for {target_web}: {e}")
         committee = (
             self.db.query(BuyingCommitteeMember)
             .filter(BuyingCommitteeMember.deal_room_id == deal_room_id)

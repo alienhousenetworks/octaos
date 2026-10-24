@@ -13,11 +13,13 @@ from app.services.sales_os.agents.base import BaseSalesAgent, AgentResult, Evide
 from app.models.deal_room import DealRoom, CompanySalesContext, EvidenceRecord, BuyingCommitteeMember
 from app.services.knowledge_os.entity_extractor import extract_json_safe
 from app.services.sales_os.contracts.registry import render_prompts
+from app.services.sales_os.governance.enterprise_policy import EnterpriseSalesPolicyEngine
 
 
 class DealDeskAgent(BaseSalesAgent):
     def __init__(self, db: Session, tenant_id: str):
         super().__init__(db, tenant_id, "deal_desk_agent")
+        self.policy_engine = EnterpriseSalesPolicyEngine(db, tenant_id)
 
     async def execute(self, deal_room_id: str, parameters: Dict[str, Any] = None) -> AgentResult:
         start_time = time.time()
@@ -48,21 +50,23 @@ class DealDeskAgent(BaseSalesAgent):
         max_discount = float(policies.get("max_discount_pct", 10.0))
 
         if action_type == "quote":
-            # Pricing Quotation with Policy Enforcement
+            # Pricing Quotation with Enterprise Policy Enforcement
             requested_discount = float(params.get("requested_discount_pct", 0.0))
             base_amount = float(params.get("base_amount_usd", 25000.0))
 
-            if requested_discount > max_discount:
-                final_discount = max_discount
+            policy_decision = self.policy_engine.evaluate_pricing_and_discount(
+                requested_discount_pct=requested_discount,
+                deal_value_usd=base_amount,
+            )
+
+            if policy_decision.requires_approval:
+                final_discount = min(requested_discount, max_discount)
                 decision = "discount_capped"
-                reasoning = (
-                    f"Requested discount ({requested_discount}%) exceeds policy limit ({max_discount}%). "
-                    f"Capped at {max_discount}%. Human manager approval required to override."
-                )
+                reasoning = policy_decision.reason
             else:
                 final_discount = requested_discount
                 decision = "quote_approved"
-                reasoning = f"Quote within policy guardrails ({final_discount}% discount applied)."
+                reasoning = policy_decision.reason
 
             discount_amount = base_amount * (final_discount / 100.0)
             final_price = base_amount - discount_amount
@@ -76,7 +80,7 @@ class DealDeskAgent(BaseSalesAgent):
                 confidence=1.0,
                 evidence=[
                     EvidenceItem(
-                        claim=f"Tenant pricing policy enforces maximum discount of {max_discount}%",
+                        claim=f"Enterprise sales policy enforces maximum discount of {max_discount}%",
                         source="pricing_policy",
                     )
                 ],
@@ -177,11 +181,7 @@ class DealDeskAgent(BaseSalesAgent):
         }
         res = await self.execute(deal_room_id, params)
         discount_val = discount_pct if discount_pct <= 1.0 else discount_pct / 100.0
-        ctx = self.db.query(CompanySalesContext).filter(
-            CompanySalesContext.tenant_id == self.tenant_id, CompanySalesContext.is_active == True
-        ).first()
-        max_pct = (ctx.policies.get("max_discount_pct", 15.0) if ctx and ctx.policies else 15.0) / 100.0
-        status = "approved" if discount_val <= max_pct else "requires_approval"
+        status = "approved" if res.decision == "quote_approved" else "requires_approval"
         net_amount = round(list_price * (1.0 - discount_val), 2)
         return {
             "status": status,

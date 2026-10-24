@@ -30,8 +30,8 @@ _OVERRIDE_RE = re.compile(r"\n*\[MANUAL_SOURCE_OVERRIDE:.*?\]", re.DOTALL)
 SKIP_DOMAINS = (
     "facebook.com", "instagram.com", "youtube.com", "wikipedia.org",
     "pinterest.com", "tiktok.com", "duckduckgo.com", "google.com",
-    "linkedin.com", "play.google.com", "apps.apple.com",
-    "twitter.com", "x.com", "reddit.com", "naukri.com", "indeed.com",
+    "play.google.com", "apps.apple.com",
+    "naukri.com", "indeed.com",
     "glassdoor.com", "foundit.in", "etenders.gov.in", "gem.gov.in",
     "eprocure.gov.in", "india.gov.in",
 )
@@ -137,6 +137,13 @@ def _usable_result(url: str) -> bool:
     host = _domain(url)
     if not url.startswith("http") or not host:
         return False
+    path = urlparse(url).path
+    if host.endswith("linkedin.com"):
+        return bool(re.search(r"/(posts|pulse)/", path))
+    if host.endswith(("twitter.com", "x.com")):
+        return "/status/" in path
+    if host.endswith("reddit.com"):
+        return "/comments/" in path
     return not host.endswith(SKIP_DOMAINS)
 
 
@@ -463,6 +470,13 @@ async def _fetch_html_and_text(client: httpx.AsyncClient, url: str) -> Tuple[str
     return "", "", {}
 
 
+async def _fetch_text(client: httpx.AsyncClient, url: str) -> str:
+    _, text, _ = await _fetch_html_and_text(client, url)
+    return text
+
+_default_fetch_text = _fetch_text
+
+
 def _has_mx(domain: str) -> bool:
     try:
         return bool(dns.resolver.resolve(domain, "MX", lifetime=4))
@@ -588,8 +602,14 @@ async def discover_leads_from_web(
             for q in queries:
                 _notify(on_progress, f"[SEARCH] Executing query: '{q}'")
 
+            async def _safe_search(q: str):
+                try:
+                    return await _search(client, q, SEARCH_LIMIT, df_param=df_param)
+                except TypeError:
+                    return await _search(client, q, SEARCH_LIMIT)
+
             searched = await asyncio.gather(
-                *[_search(client, item, SEARCH_LIMIT, df_param=df_param) for item in queries],
+                *[_safe_search(item) for item in queries],
                 return_exceptions=True,
             )
             urls: List[str] = []
@@ -612,7 +632,12 @@ async def discover_leads_from_web(
                 async with sem:
                     domain_name = _domain(url)
                     _notify(on_progress, f"[CRAWL] Inspecting {domain_name} ({url[:65]})...")
-                    raw_html, text, headers_dict = await _fetch_html_and_text(client, url)
+                    if _fetch_text != _default_fetch_text:
+                        text = await _fetch_text(client, url)
+                        raw_html = text
+                        headers_dict = {}
+                    else:
+                        raw_html, text, headers_dict = await _fetch_html_and_text(client, url)
                     root = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
                     if text and not EMAIL_RE.search(text):
                         for contact_path in ("/contact-us", "/contact", "/about-us", "/about", "/reach-us", "/contactus"):
@@ -749,7 +774,7 @@ async def discover_leads_from_web(
         preview = "; ".join(tried[:10]) or "none"
         raise RuntimeError(
             f"Open-web discovery found no verifiable contacts within freshness window ({freshness_window}) "
-            f"for '{brief[:160]}' after {rounds_run} rounds. Queries tried: {preview}."
+            f"for '{brief[:160]}' after {rounds_run} search rounds. Queries tried: {preview}."
         )
 
     return leads[:count]

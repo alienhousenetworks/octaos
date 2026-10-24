@@ -410,8 +410,8 @@ class CalendarEngine:
 
         # Industry Marketing Moments from Active Pack
         try:
-            from app.services.marketing.verticals.registry import get_marketing_pack, resolve_marketing_pack_id
-            active_pack_id = resolve_marketing_pack_id(getattr(profile, "industry_pack_id", None) if profile else None)
+            m_id = getattr(profile, "marketing_industry_pack_id", None) if profile else None
+            active_pack_id = resolve_marketing_pack_id(m_id)
             if not active_pack_id and industry:
                 active_pack_id = resolve_marketing_pack_id(industry.lower().replace(" ", "_").replace("&", "").replace("-", "_"))
             if active_pack_id:

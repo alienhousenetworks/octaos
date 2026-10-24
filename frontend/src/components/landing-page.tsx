@@ -75,16 +75,15 @@ export default function LandingPage() {
       {/* Hero Content */}
       <main className="max-w-7xl mx-auto px-8 md:px-16 pt-20 pb-32 relative z-10">
         <div className="text-center space-y-6 max-w-4xl mx-auto mb-20">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
-            <Zap size={12} className="fill-violet-400" />
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-medium">
+            <Zap size={12} />
             <span>OctaOS Autopilot v1.2</span>
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-semibold text-white tracking-tight leading-[1.1] animate-in fade-in slide-in-from-bottom-4 duration-500">
-            Your Autonomous <br />
-            <span className="bg-gradient-to-r from-violet-400 via-indigo-400 to-emerald-400 text-transparent bg-clip-text">
-              AI Agent Workforce.
-            </span>
+          <h1 className="text-5xl md:text-6xl font-semibold text-foreground tracking-tight leading-[1.1] animate-in fade-in slide-in-from-bottom-4 duration-500">
+            The autonomous operating system
+            <br />
+            for enterprise teams.
           </h1>
 
           <p className="text-lg md:text-xl text-gray-400 leading-relaxed max-w-2xl mx-auto">
@@ -113,8 +112,8 @@ export default function LandingPage() {
         {/* Interactive Agent Previews */}
         <div id="previews" className="mb-24 scroll-mt-24">
           <div className="text-center mb-10">
-            <h2 className="text-3xl font-semibold text-white">Meet Your Virtual Employees</h2>
-            <p className="text-gray-400 mt-2">Click each department tab to preview live workspace outputs.</p>
+            <h2 className="text-2xl font-semibold text-foreground">Meet your virtual workforce</h2>
+            <p className="text-muted-foreground mt-2 text-sm">Select a department to preview live workspace output.</p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
@@ -193,18 +192,16 @@ export default function LandingPage() {
 
             {/* Right Output Mock - 7 cols */}
             <div className="lg:col-span-7 flex flex-col justify-center">
-              <div className="glass-panel border-violet-500/20 rounded-3xl p-6 min-h-[440px] flex flex-col relative overflow-hidden shadow-2xl">
-                {/* Subtle purple gradient orb inside mock container */}
-                <div className="absolute top-[-50px] right-[-50px] w-48 h-48 bg-violet-600/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="bg-card border border-border rounded-xl p-6 min-h-[440px] flex flex-col relative overflow-hidden">
 
-                {/* Window Chrome */}
-                <div className="flex items-center justify-between pb-4 border-b border-gray-800 mb-4">
+                {/* Window chrome */}
+                <div className="flex items-center justify-between pb-4 border-b border-border mb-4">
                   <div className="flex gap-1.5">
-                    <span className="w-3 h-3 rounded-full bg-rose-500/80" />
-                    <span className="w-3 h-3 rounded-full bg-amber-500/80" />
-                    <span className="w-3 h-3 rounded-full bg-emerald-500/80" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/25" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/25" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/25" />
                   </div>
-                  <span className="text-xs font-semibold text-gray-500 tracking-wide uppercase">Workspace Output Preview</span>
+                  <span className="text-xs font-medium text-muted-foreground">Workspace output preview</span>
                   <span className="w-3 h-3 opacity-0" />
                 </div>
 
@@ -248,12 +245,12 @@ export default function LandingPage() {
 
                       <div className="border border-gray-800 rounded-xl overflow-hidden bg-[rgba(0,0,0,0.2)]">
                         <table className="w-full text-left text-xs">
-                          <thead className="bg-gray-900/60 border-b border-gray-800 text-gray-400 font-bold uppercase tracking-wider">
+                          <thead className="bg-surface-hover border-b border-border text-muted-foreground">
                             <tr>
-                              <th className="p-3">Lead Name</th>
-                              <th className="p-3">Company</th>
-                              <th className="p-3">Email Address</th>
-                              <th className="p-3">Status</th>
+                              <th className="p-3 font-medium">Lead name</th>
+                              <th className="p-3 font-medium">Company</th>
+                              <th className="p-3 font-medium">Email</th>
+                              <th className="p-3 font-medium">Status</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-800 text-gray-300">
@@ -381,11 +378,11 @@ export default function LandingPage() {
         </div>
 
         {/* Calculator Section */}
-        <div className="glass-panel border-violet-500/15 rounded-3xl p-8 shadow-2xl relative overflow-hidden mb-16">
+        <div className="bg-card border border-border rounded-xl p-8 relative overflow-hidden mb-16">
           
           <div className="max-w-3xl mx-auto text-center mb-8">
-            <h2 className="text-3xl font-semibold text-white tracking-tight">AI Workforce Savings Calculator</h2>
-            <p className="text-gray-400 mt-2">Adjust the sliders to estimate the direct hours and capital saved by using OctaOS.</p>
+            <h2 className="text-2xl font-semibold text-foreground tracking-tight">Workforce savings calculator</h2>
+            <p className="text-muted-foreground mt-2 text-sm">Adjust the sliders to estimate the direct hours and capital saved by deploying OctaOS.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
@@ -462,7 +459,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
             {[
               {
                 name: 'Campaign Planner AI',
@@ -471,8 +468,8 @@ export default function LandingPage() {
                 priceUsd: '$49',
                 priceInr: '₹3,999',
                 quota: '10,000 actions/mo',
-                color: 'text-violet-400',
-                border: 'border-violet-500/30',
+                color: 'text-info',
+                border: 'border-primary/20',
               },
               {
                 name: 'Sales AI SDR',
@@ -481,8 +478,8 @@ export default function LandingPage() {
                 priceUsd: '$79',
                 priceInr: '₹5,999',
                 quota: '15,000 actions/mo',
-                color: 'text-emerald-400',
-                border: 'border-emerald-500/30',
+                color: 'text-success',
+                border: 'border-success/20',
               },
               {
                 name: 'HR Recruiter AI',
@@ -491,8 +488,8 @@ export default function LandingPage() {
                 priceUsd: '$49',
                 priceInr: '₹3,999',
                 quota: '10,000 actions/mo',
-                color: 'text-amber-400',
-                border: 'border-amber-500/30',
+                color: 'text-warning',
+                border: 'border-warning/20',
               },
               {
                 name: 'Customer Support AI',
@@ -501,13 +498,13 @@ export default function LandingPage() {
                 priceUsd: '$49',
                 priceInr: '₹3,999',
                 quota: '15,000 actions/mo',
-                color: 'text-blue-400',
-                border: 'border-blue-500/30',
+                color: 'text-info',
+                border: 'border-info/20',
               },
             ].map((plan, idx) => (
               <div
                 key={idx}
-                className={`p-6 rounded-2xl glass-panel border ${plan.border} flex flex-col justify-between hover:scale-[1.02] transition-all`}
+                className={`p-6 rounded-xl bg-card border ${plan.border} flex flex-col justify-between hover:border-primary/40 transition-colors`}
               >
                 <div>
                   <h3 className="font-bold text-lg text-white">{plan.name}</h3>
@@ -534,27 +531,27 @@ export default function LandingPage() {
           </div>
 
           {/* Full Access Workforce Banner */}
-          <div className="p-8 rounded-3xl glass-panel border border-violet-500/30 bg-gradient-to-r from-violet-950/40 via-indigo-950/30 to-black flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+          <div className="p-8 rounded-xl bg-surface-hover border border-primary/30 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
             <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-500/10 text-violet-400 border border-violet-500/20 mb-2">
-                <Zap size={11} /> Best Value For Scale
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20 mb-2">
+                <Zap size={11} /> Best value for scale
               </div>
-              <h3 className="text-2xl font-bold text-white">All-In-One AI Workforce</h3>
-              <p className="text-sm text-gray-300 mt-1 max-w-2xl">
+              <h3 className="text-xl font-semibold text-foreground">All-in-one AI workforce</h3>
+              <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
                 Deploy Jules (Marketing), Alex (Sales), Hunter (HR), and Sam (Support) simultaneously, coordinated by the CEO Workspace and Boardroom orchestrator.
               </p>
             </div>
 
             <div className="text-left lg:text-right shrink-0">
-              <div className="text-3xl font-extrabold text-white">
-                ₹11,999 <span className="text-sm text-gray-400 font-normal">/ mo ($149 USD)</span>
+              <div className="text-2xl font-bold text-foreground">
+                ₹11,999 <span className="text-sm text-muted-foreground font-normal">/ mo ($149 USD)</span>
               </div>
-              <span className="text-xs text-emerald-400 font-medium block mt-0.5">100,000 monthly actions included</span>
+              <span className="text-xs text-success font-medium block mt-0.5">100,000 monthly actions included</span>
               <button
                 onClick={() => setAppState('signup')}
-                className="mt-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 py-2.5 rounded-xl text-xs shadow-lg shadow-violet-500/25 transition-all"
+                className="mt-3 bg-primary hover:bg-primary-hover text-primary-foreground font-medium px-6 py-2.5 rounded-lg text-sm transition-colors"
               >
-                Deploy Complete Workforce
+                Deploy complete workforce
               </button>
             </div>
           </div>

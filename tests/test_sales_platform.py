@@ -81,3 +81,17 @@ def test_copilot_refuses_missing_attendance_and_loan_approval():
     loan = advise_record(record, "mortgage", "Approve the loan for this applicant.")
     assert "was not changed" in loan["answer"]
     assert loan["actions"] == []
+
+
+def test_service_company_pack_and_aliases():
+    from app.services.sales_os.verticals.registry import resolve_pack_id, get_pack
+    assert resolve_pack_id("service_company") == "business_services"
+    assert resolve_pack_id("agency") == "business_services"
+    pack = get_pack("service_company")
+    assert pack is not None
+    assert pack["name"] == "Service Company & Professional Services"
+    stage_ids = [s["id"] for s in pack["pipeline_stages"]]
+    assert "sow_drafting" in stage_ids
+    assert "active_engagement" in stage_ids
+    assert "sow_builder" in pack["capabilities"]
+    assert "retainer_tracker" in pack["capabilities"]

@@ -358,10 +358,12 @@ export default function CampaignsView({
       });
       if (res.ok) {
         const preview = await res.json();
-        const next = marketingPacks.find((p) => p.id === packId) || null;
+        const next = (packId === 'general' || packId === 'none' || !packId)
+          ? null
+          : (marketingPacks.find((p) => p.id === packId) || null);
         setActiveMarketingPack(next);
         setMarketingPackNotice(`${preview.to_name} activated. ${preview.campaigns_preserved} existing campaigns preserved.`);
-        notify(`${preview.to_name} industry pack activated.`);
+        notify(`${preview.to_name} activated.`);
       } else {
         setMarketingPackNotice('Failed to switch industry pack.');
       }
@@ -1629,7 +1631,7 @@ export default function CampaignsView({
               title="Click to view or switch marketing industry vertical pack"
             >
               <ShieldCheck className="size-3.5" />
-              <span>{activeMarketingPack ? activeMarketingPack.name : 'Industry Pack'}</span>
+              <span>{activeMarketingPack ? activeMarketingPack.name : 'Choose an industry'}</span>
             </button>
             {activeMarketingPack?.id === 'real_estate' && (
               <Button
@@ -1977,9 +1979,13 @@ export default function CampaignsView({
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <FieldLabel>Topic</FieldLabel>
-                  {activeMarketingPack && (
+                  {activeMarketingPack ? (
                     <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
                       <Sparkles className="size-3 text-primary" /> {activeMarketingPack.name}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
+                      <Sparkles className="size-3 text-muted-foreground" /> General Campaign
                     </span>
                   )}
                 </div>

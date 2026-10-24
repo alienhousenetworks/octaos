@@ -331,11 +331,8 @@ export default function AuthForms({
 
   if (inviteToken) {
     return (
-      <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
-        {/* Ambient background glows */}
-
-        <Card className="w-full max-w-md glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl animate-in fade-in zoom-in-95 duration-300">
-          <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
+      <div className="min-h-screen bg-background text-foreground relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
+        <Card className="w-full max-w-md bg-card border border-border shadow-lg relative overflow-hidden rounded-xl animate-in fade-in zoom-in-95 duration-200">
           <CardHeader className="space-y-2 pt-8">
             <div className="flex justify-center items-center gap-3 mb-2">
               {logoUrl ? (
@@ -434,43 +431,39 @@ export default function AuthForms({
 
   if (tenantSelection) {
     return (
-      <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
-        {/* Ambient background glows */}
-
-        <Card className="w-full max-w-md glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl animate-in fade-in zoom-in-95 duration-300">
-          <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
+      <div className="min-h-screen bg-background text-foreground relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
+        <Card className="w-full max-w-md bg-card border border-border shadow-lg relative overflow-hidden rounded-xl animate-in fade-in zoom-in-95 duration-200">
           <CardHeader className="space-y-2 pt-8">
             <div className="flex justify-center items-center gap-3 mb-2">
               {logoUrl ? (
                 <img src={logoUrl} alt="OctaOS Logo" className="h-12 w-auto max-w-[160px] object-contain" />
               ) : (
-                <div className="bg-primary p-2.5 rounded-lg">
+                <div className="bg-primary p-2.5 rounded-md">
                   <Zap className="text-white h-5 w-5" />
                 </div>
               )}
-              <span className="text-white font-extrabold text-2xl tracking-tight">OctaOs</span>
+              <span className="font-semibold text-xl">OctaOS</span>
             </div>
-            <CardTitle className="text-2xl text-center text-white font-extrabold tracking-tight">Select Workspace</CardTitle>
-            <CardDescription className="text-center text-gray-400 text-xs">
-              You are associated with multiple companies. Select which one to manage.
+            <CardTitle className="text-xl text-center font-semibold">Select workspace</CardTitle>
+            <CardDescription className="text-center text-muted-foreground text-xs">
+              You belong to multiple workspaces. Choose one to continue.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pb-8">
-            {formError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-red-300">{formError}</p>}
-            <div className="space-y-3">
+            {formError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{formError}</p>}
+            <div className="space-y-2">
               {tenantSelection.map((tenant) => (
                 <button
                   key={tenant.id}
                   onClick={() => handleSelectCompany(tenant.id)}
-                  className="w-full bg-gray-900/60 border border-gray-800 hover:border-violet-500 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-violet-500/20 transition-all hover:scale-[1.01] active:scale-95 flex items-center justify-between px-4 text-sm text-left"
+                  className="w-full bg-surface-hover border border-border hover:border-primary/50 text-foreground font-medium py-3 rounded-lg transition-colors flex items-center justify-between px-4 text-sm text-left"
                 >
                   <span>{tenant.name}</span>
-                  <span className="text-violet-400">&rarr;</span>
                 </button>
               ))}
             </div>
-            <div className="text-center text-xs text-gray-400 pt-4">
-              <span className="text-violet-400 hover:text-violet-300 cursor-pointer font-bold transition-colors" onClick={() => setTenantSelection(null)}>Back to Login</span>
+            <div className="text-center text-xs text-muted-foreground pt-2">
+              <span className="text-primary hover:text-primary-hover cursor-pointer font-medium transition-colors" onClick={() => setTenantSelection(null)}>Back to login</span>
             </div>
           </CardContent>
         </Card>
@@ -480,63 +473,60 @@ export default function AuthForms({
 
   if (otpSent) {
     return (
-      <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
-        {/* Ambient background glows */}
-
-        <Card className="w-full max-w-md glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl">
-          <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
+      <div className="min-h-screen bg-background text-foreground relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
+        <Card className="w-full max-w-md bg-card border border-border shadow-lg relative overflow-hidden rounded-xl">
           <CardHeader className="space-y-2 pt-8">
             <div className="flex justify-center items-center gap-3 mb-2">
               {logoUrl ? (
                 <img src={logoUrl} alt="OctaOS Logo" className="h-12 w-auto max-w-[160px] object-contain" />
               ) : (
-                <div className="bg-primary p-2.5 rounded-lg">
+                <div className="bg-primary p-2.5 rounded-md">
                   <Zap className="text-white h-5 w-5" />
                 </div>
               )}
-              <span className="text-white font-extrabold text-2xl tracking-tight">OctaOs</span>
+              <span className="font-semibold text-xl">OctaOS</span>
             </div>
-            <CardTitle className="text-2xl text-center text-white font-extrabold tracking-tight">
-              {otpMethod === 'signup' ? "Confirm Verification Code" : "Security Verification"}
+            <CardTitle className="text-xl text-center font-semibold">
+              {otpMethod === 'signup' ? "Verify your email" : "Security verification"}
             </CardTitle>
-            <CardDescription className="text-center text-gray-400 text-xs">
-              We sent a 6-digit verification code to <strong className="text-violet-300">{tempEmail}</strong>.
+            <CardDescription className="text-center text-muted-foreground text-xs">
+              We sent a 6-digit code to <strong className="text-foreground">{tempEmail}</strong>.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 pb-8">
-            {formError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-red-300">{formError}</p>}
+            {formError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{formError}</p>}
             <form onSubmit={handleOtpVerify} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-400">Verification OTP Code</label>
+                <label className="text-xs font-medium text-muted-foreground">Verification code</label>
                 <Input 
-                  placeholder="Enter 6-digit OTP code" 
+                  placeholder="000000" 
                   maxLength={6}
                   value={otp} 
                   onChange={e => setOtp(e.target.value)} 
-                  className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20 text-center tracking-widest text-lg font-bold"
+                  className="bg-input border-border text-foreground rounded-lg text-center tracking-widest text-lg font-semibold"
                 />
               </div>
 
-              <div className="flex gap-4">
+              <div className="flex gap-3">
                 <Button 
                   type="submit" 
-                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-medium h-11 rounded-xl hover:scale-[1.01] active:scale-95 text-xs"
+                  className="flex-1 bg-primary hover:bg-primary-hover text-primary-foreground font-medium h-10 rounded-lg text-sm transition-colors"
                 >
-                  Verify & {otpMethod === 'signup' ? "Create Account" : "Access"}
+                  {otpMethod === 'signup' ? "Create account" : "Verify"}
                 </Button>
                 <Button 
                   type="button" 
                   variant="outline"
                   onClick={handleResendOtp}
                   disabled={otpTimer > 0}
-                  className="flex-1 h-11 rounded-xl text-xs font-bold border-gray-800 text-gray-300 hover:text-white bg-[rgba(255,255,255,0.01)] hover:bg-[rgba(255,255,255,0.03)]"
+                  className="flex-1 h-10 rounded-lg text-sm border-border"
                 >
-                  {otpTimer > 0 ? `Resend in ${otpTimer}s` : "Resend Code"}
+                  {otpTimer > 0 ? `Resend in ${otpTimer}s` : "Resend"}
                 </Button>
               </div>
 
-              <div className="text-center text-xs text-gray-400 pt-2">
-                Want to use a different email? <span className="text-violet-400 hover:text-violet-300 cursor-pointer font-bold transition-colors" onClick={() => setOtpSent(false)}>Go Back</span>
+              <div className="text-center text-xs text-muted-foreground pt-1">
+                Wrong email? <span className="text-primary hover:text-primary-hover cursor-pointer font-medium transition-colors" onClick={() => setOtpSent(false)}>Go back</span>
               </div>
             </form>
           </CardContent>
@@ -547,11 +537,8 @@ export default function AuthForms({
 
   if (appState === 'login') {
     return (
-      <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
-        {/* Ambient background glows */}
-
-        <Card className="w-full max-w-md glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl animate-in fade-in zoom-in-95 duration-300">
-          <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
+      <div className="min-h-screen bg-background text-foreground relative overflow-hidden font-sans flex flex-col justify-center items-center px-4">
+        <Card className="w-full max-w-md bg-card border border-border shadow-lg relative overflow-hidden rounded-xl animate-in fade-in zoom-in-95 duration-200">
           <CardHeader className="space-y-2 pt-8">
             <div className="flex justify-center items-center gap-3 mb-2">
               {logoUrl ? (
@@ -573,68 +560,68 @@ export default function AuthForms({
           <CardContent className="space-y-6 pb-8">
             {formError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-red-300">{formError}</p>}
             {/* Tabs Toggle */}
-            <div className="flex bg-gray-950/60 p-1 rounded-xl border border-gray-800">
+            <div className="flex bg-muted p-1 rounded-lg border border-border">
               <button
                 type="button"
                 onClick={() => setLoginMode('password')}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${
                   loginMode === 'password'
-                    ? 'bg-[rgba(255,255,255,0.06)] text-white shadow'
-                    : 'text-gray-400 hover:text-white'
+                    ? 'bg-surface-hover text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                Password Login
+                Password
               </button>
               <button
                 type="button"
                 onClick={() => setLoginMode('otp')}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${
                   loginMode === 'otp'
-                    ? 'bg-[rgba(255,255,255,0.06)] text-white shadow'
-                    : 'text-gray-400 hover:text-white'
+                    ? 'bg-surface-hover text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                OTP Login
+                One-time code
               </button>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-400">Email Address</label>
+                <label className="text-xs font-medium text-muted-foreground">Email address</label>
                 <Input 
                   placeholder="name@company.com" 
                   type="email" 
                   value={email} 
                   onChange={e => setEmail(e.target.value)} 
-                  className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20 h-11 text-sm"
+                  className="bg-input border-border text-foreground rounded-lg h-10 text-sm"
                 />
               </div>
               
               {loginMode === 'password' && (
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-400">Password</label>
+                  <label className="text-xs font-medium text-muted-foreground">Password</label>
                   <Input 
                     placeholder="••••••••" 
                     type="password" 
                     required={loginMode === 'password'}
                     value={password} 
                     onChange={e => setPassword(e.target.value)} 
-                    className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20 h-11 text-sm"
+                    className="bg-input border-border text-foreground rounded-lg h-10 text-sm"
                   />
                 </div>
               )}
 
-              <div className="pt-2">
+              <div className="pt-1">
                 <button 
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-3.5 rounded-xl cursor-pointer flex justify-center items-center text-sm" 
+                  className="w-full bg-primary hover:bg-primary-hover text-primary-foreground font-medium py-2.5 rounded-lg cursor-pointer flex justify-center items-center text-sm transition-colors" 
                   type="submit"
                 >
-                  {loginMode === 'password' ? "Log In" : "Send Login OTP"}
+                  {loginMode === 'password' ? "Log in" : "Send one-time code"}
                 </button>
               </div>
 
-              <div className="text-center text-xs text-gray-400">
-                Don't have an account? <span className="text-violet-400 hover:text-violet-300 cursor-pointer font-bold transition-colors" onClick={() => setAppStateSafe('signup')}>Sign up</span>
+              <div className="text-center text-xs text-muted-foreground">
+                No account? <span className="text-primary hover:text-primary-hover cursor-pointer font-medium transition-colors" onClick={() => setAppStateSafe('signup')}>Sign up</span>
               </div>
             </form>
           </CardContent>
@@ -645,17 +632,14 @@ export default function AuthForms({
 
   // signup
   return (
-    <div className="min-h-screen bg-[#030014] text-[#f4f4f7] relative overflow-hidden font-sans flex flex-col justify-center items-center px-4 py-12">
-      {/* Ambient background glows */}
-
-      <Card className="w-full max-w-2xl glass-panel border-violet-500/20 shadow-2xl relative overflow-hidden rounded-3xl animate-in fade-in zoom-in-95 duration-300">
-        <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
+    <div className="min-h-screen bg-background text-foreground relative overflow-hidden font-sans flex flex-col justify-center items-center px-4 py-12">
+      <Card className="w-full max-w-2xl bg-card border border-border shadow-lg relative overflow-hidden rounded-xl animate-in fade-in zoom-in-95 duration-200">
         <CardHeader className="space-y-2 pt-8">
           <div className="flex justify-center items-center gap-3 mb-2">
               {logoUrl ? (
                 <img src={logoUrl} alt="OctaOS Logo" className="h-12 w-auto max-w-[160px] object-contain" />
               ) : (
-                <div className="bg-primary p-2.5 rounded-lg">
+                <div className="bg-primary p-2.5 rounded-md">
                   <Zap className="text-white h-5 w-5" />
                 </div>
               )}
@@ -671,108 +655,108 @@ export default function AuthForms({
               
               {/* Left side: Admin details */}
               <div className="space-y-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-violet-400">Admin Account Info</h3>
+                <h3 className="text-xs font-semibold text-muted-foreground">Admin account</h3>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-400">Full Name</label>
+                  <label className="text-xs font-medium text-muted-foreground">Full name</label>
                   <Input 
                     placeholder="Jane Doe" 
                     required
                     value={fullName} 
                     onChange={e => setFullName(e.target.value)} 
-                    className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    className="bg-input border-border text-foreground rounded-lg"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-400">Email Address</label>
+                  <label className="text-xs font-medium text-muted-foreground">Email address</label>
                   <Input 
                     placeholder="jane@company.com" 
                     type="email" 
                     required
                     value={email} 
                     onChange={e => setEmail(e.target.value)} 
-                    className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    className="bg-input border-border text-foreground rounded-lg"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-400">Phone Number (For WhatsApp AI)</label>
+                  <label className="text-xs font-medium text-muted-foreground">Phone number (WhatsApp AI)</label>
                   <Input 
                     placeholder="+1 (555) 012-3456" 
                     required
                     value={phoneNo} 
                     onChange={e => setPhoneNo(e.target.value)} 
-                    className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    className="bg-input border-border text-foreground rounded-lg"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-400">Account Password</label>
+                  <label className="text-xs font-medium text-muted-foreground">Password</label>
                   <Input 
                     placeholder="••••••••" 
                     type="password" 
                     required
                     value={password} 
                     onChange={e => setPassword(e.target.value)} 
-                    className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    className="bg-input border-border text-foreground rounded-lg"
                   />
                 </div>
               </div>
 
               {/* Right side: Company details */}
               <div className="space-y-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-violet-400">Company / Workspace Details</h3>
+                <h3 className="text-xs font-semibold text-muted-foreground">Workspace details</h3>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-400">Company Name</label>
+                  <label className="text-xs font-medium text-muted-foreground">Company name</label>
                   <Input 
                     placeholder="Acme Corp" 
                     required
                     value={companyName} 
                     onChange={e => setCompanyName(e.target.value)} 
-                    className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    className="bg-input border-border text-foreground rounded-lg"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-400">Company Website</label>
+                  <label className="text-xs font-medium text-muted-foreground">Company website</label>
                   <Input 
                     placeholder="https://acme.com" 
                     type="url"
                     value={companyWebsite} 
                     onChange={e => setCompanyWebsite(e.target.value)} 
-                    className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    className="bg-input border-border text-foreground rounded-lg"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-400">Company Email</label>
+                  <label className="text-xs font-medium text-muted-foreground">Company email</label>
                   <Input 
                     placeholder="info@acme.com" 
                     type="email"
                     value={companyEmail} 
                     onChange={e => setCompanyEmail(e.target.value)} 
-                    className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    className="bg-input border-border text-foreground rounded-lg"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-400">Company Address</label>
+                  <label className="text-xs font-medium text-muted-foreground">Company address</label>
                   <Input 
                     placeholder="123 Business Rd, Suite 100" 
                     value={companyAddress} 
                     onChange={e => setCompanyAddress(e.target.value)} 
-                    className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20"
+                    className="bg-input border-border text-foreground rounded-lg"
                   />
                 </div>
               </div>
 
             </div>
 
-            <div className="pt-2">
+            <div className="pt-1">
               <button 
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-3.5 rounded-xl cursor-pointer flex justify-center items-center text-sm" 
+                className="w-full bg-primary hover:bg-primary-hover text-primary-foreground font-medium py-2.5 rounded-lg cursor-pointer flex justify-center items-center text-sm transition-colors" 
                 type="submit"
               >
-                Send Verification OTP
+                Send verification code
               </button>
             </div>
 
-            <div className="text-center text-xs text-gray-400">
-              Already have an account? <span className="text-violet-400 hover:text-violet-300 cursor-pointer font-bold transition-colors" onClick={() => setAppStateSafe('login')}>Log in</span>
+            <div className="text-center text-xs text-muted-foreground">
+              Already have an account? <span className="text-primary hover:text-primary-hover cursor-pointer font-medium transition-colors" onClick={() => setAppStateSafe('login')}>Log in</span>
             </div>
           </form>
         </CardContent>

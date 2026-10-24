@@ -63,6 +63,7 @@ class CampaignContextProjection(BaseModel):
 class SalesContextProjection(BaseModel):
     """Projection tailored for B2B Outbound Sales and Deal Desk."""
     company_name: str
+    industry_pack_id: Optional[str] = None
     icp_definitions: Dict[str, Any] = Field(default_factory=dict)
     buyer_personas: List[Dict[str, Any]] = Field(default_factory=list)
     products_catalog: List[Dict[str, Any]] = Field(default_factory=list)
@@ -241,11 +242,12 @@ class CompanyContextProjectionEngine:
             ])
         ]
 
+        m_pack_id = getattr(profile, "marketing_industry_pack_id", None) if profile else None
         projection = CampaignContextProjection(
             company_name=company_name,
             website=website,
             industry=industry,
-            industry_pack_id=profile.industry_pack_id if profile else None,
+            industry_pack_id=m_pack_id,
             brand_voice=brand_voice,
             visual_style=visual_style,
             approved_claims=approved_claims,
@@ -282,9 +284,12 @@ class CompanyContextProjectionEngine:
             .first()
         )
 
+        s_pack_id = (getattr(profile, "sales_industry_pack_id", None) or getattr(profile, "industry_pack_id", None)) if profile else None
+
         if ctx:
             return {
                 "company_name": company_name,
+                "industry_pack_id": s_pack_id,
                 "icp_definitions": ctx.icp_definitions or {},
                 "buyer_personas": ctx.buyer_personas or [],
                 "products_catalog": ctx.products_catalog or [],
@@ -296,6 +301,7 @@ class CompanyContextProjectionEngine:
 
         projection = SalesContextProjection(
             company_name=company_name,
+            industry_pack_id=s_pack_id,
             icp_definitions={"industries": [profile.target_industries if profile else "Technology"]},
             products_catalog=[{"name": company_name, "description": profile.service_description if profile else ""}],
             pricing_tiers=[{"tier": "Custom", "budget": profile.target_budget_range if profile else "1L-5L"}],

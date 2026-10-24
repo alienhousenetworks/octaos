@@ -15,6 +15,46 @@ interface MarketingIndustriesProps {
   onOpenRealEstateHub?: () => void;
 }
 
+const GENERAL_PACK: MarketingVerticalPack = {
+  id: 'general',
+  version: '1.0.0',
+  name: 'General (Standard Marketing)',
+  summary: 'Universal multi-channel marketing campaigns, brand awareness, product launches, and seasonal promotions without vertical-specific compliance restrictions.',
+  readiness: 'ready',
+  representative: false,
+  domain_status: 'available',
+  domain_note: 'Standard marketing campaigns suited for any enterprise, business, or startup.',
+  terminology: {
+    campaign: 'Marketing Campaign',
+    post: 'Social Post',
+    asset: 'Creative Asset',
+    offer: 'Promotion / Offer',
+    cta: 'Call to Action',
+    audience: 'Target Audience',
+  },
+  funnel_stages: [
+    { id: 'awareness', label: 'Brand Awareness & Reach', channels: ['linkedin', 'instagram', 'facebook'] },
+    { id: 'consideration', label: 'Value Proposition & Education', channels: ['linkedin', 'facebook'] },
+    { id: 'conversion', label: 'Offer & Lead Conversion', channels: ['linkedin', 'instagram', 'facebook'] },
+  ],
+  content_pillars: [
+    { id: 'brand_story', label: 'Brand Story & Vision', description: 'Company mission, milestones, leadership, and culture.', hooks: ['Why we started this company', 'Our core mission and guiding principles'] },
+    { id: 'product_spotlight', label: 'Product & Service Spotlight', description: 'Core value proposition, features, and differentiators.', hooks: ['How our platform solves this core challenge', 'A look under the hood at our newest release'] },
+    { id: 'customer_wins', label: 'Customer Proof & Testimonials', description: 'Case studies, customer wins, and tangible results.', hooks: ['How our customer achieved 3x ROI', 'Customer spotlight: lessons learned'] },
+    { id: 'industry_insights', label: 'Thought Leadership', description: 'Industry trends, commentary, and actionable tips.', hooks: ['Top 3 trends shaping our space this year', 'What we learned from analyzing market benchmarks'] },
+  ],
+  compliance_guardrails: {
+    prohibited_guarantees: [],
+    taboo_words: [],
+    required_disclosures: [],
+  },
+  visual_creative_tokens: {
+    aesthetic: 'Clean, modern, professional digital creative direction',
+    color_palette: ['#2563EB', '#3B82F6', '#64748B', '#0F172A'],
+  },
+  industry_calendar_events: [],
+};
+
 export default function MarketingIndustries({
   packs,
   activeId,
@@ -25,8 +65,10 @@ export default function MarketingIndustries({
   onSelect,
   onOpenRealEstateHub,
 }: MarketingIndustriesProps) {
-  const [openId, setOpenId] = useState<string | null>(activeId);
-  const open = packs.find((pack) => pack.id === (openId || activeId)) || packs[0];
+  const allPacks = [GENERAL_PACK, ...packs];
+  const currentActiveId = activeId || 'general';
+  const [openId, setOpenId] = useState<string | null>(currentActiveId);
+  const open = allPacks.find((pack) => pack.id === (openId || currentActiveId)) || GENERAL_PACK;
 
   return (
     <div className="space-y-4">
@@ -34,19 +76,32 @@ export default function MarketingIndustries({
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Marketing Industry Packs</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Eighteen industry verticals customize campaign funnels, content pillars, statutory compliance rules, and visual creative tokens. Switching an industry pack does not delete or alter any existing campaigns or posts.
+            Choose an industry vertical to customize campaign funnels, content pillars, compliance rules, and visual creative tokens, or keep it General for standard marketing.
           </p>
         </div>
-        {activeId === 'real_estate' && onOpenRealEstateHub && (
-          <button
-            type="button"
-            onClick={onOpenRealEstateHub}
-            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-medium text-white hover:bg-emerald-700 shadow-sm transition"
-          >
-            <Sparkles className="size-3.5" />
-            Launch Property Campaign
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {activeId && (
+            <button
+              type="button"
+              disabled={savingId === 'general'}
+              onClick={() => onSelect('general')}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground transition shadow-xs"
+              title="Return to general campaign mode without vertical-specific compliance rules"
+            >
+              Reset to General
+            </button>
+          )}
+          {activeId === 'real_estate' && onOpenRealEstateHub && (
+            <button
+              type="button"
+              onClick={onOpenRealEstateHub}
+              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-medium text-white hover:bg-emerald-700 shadow-sm transition"
+            >
+              <Sparkles className="size-3.5" />
+              Launch Property Campaign
+            </button>
+          )}
+        </div>
       </div>
 
       {error ? (
@@ -64,9 +119,9 @@ export default function MarketingIndustries({
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
         {/* Industry Cards Grid */}
         <div className="grid gap-2.5 sm:grid-cols-2">
-          {packs.map((pack) => {
-            const selected = pack.id === activeId;
-            const isOpen = pack.id === (openId || activeId);
+          {allPacks.map((pack) => {
+            const selected = pack.id === currentActiveId;
+            const isOpen = pack.id === open.id;
             return (
               <button
                 key={pack.id}
@@ -92,7 +147,7 @@ export default function MarketingIndustries({
                     )}
                   </div>
                   <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    {pack.representative ? 'Representative' : 'Configuration'}
+                    {pack.id === 'general' ? 'General' : pack.representative ? 'Representative' : 'Configuration'}
                   </span>
                 </div>
                 <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">{pack.summary}</p>
@@ -113,7 +168,7 @@ export default function MarketingIndustries({
                 <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
                   Pack {open.version} · {open.readiness}
                 </span>
-                {open.id === activeId && (
+                {open.id === currentActiveId && (
                   <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
                     <ShieldCheck className="size-3.5" /> Active Workspace
                   </span>
@@ -228,14 +283,16 @@ export default function MarketingIndustries({
             <div className="pt-2">
               <button
                 type="button"
-                disabled={savingId === open.id || open.id === activeId}
+                disabled={savingId === open.id || open.id === currentActiveId}
                 onClick={() => onSelect(open.id)}
                 className="w-full rounded-lg bg-primary px-3 py-2.5 text-xs font-semibold text-primary-foreground disabled:opacity-60 transition"
               >
-                {open.id === activeId
-                  ? 'Active Industry Pack'
+                {open.id === currentActiveId
+                  ? (open.id === 'general' ? 'Active General Mode' : 'Active Industry Pack')
                   : savingId === open.id
-                  ? 'Switching Industry…'
+                  ? 'Switching…'
+                  : open.id === 'general'
+                  ? 'Use General (Standard)'
                   : `Use ${open.name}`}
               </button>
             </div>

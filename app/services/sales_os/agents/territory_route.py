@@ -30,7 +30,7 @@ def haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) ->
 
 class TerritoryRoutePlannerAgent(BaseSalesAgent):
     def __init__(self, db: Session, tenant_id: str):
-        super().__init__(db, tenant_id, "agent_11_territory_route")
+        super().__init__(db, tenant_id, "agent_15_territory_route")
 
     async def execute(self, deal_room_id: str = None, parameters: Dict[str, Any] = None) -> AgentResult[TerritoryRoutePlan]:
         start_time = time.time()

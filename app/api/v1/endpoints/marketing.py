@@ -1451,7 +1451,7 @@ async def trigger_autonomous_marketing_pulse(
 # ─────────────────────────────────────────────────────────────────────────────
 
 class MarketingPackSelect(BaseModel):
-    pack_id: str = Field(min_length=1, max_length=64)
+    pack_id: Optional[str] = Field(default=None, max_length=64)
 
 
 class ComplianceAuditRequest(BaseModel):
@@ -1482,6 +1482,12 @@ def read_marketing_verticals(
     }
 
 
+def _active_marketing_pack_id(profile: Optional[BusinessProfile]) -> Optional[str]:
+    if not profile:
+        return None
+    return getattr(profile, "marketing_industry_pack_id", None)
+
+
 @router.get("/verticals/active")
 def read_active_marketing_vertical(
     db: Session = Depends(deps.get_db),
@@ -1493,7 +1499,7 @@ def read_active_marketing_vertical(
     from app.services.marketing.verticals.registry import get_marketing_pack, resolve_marketing_pack_id
 
     profile = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant_id).first()
-    pack_id = resolve_marketing_pack_id(getattr(profile, "industry_pack_id", None) if profile else None)
+    pack_id = resolve_marketing_pack_id(_active_marketing_pack_id(profile))
     pack = get_marketing_pack(pack_id) if pack_id else None
 
     posts_count = db.query(ContentPost).filter(ContentPost.tenant_id == tenant_id).count()
@@ -1523,24 +1529,25 @@ def select_marketing_vertical(
         resolve_marketing_pack_id,
     )
 
-    pack_id = resolve_marketing_pack_id(body.pack_id)
-    if not pack_id:
+    is_general = not body.pack_id or body.pack_id.lower().strip() in ("general", "none", "clear", "default")
+    pack_id = None if is_general else resolve_marketing_pack_id(body.pack_id)
+    if not is_general and not pack_id:
         raise HTTPException(status_code=404, detail=f"Unknown marketing industry pack '{body.pack_id}'")
 
     profile = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant_id).first()
-    current = resolve_marketing_pack_id(getattr(profile, "industry_pack_id", None) if profile else None)
+    current = resolve_marketing_pack_id(_active_marketing_pack_id(profile))
 
     posts_count = db.query(ContentPost).filter(ContentPost.tenant_id == tenant_id).count()
     campaigns_count = db.query(Campaign).filter(Campaign.tenant_id == tenant_id).count()
 
     if profile is None:
-        profile = BusinessProfile(tenant_id=tenant_id, industry_pack_id=pack_id)
+        profile = BusinessProfile(tenant_id=tenant_id, marketing_industry_pack_id=pack_id)
         db.add(profile)
     else:
-        profile.industry_pack_id = pack_id
+        profile.marketing_industry_pack_id = pack_id
     db.commit()
 
-    preview = preview_marketing_switch(current, pack_id, campaigns_count, posts_count)
+    preview = preview_marketing_switch(current, pack_id or "general", campaigns_count, posts_count)
     return preview
 
 
@@ -1572,7 +1579,7 @@ def audit_marketing_compliance(
     pack_id = body.pack_id
     if not pack_id:
         profile = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant_id).first()
-        pack_id = resolve_marketing_pack_id(getattr(profile, "industry_pack_id", None) if profile else None)
+        pack_id = resolve_marketing_pack_id(_active_marketing_pack_id(profile))
 
     result = IndustryComplianceEngine.audit_post(
         content=body.content,

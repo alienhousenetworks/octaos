@@ -18,18 +18,32 @@ SHARED_TERMINOLOGY = {
 }
 
 
+PACK_ALIASES: dict[str, str] = {
+    "service_company": "business_services",
+    "services": "business_services",
+    "professional_services": "business_services",
+    "agency": "business_services",
+}
+
+
 def list_packs() -> list[dict[str, Any]]:
     return [dict(PACKS[pack_id]) for pack_id in PACK_ORDER]
 
 
 def get_pack(pack_id: str) -> dict[str, Any] | None:
-    pack = PACKS.get(pack_id)
+    resolved = resolve_pack_id(pack_id)
+    pack = PACKS.get(resolved) if resolved else None
     return dict(pack) if pack else None
 
 
 def resolve_pack_id(pack_id: str | None) -> str | None:
-    if pack_id and pack_id in PACKS:
-        return pack_id
+    if not pack_id:
+        return None
+    normalized = pack_id.lower().strip().replace(" ", "_").replace("-", "_")
+    if normalized in PACKS:
+        return normalized
+    if normalized in PACK_ALIASES:
+        return PACK_ALIASES[normalized]
     return None
 
 

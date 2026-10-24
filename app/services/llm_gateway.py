@@ -153,7 +153,7 @@ class LLMGateway:
             if not self._get_api_key("anthropic") and self.has_configured_provider():
                 req_provider = None
 
-        return await ai_gateway.executeCached(
+        result = await ai_gateway.executeCached(
             db=self.db,
             tenant_id=self.tenant_id,
             prompt=prompt,
@@ -166,6 +166,7 @@ class LLMGateway:
             bulk=inferred_bulk,
             **kwargs
         )
+        return result if result is not None else ""
 
 
     async def generate_image(

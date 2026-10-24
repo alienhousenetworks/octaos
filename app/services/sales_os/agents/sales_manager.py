@@ -40,18 +40,8 @@ class SalesManagerAgent(BaseSalesAgent):
         total_calibrated_pipeline = 0.0
         effort_ranking = []
 
-        # Stage baseline win probabilities
-        STAGE_BASELINES = {
-            "discovered": 0.05,
-            "qualified": 0.12,
-            "researching": 0.15,
-            "outreach_ready": 0.18,
-            "in_cadence": 0.22,
-            "replied": 0.35,
-            "meeting_booked": 0.50,
-            "proposal": 0.68,
-            "closing": 0.85,
-        }
+        from app.services.sales_os.aso.state_machine import STAGE_WIN_PROBABILITIES
+        STAGE_BASELINES = STAGE_WIN_PROBABILITIES
 
         for r in rooms:
             flags = []

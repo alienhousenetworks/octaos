@@ -70,7 +70,7 @@ def startup_db_check():
     # Ensure Flow Engine tables and seeded agents/packages exist
     try:
         from app.models.base import Base
-        from app.models import enterprise, flow_engine, automations, schedules, verticals, rooms, hr, field_sales, real_estate  # noqa: F401
+        from app.models import enterprise, flow_engine, automations, schedules, verticals, rooms, hr, field_sales, real_estate, rbac  # noqa: F401
         from app.db.session import SessionLocal
         from app.services.agents.seeder import seed_system_agents, seed_system_packages
         # One failing CREATE (pgvector) must not roll back the other tables.
@@ -83,6 +83,11 @@ def startup_db_check():
         db = SessionLocal()
         seed_system_agents(db)
         seed_system_packages(db)
+        try:
+            from app.services.rbac_service import ensure_system_permissions
+            ensure_system_permissions(db)
+        except Exception as rbac_seed_err:
+            print(f"RBAC permissions seed skipped: {rbac_seed_err}")
         db.close()
         print("System agents and marketplace packages verified.")
 
@@ -92,6 +97,8 @@ def startup_db_check():
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS lead_freshness VARCHAR DEFAULT '30_days';"))
                 conn.execute(text("ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS industry_pack_id VARCHAR;"))
+                conn.execute(text("ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS sales_industry_pack_id VARCHAR;"))
+                conn.execute(text("ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS marketing_industry_pack_id VARCHAR;"))
                 conn.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS owner_type VARCHAR DEFAULT 'ai';"))
                 conn.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS handoff_started_at TIMESTAMP WITH TIME ZONE;"))
                 conn.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS handoff_deadline_at TIMESTAMP WITH TIME ZONE;"))
@@ -149,6 +156,9 @@ def startup_db_check():
                 conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS buyer_objections JSON DEFAULT '[]'::json;"))
                 conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS agreed_next_step VARCHAR;"))
                 conn.execute(text("ALTER TABLE real_estate_site_visits ADD COLUMN IF NOT EXISTS recovery_notes TEXT;"))
+                # RBAC & Django-style user attributes
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_staff BOOLEAN DEFAULT FALSE;"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR;"))
             print("Schema column extensions verified.")
         except Exception as col_error:
             print(f"Skipped schema column alter: {col_error}")

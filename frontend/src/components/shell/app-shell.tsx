@@ -159,7 +159,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   <Icon className="size-4 shrink-0" />
                   <span className={`truncate ${collapsed ? 'sr-only' : ''}`}>{item.name}</span>
                   {item.id === 'approvals' && approvalCount ? (
-                    <span className={`ml-auto rounded-md bg-[#443A2D] text-[#D9AD68] border border-[#D9AD68]/20 px-1.5 text-xs font-semibold ${collapsed ? 'sr-only' : ''}`}>{approvalCount}</span>
+                    <span className={`ml-auto rounded-md bg-warning/10 text-warning border border-warning/20 px-1.5 text-xs font-semibold ${collapsed ? 'sr-only' : ''}`}>{approvalCount}</span>
                   ) : null}
                 </Link>
               );

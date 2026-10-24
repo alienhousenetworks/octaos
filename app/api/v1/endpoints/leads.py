@@ -563,7 +563,19 @@ async def run_prompt_agent(
         finally:
             bg_db.close()
 
-    asyncio.create_task(_execute_prompt_background())
+    try:
+        from app.worker.tasks import run_sales_v3_task
+        run_sales_v3_task.delay(
+            tenant_id=tenant_id,
+            provider=actual_provider,
+            model=actual_model,
+            count=req.count or 50,
+            freshness=actual_freshness,
+            mode="prompt_agent",
+            prompt_instructions=prompt_text,
+        )
+    except Exception:
+        asyncio.create_task(_execute_prompt_background())
 
     return {"message": "⚡ Prompt-Based Sales Agent launched successfully!"}
 
@@ -657,7 +669,18 @@ async def run_v3_workflow(
         finally:
             bg_db.close()
 
-    asyncio.create_task(_execute_v3_background())
+    try:
+        from app.worker.tasks import run_sales_v3_task
+        run_sales_v3_task.delay(
+            tenant_id=tenant_id,
+            provider=actual_provider,
+            model=actual_model,
+            count=req.count,
+            freshness=actual_freshness,
+            mode="configured_engine",
+        )
+    except Exception:
+        asyncio.create_task(_execute_v3_background())
     
     return {"message": f"Autonomous Configured Sales Engine launched successfully using {actual_provider or 'default'}/{actual_model or 'default'} (Freshness: {actual_freshness})!"}
 

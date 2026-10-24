@@ -34,14 +34,22 @@ def _attach(row: dict, candidate: QualifiedCandidate) -> None:
         row["evidence_url"] = record.original_url
 
 
+_GENERIC_MATCH_COMPANIES = {
+    "target corp", "target accounts", "website development", "web design",
+    "unknown", "local business", "startup", "target", "organizations",
+}
+
+
 def _matches(row: dict, candidate: QualifiedCandidate) -> bool:
     record = candidate.record
     domains = _domains(row)
     if record.company_domain and record.company_domain.lower() in domains:
         return True
     company = (row.get("company") or "").strip().lower()
+    if not company or company in _GENERIC_MATCH_COMPANIES or len(company) < 4:
+        return False
     title = f"{record.title} {record.snippet}".lower()
-    return bool(company) and len(company) >= 4 and company in title
+    return company in title
 
 
 def _lead_from_candidate(candidate: QualifiedCandidate) -> dict | None:

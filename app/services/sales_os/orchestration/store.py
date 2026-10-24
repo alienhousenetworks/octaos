@@ -44,6 +44,28 @@ class SalesIntelligenceStore:
     def list_companies(self, limit: int = 100) -> list[SalesCompany]:
         return self._companies().order_by(SalesCompany.updated_at.desc()).limit(limit).all()
 
+    def list_companies_with_opportunity(
+        self, limit: int = 100
+    ) -> list[tuple[SalesCompany, SalesOpportunity | None]]:
+        companies = self.list_companies(limit=limit)
+        if not companies:
+            return []
+        company_ids = [c.id for c in companies]
+        opps = (
+            self.db.query(SalesOpportunity)
+            .filter(
+                SalesOpportunity.tenant_id == self.tenant_id,
+                SalesOpportunity.company_id.in_(company_ids),
+            )
+            .order_by(SalesOpportunity.created_at.desc(), SalesOpportunity.id.desc())
+            .all()
+        )
+        latest_by_company: dict[str, SalesOpportunity] = {}
+        for opp in opps:
+            if opp.company_id not in latest_by_company:
+                latest_by_company[opp.company_id] = opp
+        return [(c, latest_by_company.get(c.id)) for c in companies]
+
     def upsert_company(self, fields: dict, source_key: str) -> SalesCompany:
         domain = canonical_domain(fields.get("canonical_domain") or fields.get("website"))
         company = self.get_company_by_domain(domain) if domain else None

@@ -144,7 +144,10 @@ export default function SalesView({
     if (match) {
       setCurrentRoom(match);
       const packId = match.data?.industry_pack_id;
-      if (packId && packId !== activePack?.id) handleSelectPack(packId);
+      if (packId) {
+        const matching = packs.find((p) => p.id === packId);
+        if (matching) setActivePack(matching);
+      }
     }
     setIsDirectoryView(false);
     if (typeof window !== 'undefined') {
@@ -1078,6 +1081,7 @@ export default function SalesView({
         {activeSalesTab === 'pipeline' && selectedLead && (
           <SalesRecordWorkspace
             lead={selectedLead}
+            activePack={activePack}
             terms={activePack?.terminology || SHARED_TERMS}
             API_URL={API_URL}
             fetchWithAuth={fetchWithAuth}

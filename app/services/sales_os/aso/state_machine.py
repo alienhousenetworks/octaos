@@ -7,6 +7,18 @@ from typing import Any
 
 TERMINAL = {"won", "lost"}
 
+STAGE_WIN_PROBABILITIES: dict[str, float] = {
+    "discovered": 0.05,
+    "qualified": 0.15,
+    "researching": 0.20,
+    "outreach_ready": 0.25,
+    "in_cadence": 0.30,
+    "replied": 0.45,
+    "meeting_booked": 0.60,
+    "proposal": 0.75,
+    "closing": 0.90,
+}
+
 TRANSITIONS: dict[tuple[str, str], str] = {
     ("discovered", "qualify_pass"): "qualified",
     ("discovered", "qualify_fail"): "nurtured",

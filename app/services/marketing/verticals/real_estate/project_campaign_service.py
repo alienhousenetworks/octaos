@@ -23,7 +23,9 @@ class RealEstateMarketingService:
     def __init__(self, db: Session, tenant_id: str):
         self.db = db
         self.tenant_id = tenant_id
-        self.pack = get_marketing_pack("real_estate")
+        self.pack = get_marketing_pack("real_estate") or {}
+        from app.services.llm_gateway import LLMGateway
+        self.llm = LLMGateway(db, tenant_id)
 
     def list_available_projects(self) -> List[Dict[str, Any]]:
         """List tenant projects with unit count, price ranges, and unit types."""
@@ -114,7 +116,10 @@ class RealEstateMarketingService:
         platform: str = "linkedin",
         persist_post: bool = True,
     ) -> Dict[str, Any]:
-        """Generate a grounded, RERA-compliant multi-channel campaign for a property."""
+        """Generate a grounded, RERA-compliant multi-channel campaign for a property using real inventory data and LLM generation."""
+        import json
+        import re
+
         project = (
             self.db.query(RealEstateProject)
             .filter(
@@ -140,9 +145,6 @@ class RealEstateMarketingService:
             if unit is None:
                 raise KeyError(f"Unit '{unit_id}' not found in project '{project_id}'")
         elif campaign_type == "unit_spotlight":
-            # The UI can request a unit spotlight before choosing a specific
-            # unit. Select the first available unit rather than falling back to
-            # a project-wide post that does not match the requested campaign.
             unit = (
                 self.db.query(RealEstateUnit)
                 .filter(
@@ -165,83 +167,151 @@ class RealEstateMarketingService:
             .all()
         )
 
-        # Build grounded facts pool
-        loc_str = f"{project.location}, {project.city}" if project.location and project.city else (project.location or project.city or "Prime Corridor")
-        amenities_str = (
-            ", ".join(project.amenities[:4])
-            if project.amenities
-            else "Amenities available on request"
-        )
-        rera_str = (
-            f"RERA Reg. No: {project.rera_number}"
-            if project.rera_number
-            else "RERA Reg. No: to be confirmed"
-        )
+        # Grounded facts pool from database records ONLY
+        loc_str = f"{project.location}, {project.city}" if project.location and project.city else (project.location or project.city or "")
+        amenities = [a.strip() for a in (project.amenities or []) if a and isinstance(a, str)]
+        amenities_str = ", ".join(amenities[:5]) if amenities else ""
+        rera_number = project.rera_number or ""
+        rera_str = f"RERA Reg. No: {rera_number}" if rera_number else ""
 
+        unit_types = sorted(list({u.unit_type for u in project_units if u.unit_type}))
+        unit_prices = [u.base_price for u in project_units if u.base_price]
+        min_price = min(unit_prices) if unit_prices else None
+        max_price = max(unit_prices) if unit_prices else None
+
+        # Format real specs without fabricating phantom values
         if unit:
-            config_str = f"{unit.unit_type} ({unit.carpet_sqft or 1450} sqft)"
-            price_str = f"Starting at ${unit.base_price:,.0f}" if unit.base_price else "Starting at competitive pricing"
+            tower_part = unit.tower if (unit.tower and unit.tower.lower().startswith("tower")) else (f"Tower {unit.tower}" if unit.tower else "")
+            residence_desc = f"{tower_part + ', ' if tower_part else ''}Unit {unit.unit_number}"
+            sqft_val = int(unit.carpet_sqft) if (unit.carpet_sqft and float(unit.carpet_sqft).is_integer()) else unit.carpet_sqft
+            sqft_str = f"{sqft_val} sqft" if sqft_val else ""
+            config_desc = f"{unit.unit_type}" + (f" ({sqft_str})" if sqft_str else "")
+            price_desc = f"Starting at ${unit.base_price:,.0f}" if unit.base_price else ""
         else:
-            unit_types = sorted({u.unit_type for u in project_units if u.unit_type})
-            config_str = ", ".join(unit_types) if unit_types else "Configurations available on request"
-            price_str = "Pricing available on request"
+            config_desc = ", ".join(unit_types) if unit_types else ""
+            if min_price and max_price and min_price != max_price:
+                price_desc = f"Starting from ${min_price:,.0f} to ${max_price:,.0f}"
+            elif min_price:
+                price_desc = f"Starting from ${min_price:,.0f}"
+            else:
+                price_desc = ""
+            residence_desc = ""
 
-        # Generate copy tailored to campaign type
-        if campaign_type == "site_visit_drive":
-            hook = f"Experience panoramic city vistas before you book: VIP site visits now open at {project.name}."
-            body = (
-                f"Step onto the actual floor plate at {project.name} in {loc_str}.\n\n"
-                f"• Configurations: {config_str}\n"
-                f"• Signature Amenities: {amenities_str}\n"
-                f"• Pricing: {price_str}\n\n"
-                "Our private chauffeur escort and master-planning walkthrough are available this Saturday & Sunday. "
-                "Reserve your appointment to walk through the fully furnished model residence."
+        # Visual tokens from marketing pack configuration
+        visual_tokens = self.pack.get("visual_creative_tokens", {})
+        visual_aesthetic = visual_tokens.get("aesthetic", "Architectural exterior photography, daylight, modern aesthetic")
+
+        # LLM Generation with factual grounding
+        hook = ""
+        body = ""
+        cta = ""
+        image_prompt = ""
+
+        prompt = f"""You are a professional real estate marketing copywriter. Write a fact-grounded {platform} campaign post and an architectural image generation prompt.
+
+Grounding Facts (Do NOT invent phantom amenities, fake guarantees, or non-existent warranties):
+- Project Name: {project.name}
+- Location: {loc_str or 'Prime Location'}
+- Address: {project.address or ''}
+- Status: {project.status or 'Available'}
+- Available Configurations: {config_desc or 'Multiple configurations'}
+- Pricing: {price_desc or 'Contact for pricing'}
+{f'- Featured Residence: {residence_desc}' if residence_desc else ''}
+{f'- Verified Amenities: {amenities_str}' if amenities_str else ''}
+{f'- RERA Registration: {rera_number}' if rera_number else ''}
+
+Campaign Type: {campaign_type}
+Platform: {platform}
+
+Instructions:
+1. Write a catchy opening hook sentence.
+2. Write a clear, engaging post body explaining the project value using ONLY the provided facts.
+3. Write a professional Call to Action (CTA) matching the campaign type (e.g. site visit tour, floor plan download, consultation).
+4. Write a concise photographic image prompt for AI image generation depicting {project.name}.
+5. Return JSON format with exact keys: "hook", "body", "cta", "image_prompt".
+"""
+        system_prompt = (
+            "You are an AI real estate marketing specialist. Output valid JSON only with keys: hook, body, cta, image_prompt. "
+            "Never invent false guarantees, discriminatory terms, or phantom amenities."
+        )
+
+        try:
+            raw_resp = await self.llm.complete(
+                prompt=prompt,
+                system_prompt=system_prompt,
             )
-            cta = "Book your exclusive on-site property tour via our concierge."
-        elif campaign_type == "unit_spotlight" and unit:
-            hook = f"Inside the {unit.unit_type} residence at {project.name}: {unit.carpet_sqft or 1500} sqft of pure architectural light."
-            body = (
-                f"Designed with zero dead space and double-glazed acoustic glass in {loc_str}.\n\n"
-                f"• Residence: Tower {unit.tower or 'A'}, Unit {unit.unit_number}\n"
-                f"• Layout: {unit.unit_type} | Carpet Area: {unit.carpet_sqft or 1500} sqft\n"
-                f"• Value: Starting from ${unit.base_price:,.0f}\n"
-                f"• Amenities: {amenities_str}\n\n"
-                "Floor-to-ceiling balcony glazing opens to uninterrupted sunrise views."
+            json_match = re.search(r"\{.*\}", raw_resp, re.DOTALL)
+            if json_match:
+                parsed = json.loads(json_match.group(0))
+                hook = str(parsed.get("hook", "")).strip()
+                body = str(parsed.get("body", "")).strip()
+                cta = str(parsed.get("cta", "")).strip()
+                image_prompt = str(parsed.get("image_prompt", "")).strip()
+        except Exception as e:
+            logger.warning(f"[RealEstateMarketingService] LLM campaign copy generation failed: {e}. Using deterministic fact-based composition.")
+
+        # Fact-based fallback when LLM is unavailable or returns empty
+        if not hook or not body:
+            if campaign_type == "site_visit_drive":
+                hook = f"VIP site visits now open at {project.name}{f' in {loc_str}' if loc_str else ''}."
+                body_lines = [f"Explore residences at {project.name}."]
+                if config_desc:
+                    body_lines.append(f"• Configurations: {config_desc}")
+                if amenities_str:
+                    body_lines.append(f"• Signature Amenities: {amenities_str}")
+                if price_desc:
+                    body_lines.append(f"• Pricing: {price_desc}")
+                body = "\n".join(body_lines)
+                cta = f"Book your on-site property walkthrough at {project.name}."
+            elif campaign_type == "unit_spotlight" and unit:
+                hook = f"Spotlight on {unit.unit_type or 'Featured Residence'} at {project.name}."
+                body_lines = [f"• Residence: {residence_desc}"]
+                if config_desc:
+                    body_lines.append(f"• Layout: {config_desc}")
+                if price_desc:
+                    body_lines.append(f"• Value: {price_desc}")
+                if amenities_str:
+                    body_lines.append(f"• Amenities: {amenities_str}")
+                body = "\n".join(body_lines)
+                cta = f"Request the full floor plan and schedule a private showing for {unit.unit_number}."
+            elif campaign_type == "investor_yield":
+                hook = f"Prime property investment at {project.name}{f' in {loc_str}' if loc_str else ''}."
+                body_lines = [f"Capital growth and long-term asset value in {loc_str or project.name}."]
+                if config_desc:
+                    body_lines.append(f"• Available Configurations: {config_desc}")
+                if price_desc:
+                    body_lines.append(f"• Pricing: {price_desc}")
+                if amenities_str:
+                    body_lines.append(f"• Amenities: {amenities_str}")
+                body = "\n".join(body_lines)
+                cta = f"Request our investment overview for {project.name}."
+            else:  # project_showcase
+                hook = f"Discover modern architectural living at {project.name}{f' in {loc_str}' if loc_str else ''}."
+                body_lines = [f"A premier development in {loc_str or project.name}."]
+                if config_desc:
+                    body_lines.append(f"• Configurations: {config_desc}")
+                if amenities_str:
+                    body_lines.append(f"• Amenities: {amenities_str}")
+                if price_desc:
+                    body_lines.append(f"• Pricing: {price_desc}")
+                body = "\n".join(body_lines)
+                cta = f"Schedule your consultation or explore floor plans at {project.name}."
+
+        if not image_prompt:
+            image_prompt = (
+                f"Professional architectural exterior photography of {project.name}{f' in {loc_str}' if loc_str else ''}. "
+                f"{visual_aesthetic}. Photorealistic 8k, crisp architectural perspective."
             )
-            cta = "Request the full architectural floor plan and schedule a private showing."
-        elif campaign_type == "investor_yield":
-            hook = f"Why private capital is targeting residential assets at {project.name}."
-            body = (
-                f"Situated in the high-velocity employment corridor of {loc_str}, {project.name} combines prime capital growth with attractive rental yields.\n\n"
-                f"• Available Configurations: {config_str}\n"
-                f"• Milestone-Linked Payment Schedule: Flexible construction milestones\n"
-                f"• Premium Tenant Demand: Proximity to enterprise tech parks & transit corridors\n\n"
-                "A balanced residential asset for long-term wealth preservation and steady income."
-            )
-            cta = "Download our Investor Yield & Cash Flow Analysis Pack."
-        else:  # project_showcase
-            hook = f"Elevating urban sanctuary: Welcome to {project.name} in {loc_str}."
-            body = (
-                f"A landmark residential development designed for timeless modern living.\n\n"
-                f"• Configurations: {config_str}\n"
-                f"• Curated Lifestyle: {amenities_str}\n"
-                f"• Strategic Connectivity: Minutes from premier transit and business centers\n"
-                f"• Status: {project.status.capitalize() if project.status else 'Now Open'}\n\n"
-                "Designed with sustainability, earthquake-resistant monolithic engineering, and lush green open spaces."
-            )
-            cta = "Schedule your private consultation or explore the digital floor plans."
 
         # Statutory RERA and Fair Housing footer
-        footer = f"\n\n{rera_str} | Equal Housing Opportunity."
-        full_content = f"{hook}\n\n{body}\n\n{cta}{footer}\n\n#RealEstate #PropertyInvestment #{project.name.replace(' ', '')} #LuxuryLiving"
+        footer_parts = []
+        if rera_str:
+            footer_parts.append(rera_str)
+        footer_parts.append("Equal Housing Opportunity.")
+        footer = f"\n\n{' | '.join(footer_parts)}"
 
-        # Image generation prompt tokens
-        visual_tokens = self.pack.get("visual_creative_tokens", {})
-        image_prompt = (
-            f"High-end architectural photography of luxury residential tower {project.name} in {loc_str}. "
-            "Warm golden hour sunset lighting, elegant glass balconies, lush landscaped entrance with reflecting pool. "
-            "Photorealistic 8k Hasselblad 50mm, two-point architectural perspective, quiet luxury aesthetic."
-        )
+        clean_tag = re.sub(r"[^a-zA-Z0-9]", "", project.name)
+        full_content = f"{hook}\n\n{body}\n\n{cta}{footer}\n\n#RealEstate #PropertyInvestment #{clean_tag}"
 
         # Audit compliance
         compliance_check = IndustryComplianceEngine.audit_post(

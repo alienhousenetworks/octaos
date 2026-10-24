@@ -37,6 +37,7 @@ def client_and_db():
         tenant_id="tenant_marketing_api",
         company_name="Horizon Living Group",
         industry="Real estate",
+        marketing_industry_pack_id="real_estate",
         industry_pack_id="real_estate",
     )
     project = RealEstateProject(
@@ -124,6 +125,20 @@ def test_switch_marketing_vertical(client_and_db):
     active_res = client.get("/api/v1/marketing/verticals/active")
     assert active_res.status_code == 200
     assert active_res.json()["pack_id"] == "saas"
+
+    # Switch back to General mode
+    gen_res = client.post("/api/v1/marketing/verticals/active", json={"pack_id": "general"})
+    assert gen_res.status_code == 200
+    gen_data = gen_res.json()
+    assert gen_data["to_pack_id"] is None
+    assert "General" in gen_data["to_name"]
+
+    # Verify active is now None / General
+    active_gen = client.get("/api/v1/marketing/verticals/active")
+    assert active_gen.status_code == 200
+    assert active_gen.json()["selected"] is False
+    assert active_gen.json()["pack_id"] is None
+    assert active_gen.json()["pack"] is None
 
 
 def test_get_specific_marketing_vertical(client_and_db):

@@ -186,3 +186,25 @@ async def test_real_estate_marketing_service_grounded_generation():
     assert "$320,000" in unit_campaign["content"]
 
     db.close()
+
+
+def test_service_company_marketing_pack_and_profile_isolation():
+    from app.services.marketing.verticals.registry import resolve_marketing_pack_id, get_marketing_pack
+    assert resolve_marketing_pack_id("service_company") == "business_services"
+    assert resolve_marketing_pack_id("agency") == "business_services"
+    pack = get_marketing_pack("service_company")
+    assert pack is not None
+    assert pack["name"] == "Service Company & Professional Services"
+    pillar_ids = [p["id"] for p in pack["content_pillars"]]
+    assert "client_transformation" in pillar_ids
+    assert "service_capabilities" in pillar_ids
+
+    # Verify column isolation on BusinessProfile
+    profile = BusinessProfile(
+        tenant_id="tenant-iso-1",
+        sales_industry_pack_id="business_services",
+        marketing_industry_pack_id="saas",
+    )
+    assert profile.sales_industry_pack_id == "business_services"
+    assert profile.marketing_industry_pack_id == "saas"
+    assert profile.sales_industry_pack_id != profile.marketing_industry_pack_id

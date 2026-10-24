@@ -60,13 +60,19 @@ def read_verticals() -> dict[str, Any]:
     }
 
 
+def _active_sales_pack_id(profile: BusinessProfile | None) -> str | None:
+    if not profile:
+        return None
+    return getattr(profile, "sales_industry_pack_id", None) or getattr(profile, "industry_pack_id", None)
+
+
 @router.get("/verticals/active")
 def read_active_vertical(
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
 ) -> dict[str, Any]:
     profile = _profile(db, tenant_id)
-    pack_id = resolve_pack_id(getattr(profile, "industry_pack_id", None) if profile else None)
+    pack_id = resolve_pack_id(_active_sales_pack_id(profile))
     pack = get_pack(pack_id) if pack_id else None
     count = db.query(Lead).filter(Lead.tenant_id == tenant_id).count()
     return {
@@ -86,13 +92,15 @@ def select_vertical(
     if pack_id is None:
         raise HTTPException(status_code=404, detail="Unknown industry pack")
     profile = _profile(db, tenant_id)
-    current = resolve_pack_id(getattr(profile, "industry_pack_id", None) if profile else None)
+    current = resolve_pack_id(_active_sales_pack_id(profile))
     count = db.query(Lead).filter(Lead.tenant_id == tenant_id).count()
     if profile is None:
-        profile = BusinessProfile(tenant_id=tenant_id, industry_pack_id=pack_id)
+        profile = BusinessProfile(tenant_id=tenant_id, sales_industry_pack_id=pack_id, industry_pack_id=pack_id)
         db.add(profile)
     else:
-        profile.industry_pack_id = pack_id
+        profile.sales_industry_pack_id = pack_id
+        if not getattr(profile, "industry_pack_id", None):
+            profile.industry_pack_id = pack_id
     db.commit()
     preview = preview_switch(current, pack_id, count)
     preview["records_preserved"] = db.query(Lead).filter(Lead.tenant_id == tenant_id).count()
@@ -122,7 +130,7 @@ def validate_stage_transition(
     from app.services.sales_os.industry_runtime.pipeline_engine import PipelineEngine
 
     profile = _profile(db, tenant_id)
-    pack_id = resolve_pack_id(getattr(profile, "industry_pack_id", None) if profile else None)
+    pack_id = resolve_pack_id(_active_sales_pack_id(profile))
     pack = get_pack(pack_id) if pack_id else None
     if not pack or "pipeline_stages" not in pack:
         return {"allowed": True, "reason": "No strict transitions defined"}
@@ -152,5 +160,5 @@ def copilot_for_record(
     if lead is None:
         raise HTTPException(status_code=404, detail="Record not found")
     profile = _profile(db, tenant_id)
-    pack_id = resolve_pack_id(getattr(profile, "industry_pack_id", None) if profile else None)
+    pack_id = resolve_pack_id(_active_sales_pack_id(profile))
     return advise_record(_lead_dict(lead), pack_id, body.question)
