@@ -5,6 +5,7 @@ on:
     paths:
       - "app/api/v1/api.py"
       - "app/api/v1/endpoints/ceo*.py"
+      - "app/api/v1/endpoints/marketing.py"
       - "tests/test_ceo_v5_router_registration.py"
       - "requirements.txt"
       - ".github/workflows/ceo-route-regression.yml"
@@ -29,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
       - name: Compile API modules
-        run: python -m compileall -q app/api/v1/api.py app/api/v1/endpoints/ceo.py app/api/v1/endpoints/ceo_v5.py tests/test_ceo_v5_router_registration.py
+        run: python -m compileall -q app/api/v1/api.py app/api/v1/endpoints/ceo.py app/api/v1/endpoints/ceo_v5.py app/api/v1/endpoints/marketing.py tests/test_ceo_v5_router_registration.py
       - name: Verify CEO v5 route registration
         env:
           ENVIRONMENT: test
