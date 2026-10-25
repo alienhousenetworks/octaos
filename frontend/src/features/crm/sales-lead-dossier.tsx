@@ -359,7 +359,7 @@ export default function SalesLeadDossier({
                     <div>
                       <span className="text-[10px] font-bold text-slate-500 uppercase block">LinkedIn Profile</span>
                       {d.contact?.linkedin_url ? (
-                        <a href={d.contact.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 font-semibold underline">View Verified Profile</a>
+                        <a href={d.contact.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 font-semibold underline">View LinkedIn Profile</a>
                       ) : notCaptured}
                     </div>
                   </div>
