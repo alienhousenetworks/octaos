@@ -1,6 +1,6 @@
 """Deterministic safety and evidence gates for Sales AI outreach."""
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 os.environ.setdefault("SALES_EVIDENCE_SIGNING_KEY", "test-only-sales-evidence-key")
 
@@ -261,3 +261,13 @@ def test_outreach_rejects_unsigned_source_verification_receipt():
     result = assess_outreach_readiness(prospect, auto_send_enabled=True, permission_state="granted")
     assert result["ready"] is False
     assert "source_verification_receipt_invalid" in result["blockers"]
+
+
+def test_outreach_rejects_stale_signed_source_receipt():
+    prospect = valid_prospect()
+    receipt = dict(prospect["source_verification"])
+    receipt["retrieved_at"] = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
+    prospect["source_verification"] = sign_source_receipt(receipt)
+    result = assess_outreach_readiness(prospect, auto_send_enabled=True, permission_state="granted")
+    assert result["ready"] is False
+    assert "source_verification_stale" in result["blockers"]
