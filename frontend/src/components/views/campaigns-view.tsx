@@ -1380,7 +1380,6 @@ export default function CampaignsView({
             <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${post.is_manual_media ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20' : 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20'}`}>
               {post.is_manual_media ? 'Manual' : 'AI Agent'}
             </span>
-            )}
           </div>
           <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${
             (post.approval_status === 'failed' || post.status === 'failed')
@@ -2186,7 +2185,6 @@ export default function CampaignsView({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <FieldLabel>What should this campaign communicate?</FieldLabel>
-                )}
               </div>
               <Textarea
                 value={campaignTopic}
@@ -2194,7 +2192,6 @@ export default function CampaignsView({
                 placeholder="E.g. Launching our autonomous CRM agent: highlight 0 manual data entry, instant pipeline routing, and 24/7 client response. Authentic tone with high-contrast reel visuals."
                 className="min-h-24 resize-y text-sm"
               />
-              )}
             </div>
 
             {/* Networks & Timeline Grid */}
