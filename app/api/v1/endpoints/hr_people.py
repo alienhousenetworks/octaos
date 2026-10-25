@@ -185,7 +185,7 @@ def update_employee_status(
 ):
     """Apply an explicit, tenant-scoped employment status transition."""
     _require_hr_access(current_user, write=True)
-    allowed_statuses = {"onboarding", "active", "probation", "on_leave", "terminated"}
+    allowed_statuses = {"onboarding", "active", "probation", "on_leave"}
     new_status = payload.status.strip().lower()
     if new_status not in allowed_statuses:
         raise HTTPException(status_code=422, detail="Unsupported employment status.")
@@ -196,12 +196,8 @@ def update_employee_status(
         raise HTTPException(status_code=409, detail="Terminated employees cannot be reactivated through this endpoint; use a reviewed rehire workflow.")
     if new_status == employee.status:
         return {"id": employee.id, "status": employee.status, "changed": False}
-    if new_status == "terminated" and not (payload.reason and payload.reason.strip()):
-        raise HTTPException(status_code=422, detail="A termination reason is required.")
     try:
         employee.status = new_status
-        if new_status == "terminated":
-            employee.termination_date = datetime.now(timezone.utc)
         db.commit()
         db.refresh(employee)
     except Exception:
@@ -211,10 +207,8 @@ def update_employee_status(
         "id": employee.id,
         "employee_number": employee.employee_number,
         "status": employee.status,
-        "termination_date": employee.termination_date.isoformat() if employee.termination_date else None,
         "changed": True,
-        "reason_recorded": bool(payload.reason and payload.reason.strip()),
-        "message": "Employment status updated. Termination reason is acknowledged by this API but is not yet stored in a dedicated audit record."
+        "message": "Employment status updated."
     }
 
 
