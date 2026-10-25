@@ -9,6 +9,8 @@ from app.api.v1.endpoints.leads import (
     get_sales_settings,
     save_sales_settings,
     schedule_meeting,
+    update_whatsapp_opt_in,
+    WhatsAppOptInRequest,
 )
 from app.models.base import Base, Tenant
 from app.models.verticals import Lead
@@ -115,3 +117,71 @@ async def test_schedule_meeting_does_not_invent_time_or_meet_link(db_session):
     assert result["booked"] is False
     assert lead.status == "replied"
     assert "meeting_link" not in (lead.data or {})
+
+
+def test_whatsapp_consent_is_recipient_scoped_and_opt_out_suppresses(db_session):
+    lead = Lead(
+        tenant_id="sales-settings-tenant",
+        name="Taylor Example",
+        phone="+1 555 010 1000",
+        company="Example Co",
+        status="captured",
+        data={},
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    opted_in = update_whatsapp_opt_in(
+        lead.id,
+        WhatsAppOptInRequest(opted_in=True, source="signed_consent_form"),
+        db_session,
+        "sales-settings-tenant",
+    )
+    db_session.refresh(lead)
+    assert opted_in["opted_in"] is True
+    assert lead.data["whatsapp_opt_in"] is True
+    assert lead.data["whatsapp_opt_in_source"] == "signed_consent_form"
+    assert lead.data["whatsapp_opt_in_at"]
+
+    opted_out = update_whatsapp_opt_in(
+        lead.id,
+        WhatsAppOptInRequest(opted_in=False, source="recipient_opt_out", notes="Recipient requested no WhatsApp"),
+        db_session,
+        "sales-settings-tenant",
+    )
+    db_session.refresh(lead)
+    assert opted_out["opted_in"] is False
+    assert lead.data["whatsapp_opt_in"] is False
+
+    from app.services.sales_os.governance.suppression import SuppressionService
+    assert SuppressionService(db_session, "sales-settings-tenant").is_suppressed(
+        phone=lead.phone, channel="whatsapp"
+    )
+
+
+def test_whatsapp_consent_cannot_override_existing_suppression(db_session):
+    lead = Lead(
+        tenant_id="sales-settings-tenant",
+        name="Taylor Example",
+        phone="+1 555 010 2000",
+        company="Example Co",
+        status="captured",
+        data={},
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    update_whatsapp_opt_in(
+        lead.id,
+        WhatsAppOptInRequest(opted_in=False, source="recipient_opt_out"),
+        db_session,
+        "sales-settings-tenant",
+    )
+    with pytest.raises(HTTPException) as exc:
+        update_whatsapp_opt_in(
+            lead.id,
+            WhatsAppOptInRequest(opted_in=True, source="signed_consent_form"),
+            db_session,
+            "sales-settings-tenant",
+        )
+    assert exc.value.status_code == 409
