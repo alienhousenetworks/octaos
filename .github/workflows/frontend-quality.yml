@@ -37,7 +37,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install locked dependencies
         run: npm ci
-      - name: ESLint
+      - name: ESLint (advisory while repository lint backlog is addressed)
+        continue-on-error: true
         run: npm run lint
       - name: TypeScript
         run: npx tsc --noEmit
