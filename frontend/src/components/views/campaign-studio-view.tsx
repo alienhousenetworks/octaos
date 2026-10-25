@@ -84,6 +84,18 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
   const [artifactDetail, setArtifactDetail] = useState<any>(null);
   const [artifactEditorText, setArtifactEditorText] = useState('');
   const [artifactVersionSaving, setArtifactVersionSaving] = useState(false);
+  const [creativeBrief, setCreativeBrief] = useState({ company_name: '', industry: '', campaign_goal: '', audience: '', platform: 'instagram', format: 'reel', duration_seconds: 30, product_context: '' });
+  const [scriptInput, setScriptInput] = useState('');
+  const [creativePlan, setCreativePlan] = useState<any>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [referenceImageUrl, setReferenceImageUrl] = useState('');
+  const [referenceUploading, setReferenceUploading] = useState(false);
+  const [rightsConfirmed, setRightsConfirmed] = useState(false);
+  const [creativeKind, setCreativeKind] = useState<'image' | 'video'>('image');
+  const [creativePrompt, setCreativePrompt] = useState('');
+  const [creativeGenerating, setCreativeGenerating] = useState(false);
+  const [creativeResult, setCreativeResult] = useState<any>(null);
+  const [selectedProfileId, setSelectedProfileId] = useState('');
 
   const loadPosts = useCallback(async () => {
     if (!token) { setLoading(false); return; }
@@ -279,6 +291,83 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
     } catch (e: any) { setNotice(e?.message || 'Artifact export failed.'); }
   }
 
+  async function createCreativePlan() {
+    if (!creativeBrief.company_name.trim() || !creativeBrief.industry.trim() || !creativeBrief.campaign_goal.trim()) {
+      setNotice('Enter the brand, industry and campaign goal first.'); return;
+    }
+    setPlanLoading(true); setNotice('');
+    try {
+      const body = { ...creativeBrief, script_input: scriptInput, ...(selectedProfileId ? { profile_id: selectedProfileId } : {}) };
+      const res = await fetchWithAuth(`${API_URL}/marketing/virtual-influencer/creative-plan`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'Creative plan generation failed.');
+      setCreativePlan(data);
+      const scenes = Array.isArray(data.storyboard) ? data.storyboard.map((s: any) => `Scene ${s.scene}: ${s.asset_prompt || s.shot || ''}`).join('\n') : '';
+      setCreativePrompt([data.concept, data.hook, scenes, data.disclosure].filter(Boolean).join('\n\n'));
+      setNotice('Script and storyboard generated. Review and edit them before production.');
+    } catch (e: any) { setNotice(e?.message || 'Creative plan generation failed.'); }
+    finally { setPlanLoading(false); }
+  }
+
+  async function uploadReferenceImage(file?: File) {
+    if (!file) return;
+    if (!rightsConfirmed) { setNotice('Confirm you have permission to use this character image before uploading.'); return; }
+    const data = new FormData(); data.append('file', file);
+    setReferenceUploading(true); setNotice('');
+    try {
+      const res = await fetchWithAuth(`${API_URL}/marketing/virtual-influencer/reference-image`, { method: 'POST', body: data });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result.detail || 'Reference image upload failed.');
+      setReferenceImageUrl(result.url || '');
+      setNotice('Reference image uploaded. It will be used as a visual reference; consistency depends on the selected generation provider.');
+    } catch (e: any) { setNotice(e?.message || 'Reference image upload failed.'); }
+    finally { setReferenceUploading(false); }
+  }
+
+  async function generateInfluencerCreative() {
+    if (!creativePrompt.trim()) { setNotice('Generate a plan or enter a visual prompt first.'); return; }
+    if (referenceImageUrl && !rightsConfirmed) { setNotice('Confirm permission to use the uploaded character reference.'); return; }
+    setCreativeGenerating(true); setNotice(''); setCreativeResult(null);
+    try {
+      const body = {
+        prompt: creativePrompt, deliverable: creativeKind, platform: creativeBrief.platform,
+        reference_assets: referenceImageUrl ? [referenceImageUrl] : [],
+        ...(selectedProfileId ? { profile_id: selectedProfileId } : {}),
+        campaign_goal: creativeBrief.campaign_goal, aspect_ratio: creativeBrief.format === 'reel' || creativeBrief.format === 'story' ? '9:16' : '4:5'
+      };
+      const res = await fetchWithAuth(`${API_URL}/marketing/virtual-influencer/generate-creative`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'Creative generation failed.');
+      setCreativeResult(data);
+      setNotice('Creative result saved as a draft artifact. Review the asset and provider output before publishing.');
+      void loadArtifacts();
+    } catch (e: any) { setNotice(e?.message || 'Creative generation failed. Check configured provider readiness.'); }
+    finally { setCreativeGenerating(false); }
+  }
+
+  async function saveCreativePlanArtifact() {
+    if (!creativePlan) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/marketing/artifacts`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `Influencer script & storyboard — ${creativeBrief.company_name || 'Campaign'}`,
+          artifact_type: 'ai_influencer_script_storyboard',
+          content: { ...creativePlan, editable_script: scriptInput, editable_visual_prompt: creativePrompt, brief: creativeBrief },
+          sources: [{ type: 'user_input', label: 'Campaign brief and optional supplied script' }]
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'Could not save script and storyboard.');
+      setNotice(`Script and storyboard saved as draft artifact version ${data.current_version || 1}.`);
+      void loadArtifacts();
+    } catch (e: any) { setNotice(e?.message || 'Could not save script and storyboard.'); }
+  }
+
   async function connectBuffer() {
     try {
       const res = await fetchWithAuth(`${API_URL}/marketing/connectors/buffer/connect`);
@@ -362,6 +451,48 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-xl font-semibold">Content library</h2><p className="mt-1 text-sm text-muted-foreground">Search generated and manually created content from the existing marketing API.</p></div><div className="relative w-full sm:max-w-xs"><Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search content or channel" className="w-full rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-sm" /></div></div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{filtered.map(post => <article key={post.id} className="overflow-hidden rounded-xl border border-border bg-card">{post.image_url && !String(post.image_url).startsWith('error:') ? <img src={post.image_url} alt="Campaign creative" className="aspect-[16/9] w-full bg-background object-cover" /> : <div className="grid aspect-[16/9] place-items-center bg-background"><ImageIcon className="size-8 text-muted-foreground" /></div>}<div className="space-y-3 p-4"><div className="flex items-center justify-between gap-2"><span className="text-xs capitalize text-muted-foreground">{post.platform || 'Unknown channel'}</span><span className="rounded-full border border-border px-2 py-1 text-xs">{statusLabel(post)}</span></div><p className="line-clamp-4 whitespace-pre-wrap text-sm">{post.content || 'No caption available.'}</p>{post.video_url && <a className="text-sm text-primary underline" href={post.video_url} target="_blank" rel="noreferrer">Open video asset</a>}</div></article>)}</div>
       {!loading && filtered.length === 0 && <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No matching content.</div>}
+    </section>}
+
+    {tab === 'influencers' && <section className="space-y-5">
+      <div className="rounded-xl border border-border bg-card p-5 md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Influencer production workflow</p><h2 className="mt-2 text-xl font-semibold">From business brief to ready-to-review creative</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">Use a free concept starter, create a brand-grounded script and storyboard, upload a character reference you have rights to use, then generate image or video assets through the workspace's configured providers.</p></div><span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Human review before publishing</span></div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { name: 'Helpful expert', niche: 'B2B / SaaS', idea: 'A friendly fictional adult expert explains one customer problem and demonstrates the solution.' },
+            { name: 'Everyday guide', niche: 'Consumer / lifestyle', idea: 'A relatable fictional adult character shows a real-world use case in a simple three-beat story.' },
+            { name: 'Product explorer', niche: 'E-commerce', idea: 'A fictional adult host unboxes or explores the product; only verified product details are stated.' },
+            { name: 'Industry educator', niche: 'Professional services', idea: 'A fictional adult educator explains a common misconception, with unsupported claims flagged for review.' },
+          ].map(item => <button key={item.name} onClick={() => { setCreativeBrief(b => ({ ...b, creative_goal: undefined as never, campaign_goal: b.campaign_goal || item.idea, industry: b.industry || item.niche })); setPersonaInput(p => ({ ...p, creative_direction: item.idea })); setCreativePrompt(item.idea); setNotice(`${item.name} starter selected. Add your brand and product context before generating.`); }} className="rounded-lg border border-border p-4 text-left transition hover:bg-muted/40"><p className="font-medium">{item.name}</p><p className="mt-1 text-xs text-muted-foreground">{item.niche}</p><p className="mt-3 text-sm leading-5">{item.idea}</p><span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary"><Sparkles className="size-3" /> Use starter concept</span></button>)}
+        </div>
+      </div>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <div className="space-y-4 rounded-xl border border-border bg-card p-5">
+          <div><h3 className="font-semibold">1. Understand the business</h3><p className="mt-1 text-sm text-muted-foreground">Recommendations use these inputs and the optional approved persona. Add evidence-backed product facts; unsupported claims are flagged.</p></div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-medium">Brand name<input value={creativeBrief.company_name} onChange={e => setCreativeBrief(b => ({...b,company_name:e.target.value}))} placeholder="Company or product brand" className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal" /></label>
+            <label className="text-sm font-medium">Industry<input value={creativeBrief.industry} onChange={e => setCreativeBrief(b => ({...b,industry:e.target.value}))} placeholder="e.g. skincare, B2B SaaS" className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal" /></label>
+            <label className="text-sm font-medium sm:col-span-2">Campaign goal<textarea value={creativeBrief.campaign_goal} onChange={e => setCreativeBrief(b => ({...b,campaign_goal:e.target.value}))} rows={2} placeholder="What should the viewer understand, feel or do?" className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal" /></label>
+            <label className="text-sm font-medium sm:col-span-2">Product facts / offer / proof<input value={creativeBrief.product_context} onChange={e => setCreativeBrief(b => ({...b,product_context:e.target.value}))} placeholder="Only verified details; leave blank if not known" className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal" /></label>
+            <label className="text-sm font-medium">Target audience<input value={creativeBrief.audience} onChange={e => setCreativeBrief(b => ({...b,audience:e.target.value}))} placeholder="Who is this for?" className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal" /></label>
+            <label className="text-sm font-medium">Platform<select value={creativeBrief.platform} onChange={e => setCreativeBrief(b => ({...b,platform:e.target.value}))} className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal"><option value="instagram">Instagram</option><option value="tiktok">TikTok</option><option value="youtube">YouTube Shorts</option><option value="linkedin">LinkedIn</option><option value="facebook">Facebook</option></select></label>
+            <label className="text-sm font-medium">Format<select value={creativeBrief.format} onChange={e => setCreativeBrief(b => ({...b,format:e.target.value}))} className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal"><option value="reel">Reel</option><option value="short_video">Short video</option><option value="story">Story</option><option value="feed_post">Feed post</option><option value="carousel">Carousel</option><option value="linkedin_video">LinkedIn video</option></select></label>
+            <label className="text-sm font-medium">Duration<select value={String(creativeBrief.duration_seconds)} onChange={e => setCreativeBrief(b => ({...b,duration_seconds:Number(e.target.value)}))} className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal"><option value="15">15 seconds</option><option value="30">30 seconds</option><option value="45">45 seconds</option><option value="60">60 seconds</option><option value="90">90 seconds</option></select></label>
+          </div>
+          <label className="block text-sm font-medium">Existing script (optional)<textarea value={scriptInput} onChange={e => setScriptInput(e.target.value)} rows={4} placeholder="Paste a script to adapt, or leave blank to generate a new one." className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal" /></label>
+          <label className="block text-sm font-medium">Use an approved saved persona (optional)<select value={selectedProfileId} onChange={e => setSelectedProfileId(e.target.value)} className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal"><option value="">No saved persona — use text/image reference</option>{savedPersonas.filter(p => p.status === 'approved_for_content_review').map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select><span className="mt-1 block text-xs font-normal text-muted-foreground">Only approved profiles can be used for production generation.</span></label>
+          <button onClick={() => void createCreativePlan()} disabled={planLoading} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{planLoading ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}{planLoading ? 'Creating script & storyboard…' : 'Generate script & storyboard'}</button>
+        </div>
+        <div className="space-y-4 rounded-xl border border-border bg-card p-5">
+          <div><h3 className="font-semibold">2. Character reference and creative production</h3><p className="mt-1 text-sm text-muted-foreground">Upload a JPG, PNG or WebP reference. Do not upload an image unless you have the rights and permission to use it.</p></div>
+          <label className="flex items-start gap-2 rounded-lg border border-border p-3 text-sm"><input type="checkbox" checked={rightsConfirmed} onChange={e => setRightsConfirmed(e.target.checked)} className="mt-0.5" /><span>I confirm I have the rights and permission to use this character image for this campaign.</span></label>
+          <label className="block text-sm font-medium">Character reference image<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => void uploadReferenceImage(e.target.files?.[0])} disabled={referenceUploading} className="mt-2 block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-2" /></label>
+          {referenceImageUrl && <div className="rounded-lg border border-border p-3"><img src={referenceImageUrl} alt="Uploaded character reference" className="max-h-48 rounded-md object-contain" /><p className="mt-2 break-all text-xs text-muted-foreground">Reference uploaded and ready to use.</p><button onClick={() => setReferenceImageUrl('')} className="mt-2 text-xs underline">Remove reference from this draft</button></div>}
+          <label className="block text-sm font-medium">Creative prompt / storyboard direction<textarea value={creativePrompt} onChange={e => setCreativePrompt(e.target.value)} rows={6} placeholder="Generate a plan above or describe the image/video you need." className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal" /></label>
+          <div className="flex flex-wrap items-center gap-3"><label className="text-sm font-medium">Output<select value={creativeKind} onChange={e => setCreativeKind(e.target.value as 'image'|'video')} className="ml-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal"><option value="image">Image</option><option value="video">Video / Reel</option></select></label><button onClick={() => void generateInfluencerCreative()} disabled={creativeGenerating} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{creativeGenerating ? <LoaderCircle className="size-4 animate-spin" /> : <Video className="size-4" />}{creativeGenerating ? 'Generating…' : 'Generate creative'}</button></div>
+          {creativePlan && <div className="space-y-3 rounded-lg border border-border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold">{creativePlan.concept || 'Script and storyboard'}</h4><button onClick={() => void saveCreativePlanArtifact()} className="rounded-md border border-border px-3 py-1.5 text-xs">Save plan to artifacts</button></div>{creativePlan.hook && <p className="text-sm"><span className="font-medium">Hook:</span> {creativePlan.hook}</p>}<label className="block text-sm font-medium">Editable script<textarea value={scriptInput || (Array.isArray(creativePlan.script) ? creativePlan.script.map((s:any) => `[${s.time || ''}] ${s.dialogue || ''}`).join('\n') : '')} onChange={e => setScriptInput(e.target.value)} rows={5} className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal" /></label><div><p className="text-sm font-medium">Storyboard</p><div className="mt-2 space-y-2">{(creativePlan.storyboard || []).map((s:any,i:number) => <div key={i} className="rounded-md bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Scene {s.scene ?? i+1} · {s.start_seconds ?? '?'}–{s.end_seconds ?? '?'} sec</p><p className="mt-1 text-sm">{s.shot || s.action || s.asset_prompt || 'No scene description returned.'}</p>{s.dialogue && <p className="mt-1 text-sm text-muted-foreground">“{s.dialogue}”</p>}</div>)}</div></div>{Array.isArray(creativePlan.claims_to_verify) && creativePlan.claims_to_verify.length > 0 && <p className="rounded-md border border-border p-3 text-sm">Claims requiring verification: {creativePlan.claims_to_verify.join('; ')}</p>}<p className="text-xs text-muted-foreground">{creativePlan.disclosure || 'AI/synthetic influencer disclosure required.'}</p></div>}
+          {creativeResult && <div className="rounded-lg border border-border p-4"><div className="flex items-center justify-between gap-3"><h4 className="font-semibold">Generation result · {creativeResult.status}</h4><span className="text-xs text-muted-foreground">Saved to artifacts as draft</span></div>{creativeResult.asset_url ? (creativeKind === 'video' ? <video controls src={creativeResult.asset_url} className="mt-3 max-h-80 w-full rounded-lg bg-black" /> : <img src={creativeResult.asset_url} alt="Generated influencer creative" className="mt-3 max-h-80 rounded-lg object-contain" />) : <p className="mt-2 text-sm text-muted-foreground">Provider returned no primary asset URL. Inspect generation details before retrying.</p>}{creativeResult.asset_url && <a href={creativeResult.asset_url} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm underline">Open generated asset</a>}</div>}
+        </div>
+      </div>
     </section>}
 
     {tab === 'influencers' && savedPersonas.length > 0 && <section className="rounded-xl border border-border bg-card"><div className="border-b border-border p-4"><h2 className="font-semibold">Saved virtual influencers</h2><p className="mt-1 text-xs text-muted-foreground">Tenant-owned persona briefs; all remain drafts until reviewed.</p></div><div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">{savedPersonas.map(p => <div key={p.id} className="rounded-lg border border-border p-3"><button onClick={() => setPersona(p.brief)} className="w-full text-left"><p className="font-medium">{p.name}</p><p className="mt-1 text-xs text-muted-foreground">{p.status.replaceAll('_',' ')}</p><p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{p.brief?.persona || 'No persona description'}</p></button>{p.status !== 'approved_for_content_review' && p.status !== 'rejected' && <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => void reviewPersona(p, 'approve')} className="rounded-md border border-border px-2 py-1.5 text-xs">Approve persona</button><button onClick={() => void reviewPersona(p, 'changes_requested')} className="rounded-md border border-border px-2 py-1.5 text-xs">Request changes</button></div>}</div>)}</div></section>}
