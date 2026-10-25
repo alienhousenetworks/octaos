@@ -101,7 +101,7 @@ export default function HRHeader({
                 Hiring
               </h1>
               {isIngesting ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#263D38] text-[#64B99A] border border-[#64B99A]/20">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#263D38] text-success border border-success/20">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#64B99A] animate-ping" />
                   Reading resumes
                 </span>
@@ -135,7 +135,7 @@ export default function HRHeader({
             onClick={onOpenImportExcel}
             className="h-8.5 px-3 text-xs flex items-center gap-1.5"
           >
-            <FileSpreadsheet size={13} className="text-[#64B99A]" /> Import Sheet
+            <FileSpreadsheet size={13} className="text-success" /> Import Sheet
           </Button>
 
           <Button
@@ -158,7 +158,7 @@ export default function HRHeader({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Total Talent Pool
             </span>
-            <span className="text-[10px] font-semibold text-[#64B99A] bg-[#263D38] px-2 py-0.5 rounded-full border border-[#64B99A]/20 flex items-center gap-0.5">
+            <span className="text-[10px] font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full border border-success/20 flex items-center gap-0.5">
               <ArrowUpRight size={10} /> Active
             </span>
           </div>
@@ -181,7 +181,7 @@ export default function HRHeader({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Screened &amp; Matched
             </span>
-            <span className="text-[10px] font-semibold text-[#75AFCB] bg-[#2B3945] px-2 py-0.5 rounded-full border border-[#75AFCB]/20">
+            <span className="text-[10px] font-semibold text-info bg-info/10 px-2 py-0.5 rounded-full border border-info/20">
               {candidatesCount > 0 ? `${Math.round((screenedCount / candidatesCount) * 100)}%` : '0%'}
             </span>
           </div>
@@ -204,7 +204,7 @@ export default function HRHeader({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               In Interview
             </span>
-            <span className="text-[10px] font-semibold text-[#D9AD68] bg-[#443A2D] px-2 py-0.5 rounded-full border border-[#D9AD68]/20">
+            <span className="text-[10px] font-semibold text-warning bg-warning/10 px-2 py-0.5 rounded-full border border-warning/20">
               Rounds Active
             </span>
           </div>
@@ -227,7 +227,7 @@ export default function HRHeader({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Offered &amp; Hired
             </span>
-            <span className="text-[10px] font-semibold text-[#64B99A] bg-[#263D38] px-2 py-0.5 rounded-full border border-[#64B99A]/20">
+            <span className="text-[10px] font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full border border-success/20">
               Closing
             </span>
           </div>
