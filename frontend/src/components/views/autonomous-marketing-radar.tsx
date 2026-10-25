@@ -129,7 +129,7 @@ const LIGHT_THEME = {
   '--accent-foreground': '#E5EAF1',
   '--border': '#414C5A',
   '--input': '#414C5A',
-  '--ring': '#7888D9',
+  '--ring': '#A1AEF0',
 } as React.CSSProperties;
 
 const pad = (n: number) => String(n).padStart(2, '0');
