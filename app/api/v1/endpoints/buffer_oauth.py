@@ -164,7 +164,7 @@ def connect_buffer_api_key(
     body: BufferAPIKeyRequest,
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
-    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.CONFIGURE)),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.UPDATE)),
 ):
     """BYOK fallback; key is submitted only to the backend and encrypted at rest."""
     save_buffer_tokens(db, tenant_id, {"access_token": body.api_key, "scope": "api-key"}, auth_type="api_key")
@@ -240,7 +240,7 @@ async def publish_approved_post(
 def disconnect_buffer_account(
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
-    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.CONFIGURE)),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.UPDATE)),
 ):
     disconnected = disconnect_buffer(db, tenant_id)
     return {"connected": False, "disconnected": disconnected}
