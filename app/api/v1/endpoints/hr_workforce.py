@@ -357,7 +357,7 @@ def punch_attendance(
     employee = db.query(EmployeeProfile).filter_by(id=payload.employee_id, tenant_id=tenant_id).first()
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found.")
-    if not (getattr(current_user, "is_system_admin", False) or getattr(current_user, "is_superuser", False) or _role(current_user) in _HR_ROLES or (employee.user_id and str(employee.user_id) == str(current_user.id))):
+    if not (getattr(current_user, "is_system_admin", False) or getattr(current_user, "is_superuser", False) or _has_hr_permission(current_user, "hr.manage_workforce") or _has_hr_permission(current_user, "hr.manage_employees") or _has_hr_permission(current_user, "hr.manage_leave") or (employee.user_id and str(employee.user_id) == str(current_user.id))):
         raise HTTPException(status_code=403, detail="You may only record attendance for your own employee record.")
     try:
         employee_tz = ZoneInfo(payload.timezone)
@@ -384,7 +384,7 @@ def punch_attendance(
     if not rec:
         if payload.punch_type == "clock_out":
             raise HTTPException(status_code=409, detail="Cannot clock out before clocking in.")
-        rec = AttendanceRecord(tenant_id=tenant_id, employee_id=payload.employee_id, work_date=today_dt,
+        rec = AttendanceRecord(tenant_id=tenant_id, employee_id=payload.employee_id, work_date=work_date_utc,
                                clock_in=now, status="present", total_hours=0.0)
         db.add(rec)
     elif payload.punch_type == "clock_in":
