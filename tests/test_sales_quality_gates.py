@@ -12,6 +12,12 @@ def valid_prospect(**overrides):
         "contact_status": "READY",
         "evidence_url": "https://acme.example/news/expansion",
         "evidence_quote": "Acme announced a new regional sales team.",
+        "source_verification": {
+            "source_url": "https://acme.example/news/expansion",
+            "quote": "Acme announced a new regional sales team.",
+            "verified": True,
+            "reason": "exact_quote_match",
+        },
         "buying_signal": "Expansion announcement",
         "pain_points": ["regional lead routing"],
         "contact": {
@@ -22,6 +28,13 @@ def valid_prospect(**overrides):
         },
     }
     prospect.update(overrides)
+    if "evidence_quote" in overrides:
+        prospect["source_verification"] = {
+            "source_url": prospect.get("evidence_url", ""),
+            "quote": prospect.get("evidence_quote", ""),
+            "verified": bool(prospect.get("evidence_quote")),
+            "reason": "exact_quote_match" if prospect.get("evidence_quote") else "quote_missing",
+        }
     return prospect
 
 
@@ -206,3 +219,27 @@ def test_generated_buying_signal_alone_is_not_source_evidence():
     )
     assert result["ready"] is False
     assert "need_evidence_missing" in result["blockers"]
+
+
+def test_outreach_blocks_unverified_source_quote_even_if_excerpt_is_present():
+    prospect = valid_prospect(source_verification={
+        "source_url": "https://acme.example/news/expansion",
+        "quote": "Acme announced a new regional sales team.",
+        "verified": False,
+        "reason": "quote_not_found_in_source",
+    })
+    result = assess_outreach_readiness(prospect, auto_send_enabled=True, permission_state="granted")
+    assert result["ready"] is False
+    assert "source_quote_not_verified" in result["blockers"]
+
+
+def test_outreach_blocks_source_receipt_for_different_url_or_quote():
+    prospect = valid_prospect(source_verification={
+        "source_url": "https://other.example/news",
+        "quote": "Acme announced a new regional sales team.",
+        "verified": True,
+        "reason": "exact_quote_match",
+    })
+    result = assess_outreach_readiness(prospect, auto_send_enabled=True, permission_state="granted")
+    assert result["ready"] is False
+    assert "source_verification_mismatch" in result["blockers"]

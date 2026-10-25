@@ -245,6 +245,7 @@ def dispatch_linkedin_touch(
                 "contact_status": lead_data.get("contact_status") or contact_data.get("contact_status") or qualification.get("contact_status"),
                 "evidence_url": lead_data.get("evidence_url") or evidence.get("url") or getattr(lead, "evidence_url", None),
                 "evidence_quote": lead_data.get("evidence_quote") or evidence.get("quote"),
+                "source_verification": lead_data.get("source_verification") or evidence.get("source_verification"),
                 "news": lead_data.get("news") or [],
                 "jobs": lead_data.get("jobs") or [],
                 "contact": {

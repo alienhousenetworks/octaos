@@ -48,6 +48,7 @@ def assess_outreach_readiness(
     parsed_source = urlparse(evidence_url)
     evidence_url_valid = parsed_source.scheme in {"http", "https"} and bool(parsed_source.netloc)
     evidence_quote = str(prospect.get("evidence_quote") or "").strip()
+    source_verification = prospect.get("source_verification")
     news = prospect.get("news") or []
     jobs = prospect.get("jobs") or []
 
@@ -70,6 +71,18 @@ def assess_outreach_readiness(
     # Require a captured quote tied to the URL or a separately sourced news/jobs item.
     if not any((evidence_quote, has_sourced_signal(news), has_sourced_signal(jobs))):
         blockers.append("need_evidence_missing")
+    # A non-empty excerpt is not proof that the text appeared at the cited URL.
+    # The caller must persist a deterministic source-verification receipt.
+    if not isinstance(source_verification, dict) or source_verification.get("verified") is not True:
+        blockers.append("source_quote_not_verified")
+    else:
+        verified_url = str(source_verification.get("source_url") or "").strip()
+        verified_quote = " ".join(str(source_verification.get("quote") or "").split()).casefold()
+        expected_quote = " ".join(evidence_quote.split()).casefold()
+        if verified_url != evidence_url or not expected_quote or verified_quote != expected_quote:
+            blockers.append("source_verification_mismatch")
+        if source_verification.get("reason") != "exact_quote_match":
+            blockers.append("source_quote_not_verified")
 
     return {
         "ready": not blockers,
