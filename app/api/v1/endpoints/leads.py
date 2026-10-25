@@ -766,7 +766,6 @@ def get_sales_settings(
         "sales_ai_auto_send_enabled": False,
         "outbound_permission_state": "unknown",
         "whatsapp_permission_state": "unknown",
-        "whatsapp_opt_in": False,
     }
     cred = db.query(APICredential).filter_by(tenant_id=tenant_id, provider="sales").first()
     if cred and cred.settings:
@@ -800,7 +799,6 @@ def save_sales_settings(
         "sales_ai_auto_send_enabled": bool(payload.get("sales_ai_auto_send_enabled", False)),
         "outbound_permission_state": outbound_permission,
         "whatsapp_permission_state": whatsapp_permission,
-        "whatsapp_opt_in": bool(payload.get("whatsapp_opt_in", False)),
     }
     for key in ("follow_up_cadence_days", "max_ai_touchpoints", "meeting_duration_minutes", "buffer_minutes"):
         if payload.get(key) is not None:
