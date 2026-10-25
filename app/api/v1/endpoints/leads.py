@@ -1012,7 +1012,8 @@ async def generate_outreach_draft(
     lead_id: str,
     payload: dict = None,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE)),
 ) -> Any:
     """Generate an editable outreach draft (not sent). Optional payload.instructions steers tone/angle."""
     lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
