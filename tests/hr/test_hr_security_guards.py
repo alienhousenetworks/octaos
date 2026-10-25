@@ -2,6 +2,8 @@ from types import SimpleNamespace
 from datetime import datetime, timezone
 
 import pytest
+from sqlalchemy import create_engine, insert
+from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 
 from app.api.v1.endpoints.hr_people import _require_hr_access
@@ -65,6 +67,38 @@ def test_leave_ledger_has_partial_unique_reference_index():
     assert index.unique is True
     assert index.dialect_options["postgresql"]["where"] is not None
     assert index.dialect_options["sqlite"]["where"] is not None
+
+
+def test_database_rejects_duplicate_leave_deduction_reference():
+    engine = create_engine("sqlite:///:memory:")
+    table = LeaveLedgerEntry.__table__
+    table.create(engine)
+    row = {
+        "id": "entry-1", "tenant_id": "tenant-a", "employee_id": "employee-a",
+        "leave_type_id": "annual-a", "transaction_type": "deduction",
+        "amount_days": -1.0, "reference_id": "leave-request-a",
+    }
+    with engine.begin() as connection:
+        connection.execute(insert(table).values(**row))
+    with pytest.raises(IntegrityError):
+        with engine.begin() as connection:
+            connection.execute(insert(table).values(**{**row, "id": "entry-2"}))
+    engine.dispose()
+
+
+def test_database_allows_multiple_ledger_entries_without_reference():
+    engine = create_engine("sqlite:///:memory:")
+    table = LeaveLedgerEntry.__table__
+    table.create(engine)
+    base = {
+        "tenant_id": "tenant-a", "employee_id": "employee-a",
+        "leave_type_id": "annual-a", "transaction_type": "grant",
+        "amount_days": 1.0, "reference_id": None,
+    }
+    with engine.begin() as connection:
+        connection.execute(insert(table).values(**{**base, "id": "entry-1"}))
+        connection.execute(insert(table).values(**{**base, "id": "entry-2"}))
+    engine.dispose()
 
 
 def test_naive_attendance_timestamp_is_normalized_to_utc():

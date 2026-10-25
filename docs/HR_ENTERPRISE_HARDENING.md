@@ -21,16 +21,16 @@ This branch is the first implementation increment toward a unified enterprise HR
 - Moved HR API authorization to the canonical OctaOS RBAC permission codenames (for example `hr.view_employees`, `hr.manage_leave`, `hr.manage_workforce`), and extended the standard HR group permission catalogue.
 - Added timezone-aware attendance punches, an append-only punch audit event, and a tenant-scoped audit-history endpoint.
 - Added a partial unique index for non-null leave-ledger references, plus a guarded schema rollout script that stops if legacy duplicate references must be reconciled.
-- Added explicit staffing-demand and employee-availability records. The roster optimizer now greedily assigns employees only when declared availability and role/skill constraints match, avoids overlapping assignments, reports unmet demand, and computes coverage from actual assignments rather than a fabricated score.
+- Added explicit staffing-demand and employee-availability records. The roster optimizer now greedily assigns employees only when declared availability and role/skill constraints match, avoids overlapping assignments, reports unmet demand, and computes coverage from actual assignments rather than a fabricated score. Added tenant-configurable labor limits (`PUT/GET /api/v1/hr/workforce/labor-rules`) for minimum rest, maximum shift length, and maximum weekly hours; the optimizer enforces only configured limits and does not infer jurisdictional law.
 - Added HR self-service request tickets, performance-review drafts/submission/employee acknowledgement, compensation proposals with separation-of-duties approval (without pretending payroll was updated), and verified onboarding/offboarding checklists with independent case finalization.
 
 ## Known follow-up work before production
 
 1. Review role names against the canonical RBAC role registry; avoid maintaining parallel role taxonomies long term.
-2. Run `python scripts/migrate_hr_enterprise_schema.py` after a backup. It preflights duplicate ledger references and creates the new HR tables/index; reconcile reported duplicate references before retrying.
+2. Run `python scripts/migrate_hr_enterprise_schema.py` after a backup. It preflights duplicate ledger references and creates the new HR tables/index, including `hr_labor_rules`; reconcile reported duplicate references before retrying. This remains a guarded additive rollout script, not a numbered Alembic revision.
 3. Run the new route-level tests and add integration tests against the deployment database for self-service ownership, concurrent leave approval, and attendance time-zone boundaries.
-4. Extend scheduling with jurisdiction-specific labor law, minimum rest periods, maximum weekly hours, cost/budget constraints, and solver-backed optimization. Current scheduling checks only configured demand, declared availability/unavailability, role/skill match, and overlaps.
-5. Add route-level tests with a real test database, cross-tenant adversarial tests, migration checks, and provider sandbox tests.
+4. Extend scheduling with a jurisdiction-reviewed legal-rule catalogue, cost/budget constraints, timezone-specific week boundaries, and solver-backed optimization. Tenant-configured rest, shift-length, and weekly-hour limits are now enforced, but they are not a legal opinion and must be configured from reviewed policy.
+5. Expand route-level tests against a real test database, add a PostgreSQL concurrency job for duplicate leave approvals, cross-tenant adversarial coverage across every HR route, migration smoke tests, and provider sandbox tests.
 6. Consolidate overlapping HR model families and orchestrators only after an inventory and migration plan.
 7. Implement durable jobs, outbox delivery, idempotent provider actions, approval separation-of-duties, and independent side-effect verification.
 8. Connect compensation approvals to a real payroll provider with reconciliation, add review-cycle analytics and richer employee self-service, and implement jurisdiction-configurable compliance.
@@ -39,3 +39,11 @@ This branch is the first implementation increment toward a unified enterprise HR
 ## Evidence standard
 
 A class, route, button, or agent registration is not proof of a working feature. Mark capabilities as verified only after a test or real provider response proves the expected side effect. Unconfigured integrations and unavailable metrics must remain explicitly unavailable rather than being represented by sample values.
+
+
+## Tenant-configured labor limits (incremental implementation)
+
+- `PUT /api/v1/hr/workforce/labor-rules` configures the tenant's jurisdiction label and any combination of minimum rest hours, maximum shift hours, and maximum weekly hours. At least one numeric limit is required by the route.
+- `GET /api/v1/hr/workforce/labor-rules` reports the configured values; if none exist it explicitly says compliance is not evaluated.
+- Roster optimization rejects candidates that violate configured limits and reports which configured constraints were checked. It does not guess limits for a country/state, certify legal compliance, optimize labor cost, or solve cross-midnight jurisdictional week-boundary policies.
+- Migration preflight remains required before deploy. The new labor-rule model is included in the existing guarded schema rollout script.
