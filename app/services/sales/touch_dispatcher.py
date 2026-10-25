@@ -180,6 +180,7 @@ def dispatch_linkedin_touch(
     body: str,
     step_number: int = 2,
     outbox_item_id: Optional[str] = None,
+    human_approved: bool = False,
 ) -> Dict[str, Any]:
     """
     Handles a LinkedIn touch authentically:
@@ -210,7 +211,9 @@ def dispatch_linkedin_touch(
     apify_cred = db.query(APICredential).filter_by(tenant_id=tenant_id, provider="apify").first()
     sales_credential = db.query(APICredential).filter_by(tenant_id=tenant_id, provider="sales").first()
     sales_settings = (sales_credential.settings if sales_credential else {}) or {}
-    linkedin_authorization = assess_channel_authorization(sales_settings, "linkedin")
+    linkedin_authorization = assess_channel_authorization(
+        sales_settings, "linkedin", human_approved=human_approved
+    )
     automated_linkedin_enabled = bool(
         apify_cred
         and apify_cred.encrypted_key
@@ -305,6 +308,7 @@ def dispatch_sales_touch(
     subject: Optional[str] = None,
     step_number: int = 1,
     outbox_item_id: Optional[str] = None,
+    human_approved: bool = False,
 ) -> Dict[str, Any]:
     """
     Unified multi-channel sales touch dispatcher.
@@ -328,7 +332,10 @@ def dispatch_sales_touch(
             and bool(contact_data.get("whatsapp_opt_in_at") or lead_data.get("whatsapp_opt_in_at"))
         )
         authorization = assess_channel_authorization(
-            settings, ch, recipient_opt_in=recipient_opt_in
+            settings,
+            ch,
+            recipient_opt_in=recipient_opt_in,
+            human_approved=human_approved,
         )
         if not authorization["ready"]:
             return {
@@ -424,6 +431,7 @@ def dispatch_sales_touch(
             body,
             step_number=step_number,
             outbox_item_id=outbox_item_id,
+            human_approved=human_approved,
         )
         return res
 
