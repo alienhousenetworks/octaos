@@ -19,6 +19,7 @@ def evaluate_marketing_action(
     media_required: bool = False,
     media_generated: bool = True,
     require_approval: bool = False,
+    publisher_supported: bool = True,
     min_context_score: float = 0.45,
 ) -> Dict[str, Any]:
     """Return a stable, auditable allow/review decision with human-readable reasons.
@@ -54,6 +55,8 @@ def evaluate_marketing_action(
             reasons.append("context_score_unavailable")
     if media_required and not media_generated:
         reasons.append("required_media_not_generated")
+    if not publisher_supported:
+        reasons.append("publisher_adapter_unavailable")
     if require_approval:
         reasons.append("tenant_policy_requires_human_approval")
 
@@ -68,4 +71,5 @@ def evaluate_marketing_action(
         "context_trigger": trigger,
         "context_score": context_score,
         "source_url": source_url,
+        "publisher_supported": publisher_supported,
     }
