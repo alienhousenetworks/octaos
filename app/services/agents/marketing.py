@@ -188,6 +188,11 @@ class MarketingAgent(BaseAgent):
         except Exception as exc:
             self.db.rollback()
             try:
+                ledger.finish_step(
+                    execution.id,
+                    "context_and_content_generation",
+                    error=str(exc),
+                )
                 ledger.fail(execution.id, str(exc))
             except Exception:
                 self.db.rollback()
