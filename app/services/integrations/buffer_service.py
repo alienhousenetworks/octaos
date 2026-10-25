@@ -167,12 +167,25 @@ class BufferService:
     async def account_and_channels(self) -> Dict[str, Any]:
         data = await self.graphql(
             """query OctaOSBufferAccount {
-              account { id email organizations { id name channels { id name service } } }
+              account { id email organizations { id name } }
             }"""
         )
         account = data.get("account")
         if not account:
             raise BufferAPIError("Buffer returned no account. Check the granted account:read scope.")
+        organizations = account.get("organizations") or []
+        for organization in organizations:
+            org_id = organization.get("id")
+            if not org_id:
+                organization["channels"] = []
+                continue
+            channel_data = await self.graphql(
+                """query OctaOSBufferChannels($input: ChannelsInput!) {
+                  channels(input: $input) { id name service }
+                }""",
+                {"input": {"organizationId": org_id}},
+            )
+            organization["channels"] = channel_data.get("channels") or []
         return account
 
     async def create_post(
