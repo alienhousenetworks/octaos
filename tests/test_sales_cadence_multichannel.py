@@ -295,3 +295,39 @@ def test_outbox_drain_handles_multichannel_without_mocks(db_session):
     db_session.refresh(outbox_li)
     assert outbox_li.status == "pending_review"
     assert "human-in-the-loop" in outbox_li.error_message.lower()
+
+
+def test_approved_linkedin_touch_is_not_reported_sent_without_execution_receipt(db_session):
+    lead = Lead(
+        tenant_id="test_tenant_cadence",
+        name="Michael Scott",
+        email="mscott@dundermifflin.com",
+        company="Dunder Mifflin",
+        data={"contact": {"linkedin_url": "https://www.linkedin.com/in/michael-scott-boss"}},
+    )
+    db_session.add(lead)
+    db_session.flush()
+    approval = ApprovalRequest(
+        tenant_id="test_tenant_cadence",
+        action_type="linkedin_outreach",
+        channel="linkedin",
+        resource_type="lead",
+        resource_id=f"{lead.id}_step_2",
+        title="Approved LinkedIn touch",
+        payload={"lead_id": lead.id},
+        status="approved",
+    )
+    db_session.add(approval)
+    db_session.commit()
+
+    result = dispatch_sales_touch(
+        db_session,
+        "test_tenant_cadence",
+        lead,
+        channel="linkedin",
+        body="Hi Michael, would a short discussion be useful this week?",
+        step_number=2,
+    )
+    assert result["sent"] is False
+    assert result["requires_action"] is True
+    assert result["reason"] == "approved_waiting_for_execution"
