@@ -875,22 +875,38 @@ export default function SalesView({
     }
   };
 
-  const handleBookSalesMeeting = async (leadId: string) => {
+  const handleBookSalesMeeting = async (leadId: string, selectedLocalTime: string) => {
+    if (!selectedLocalTime) {
+      notify('Select the exact time agreed with the prospect before booking.');
+      return;
+    }
+    const selectedDate = new Date(selectedLocalTime);
+    if (!Number.isFinite(selectedDate.getTime())) {
+      notify('The selected meeting time is invalid.');
+      return;
+    }
     setSalesActionLoading(true);
     try {
       const res = await fetchWithAuth(`${API_URL}/leads/${leadId}/schedule_meeting`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suggested_time: selectedDate.toISOString() }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        notify(`Sales meeting booked for ${data.meeting_time}! Meet link: ${data.meeting_link}`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.status === 'booked' && data.booked === true) {
+        notify(data.meeting_link
+          ? `Sales meeting booked for ${data.meeting_time}. Meet link: ${data.meeting_link}`
+          : `Calendar event booked for ${data.meeting_time}; no Meet link was returned by Google Calendar.`);
         fetchLeads();
         fetchData();
       } else {
-        notify('Failed to book meeting.');
+        notify(data.message || (data.status === 'already_scheduled'
+          ? 'This lead already has a scheduled meeting.'
+          : 'Meeting was not booked.'));
       }
     } catch (e) {
       console.error(e);
+      notify('Meeting was not booked; check the calendar connection and try again.');
     } finally {
       setSalesActionLoading(false);
     }
