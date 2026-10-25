@@ -53,7 +53,6 @@ class PolicyCreateRequest(BaseModel):
 
 class EmployeeStatusUpdateRequest(BaseModel):
     status: str
-    reason: Optional[str] = None
 
 
 @router.get("/employees")
@@ -185,10 +184,17 @@ def update_employee_status(
 ):
     """Apply an explicit, tenant-scoped employment status transition."""
     _require_hr_access(current_user, write=True)
-    allowed_statuses = {"onboarding", "active", "probation", "on_leave"}
+    allowed_transitions = {
+        "onboarding": {"active", "probation"},
+        "probation": {"active"},
+        "active": {"probation"},
+        "on_leave": set(),  # managed by the approved leave workflow
+        "terminated": set(),  # requires a dedicated audited offboarding workflow
+    }
     new_status = payload.status.strip().lower()
-    if new_status not in allowed_statuses:
+    if new_status not in allowed_transitions:
         raise HTTPException(status_code=422, detail="Unsupported employment status.")
+
     employee = db.query(EmployeeProfile).filter_by(id=employee_id, tenant_id=tenant_id).with_for_update().first()
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found.")
@@ -196,6 +202,8 @@ def update_employee_status(
         raise HTTPException(status_code=409, detail="Terminated employees cannot be reactivated through this endpoint; use a reviewed rehire workflow.")
     if new_status == employee.status:
         return {"id": employee.id, "status": employee.status, "changed": False}
+    if new_status not in allowed_transitions.get(employee.status, set()):
+        raise HTTPException(status_code=409, detail="This status transition is not allowed. Leave status and termination require their dedicated workflows.")
     try:
         employee.status = new_status
         db.commit()
