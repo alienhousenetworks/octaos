@@ -245,10 +245,10 @@ class BufferService:
         for kind, url in (("image", image_url), ("video", video_url)):
             if url:
                 parsed = urlparse(url)
-                if parsed.scheme != "https" or not parsed.hostname:
-                    raise BufferAPIError("Buffer media must use a publicly accessible HTTPS URL.")
+                if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+                    raise BufferAPIError("Buffer media must use a public HTTPS URL without embedded credentials.")
                 hostname = parsed.hostname.lower().rstrip(".")
-                if hostname in {"localhost", "localhost.localdomain"} or hostname.endswith(".local"):
+                if hostname in {"localhost", "localhost.localdomain"} or hostname.endswith((".local", ".internal", ".localhost")):
                     raise BufferAPIError("Buffer media URL must not point to a local host.")
                 try:
                     address = ipaddress.ip_address(hostname)
