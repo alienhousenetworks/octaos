@@ -86,51 +86,117 @@ def plan_tasks(
             "The paid web estimate exceeds the remaining budget. Using the existing DuckDuckGo path.",
             0.0,
         )
-    geo = spec.geography[0] if spec.geography else ""
-    role = spec.buyer_roles[0] if spec.buyer_roles else ""
-    subject = " ".join(part for part in (spec.query, geo) if part).strip()
+    web_options = [(provider, cost, why)]
+    if provider != "duckduckgo":
+        configured_options = []
+        if credentials.get("brave_search") and health.allows("brave"):
+            configured_options.append(("brave", web_cost("brave"), "Configured Brave Search provides an independent web result set."))
+        if credentials.get("tavily") and health.allows("tavily"):
+            configured_options.append(("tavily", web_cost("tavily"), "Configured Tavily provides an independent web result set."))
+        # Use the yield-selected provider first, then diversify later queries only
+        # when another provider is configured and the budget ledger can reserve it.
+        web_options = [next((item for item in configured_options if item[0] == provider), (provider, cost, why))]
+        web_options.extend(item for item in configured_options if item[0] != provider)
+
+    def web_route(index: int) -> tuple[str, float, str]:
+        return web_options[index % len(web_options)]
+
+    def unique(values: list[str]) -> list[str]:
+        result = []
+        for value in values:
+            cleaned = " ".join(str(value or "").split())
+            if cleaned and cleaned.casefold() not in {item.casefold() for item in result}:
+                result.append(cleaned)
+        return result
+
+    industries = unique(spec.industries) or [spec.query]
+    geographies = unique(spec.geography) or [""]
+    roles = unique(spec.buyer_roles) or [""]
+    # Guarantee axis coverage first, then add distinct combinations. A bounded
+    # plan keeps broad campaigns useful without creating an unbounded search bill.
+    coverage: list[tuple[str, str, str]] = []
+
+    def add_coverage(industry: str, geography: str, role: str) -> None:
+        item = (industry, geography, role)
+        if item not in coverage and len(coverage) < 12:
+            coverage.append(item)
+
+    for industry in industries:
+        add_coverage(industry, geographies[0], roles[0])
+    for geography in geographies:
+        add_coverage(industries[0], geography, roles[0])
+    for role in roles:
+        add_coverage(industries[0], geographies[0], role)
+    for industry in industries:
+        for geography in geographies:
+            for role in roles:
+                add_coverage(industry, geography, role)
+
+    base_provider, base_cost, base_reason = web_route(0)
     proposals = [
         _task(
-            spec, "web", provider, "search",
-            " ".join(part for part in (subject, role, "looking for") if part),
-            "Companies publishing an explicit request that matches the campaign.",
-            cost,
-            why,
-            10,
-        ),
-        _task(
-            spec, "news", "google_news", "rss_search",
-            " ".join(part for part in (subject, "funding expansion") if part),
-            "Recent trigger events that may change the buying situation.",
-            0.0,
-            "Google News RSS is a free public headline source and does not replace the lead connectors.",
-            20,
-        ),
-        _task(
-            spec, "jobs", "hn_algolia", "hiring_search",
-            " ".join(part for part in (spec.query, "hiring", role) if part),
-            "Hiring language can reveal a team taking on the problem the offer addresses.",
-            0.0,
-            "Hacker News search is a free public hiring signal and does not invent contacts.",
-            30,
-        ),
+            spec, "web", base_provider, "search",
+            " ".join(part for part in (spec.query, geographies[0], roles[0], "looking for") if part),
+            "Baseline explicit-buying-intent query for compatibility and campaign-level discovery.",
+            base_cost, base_reason, 5,
+        )
+    ]
+    for index, (industry, geography, role) in enumerate(coverage):
+        route_provider, route_cost, route_reason = web_route(index + 1)
+        subject_parts = [industry, geography, role, spec.query]
+        query = " ".join(part for part in subject_parts if part)
+        query += " companies with relevant business needs vendors RFP"
+        proposals.append(
+            _task(
+                spec, "web", route_provider, "search", query,
+                "Find distinct companies across the campaign's industry, geography, and buyer-role coverage.",
+                route_cost, route_reason, 10 + index,
+            )
+        )
+
+    # Trigger and hiring research is distributed across industries/geographies,
+    # rather than silently searching only the first configured value.
+    for index, (industry, geography, role) in enumerate(coverage[:6]):
+        subject = " ".join(part for part in (industry, geography, spec.query) if part)
+        proposals.append(
+            _task(
+                spec, "news", "google_news", "rss_search",
+                " ".join(part for part in (subject, "funding expansion new leadership procurement") if part),
+                "Recent trigger events that may change the buying situation.",
+                0.0,
+                "Google News RSS is a free public headline source and does not replace the lead connectors.",
+                30 + index,
+            )
+        )
+        proposals.append(
+            _task(
+                spec, "jobs", "hn_algolia", "hiring_search",
+                " ".join(part for part in (industry, geography, "hiring", role, spec.query) if part),
+                "Hiring language can reveal a team taking on the problem the offer addresses.",
+                0.0,
+                "Hacker News search is a free public hiring signal and does not invent contacts.",
+                40 + index,
+            )
+        )
+
+    proposals.extend([
         _task(
             spec, "social_reddit", "reddit", "official_search",
-            " ".join(part for part in (spec.query, "recommendation") if part),
+            " ".join(part for part in (spec.query, "recommendation vendor problem") if part),
             "Public posts may contain a request for recommendations.",
             0.0,
             "Reddit runs only with an authorized client credential. Otherwise the task is marked unavailable.",
-            40,
+            60,
         ),
         _task(
             spec, "social_x", "x", "recent_search",
-            " ".join(part for part in (spec.query, role) if part),
+            " ".join(part for part in (spec.query, "looking for vendor", roles[0]) if part),
             "Public posts may contain a timely commercial request.",
             0.0,
             "X runs only with an authorized search credential. Otherwise the task is marked unavailable.",
-            50,
+            61,
         ),
-    ]
+    ])
     for url in spec.seed_urls[:2]:
         proposals.append(
             _task(
@@ -154,7 +220,14 @@ def plan_tasks(
             notes.append(f"Rejected {task.method}: unauthorized method.")
             continue
         normalized = " ".join(task.query.lower().split())
-        if normalized in exact_seen or semantic_duplicate(task.query, seen_by_method.get(task.method, [])):
+        history_duplicate = task.method == "web" and semantic_duplicate(task.query, history)
+        same_method_duplicate = task.method in {"social_reddit", "social_x"} and semantic_duplicate(
+            task.query, seen_by_method.get(task.method, [])
+        )
+        # Discovery, news, and hiring queries are intentionally similar when only an
+        # ICP axis changes. Do not collapse distinct industry/geography/role coverage
+        # within the current run; only compare web against prior-run query history.
+        if normalized in exact_seen or history_duplicate or same_method_duplicate:
             notes.append(f"Rejected duplicate query for {task.method}.")
             continue
         if task.estimated_cost_inr > remaining_inr + 1e-9:

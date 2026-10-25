@@ -62,6 +62,8 @@ class SearchEngine:
             "ledger": [],
             "notes": notes,
             "expansion_done": False,
+            "expansion_round": 0,
+            "max_expansion_rounds": 3,
             "suppressed_domains": sorted(suppressed_domains or []),
             "run_limit": run_limit,
         }
@@ -91,9 +93,22 @@ class SearchEngine:
             client = httpx.AsyncClient(timeout=12.0)
         try:
             await self._execute_pending(payload, spec, client)
-            if not payload.get("expansion_done") and payload.get("status") != "cancelled":
-                payload["expansion_done"] = True
+            # Adapt the next search round to newly discovered evidence. Stop when
+            # no new tasks are proposed, the budget prevents expansion, cancellation
+            # is requested, or the configured round ceiling is reached.
+            max_rounds = max(1, min(3, int(payload.get("max_expansion_rounds") or 3)))
+            while not payload.get("expansion_done") and payload.get("status") != "cancelled":
+                if int(payload.get("expansion_round") or 0) >= max_rounds:
+                    payload["expansion_done"] = True
+                    break
+                before = len(payload.get("tasks") or [])
                 self._add_followups(payload, spec)
+                added = len(payload.get("tasks") or []) - before
+                payload["expansion_round"] = int(payload.get("expansion_round") or 0) + 1
+                payload["expansion_done"] = added <= 0 or payload["expansion_round"] >= max_rounds
+                self.store.save_job(spec.tenant_id, payload["job_id"], payload)
+                if added <= 0:
+                    break
                 await self._execute_pending(payload, spec, client)
             self._score(payload, spec)
             self._record_yield(payload)

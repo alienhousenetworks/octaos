@@ -7,7 +7,7 @@ import io
 import json
 from app.api import deps
 from app.core.rbac import Action, Resource, require_permission
-from app.models.base import User
+from app.models.base import User, APICredential
 from app.schemas import verticals as schemas
 from app.models import verticals as models
 from app.services.verticals.sales import SalesService
@@ -15,6 +15,12 @@ from app.worker.tasks import score_lead_task
 from datetime import datetime, timedelta
 
 router = APIRouter()
+
+
+class WhatsAppOptInRequest(BaseModel):
+    opted_in: bool
+    source: str
+    notes: Optional[str] = None
 
 @router.post("/", response_model=schemas.Lead)
 async def create_lead(
@@ -112,11 +118,87 @@ def update_lead(
     db.refresh(lead)
     return lead
 
+@router.post("/{lead_id}/whatsapp-opt-in")
+def update_whatsapp_opt_in(
+    lead_id: str,
+    payload: WhatsAppOptInRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    actor: User = Depends(require_permission(Resource.LEADS, Action.UPDATE)),
+) -> Any:
+    lead = db.query(models.Lead).filter(
+        models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    phone = lead.phone or lead.mobile_no or lead.company_contact_no
+    if not phone:
+        raise HTTPException(status_code=422, detail="A recipient phone number is required to record WhatsApp consent.")
+
+    source = (payload.source or "").strip()
+    if not source or source.lower() in {"unknown", "n/a", "not recorded"}:
+        raise HTTPException(status_code=400, detail="Record the actual consent source; do not infer opt-in.")
+
+    from app.services.sales_os.governance.suppression import SuppressionService
+    suppression = SuppressionService(db, tenant_id)
+    lead_data = dict(lead.data or {})
+    now = datetime.utcnow().isoformat() + "Z"
+
+    if payload.opted_in:
+        suppressed = suppression.is_suppressed(phone=phone, channel="whatsapp")
+        if suppressed:
+            raise HTTPException(
+                status_code=409,
+                detail="This recipient is suppressed for WhatsApp. Resolve the suppression through the authorized process before recording new consent.",
+            )
+        lead_data["whatsapp_opt_in"] = True
+        lead_data["whatsapp_opt_in_source"] = source
+        lead_data["whatsapp_opt_in_at"] = now
+        lead_data.pop("whatsapp_opt_out_at", None)
+    else:
+        lead_data["whatsapp_opt_in"] = False
+        lead_data["whatsapp_opt_in_source"] = source
+        lead_data["whatsapp_opt_in_at"] = now
+        lead_data["whatsapp_opt_out_at"] = now
+        suppression.add_suppression(
+            "phone",
+            phone,
+            reason="recipient_whatsapp_opt_out",
+            origin="user",
+            notes=payload.notes or source,
+            channel="whatsapp",
+        )
+
+    # Keep the recipient-level contact object and top-level compatibility fields in sync.
+    consent_fields = {
+        key: lead_data[key]
+        for key in ("whatsapp_opt_in", "whatsapp_opt_in_source", "whatsapp_opt_in_at", "whatsapp_opt_out_at")
+        if key in lead_data
+    }
+    contact_data = lead_data.get("contact") if isinstance(lead_data.get("contact"), dict) else {}
+    contact_data = dict(contact_data)
+    contact_data.update(consent_fields)
+    lead_data["contact"] = contact_data
+
+    lead.data = lead_data
+    db.commit()
+    db.refresh(lead)
+    return {
+        "status": "recorded",
+        "opted_in": bool(payload.opted_in),
+        "lead_id": lead.id,
+        "recorded_at": now,
+        "message": "Recipient consent state recorded; outbound channel and evidence gates still apply.",
+    }
+
+
 @router.post("/{lead_id}/outreach")
 async def generate_outreach(
     lead_id: str,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE)),
 ) -> Any:
     service = SalesService(db, tenant_id)
     try:
@@ -129,72 +211,114 @@ async def generate_outreach(
                 provider = p
                 break
         if provider:
-            if provider == "smtp":
-                msg = "I need your SMTP outgoing mail credentials. Please reply with: 'My smtp credential is: smtp://username:password@smtp.mailtrap.io:2525'."
-            else:
-                msg = f"I need your {provider} API key to complete this task. Please reply with 'My {provider} key is: [YOUR_KEY]'."
-            return {"status": "action_required", "message": msg}
-        from fastapi import HTTPException
+            msg = (
+                f"Configure the {provider} integration in OctaOS Settings. "
+                "Do not paste API keys, SMTP passwords, or other secrets into chat."
+            )
+            return {"status": "action_required", "sent": False, "message": msg}
         raise HTTPException(status_code=400, detail=str(e))
-    
-    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
-    if lead:
-        lead.status = "contacted"
-        conv = list((lead.data or {}).get("conversation") or [])
-        conv.append({
-            "direction": "outbound",
-            "channel": "smtp",
-            "content": message,
-            "subject": f"Partnership Opportunity - {lead.company}",
-            "author": "Sales AI Agent",
-            "at": datetime.utcnow().isoformat()
-        })
-        lead.data = {
-            **(lead.data or {}),
-            "outreach_channel": "smtp",
-            "outbound_subject": f"Partnership Opportunity - {lead.company}",
-            "outbound_body": message,
-            "outreach_sent_at": datetime.utcnow().isoformat(),
-            "conversation": conv
+
+    lead = db.query(models.Lead).filter(
+        models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    if not isinstance(message, str) or not message.strip():
+        return {
+            "status": "blocked_no_draft",
+            "sent": False,
+            "message": "No outreach draft was produced. Nothing was sent.",
         }
-        db.commit()
-        db.refresh(lead)
-        
-    return {"message": message}
+
+    # This endpoint creates a draft only. A draft is not a provider receipt and
+    # must never advance the lead to contacted or populate sent-at fields.
+    now = datetime.utcnow().isoformat()
+    subject = f"Partnership Opportunity - {lead.company or 'Prospect'}"
+    lead_data = dict(lead.data or {})
+    lead_data["outreach_draft"] = {
+        "channel": "email",
+        "subject": subject,
+        "body": message.strip(),
+        "status": "draft",
+        "created_at": now,
+        "requires_authorization": True,
+    }
+    lead_data["draft_subject"] = subject
+    lead_data["draft_body"] = message.strip()
+    lead.data = lead_data
+    db.commit()
+    db.refresh(lead)
+
+    return {
+        "status": "draft_ready",
+        "sent": False,
+        "requires_authorization": True,
+        "lead_id": lead.id,
+        "subject": subject,
+        "message": message.strip(),
+    }
 
 @router.post("/{lead_id}/schedule_meeting")
 async def schedule_meeting(
     lead_id: str,
+    payload: dict | None = None,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE)),
 ) -> Any:
-    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
+    lead = db.query(models.Lead).filter(
+        models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id
+    ).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-        
-    lead.status = "meeting_scheduled"
-    meeting_link = f"https://meet.google.com/sales-{lead.id[:4]}-{lead.company[:3].lower()}"
-    meeting_time = "Next Tuesday at 2:00 PM EST"
-    
-    conv = list((lead.data or {}).get("conversation") or [])
-    conv.append({
-        "direction": "outbound",
-        "channel": "google_calendar",
-        "content": f"Meeting scheduled for {meeting_time}. Join link: {meeting_link}",
-        "subject": "Meeting Confirmation",
-        "author": "Sales AI Agent",
-        "at": datetime.utcnow().isoformat()
-    })
-    lead.data = {
-        **(lead.data or {}),
-        "meeting_link": meeting_link,
-        "meeting_time": meeting_time,
-        "prospect_interested": True,
-        "conversation": conv
-    }
-    db.commit()
+
+    lead_data = dict(lead.data or {})
+    reply_classification = lead_data.get("reply_classification")
+    reply_classification = reply_classification if isinstance(reply_classification, dict) else {}
+    suggested_time = (
+        (payload or {}).get("suggested_time")
+        or lead_data.get("meeting_requested_at")
+        or reply_classification.get("suggested_time")
+    )
+    if not suggested_time:
+        return {
+            "status": "needs_time_confirmation",
+            "booked": False,
+            "message": "No explicit meeting time is recorded. Confirm a date, time, and timezone with the prospect before booking.",
+        }
+
+    from app.services.sales.meeting_booking import book_meeting_for_lead
+
+    try:
+        booked = book_meeting_for_lead(
+            db,
+            tenant_id,
+            lead,
+            suggested_time=str(suggested_time),
+        )
+    except ValueError as exc:
+        return {
+            "status": "action_required",
+            "booked": False,
+            "message": str(exc),
+        }
+
     db.refresh(lead)
-    return {"message": "Meeting scheduled successfully", "meeting_time": meeting_time, "meeting_link": meeting_link}
+    if not booked:
+        return {
+            "status": "already_scheduled",
+            "booked": False,
+            "meeting_time": lead.data.get("meeting_time"),
+            "meeting_link": lead.data.get("meeting_link"),
+        }
+    return {
+        "status": "booked",
+        "booked": True,
+        "meeting_time": lead.data.get("meeting_time"),
+        "meeting_link": lead.data.get("meeting_link"),
+        "message": "Google Calendar confirmed the meeting event.",
+    }
 
 
 def get_case_insensitive_value(d: dict, keys: list, default: Any = None) -> Any:
@@ -763,6 +887,9 @@ def get_sales_settings(
         "sales_auto_reply": True,
         "reply_mode": "review_first",
         "auto_book_meetings": True,
+        "sales_ai_auto_send_enabled": False,
+        "outbound_permission_state": "unknown",
+        "whatsapp_permission_state": "unknown",
     }
     cred = db.query(APICredential).filter_by(tenant_id=tenant_id, provider="sales").first()
     if cred and cred.settings:
@@ -781,10 +908,21 @@ def save_sales_settings(
     mode = str(payload.get("reply_mode") or "review_first").lower()
     if mode not in ("review_first", "auto_send"):
         raise HTTPException(400, "reply_mode must be review_first or auto_send")
+    outbound_permission = str(payload.get("outbound_permission_state") or "unknown").lower()
+    whatsapp_permission = str(payload.get("whatsapp_permission_state") or "unknown").lower()
+    allowed_permission_states = {"unknown", "granted", "denied"}
+    if outbound_permission not in allowed_permission_states:
+        raise HTTPException(400, "outbound_permission_state must be unknown, granted, or denied")
+    if whatsapp_permission not in allowed_permission_states:
+        raise HTTPException(400, "whatsapp_permission_state must be unknown, granted, or denied")
+
     settings = {
         "sales_auto_reply": bool(payload.get("sales_auto_reply", True)),
         "reply_mode": mode,
         "auto_book_meetings": bool(payload.get("auto_book_meetings", True)),
+        "sales_ai_auto_send_enabled": bool(payload.get("sales_ai_auto_send_enabled", False)),
+        "outbound_permission_state": outbound_permission,
+        "whatsapp_permission_state": whatsapp_permission,
     }
     for key in ("follow_up_cadence_days", "max_ai_touchpoints", "meeting_duration_minutes", "buffer_minutes"):
         if payload.get(key) is not None:
@@ -885,7 +1023,8 @@ async def generate_outreach_draft(
     lead_id: str,
     payload: dict = None,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE)),
 ) -> Any:
     """Generate an editable outreach draft (not sent). Optional payload.instructions steers tone/angle."""
     lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
@@ -926,93 +1065,180 @@ async def send_outreach_smart(
     lead_id: str,
     payload: dict = None,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE)),
 ) -> Any:
-    """Send AI-generated outreach email for a lead. Always returns structured result including config status."""
-    from app.services.email.sender import check_smtp_configured, check_gmail_configured, send_email_with_status
-    
-    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
+    """Send a reviewed draft through the central policy-gated dispatcher."""
+    from app.services.email.sender import check_smtp_configured, check_gmail_configured
+    from app.services.sales.touch_dispatcher import dispatch_sales_touch
+    from app.services.sales_os.quality_gates import assess_outreach_readiness
+
+    lead = db.query(models.Lead).filter(
+        models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id
+    ).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    
+
     smtp_ok = check_smtp_configured(db, tenant_id)
     gmail_ok = check_gmail_configured(db, tenant_id)
-    email_configured = smtp_ok or gmail_ok
-    
-    # Use the user's edited draft if provided, otherwise generate via AI
     custom_body = str((payload or {}).get("body") or "").strip()
     custom_subject = str((payload or {}).get("subject") or "").strip()
-    service = SalesService(db, tenant_id)
     message = custom_body or None
     if not message:
         try:
-            message = await service.generate_outreach(lead_id)
-        except Exception as e:
+            message = await SalesService(db, tenant_id).generate_outreach(lead_id)
+        except Exception:
             message = None
-    
-    if not message:
-        # Fallback: use stored outbound body if available
-        message = (lead.data or {}).get("outbound_body", "")
-    
-    subject = custom_subject or f"Partnership Opportunity - {lead.company or 'Your Company'}"
-    
-    # Record in conversation regardless of send outcome
-    conv = list((lead.data or {}).get("conversation") or [])
-    email_send_status = "not_configured"
-    send_result = {"sent": False, "channel": None, "reason": "no_email_configured", "message": "Email credentials not configured."}
-    
-    if email_configured:
-        # Try to send
-        send_result = send_email_with_status(db, tenant_id, lead.email or lead.company_email or lead.personal_email, subject, message)
-        email_send_status = "sent" if send_result.get("sent") else "failed"
-    
-    # Always add to conversation history (even if not sent — marked as "staged")
-    conv_entry = {
-        "direction": "outbound",
-        "channel": send_result.get("channel") or "email",
-        "content": message,
-        "subject": subject,
-        "author": "Sales AI Agent",
-        "at": datetime.utcnow().isoformat(),
-        "sent": send_result.get("sent", False),
-        "send_status": email_send_status,
-    }
-    conv.append(conv_entry)
-    
-    new_status = "contacted" if send_result.get("sent") else lead.status
-    lead.status = new_status
-    lead.data = {
-        **(lead.data or {}),
-        "outreach_channel": send_result.get("channel") or "email",
-        "outbound_subject": subject,
-        "outbound_body": message,
-        "outreach_sent_at": datetime.utcnow().isoformat() if send_result.get("sent") else (lead.data or {}).get("outreach_sent_at"),
-        "conversation": conv,
-        "sent_actual": send_result.get("sent", False),
-        "email_send_status": email_send_status,
-    }
-    db.commit()
-    db.refresh(lead)
-    
-    return {
-        "lead_id": lead_id,
-        "message": message,
-        "email_configured": email_configured,
-        "smtp_configured": smtp_ok,
-        "gmail_configured": gmail_ok,
-        "sent": send_result.get("sent", False),
-        "channel": send_result.get("channel"),
-        "send_status": email_send_status,
-        "send_message": send_result.get("message", ""),
-        "lead": {
-            "id": lead.id,
-            "status": lead.status,
-            "email": lead.email,
-            "name": lead.name,
-            "company": lead.company,
+
+    if not isinstance(message, str) or not message.strip():
+        return {
+            "lead_id": lead_id,
+            "status": "blocked_no_draft",
+            "sent": False,
+            "message": "No outreach draft was produced. Nothing was sent.",
+            "email_configured": bool(smtp_ok or gmail_ok),
+            "smtp_configured": smtp_ok,
+            "gmail_configured": gmail_ok,
+        }
+
+    data = dict(lead.data or {})
+    contact_data = data.get("contact") if isinstance(data.get("contact"), dict) else {}
+    qualification = data.get("qualification") if isinstance(data.get("qualification"), dict) else {}
+    contact_name = contact_data.get("name") or data.get("contact_name")
+    if not contact_name and lead.name and lead.name.strip().casefold() != (lead.company or "").strip().casefold():
+        contact_name = lead.name
+    recipient_email = lead.email or lead.company_email or lead.personal_email
+    evidence_payload = data.get("evidence") if isinstance(data.get("evidence"), dict) else {}
+    if not recipient_email:
+        return {
+            "lead_id": lead_id,
+            "status": "blocked_no_email_route",
+            "sent": False,
+            "message": "No email address is available for this lead. Nothing was sent.",
+        }
+
+    prospect = {
+        "contact_status": data.get("contact_status") or contact_data.get("contact_status") or qualification.get("contact_status"),
+        "evidence_url": data.get("evidence_url") or getattr(lead, "evidence_url", None),
+        "evidence_quote": data.get("evidence_quote") or evidence_payload.get("quote"),
+        "buying_signal": data.get("buying_signal"),
+        "news": data.get("news") or [],
+        "jobs": data.get("jobs") or [],
+        "contact": {
+            "name": contact_name,
+            "email": recipient_email,
+            "phone": lead.phone or lead.mobile_no or lead.company_contact_no,
         },
     }
+    sales_credential = db.query(APICredential).filter_by(
+        tenant_id=tenant_id, provider="sales"
+    ).first()
+    policy_settings = (sales_credential.settings if sales_credential else {}) or {}
+    readiness = assess_outreach_readiness(
+        prospect,
+        auto_send_enabled=bool(policy_settings.get("sales_ai_auto_send_enabled", False)),
+        permission_state=policy_settings.get("outbound_permission_state"),
+        suppressed=bool(data.get("suppressed") or data.get("do_not_contact")),
+        human_approved=True,
+    )
+    subject = custom_subject or f"Partnership Opportunity - {lead.company or 'Prospect'}"
+    if not readiness["ready"]:
+        data["outreach_draft"] = {
+            "channel": "email",
+            "subject": subject,
+            "body": message.strip(),
+            "status": "blocked",
+            "created_at": datetime.utcnow().isoformat() + "Z",
+            "blockers": readiness["blockers"],
+        }
+        data["draft_subject"] = subject
+        data["draft_body"] = message.strip()
+        data["outreach_readiness"] = readiness
+        lead.data = data
+        db.commit()
+        return {
+            "lead_id": lead_id,
+            "status": "blocked",
+            "sent": False,
+            "message": "Outbound blocked by readiness checks: " + ", ".join(readiness["blockers"]),
+            "blockers": readiness["blockers"],
+            "email_configured": bool(smtp_ok or gmail_ok),
+            "smtp_configured": smtp_ok,
+            "gmail_configured": gmail_ok,
+        }
 
+    send_result = dispatch_sales_touch(
+        db,
+        tenant_id,
+        lead,
+        channel="email",
+        subject=subject,
+        body=message.strip(),
+        step_number=1,
+        human_approved=True,
+    )
+    sent = bool(send_result.get("sent"))
+    now = datetime.utcnow().isoformat() + "Z"
+    data = dict(lead.data or {})
+    data["outreach_attempt"] = {
+        "channel": send_result.get("channel") or "email",
+        "attempted_at": now,
+        "sent": sent,
+        "reason": send_result.get("reason"),
+        "message": send_result.get("message"),
+        "provider_message_id": send_result.get("message_id") or send_result.get("provider_message_id"),
+    }
+    data["outreach_readiness"] = readiness
+    data["outreach_draft"] = {
+        "channel": "email",
+        "subject": subject,
+        "body": message.strip(),
+        "status": "sent" if sent else "blocked",
+        "created_at": now,
+        "blockers": [] if sent else send_result.get("blockers", [send_result.get("reason") or "dispatch_failed"]),
+    }
+    data["draft_subject"] = subject
+    data["draft_body"] = message.strip()
+    if sent:
+        conversation = list(data.get("conversation") or [])
+        conversation.append({
+            "direction": "outbound",
+            "channel": send_result.get("channel") or "email",
+            "content": message.strip(),
+            "subject": subject,
+            "author": "Sales AI Agent",
+            "at": now,
+            "sent": True,
+            "send_status": "sent",
+            "provider_message_id": send_result.get("message_id") or send_result.get("provider_message_id"),
+        })
+        data["conversation"] = conversation
+        data["outreach_channel"] = send_result.get("channel") or "email"
+        data["outbound_subject"] = subject
+        data["outbound_body"] = message.strip()
+        data["outreach_sent_at"] = now
+        data["sent_actual"] = True
+        lead.status = "contacted"
+    else:
+        data["sent_actual"] = False
+    lead.data = data
+    db.commit()
+    db.refresh(lead)
+
+    return {
+        "lead_id": lead_id,
+        "status": "sent" if sent else "blocked",
+        "message": message.strip(),
+        "email_configured": bool(smtp_ok or gmail_ok),
+        "smtp_configured": smtp_ok,
+        "gmail_configured": gmail_ok,
+        "sent": sent,
+        "channel": send_result.get("channel"),
+        "send_status": "sent" if sent else "blocked",
+        "send_message": send_result.get("message", ""),
+        "blockers": [] if sent else send_result.get("blockers", [send_result.get("reason") or "dispatch_failed"]),
+        "lead": {"id": lead.id, "status": lead.status, "email": lead.email, "name": lead.name, "company": lead.company},
+    }
 
 class ClarifyReplyRequest(BaseModel):
     answer: str

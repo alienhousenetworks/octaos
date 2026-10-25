@@ -43,14 +43,22 @@ class MeetingService:
                 data["meeting_coordination_status"] = "coordinating_slots"
                 lead.data = data
                 continue
-            if book_meeting_for_lead(
-                self.db,
-                self.tenant_id,
-                lead,
-                tool=tool,
-                suggested_time=suggested_time,
-                log_activity=self._log_activity,
-            ):
+            try:
+                booked = book_meeting_for_lead(
+                    self.db,
+                    self.tenant_id,
+                    lead,
+                    tool=tool,
+                    suggested_time=suggested_time,
+                    log_activity=self._log_activity,
+                )
+            except ValueError as exc:
+                waiting += 1
+                data["meeting_coordination_status"] = "needs_exact_time_or_calendar_setup"
+                data["meeting_booking_blocker"] = str(exc)
+                lead.data = data
+                continue
+            if booked:
                 booked_count += 1
 
         if waiting and booked_count == 0:

@@ -299,6 +299,9 @@ export default function SalesView({
     buffer_minutes: 15,
     follow_up_cadence_days: 3,
     max_ai_touchpoints: 5,
+    sales_ai_auto_send_enabled: false,
+    outbound_permission_state: 'unknown',
+    whatsapp_permission_state: 'unknown',
   });
   const [salesSettingsSaving, setSalesSettingsSaving] = useState(false);
   const [packs, setPacks] = useState<VerticalPack[]>([]);
@@ -411,6 +414,9 @@ export default function SalesView({
           buffer_minutes: data.buffer_minutes ?? 15,
           follow_up_cadence_days: data.follow_up_cadence_days ?? 3,
           max_ai_touchpoints: data.max_ai_touchpoints ?? 5,
+          sales_ai_auto_send_enabled: data.sales_ai_auto_send_enabled ?? false,
+          outbound_permission_state: ['granted', 'denied'].includes(data.outbound_permission_state) ? data.outbound_permission_state : 'unknown',
+          whatsapp_permission_state: ['granted', 'denied'].includes(data.whatsapp_permission_state) ? data.whatsapp_permission_state : 'unknown',
         });
       }
     } catch (e) {
@@ -751,11 +757,19 @@ export default function SalesView({
         method: 'POST',
       });
       if (res.ok) {
-        notify('Sales outreach message generated & sent.');
+        const result = await res.json();
+        if (result.sent === true) {
+          notify('Sales outreach sent successfully.');
+        } else if (result.status === 'draft_ready') {
+          notify('Outreach draft created. Nothing was sent; review it and use the authorized send action when ready.');
+        } else {
+          notify(result.message || 'Outreach was not sent. Review the reported blockers.');
+        }
         fetchLeads();
         fetchData();
       } else {
-        notify('Failed to generate outreach.');
+        const error = await res.json().catch(() => ({}));
+        notify(error.detail || 'Failed to generate outreach draft.');
       }
     } catch (e) {
       console.error(e);
@@ -771,8 +785,17 @@ export default function SalesView({
         method: 'POST',
       });
       if (res.ok) {
-        notify('Smart multi-channel outreach dispatched.');
+        const result = await res.json();
+        if (result.sent === true) {
+          notify('Outreach sent successfully.');
+        } else {
+          const blockers = Array.isArray(result.blockers) ? result.blockers.join(', ') : '';
+          notify(result.send_message || result.message || blockers || 'Outreach was not sent.');
+        }
         fetchLeads();
+      } else {
+        const error = await res.json().catch(() => ({}));
+        notify(error.detail || 'Outreach was not sent.');
       }
     } catch (e) {
       console.error(e);
@@ -818,11 +841,53 @@ export default function SalesView({
       });
       if (res.ok) {
         const d = await res.json();
-        notify(d.sent ? 'Outreach sent.' : (d.send_message || 'Outreach staged (email not sent).'));
+        if (d.sent === true) {
+          notify('Outreach sent successfully.');
+        } else {
+          const blockers = Array.isArray(d.blockers) ? d.blockers.join(', ') : '';
+          notify(d.send_message || d.message || blockers || 'Outreach was not sent.');
+        }
         fetchLeads();
       }
     } catch (e) {
       console.error(e);
+    } finally {
+      setSalesActionLoading(false);
+    }
+  };
+
+  const handleSaveWhatsAppConsent = async (leadId: string, optedIn: boolean, source: string) => {
+    if (optedIn && !source.trim()) {
+      notify('Record the actual consent source before enabling WhatsApp for this recipient.');
+      return;
+    }
+    setSalesActionLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/${leadId}/whatsapp-opt-in`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opted_in: optedIn, source }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setSelectedLead((prev) => prev && prev.id === leadId ? {
+          ...prev,
+          data: {
+            ...(prev.data || {}),
+            whatsapp_opt_in: optedIn,
+            whatsapp_opt_in_source: source,
+            whatsapp_opt_in_at: result.recorded_at,
+            ...(optedIn ? {} : { whatsapp_opt_out_at: result.recorded_at }),
+          },
+        } : prev);
+        notify(optedIn ? 'Recipient WhatsApp opt-in recorded.' : 'Recipient WhatsApp opt-out recorded and suppressed.');
+        fetchLeads();
+      } else {
+        notify(result.detail || 'Could not update recipient WhatsApp consent.');
+      }
+    } catch (e) {
+      console.error(e);
+      notify('Could not update recipient WhatsApp consent.');
     } finally {
       setSalesActionLoading(false);
     }
@@ -847,22 +912,38 @@ export default function SalesView({
     }
   };
 
-  const handleBookSalesMeeting = async (leadId: string) => {
+  const handleBookSalesMeeting = async (leadId: string, selectedLocalTime: string) => {
+    if (!selectedLocalTime) {
+      notify('Select the exact time agreed with the prospect before booking.');
+      return;
+    }
+    const selectedDate = new Date(selectedLocalTime);
+    if (!Number.isFinite(selectedDate.getTime())) {
+      notify('The selected meeting time is invalid.');
+      return;
+    }
     setSalesActionLoading(true);
     try {
       const res = await fetchWithAuth(`${API_URL}/leads/${leadId}/schedule_meeting`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suggested_time: selectedDate.toISOString() }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        notify(`Sales meeting booked for ${data.meeting_time}! Meet link: ${data.meeting_link}`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.status === 'booked' && data.booked === true) {
+        notify(data.meeting_link
+          ? `Sales meeting booked for ${data.meeting_time}. Meet link: ${data.meeting_link}`
+          : `Calendar event booked for ${data.meeting_time}; no Meet link was returned by Google Calendar.`);
         fetchLeads();
         fetchData();
       } else {
-        notify('Failed to book meeting.');
+        notify(data.message || (data.status === 'already_scheduled'
+          ? 'This lead already has a scheduled meeting.'
+          : 'Meeting was not booked.'));
       }
     } catch (e) {
       console.error(e);
+      notify('Meeting was not booked; check the calendar connection and try again.');
     } finally {
       setSalesActionLoading(false);
     }
@@ -1274,6 +1355,7 @@ export default function SalesView({
         onDeleteLead={handleDeleteLead}
         onLogNote={handleLogHumanUpdate}
         onSaveLead={handleSaveLead}
+        onSaveWhatsAppConsent={handleSaveWhatsAppConsent}
         actionLoading={salesActionLoading}
       />
 

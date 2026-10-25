@@ -25,6 +25,7 @@ from app.services.credentials import get_decrypted_credential
 from app.services.email.sender import send_email_with_status
 from app.services.sales_os.governance.gatekeeper import PreSendGatekeeper
 from app.services.sales_os.governance.suppression import SuppressionService
+from app.services.sales_os.quality_gates import assess_channel_authorization
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +180,7 @@ def dispatch_linkedin_touch(
     body: str,
     step_number: int = 2,
     outbox_item_id: Optional[str] = None,
+    human_approved: bool = False,
 ) -> Dict[str, Any]:
     """
     Handles a LinkedIn touch authentically:
@@ -200,19 +202,37 @@ def dispatch_linkedin_touch(
         .first()
     )
 
-    if existing_approval and existing_approval.status == "approved":
+    approval_is_granted = bool(
+        existing_approval and str(existing_approval.status or "").lower() == "approved"
+    )
+
+    # Automated LinkedIn dispatch requires the same explicit tenant authorization
+    # as email/WhatsApp. Without it, retain the human approval queue below.
+    apify_cred = db.query(APICredential).filter_by(tenant_id=tenant_id, provider="apify").first()
+    sales_credential = db.query(APICredential).filter_by(tenant_id=tenant_id, provider="sales").first()
+    sales_settings = (sales_credential.settings if sales_credential else {}) or {}
+    linkedin_authorization = assess_channel_authorization(
+        sales_settings, "linkedin", human_approved=human_approved
+    )
+    automated_linkedin_enabled = bool(
+        apify_cred
+        and apify_cred.encrypted_key
+        and apify_cred.settings
+        and apify_cred.settings.get("enable_automated_linkedin_send")
+        and linkedin_authorization["ready"]
+    )
+    if approval_is_granted and not automated_linkedin_enabled:
         return {
-            "sent": True,
+            "sent": False,
             "channel": "linkedin",
-            "reason": "approved_by_operator",
-            "message": "Operator approved LinkedIn touch.",
+            "reason": "approved_waiting_for_execution",
+            "requires_action": True,
             "approval_id": existing_approval.id,
             "linkedin_url": linkedin_url,
+            "message": "Approved, but no authorized automated connector execution receipt exists. Do not mark this touch as sent.",
         }
 
-    # If automated third-party LinkedIn bot is configured in credentials
-    apify_cred = db.query(APICredential).filter_by(tenant_id=tenant_id, provider="apify").first()
-    if apify_cred and apify_cred.encrypted_key and apify_cred.settings and apify_cred.settings.get("enable_automated_linkedin_send"):
+    if automated_linkedin_enabled:
         try:
             from apify_client import ApifyClient
             from app.core.security import decrypt_api_key
@@ -267,11 +287,15 @@ def dispatch_linkedin_touch(
     return {
         "sent": False,
         "channel": "linkedin",
-        "reason": "pending_operator_action",
+        "reason": "approved_but_dispatch_failed" if approval_is_granted else "pending_operator_action",
         "requires_action": True,
         "approval_id": approval_id,
         "linkedin_url": linkedin_url,
-        "message": "Staged in Human-in-the-Loop queue with direct LinkedIn link for operator dispatch.",
+        "message": (
+            "Approval exists, but no successful provider execution receipt was recorded."
+            if approval_is_granted
+            else "Staged in Human-in-the-Loop queue with direct LinkedIn link for operator dispatch."
+        ),
     }
 
 
@@ -284,12 +308,58 @@ def dispatch_sales_touch(
     subject: Optional[str] = None,
     step_number: int = 1,
     outbox_item_id: Optional[str] = None,
+    human_approved: bool = False,
 ) -> Dict[str, Any]:
     """
     Unified multi-channel sales touch dispatcher.
     Routes touch through real, non-mocked channels and logs provenance.
     """
     ch = (channel or "email").lower().strip()
+
+    # Central authorization is enforced here as well as in the V3 orchestrator,
+    # so cadence/outbox callers cannot bypass the tenant's send policy.
+    if ch in {"email", "whatsapp"}:
+        sales_credential = db.query(APICredential).filter_by(
+            tenant_id=tenant_id, provider="sales"
+        ).first()
+        settings = (sales_credential.settings if sales_credential else {}) or {}
+        lead_data = lead.data if isinstance(getattr(lead, "data", None), dict) else {}
+        contact_data = lead_data.get("contact") if isinstance(lead_data.get("contact"), dict) else {}
+        opt_in_value = (
+            contact_data.get("whatsapp_opt_in")
+            if "whatsapp_opt_in" in contact_data
+            else lead_data.get("whatsapp_opt_in")
+        )
+        opt_in_source = (
+            contact_data.get("whatsapp_opt_in_source")
+            if "whatsapp_opt_in_source" in contact_data
+            else lead_data.get("whatsapp_opt_in_source")
+        )
+        opt_in_at = (
+            contact_data.get("whatsapp_opt_in_at")
+            if "whatsapp_opt_in_at" in contact_data
+            else lead_data.get("whatsapp_opt_in_at")
+        )
+        recipient_opt_in = (
+            ch == "whatsapp"
+            and opt_in_value is True
+            and bool(opt_in_source)
+            and bool(opt_in_at)
+        )
+        authorization = assess_channel_authorization(
+            settings,
+            ch,
+            recipient_opt_in=recipient_opt_in,
+            human_approved=human_approved,
+        )
+        if not authorization["ready"]:
+            return {
+                "sent": False,
+                "channel": ch,
+                "reason": "outbound_authorization_blocked",
+                "message": "Outbound dispatch blocked: " + ", ".join(authorization["blockers"]),
+                "blockers": authorization["blockers"],
+            }
 
     # The outbox and the legacy cadence schedule both call this dispatcher.
     # Keep the final policy checks here as the last line of defense so direct
@@ -376,6 +446,7 @@ def dispatch_sales_touch(
             body,
             step_number=step_number,
             outbox_item_id=outbox_item_id,
+            human_approved=human_approved,
         )
         return res
 

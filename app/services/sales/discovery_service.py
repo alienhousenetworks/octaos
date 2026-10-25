@@ -74,25 +74,37 @@ class DiscoveryService:
         for data in leads_data:
             email_value = data.get("email") or data.get("personal_email") or data.get("company_email")
             phone_value = data.get("phone") or data.get("mobile_no") or data.get("company_contact_no")
-            if not email_value and not phone_value:
+            company_value = data.get("company") or data.get("company_name")
+            display_name = data.get("name") or data.get("contact_name") or company_value
+            # Account discovery is valuable even when no verified person/contact is available.
+            # Preserve the account as research work instead of silently dropping it.
+            if not company_value or not display_name:
                 continue
             lead_query = self.db.query(Lead).filter(Lead.tenant_id == self.tenant_id)
             if email_value:
                 lead_query = lead_query.filter(Lead.email == email_value)
-            else:
+            elif phone_value:
                 lead_query = lead_query.filter(Lead.phone == phone_value)
+            else:
+                lead_query = lead_query.filter(
+                    Lead.company == company_value,
+                    Lead.email.is_(None),
+                    Lead.phone.is_(None),
+                )
             exists = lead_query.first()
             if not exists:
+                source_url = data.get("evidence_url") or data.get("source_url") or data.get("url")
+                evidence_quote = data.get("evidence_quote") or data.get("snippet") or data.get("description")
                 lead = Lead(
                     tenant_id=self.tenant_id,
-                    name=data["name"],
+                    name=display_name,
                     email=email_value,
                     phone=phone_value,
-                    company=data["company"],
+                    company=company_value,
                     source=f"{provider.upper()}: {query}",
-                    status="captured",
-                    score=0,
-                    personal_email=data.get("personal_email") or email_value,
+                    status="captured" if (email_value or phone_value) else "needs_contact_research",
+                    score=None,
+                    personal_email=data.get("personal_email"),
                     company_email=data.get("company_email") or email_value,
                     mobile_no=data.get("mobile_no") or phone_value,
                     company_contact_no=data.get("company_contact_no"),
@@ -102,6 +114,19 @@ class DiscoveryService:
                     target_context=data.get("target_context"),
                     priority=data.get("priority", "medium"),
                     assigned_to="Sales AI Agent",
+                    data={
+                        "discovery": {
+                            "provider": provider,
+                            "query": query,
+                            "evidence_url": source_url,
+                            "evidence_quote": evidence_quote,
+                            "retrieved_at": datetime.now(timezone.utc).isoformat(),
+                        },
+                        "contact_verification": {
+                            "status": "unknown",
+                            "reason": "Discovery output is not equivalent to independent contact verification.",
+                        },
+                    },
                 )
                 self.db.add(lead)
                 self.db.flush()

@@ -17,6 +17,7 @@ from app.services.sales.utils import extract_json, _build_lead_data
 from app.services.sales_os.aso.v3_scoring import combine_v3_scores, parse_component_scores, parse_pain_points
 from app.services.sales_os.contracts.registry import render_prompts
 from app.services.sales_os.discovery.web_discovery import classify_archetype
+from app.services.sales_os.quality_gates import assess_outreach_readiness
 
 logger = logging.getLogger(__name__)
 
@@ -491,8 +492,8 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                         "qualification_score": scored.qualification_score,
                         "rejection_reason": scored.rejection_reason,
                         "contact": {
-                            "name": scored.prospect_name or "Decision Maker",
-                            "title": scored.role or "Founder/Owner",
+                            "name": scored.prospect_name or "",
+                            "title": scored.role or "",
                             "email": scored.email or "",
                             "phone": scored.phone or "",
                             "linkedin_url": norm_c.get("linkedin_url") or "",
@@ -580,6 +581,11 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                             "location": "Unknown",
                             "source": f"{routing_choice} (Enriched)" if enriched_count else routing_choice,
                             "evidence_url": c.get("evidence_url") or "",
+                            "evidence_quote": c.get("evidence_quote") or "",
+                            "buying_signal": c.get("buying_signal") or "",
+                            "news": c.get("news") or [],
+                            "jobs": c.get("jobs") or [],
+                            "contact_status": "READY" if (has_name and has_contact) else "PARTIAL",
                             "freshness": c.get("freshness") or {},
                             "contact": {
                                 "name": c.get("name", ""),
@@ -665,7 +671,7 @@ Only return JSON, no other text."""
                         company=c["company_name"],
                         source=f"{c['source']}: V3 Workflow",
                         status="ready" if (email_val or phone_val) else "contact_partial",
-                        score=int(c.get("qualification_score") or 50),
+                        score=(int(c["qualification_score"]) if c.get("qualification_score") is not None else None),
                         priority="high" if (c.get("qualification_score") or 0) >= 80 else "medium",
                         assigned_to="Sales AI Agent",
                         personal_email=email_val or None,
@@ -746,6 +752,7 @@ Only return JSON, no other text."""
                     except Exception:
                         p_list = []
                     c["pain_points"] = parse_pain_points(p_list)
+                    c["pain_evidence_status"] = "evidenced" if c["pain_points"] and (c.get("evidence_url") or c.get("evidence_quote") or c.get("buying_signal")) else "insufficient_evidence"
                     emit_activity(
                         4,
                         f"Audited {i+1}/{len(qualified_companies)} companies...",
@@ -906,29 +913,15 @@ Strict Tone & Quality Rules:
                         logger.warning(f"LLM outreach generation failed for {c['company_name']}: {llm_err}")
 
                     outreach_text = (outreach_text or "").strip()
-                    if not outreach_text:
-                        contact_name = c.get("contact", {}).get("name") or "there"
-                        pain_reference = ""
-                        p_points = c.get("pain_points") or []
-                        if p_points and p_points[0] and p_points[0] != "no evidenced pain point":
-                            pain_reference = f" Specifically, we help companies address challenges around {p_points[0]}."
-
-                        sign_off = f"Best regards,\n{employee_name}, {profile_company_name}" if employee_name else f"Best regards,\nThe {profile_company_name} Team"
-                        outreach_text = (
-                            f"Hi {contact_name},\n\n"
-                            f"I noticed {c['company_name']}'s recent initiatives. At {profile_company_name}, we specialize in "
-                            f"{profile_offer} tailored for growing businesses.{pain_reference} "
-                            f"With our {profile_usp}, we focus on high-impact, turnkey execution.\n\n"
-                            f"Would you be open to a brief 10-minute introductory conversation this week to see if we might be a good fit?\n\n"
-                            f"{sign_off}"
-                        )
+                    # Never synthesize a generic fallback that implies researched knowledge.
+                    # An empty draft remains blocked until evidence and a valid draft exist.
 
                     c["outreach_message"] = outreach_text
                     first_p = (c.get("pain_points") or ["no evidenced pain point"])[0]
                     emit_activity(
                         7,
                         f"Personalized outreach drafted for {c['company_name']}...",
-                        f"[OUTREACH] {c['company_name']}: Drafted pitch tailored to '{first_p[:45]}'",
+                        f"[OUTREACH] {c['company_name']}: Draft status={'ready' if outreach_text else 'blocked_no_draft'}; evidence pain={first_p[:45] if first_p != 'no evidenced pain point' else 'not established'}",
                     )
                     return c
 
@@ -955,8 +948,8 @@ Strict Tone & Quality Rules:
                 exists = lead_query.first()
                 if exists:
                     lead = exists
-                    lead.score = c.get("qualification_score") or c.get("scoring", {}).get("total", 50)
-                    lead.status = "ready" if (contact_email or contact_phone) else "contact_partial"
+                    lead.score = c.get("qualification_score") if c.get("qualification_score") is not None else c.get("scoring", {}).get("total")
+                    lead.status = "captured" if (contact_email or contact_phone) else "needs_contact_research"
                     lead.priority = "high" if (c.get("qualification_score") or 0) >= 80 else "medium"
                     lead.why = c.get("why_now") or c.get("buying_signal") or c["qualification_reason"]
                     lead.target_context = f"Archetype: {domain_archetype} | Pain points: {', '.join(c.get('pain_points', []))}"
@@ -969,8 +962,8 @@ Strict Tone & Quality Rules:
                         phone=contact_phone or None,
                         company=c["company_name"],
                         source=f"{c['source']}: V3 Workflow",
-                        status="ready" if (contact_email or contact_phone) else "contact_partial",
-                        score=int(c.get("qualification_score") or c.get("scoring", {}).get("total", 50)),
+                        status="captured" if (contact_email or contact_phone) else "needs_contact_research",
+                        score=(int(c["qualification_score"]) if c.get("qualification_score") is not None else (int(c["scoring"]["total"]) if isinstance(c.get("scoring"), dict) and c["scoring"].get("total") is not None else None)),
                         priority="high" if (c.get("qualification_score") or 0) >= 80 else "medium",
                         assigned_to="Sales AI Agent",
                         personal_email=contact_email or None,
@@ -995,38 +988,80 @@ Strict Tone & Quality Rules:
                 if sales_cred and sales_cred.settings and sales_cred.settings.get("follow_up_cadence_days"):
                     cadence = max(1, int(sales_cred.settings["follow_up_cadence_days"]))
 
-                p_points = c.get("pain_points") or ["operational bottlenecks"]
-                first_pain = p_points[0]
-                second_pain = p_points[1] if len(p_points) > 1 else p_points[0]
+                p_points = c.get("pain_points") or []
+                first_pain = p_points[0] if p_points else None
+                second_pain = p_points[1] if len(p_points) > 1 else first_pain
 
-                outreach_body = c.get("outreach_message") or (
-                    f"Hi {c['contact'].get('name', 'there')},\n\n"
-                    f"I wanted to connect regarding {profile_company_name}'s {profile_offer}."
-                )
+                # No generic fallback: absent evidence or a failed draft means no send.
+                outreach_body = (c.get("outreach_message") or "").strip()
 
                 channel_schedule = [
                     {"day": 1, "channel": "Email", "content": outreach_body, "status": "pending"},
-                    {"day": 1 + cadence, "channel": "LinkedIn", "content": f"Hi {c['contact']['name']}, noticed your work at {c['company_name']}. I sent over an email regarding {profile_company_name}'s {profile_offer} to tackle your {first_pain}. Let's connect!", "status": "pending"},
-                    {"day": 1 + 2 * cadence, "channel": "Email", "content": f"Hi {c['contact']['name']}, following up on my previous message. We help {c['company_name']} automate {second_pain} to optimize your revenue. Let me know if you are free for a quick call.", "status": "pending"},
-                    {"day": 1 + 3 * cadence, "channel": "WhatsApp", "content": f"Hello {c['contact']['name']}, this is {profile_company_name} following up. Are you available for a brief chat this week?", "status": "pending"},
-                    {"day": 1 + 4 * cadence, "channel": "Follow-Up Call", "content": "Scheduled follow-up phone call.", "status": "pending"},
+                    {"day": 1 + cadence, "channel": "LinkedIn", "content": f"Hi {c['contact']['name']}, noticed your work at {c['company_name']}. I sent over an email regarding {profile_company_name}'s {profile_offer} to tackle your {first_pain}. Let's connect!", "status": "pending"} if first_pain and c.get("contact", {}).get("name") else None,
+                    {"day": 1 + 2 * cadence, "channel": "Email", "content": f"Hi {c['contact']['name']}, following up on my previous message. We help {c['company_name']} address {second_pain}. Let me know if a brief discussion would be useful.", "status": "pending"} if second_pain and c.get("contact", {}).get("name") else None,
+                    {"day": 1 + 3 * cadence, "channel": "WhatsApp", "content": f"Hello {c['contact']['name']}, this is {profile_company_name} following up on {first_pain}. Are you available for a brief chat this week?", "status": "pending"} if first_pain and c.get("contact", {}).get("name") else None,
+                    {"day": 1 + 4 * cadence, "channel": "Follow-Up Call", "content": f"Follow up about {first_pain}.", "status": "pending"} if first_pain else None,
                 ]
 
                 subject = f"Partnership Opportunity - {profile_company_name} x {c['company_name']}"
                 body = outreach_body
                 from app.services.sales.touch_dispatcher import dispatch_sales_touch
-
-                delivery = dispatch_sales_touch(
-                    self.db,
-                    self.tenant_id,
-                    lead,
-                    channel="email",
-                    body=body,
-                    subject=subject,
-                    step_number=1,
+                sales_cred_for_policy = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id, provider="sales").first()
+                policy_settings = (sales_cred_for_policy.settings if sales_cred_for_policy else {}) or {}
+                readiness = assess_outreach_readiness(
+                    c,
+                    auto_send_enabled=bool(policy_settings.get("sales_ai_auto_send_enabled", False)),
+                    permission_state=policy_settings.get("outbound_permission_state"),
+                    suppressed=bool(c.get("suppressed") or c.get("do_not_contact")),
                 )
-                if not delivery.get("sent") and c["contact"].get("phone"):
-                    whatsapp_delivery = dispatch_sales_touch(
+                email_allowed = bool(c["contact"].get("email"))
+                lead_data_for_consent = lead.data if isinstance(getattr(lead, "data", None), dict) else {}
+                consent_contact = lead_data_for_consent.get("contact") if isinstance(lead_data_for_consent.get("contact"), dict) else {}
+                opt_in_value = (
+                    consent_contact.get("whatsapp_opt_in")
+                    if "whatsapp_opt_in" in consent_contact
+                    else lead_data_for_consent.get("whatsapp_opt_in")
+                )
+                opt_in_source = (
+                    consent_contact.get("whatsapp_opt_in_source")
+                    if "whatsapp_opt_in_source" in consent_contact
+                    else lead_data_for_consent.get("whatsapp_opt_in_source")
+                )
+                opt_in_at = (
+                    consent_contact.get("whatsapp_opt_in_at")
+                    if "whatsapp_opt_in_at" in consent_contact
+                    else lead_data_for_consent.get("whatsapp_opt_in_at")
+                )
+                recipient_whatsapp_opt_in = opt_in_value is True and bool(opt_in_source) and bool(opt_in_at)
+                whatsapp_allowed = (
+                    bool(c["contact"].get("phone"))
+                    and str(policy_settings.get("whatsapp_permission_state") or "").lower() == "granted"
+                    and recipient_whatsapp_opt_in
+                )
+                if outreach_body and readiness["ready"] and email_allowed:
+                    delivery = dispatch_sales_touch(
+                        self.db,
+                        self.tenant_id,
+                        lead,
+                        channel="email",
+                        body=body,
+                        subject=subject,
+                        step_number=1,
+                    )
+                    if not delivery.get("sent") and whatsapp_allowed:
+                        whatsapp_delivery = dispatch_sales_touch(
+                            self.db,
+                            self.tenant_id,
+                            lead,
+                            channel="whatsapp",
+                            body=body,
+                            subject=subject,
+                            step_number=1,
+                        )
+                        if whatsapp_delivery.get("sent"):
+                            delivery = whatsapp_delivery
+                elif outreach_body and readiness["ready"] and whatsapp_allowed:
+                    delivery = dispatch_sales_touch(
                         self.db,
                         self.tenant_id,
                         lead,
@@ -1035,12 +1070,21 @@ Strict Tone & Quality Rules:
                         subject=subject,
                         step_number=1,
                     )
-                    if whatsapp_delivery.get("sent"):
-                        delivery = whatsapp_delivery
+                else:
+                    blockers = list(readiness["blockers"])
+                    if not email_allowed and not whatsapp_allowed:
+                        blockers.append("no_channel_specific_permission_or_contact_route")
+                    delivery = {
+                        "sent": False,
+                        "channel": "email",
+                        "reason": "outreach_readiness_blocked",
+                        "message": "Outbound not dispatched; readiness blockers: " + ", ".join(blockers),
+                        "blockers": blockers,
+                    }
 
                 sent_successfully = bool(delivery.get("sent"))
                 channel_used = delivery.get("channel") or "email"
-                channel_schedule[0]["status"] = "sent" if sent_successfully else "failed"
+                channel_schedule[0]["status"] = "sent" if sent_successfully else ("blocked" if delivery.get("reason") == "outreach_readiness_blocked" else "failed")
                 channel_schedule[0]["delivery_reason"] = delivery.get("reason")
                 conv = []
                 if sent_successfully:
@@ -1072,6 +1116,7 @@ Strict Tone & Quality Rules:
                         "conversation": conv,
                         "outreach_schedule": channel_schedule,
                         "sent_actual": True,
+                        "outreach_readiness": readiness,
                     }
                 else:
                     lead.status = "scored"
@@ -1085,6 +1130,7 @@ Strict Tone & Quality Rules:
                         "draft_subject": subject,
                         "draft_body": body,
                         "sent_actual": False,
+                        "outreach_readiness": readiness,
                     }
 
                 try:
@@ -1097,8 +1143,9 @@ Strict Tone & Quality Rules:
                 try:
                     from app.services.sales.outbox_service import SalesOutboxService
                     outbox_svc = SalesOutboxService(self.db, self.tenant_id)
-                    future_touches = channel_schedule[1:]
-                    if future_touches:
+                    future_touches = [touch for touch in channel_schedule[1:] if touch]
+                    # Future touches must not be queued before the first authorized touch succeeds.
+                    if sent_successfully and future_touches:
                         outbox_svc.stage_sequence(lead, future_touches)
                 except Exception as outbox_err:
                     logger.warning(f"Outbox staging failed for {lead.email}: {outbox_err}")
@@ -1110,7 +1157,7 @@ Strict Tone & Quality Rules:
                 m_leads.value += 1.0
 
             self.db.commit()
-            update_status(8, "completed", "Touchpoint timeline mapped and Day 1 outreach initiated.", "Multi-channel sequence active. Saved qualified leads into CRM board.")
+            update_status(8, "completed", "Lead records and eligible drafts saved; outbound actions are policy-gated.", "CRM records saved. Messages are only dispatched when explicit send authorization, permission, contact identity, and evidence checks pass.")
         except Exception as e:
             update_status(8, "failed", str(e), f"Error in Step 8: {str(e)}", "failed")
             return {"status": "error", "message": str(e)}

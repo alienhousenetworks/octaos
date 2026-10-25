@@ -40,6 +40,21 @@ def db_session():
     session.close()
 
 
+def authorize_outbound(db_session):
+    db_session.add(APICredential(
+        tenant_id="test_tenant_cadence",
+        provider="sales",
+        encrypted_key=encrypt_api_key("test-sales-key"),
+        settings={
+            "sales_ai_auto_send_enabled": True,
+            "outbound_permission_state": "granted",
+            "whatsapp_permission_state": "granted",
+            "whatsapp_opt_in": True,
+        },
+    ))
+    db_session.commit()
+
+
 def test_extract_phone_and_linkedin(db_session):
     lead = Lead(
         tenant_id="test_tenant_cadence",
@@ -64,12 +79,18 @@ def test_extract_phone_and_linkedin(db_session):
 
 
 def test_whatsapp_dispatch_unconfigured(db_session):
+    authorize_outbound(db_session)
     lead = Lead(
         tenant_id="test_tenant_cadence",
         name="Alex Smith",
         email="alex@example.com",
         phone="+1 555 123 4567",
         company="Acme Corp",
+        data={
+            "whatsapp_opt_in": True,
+            "whatsapp_opt_in_source": "test_fixture",
+            "whatsapp_opt_in_at": datetime.now(timezone.utc).isoformat(),
+        },
     )
     db_session.add(lead)
     db_session.commit()
@@ -114,6 +135,7 @@ def test_whatsapp_only_lead_can_be_staged_in_durable_outbox(db_session):
 
 
 def test_dispatcher_blocks_suppressed_email_before_provider_call(db_session):
+    authorize_outbound(db_session)
     lead = Lead(
         tenant_id="test_tenant_cadence",
         name="Opted Out",
@@ -142,12 +164,18 @@ def test_dispatcher_blocks_suppressed_email_before_provider_call(db_session):
 
 
 def test_whatsapp_dispatch_with_mocked_meta_api(db_session):
+    authorize_outbound(db_session)
     lead = Lead(
         tenant_id="test_tenant_cadence",
         name="Jane Doe",
         email="jane@acme.com",
         phone="+91 98765 43210",
         company="Acme Corp",
+        data={
+            "whatsapp_opt_in": True,
+            "whatsapp_opt_in_source": "test_fixture",
+            "whatsapp_opt_in_at": datetime.now(timezone.utc).isoformat(),
+        },
     )
     # Add Meta APICredential
     cred = APICredential(
@@ -220,6 +248,7 @@ def test_linkedin_dispatch_stages_approval_request(db_session):
 
 
 def test_outbox_drain_handles_multichannel_without_mocks(db_session):
+    authorize_outbound(db_session)
     lead = Lead(
         id="lead_drain_1",
         tenant_id="test_tenant_cadence",
@@ -230,7 +259,10 @@ def test_outbox_drain_handles_multichannel_without_mocks(db_session):
         data={
             "contact": {
                 "linkedin_url": "https://www.linkedin.com/in/dwight-schrute",
-            }
+            },
+            "whatsapp_opt_in": True,
+            "whatsapp_opt_in_source": "test_fixture",
+            "whatsapp_opt_in_at": datetime.now(timezone.utc).isoformat(),
         }
     )
     db_session.add(lead)
@@ -276,3 +308,97 @@ def test_outbox_drain_handles_multichannel_without_mocks(db_session):
     db_session.refresh(outbox_li)
     assert outbox_li.status == "pending_review"
     assert "human-in-the-loop" in outbox_li.error_message.lower()
+
+
+def test_approved_linkedin_touch_is_not_reported_sent_without_execution_receipt(db_session):
+    lead = Lead(
+        tenant_id="test_tenant_cadence",
+        name="Michael Scott",
+        email="mscott@dundermifflin.com",
+        company="Dunder Mifflin",
+        data={"contact": {"linkedin_url": "https://www.linkedin.com/in/michael-scott-boss"}},
+    )
+    db_session.add(lead)
+    db_session.flush()
+    approval = ApprovalRequest(
+        tenant_id="test_tenant_cadence",
+        action_type="linkedin_outreach",
+        channel="linkedin",
+        resource_type="lead",
+        resource_id=f"{lead.id}_step_2",
+        title="Approved LinkedIn touch",
+        payload={"lead_id": lead.id},
+        status="approved",
+    )
+    db_session.add(approval)
+    db_session.commit()
+
+    result = dispatch_sales_touch(
+        db_session,
+        "test_tenant_cadence",
+        lead,
+        channel="linkedin",
+        body="Hi Michael, would a short discussion be useful this week?",
+        step_number=2,
+    )
+    assert result["sent"] is False
+    assert result["requires_action"] is True
+    assert result["reason"] == "approved_waiting_for_execution"
+
+
+def test_dispatcher_blocks_email_when_tenant_authorization_is_not_configured(db_session):
+    lead = Lead(
+        tenant_id="test_tenant_cadence",
+        name="Taylor Example",
+        email="taylor@example.com",
+        company="Example Co",
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    with patch("app.services.sales.touch_dispatcher.send_email_with_status") as send:
+        result = dispatch_sales_touch(
+            db_session,
+            "test_tenant_cadence",
+            lead,
+            channel="email",
+            subject="A relevant question",
+            body="Hello Taylor, would a short discussion about your team's goals be useful?",
+        )
+
+    assert result["sent"] is False
+    assert result["reason"] == "outbound_authorization_blocked"
+    send.assert_not_called()
+
+
+def test_explicit_contact_opt_out_overrides_stale_top_level_opt_in(db_session):
+    authorize_outbound(db_session)
+    lead = Lead(
+        tenant_id="test_tenant_cadence",
+        name="Taylor Example",
+        phone="+1 555 010 9999",
+        company="Example Co",
+        data={
+            "whatsapp_opt_in": True,
+            "whatsapp_opt_in_source": "old_form",
+            "whatsapp_opt_in_at": "2026-01-01T00:00:00Z",
+            "contact": {
+                "whatsapp_opt_in": False,
+                "whatsapp_opt_in_source": "recipient_opt_out",
+                "whatsapp_opt_in_at": "2026-10-25T00:00:00Z",
+            },
+        },
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    result = dispatch_sales_touch(
+        db_session,
+        "test_tenant_cadence",
+        lead,
+        channel="whatsapp",
+        body="A follow-up message",
+    )
+    assert result["sent"] is False
+    assert result["reason"] == "outbound_authorization_blocked"
+    assert "recipient_whatsapp_opt_in_missing" in result["blockers"]

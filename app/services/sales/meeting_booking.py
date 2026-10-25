@@ -11,14 +11,17 @@ from app.models.base import APICredential
 from app.models.verticals import Lead
 from app.models.teams import AgentMetric
 from app.services.notifications.sales_alerts import (
-    default_meeting_start_utc,
     format_meeting_booked_message,
     send_sales_telegram,
 )
 
 
 def create_google_calendar_event(
-    creds_dict: dict, attendee_email: str, summary: str, description: str
+    creds_dict: dict,
+    attendee_email: str,
+    summary: str,
+    description: str,
+    start_time: datetime | None = None,
 ) -> Tuple[Optional[str], Optional[datetime]]:
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
@@ -32,8 +35,11 @@ def create_google_calendar_event(
         scopes=creds_dict.get("scopes"),
     )
     service = build("calendar", "v3", credentials=creds)
-    start_time = datetime.now(timezone.utc) + timedelta(days=1)
-    start_time = start_time.replace(hour=10, minute=0, second=0, microsecond=0)
+    if start_time is None:
+        raise ValueError("An explicit prospect-agreed meeting time is required; no default slot will be invented.")
+    if start_time.tzinfo is None:
+        raise ValueError("Meeting time must include a timezone.")
+    start_time = start_time.astimezone(timezone.utc)
     end_time = start_time + timedelta(hours=1)
     
     # Check calendar availability using freeBusy
@@ -66,6 +72,8 @@ def create_google_calendar_event(
     event_result = service.events().insert(
         calendarId="primary", body=event, conferenceDataVersion=1
     ).execute()
+    if not event_result.get("id"):
+        raise RuntimeError("Google Calendar did not return an event ID; booking is not confirmed.")
     return event_result.get("hangoutLink"), start_time
 
 
@@ -94,9 +102,20 @@ def book_meeting_for_lead(
     if not calendar_cred or not calendar_cred.encrypted_key.strip():
         raise ValueError("No Google Calendar credentials found. Please connect Google Workspace under Platform Setup -> API Settings to schedule calendar events.")
 
-    meeting_time = suggested_time or "Next business day at 10:00 AM UTC"
+    if not suggested_time:
+        raise ValueError("An explicit prospect-agreed meeting time is required before booking.")
+    try:
+        parsed_time = datetime.fromisoformat(str(suggested_time).strip().replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("Meeting time must be an ISO-8601 timestamp with timezone, e.g. 2026-10-26T10:00:00+05:30.") from exc
+    if parsed_time.tzinfo is None:
+        raise ValueError("Meeting time must include a timezone.")
+    meeting_starts_at = parsed_time.astimezone(timezone.utc)
+    if meeting_starts_at <= datetime.now(timezone.utc) + timedelta(minutes=5):
+        raise ValueError("Meeting time must be at least five minutes in the future.")
+
+    meeting_time = meeting_starts_at.strftime("%A %d %b %Y, %H:%M UTC")
     meet_url = ""
-    meeting_starts_at = default_meeting_start_utc()
     calendar_booked = False
 
     try:
@@ -106,6 +125,7 @@ def book_meeting_for_lead(
             lead.email,
             f"Meeting: {lead.company} / {lead.name}",
             f"Sales discussion with {lead.name}",
+            start_time=meeting_starts_at,
         )
         meet_url = actual_meet_url
         if event_start:
@@ -122,16 +142,16 @@ def book_meeting_for_lead(
         "account_name": lead.company or "Target Account",
         "prospect_name": lead.name,
         "prospect_email": lead.email,
-        "pain_points": lead.target_context or (lead.data or {}).get("pain_points") or "Operational efficiency and pipeline growth",
-        "qualification_notes": lead.why or f"Qualified lead with score {lead.score or 'N/A'}",
+        "pain_points": lead.target_context or (lead.data or {}).get("pain_points") or "Not recorded; confirm with the prospect.",
+        "qualification_notes": lead.why or "No qualification rationale is recorded.",
         "meeting_time": meeting_time,
         "meeting_link": meet_url,
-        "conversation_summary": f"Inbound inquiry with {lead.name} at {lead.company} successfully resolved and scheduled.",
+        "conversation_summary": f"Calendar event created for a sales discussion with {lead.name} at {lead.company}.",
         "recommended_agenda": [
-            "1. Confirm business priorities & current operational bottlenecks",
-            "2. Align target solution to verified pain points",
-            "3. Demonstrate platform workflow & ROI impact",
-            "4. Define next steps & decision stakeholder alignment"
+            "1. Confirm the prospect's stated business priorities",
+            "2. Validate the problem and desired outcome",
+            "3. Discuss the relevant offering and evidence-backed fit",
+            "4. Agree next steps and required stakeholders"
         ],
         "generated_at": datetime.now(timezone.utc).isoformat()
     }
@@ -152,15 +172,15 @@ def book_meeting_for_lead(
     if send_sales_telegram(db, tenant_id, booked_msg):
         lead.data["telegram_meeting_booked_sent"] = True
 
-    metric_roi = (
+    meeting_metric = (
         db.query(AgentMetric)
-        .filter_by(tenant_id=tenant_id, metric_name="revenue_impact")
+        .filter_by(tenant_id=tenant_id, metric_name="meetings_booked")
         .first()
     )
-    if not metric_roi:
-        metric_roi = AgentMetric(tenant_id=tenant_id, metric_name="revenue_impact", value=0.0)
-        db.add(metric_roi)
-    metric_roi.value += 1500.0
+    if not meeting_metric:
+        meeting_metric = AgentMetric(tenant_id=tenant_id, metric_name="meetings_booked", value=0.0)
+        db.add(meeting_metric)
+    meeting_metric.value += 1.0
 
     if log_activity:
         log_activity(

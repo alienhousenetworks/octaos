@@ -110,6 +110,9 @@ export interface SalesSettings {
   buffer_minutes: number;
   follow_up_cadence_days: number;
   max_ai_touchpoints: number;
+  sales_ai_auto_send_enabled: boolean;
+  outbound_permission_state: 'unknown' | 'granted' | 'denied';
+  whatsapp_permission_state: 'unknown' | 'granted' | 'denied';
 }
 
 export interface BusinessProfileData {

@@ -397,3 +397,77 @@ async def test_news_connector_distinguishes_transport_failure_from_an_empty_feed
     assert failed.status == "failed"
     assert failed.failure_class == "transient"
     del request, failed_task
+
+
+
+def test_planner_covers_multiple_industries_geographies_and_buyer_roles():
+    campaign = spec(
+        industries=["fintech", "healthcare", "manufacturing"],
+        geography=["India", "United Kingdom", "Singapore"],
+        buyer_roles=["VP Sales", "COO", "Head of Operations"],
+    )
+    tasks, _notes = plan_tasks(
+        campaign, {}, [], ProviderStats(), ProviderHealth(), 700
+    )
+    web_queries = [task.query.lower() for task in tasks if task.method == "web"]
+    assert len(web_queries) > 1
+    assert any("fintech" in query for query in web_queries)
+    assert any("healthcare" in query for query in web_queries)
+    assert any("manufacturing" in query for query in web_queries)
+    assert any("india" in query for query in web_queries)
+    assert any("united kingdom" in query for query in web_queries)
+    assert any("singapore" in query for query in web_queries)
+    assert any("vp sales" in query for query in web_queries)
+    assert any("coo" in query for query in web_queries)
+    assert any("head of operations" in query for query in web_queries)
+
+
+def test_planner_uses_multiple_configured_web_providers_when_budget_allows():
+    tasks, _notes = plan_tasks(
+        spec(),
+        {"brave_search": "brave-test-key", "tavily": "tavily-test-key"},
+        [],
+        ProviderStats(),
+        ProviderHealth(),
+        700,
+    )
+    web_providers = {task.provider for task in tasks if task.method == "web"}
+    assert "brave" in web_providers
+    assert "tavily" in web_providers
+
+
+@pytest.mark.asyncio
+async def test_search_engine_runs_bounded_adaptive_expansion_rounds():
+    async def handler(task):
+        if task.method != "web":
+            return ConnectorResult(status="empty", reason="not a web task")
+        query = task.query.lower()
+        if task.parent_record_id is None:
+            name, domain = "Acme", "acme.example"
+        elif "acme" in query:
+            name, domain = "Beta", "beta.example"
+        elif "beta" in query:
+            name, domain = "Gamma", "gamma.example"
+        else:
+            return ConnectorResult(status="empty", reason="no new account")
+        return ConnectorResult(
+            status="ok",
+            hits=[
+                Hit(
+                    url=f"https://{domain}/company",
+                    title=f"{name} company overview",
+                    snippet=f"{name} is looking for a sales automation vendor.",
+                    company_name=name,
+                    company_domain=domain,
+                )
+            ],
+        )
+
+    store = MemorySearchStore()
+    engine = SearchEngine(store, FakeConnectors(handler), {})
+    batch = await engine.run(spec())
+    payload = store.get_job("tenant-1", batch.job_id)
+
+    assert 2 <= payload["expansion_round"] <= 3
+    assert payload["expansion_done"] is True
+    assert any(record["company_domain"] == "acme.example" for record in payload["records"])

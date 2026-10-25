@@ -20,7 +20,7 @@ interface SalesRecordWorkspaceProps {
   onSave: (leadId: string, updates: Partial<Lead>) => Promise<void>;
   onUpdateStatus: (leadId: string, status: string) => Promise<void>;
   onGenerateDraft: (leadId: string, instructions: string) => Promise<{ subject: string; body: string } | null>;
-  onBookMeeting: (leadId: string) => Promise<void>;
+  onBookMeeting: (leadId: string, suggestedTime: string) => Promise<void>;
   onOpenDealDesk: () => void;
   onLogNote: (leadId: string, content: string, channel: string, direction: string) => Promise<void>;
   onSendDraft: (leadId: string, subject: string, body: string) => Promise<void>;
@@ -50,6 +50,7 @@ export default function SalesRecordWorkspace({
   const [pane, setPane] = useState<Pane>('record');
   const [tab, setTab] = useState<Tab>('overview');
   const [advice, setAdvice] = useState<CopilotAdvice | null>(null);
+  const [meetingTime, setMeetingTime] = useState('');
 
   const isRealEstate = (activePack?.id === 'real_estate' || advice?.pack?.id === 'real_estate');
 
@@ -1040,8 +1041,20 @@ export default function SalesRecordWorkspace({
                   </div>
                   {confirmMeeting ? (
                     <div className="rounded-xl border border-border p-3">
-                      <p className="text-sm">Book a meeting through the existing meeting service?</p>
-                      <Button type="button" className="mt-2" disabled={actionLoading} onClick={() => void onBookMeeting(lead.id)}>
+                      <p className="text-sm">Enter the exact prospect-agreed meeting time in your local timezone.</p>
+                      <Input
+                        type="datetime-local"
+                        value={meetingTime}
+                        onChange={(event) => setMeetingTime(event.target.value)}
+                        disabled={actionLoading}
+                        className="mt-2"
+                      />
+                      <Button
+                        type="button"
+                        className="mt-2"
+                        disabled={actionLoading || !meetingTime}
+                        onClick={() => void onBookMeeting(lead.id, meetingTime)}
+                      >
                         Confirm booking
                       </Button>
                     </div>

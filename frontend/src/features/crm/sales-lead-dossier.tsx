@@ -21,10 +21,11 @@ interface SalesLeadDossierProps {
   onGenerateDraft: (leadId: string, instructions: string) => Promise<{ subject: string; body: string } | null>;
   onSendDraft: (leadId: string, subject: string, body: string) => Promise<void>;
   onSaveSchedule: (leadId: string, schedule: FollowUpStep[]) => Promise<void>;
-  onBookMeeting: (leadId: string) => Promise<void>;
+  onBookMeeting: (leadId: string, suggestedTime: string) => Promise<void>;
   onDeleteLead: (leadId: string) => Promise<void>;
   onLogNote: (leadId: string, content: string, channel: string, direction: string) => Promise<void>;
   onSaveLead: (leadId: string, updates: Partial<Lead>) => Promise<void>;
+  onSaveWhatsAppConsent: (leadId: string, optedIn: boolean, source: string) => Promise<void>;
   actionLoading: boolean;
 }
 
@@ -41,12 +42,15 @@ export default function SalesLeadDossier({
   onDeleteLead,
   onLogNote,
   onSaveLead,
+  onSaveWhatsAppConsent,
   actionLoading,
 }: SalesLeadDossierProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'signals' | 'outreach' | 'followups' | 'edit'>('overview');
   const [noteText, setNoteText] = useState('');
   const [noteChannel, setNoteChannel] = useState('note');
   const [noteDirection, setNoteDirection] = useState('internal');
+  const [meetingTime, setMeetingTime] = useState('');
+  const [whatsappConsentSource, setWhatsappConsentSource] = useState('');
 
   // Edit states
   const [editName, setEditName] = useState(lead?.name || '');
@@ -55,7 +59,7 @@ export default function SalesLeadDossier({
   const [editPhone, setEditPhone] = useState(lead?.phone || '');
   const [editWhy, setEditWhy] = useState(lead?.why || '');
   const [editCapacity, setEditCapacity] = useState(lead?.purchasing_capacity || lead?.how_much || '');
-  const [editScore, setEditScore] = useState(lead?.score || 50);
+  const [editScore, setEditScore] = useState(lead?.score != null ? String(lead.score) : '');
 
   // Outreach draft + follow-up schedule (re-synced when a different lead opens or data changes)
   const [draftSubject, setDraftSubject] = useState(lead?.data?.draft_subject || '');
@@ -66,7 +70,9 @@ export default function SalesLeadDossier({
     setDraftSubject(lead?.data?.draft_subject || '');
     setDraftBody(lead?.data?.draft_body || '');
     setSchedule(lead?.data?.outreach_schedule || []);
-  }, [lead?.id, lead?.data?.draft_body, lead?.data?.outreach_schedule]);
+    setMeetingTime('');
+    setWhatsappConsentSource(lead?.data?.whatsapp_opt_in_source || '');
+  }, [lead?.id, lead?.data?.draft_body, lead?.data?.outreach_schedule, lead?.data?.whatsapp_opt_in_source]);
 
   if (!lead) return null;
 
@@ -89,15 +95,18 @@ export default function SalesLeadDossier({
   };
 
   const handleSaveEdit = async () => {
-    await onSaveLead(lead.id, {
+    const updates: Partial<Lead> = {
       name: editName,
       company: editCompany,
       email: editEmail,
       phone: editPhone,
       why: editWhy,
       how_much: editCapacity,
-      score: Number(editScore),
-    });
+    };
+    if (editScore.trim() !== '' && Number.isFinite(Number(editScore))) {
+      updates.score = Number(editScore);
+    }
+    await onSaveLead(lead.id, updates);
     setActiveTab('overview');
   };
 
@@ -169,7 +178,7 @@ export default function SalesLeadDossier({
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-500">AI Fit Score:</span>
               <span className="px-2.5 py-0.5 rounded-md text-xs font-extrabold bg-emerald-600 text-white shadow-xs flex items-center gap-1">
-                <Sparkles size={12} className="text-emerald-100" /> {lead.score ?? 50}/100
+                <Sparkles size={12} className="text-emerald-100" /> {lead.score != null ? `${lead.score}/100` : 'Not scored'}
               </span>
             </div>
           </div>
@@ -350,31 +359,84 @@ export default function SalesLeadDossier({
                     <div>
                       <span className="text-[10px] font-bold text-slate-500 uppercase block">LinkedIn Profile</span>
                       {d.contact?.linkedin_url ? (
-                        <a href={d.contact.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 font-semibold underline">View Verified Profile</a>
+                        <a href={d.contact.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 font-semibold underline">View LinkedIn Profile</a>
                       ) : notCaptured}
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-2.5 pt-2">
-                <Button
-                  onClick={() => onSendOutreach(lead.id)}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">WhatsApp recipient consent</h3>
+                    <p className="mt-1 text-[11px] text-slate-500">Record only consent actually received from this recipient. Opt-out creates a WhatsApp suppression.</p>
+                  </div>
+                  <span className={d.whatsapp_opt_in === true ? "rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700" : "rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600"}>
+                    {d.whatsapp_opt_in === true ? "OPTED IN" : "NO OPT-IN"}
+                  </span>
+                </div>
+                <Input
+                  value={whatsappConsentSource}
+                  onChange={(event) => setWhatsappConsentSource(event.target.value)}
+                  placeholder="Consent source, e.g. signed form or inbound request"
                   disabled={actionLoading}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl h-10 shadow-sm"
-                >
-                  {actionLoading ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Send size={14} className="mr-1.5" />}
-                  Generate Grounded Outreach
-                </Button>
-                <Button
-                  onClick={() => onBookMeeting(lead.id)}
+                  className="text-xs bg-white border-slate-200 text-slate-900"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={actionLoading || !whatsappConsentSource.trim()}
+                    onClick={() => void onSaveWhatsAppConsent(lead.id, true, whatsappConsentSource.trim())}
+                    className="text-xs"
+                  >
+                    Record opt-in
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={actionLoading}
+                    onClick={() => void onSaveWhatsAppConsent(lead.id, false, whatsappConsentSource.trim() || "recipient_opt_out")}
+                    className="text-xs"
+                  >
+                    Record opt-out
+                  </Button>
+                </div>
+                {d.whatsapp_opt_in_at ? (
+                  <p className="text-[10px] text-slate-500">Last consent-state record: {String(d.whatsapp_opt_in_at)}</p>
+                ) : null}
+              </div>
+
+              <div className="pt-2 space-y-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                  Prospect-agreed meeting time (your local timezone)
+                </label>
+                <Input
+                  type="datetime-local"
+                  value={meetingTime}
+                  onChange={(e) => setMeetingTime(e.target.value)}
                   disabled={actionLoading}
-                  variant="outline"
-                  className="flex-1 text-xs font-semibold rounded-xl h-10 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-sm"
-                >
-                  <Calendar size={14} className="mr-1.5 text-blue-600" /> Book Meeting
-                </Button>
+                  className="text-xs bg-white border-slate-200 text-slate-900"
+                />
+                <div className="flex flex-wrap gap-2.5">
+                  <Button
+                    onClick={() => onSendOutreach(lead.id)}
+                    disabled={actionLoading}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl h-10 shadow-sm"
+                  >
+                    {actionLoading ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Send size={14} className="mr-1.5" />}
+                    Generate Grounded Outreach
+                  </Button>
+                  <Button
+                    onClick={() => onBookMeeting(lead.id, meetingTime)}
+                    disabled={actionLoading || !meetingTime}
+                    variant="outline"
+                    className="flex-1 text-xs font-semibold rounded-xl h-10 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-sm"
+                  >
+                    <Calendar size={14} className="mr-1.5 text-blue-600" /> Book Meeting
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -678,7 +740,7 @@ export default function SalesLeadDossier({
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-600 block mb-1">AI Score (0-100)</label>
-                  <Input type="number" value={editScore} onChange={(e) => setEditScore(Number(e.target.value))} className="text-xs bg-white border-slate-200 text-slate-900" />
+                  <Input type="number" value={editScore} onChange={(e) => setEditScore(e.target.value)} className="text-xs bg-white border-slate-200 text-slate-900" placeholder="Not scored" />
                 </div>
               </div>
 
