@@ -16,7 +16,7 @@
 
 - Adds a brand brief → script/storyboard → creative-generation workflow inside the existing Influencer Studio.
 - Adds a text-model-backed creative-plan endpoint. It requests structured script/storyboard output, preserves user-provided scripts as the source to adapt, requires synthetic-influencer disclosure, and flags unsupported product claims for verification.
-- Adds an image-reference upload endpoint limited to JPG/PNG/WebP and 10 MB per file. The upload is stored through the existing media storage service using a tenant-derived prefix; the user must confirm usage rights in the UI.
+- Adds an image-reference upload endpoint limited to JPG/PNG/WebP and 10 MB per file, validating the file signature as well as the declared MIME type. The upload is stored through the existing media storage service using a tenant-derived prefix; the user must confirm usage rights in the UI.
 - Adds an endpoint that invokes the existing Visual Creative Director for image/video generation and persists the provider result, asset URL, reference list, prompt, and review-required state as an immutable campaign artifact version.
 - Extends the UI with free starter concepts, business/product context, audience/platform/format/duration fields, optional user-provided scripts, approved persona selection, image-reference upload, editable script/storyboard/prompt, image/video generation, result preview, and artifact saving.
 - Creative generation uses configured tenant providers; starter concepts and script planning are not represented as unlimited free media generation. Provider/model capability and live availability remain dependent on tenant configuration.
