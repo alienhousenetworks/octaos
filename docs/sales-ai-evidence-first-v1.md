@@ -32,7 +32,7 @@ A discovery provider's returned contact is not, by itself, proof of deliverabili
 
 Search V4's planner now builds a bounded set of query tasks covering multiple configured industries, geographies, and buyer roles. It covers each dimension before filling in additional combinations, then adds distributed news and hiring searches and credential-gated public social searches. The plan is bounded to 12 ICP combinations before source-specific task expansion and remains subject to provider availability, duplicate-query filtering, and budget reservation.
 
-This improves breadth; it does **not** guarantee that every page on the internet was searched. The source catalogue is not a guarantee that a provider is active. Provider tasks still report unavailable, missing-credential, blocked, or failed states honestly.
+Search V4 also performs up to three bounded adaptive expansion rounds, using newly discovered explicit requests, hiring signals, trigger events, and company domains to propose follow-up web searches and first-party company-page fetches. Each round is persisted before execution and stops when no new tasks are proposed, the budget prevents expansion, cancellation is requested, or the round ceiling is reached. This improves breadth; it does **not** guarantee that every page on the internet was searched. The source catalogue is not a guarantee that a provider is active. Provider tasks still report unavailable, missing-credential, blocked, or failed states honestly.
 
 ## Verification
 
