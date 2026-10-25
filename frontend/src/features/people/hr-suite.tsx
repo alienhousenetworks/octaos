@@ -540,19 +540,17 @@ export default function HREnterpriseSuite({
                       <td className="py-3 px-4 text-slate-400">{l.start_date} → {l.end_date}</td>
                       <td className="py-3 px-4 font-semibold">{l.days_requested} d</td>
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                            <div
-                              className={`h-full ${
-                                (l.coverage_score || 1) >= 0.6 ? 'bg-emerald-500' : 'bg-rose-500'
-                              }`}
-                              style={{ width: `${Math.round((l.coverage_score || 1) * 100)}%` }}
-                            />
+                        {typeof l.coverage_score === 'number' && Number.isFinite(l.coverage_score) ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 bg-muted rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className={`h-full ${l.coverage_score >= 0.6 ? 'bg-emerald-600' : 'bg-rose-600'}`}
+                                style={{ width: `${Math.max(0, Math.min(100, Math.round(l.coverage_score * 100)))}%` }}
+                              />
+                            </div>
+                            <span className="text-[11px] font-semibold">{Math.round(l.coverage_score * 100)}%</span>
                           </div>
-                          <span className="text-[11px] font-semibold">
-                            {Math.round((l.coverage_score || 1) * 100)}%
-                          </span>
-                        </div>
+                        ) : <span className="text-xs text-muted-foreground">Unavailable</span>}
                       </td>
                       <td className="py-3 px-4">
                         <span
