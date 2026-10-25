@@ -182,6 +182,10 @@ def test_whatsapp_dispatch_with_mocked_meta_api(db_session):
         phone="+91 98765 43210",
         company="Acme Corp",
         data={
+            "contact_status": "READY",
+            "evidence_url": "https://example.com/news/acme",
+            "evidence_quote": "Acme Corp announced a new customer support initiative.",
+            "buying_signal": "Customer support initiative",
             "whatsapp_opt_in": True,
             "whatsapp_opt_in_source": "test_fixture",
             "whatsapp_opt_in_at": datetime.now(timezone.utc).isoformat(),
