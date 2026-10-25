@@ -1098,6 +1098,14 @@ async def send_outreach_smart(
         contact_name = lead.name
     recipient_email = lead.email or lead.company_email or lead.personal_email
     evidence_payload = data.get("evidence") if isinstance(data.get("evidence"), dict) else {}
+    if not recipient_email:
+        return {
+            "lead_id": lead_id,
+            "status": "blocked_no_email_route",
+            "sent": False,
+            "message": "No email address is available for this lead. Nothing was sent.",
+        }
+
     prospect = {
         "contact_status": data.get("contact_status") or contact_data.get("contact_status") or qualification.get("contact_status"),
         "evidence_url": data.get("evidence_url") or getattr(lead, "evidence_url", None),
