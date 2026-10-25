@@ -61,7 +61,6 @@ export default function OrchestratorView({
       role: 'assistant',
       content:
         "Welcome to the Orchestrator AI Console. I coordinate your Marketing, Sales, Support, and Operations teams to accomplish complex business goals.\n\nTell me what you'd like to achieve, or select a suggested prompt below.",
-      timestamp: new Date().toISOString(),
     },
   ]);
   const [orchInput, setOrchInput] = useState('');
