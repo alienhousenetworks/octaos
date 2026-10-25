@@ -91,8 +91,15 @@ class DockerAnalysisSandbox:
                 reason=f"Invalid sandbox workspace: {str(exc)}",
             )
 
-        # The script and inputs are read-only. Only /output is writable and bounded
-        # by the workspace filesystem quota enforced by the worker/host deployment.
+        # Never run the container as root. Bind-mounted output ownership must match
+        # the non-root worker UID/GID; root-run workers fail closed.
+        worker_uid = os.getuid() if hasattr(os, "getuid") else 0
+        worker_gid = os.getgid() if hasattr(os, "getgid") else 0
+        if worker_uid == 0:
+            return SandboxResult(
+                status="unavailable", duration_ms=0,
+                reason="Sandbox worker must run as a non-root host user.",
+            )
         output_dir = path / "output"
         output_dir.mkdir(mode=0o700, exist_ok=True)
         if output_dir.is_symlink():
@@ -102,7 +109,7 @@ class DockerAnalysisSandbox:
             self.docker_binary, "run", "--rm",
             "--network=none",
             "--read-only",
-            "--user=65534:65534",
+            "--user", f"{worker_uid}:{worker_gid}",
             "--cap-drop=ALL",
             "--security-opt=no-new-privileges",
             "--pids-limit", str(limits.pids_limit),
@@ -143,6 +150,22 @@ class DockerAnalysisSandbox:
                     duration_ms=int((time.monotonic() - started) * 1000),
                     reason="Execution output exceeded configured byte limits.",
                 )
+            total_artifact_bytes = 0
+            for artifact in output_dir.rglob("*"):
+                if artifact.is_symlink():
+                    return SandboxResult(
+                        status="failed", exit_code=process.returncode,
+                        duration_ms=int((time.monotonic() - started) * 1000),
+                        reason="Sandbox produced a symlink artifact; output rejected.",
+                    )
+                if artifact.is_file():
+                    total_artifact_bytes += artifact.stat().st_size
+                    if total_artifact_bytes > limits.max_output_bytes:
+                        return SandboxResult(
+                            status="failed", exit_code=process.returncode,
+                            duration_ms=int((time.monotonic() - started) * 1000),
+                            reason="Sandbox artifacts exceeded configured byte limits.",
+                        )
             succeeded = process.returncode == 0
             return SandboxResult(
                 status="succeeded" if succeeded else "failed",
