@@ -1482,7 +1482,7 @@ def read_marketing_verticals(
     }
 
 
-def _active_marketing_pack_id(profile: Optional[BusinessProfile]) -> Optional[str]:
+def _active_marketing_pack_id(profile: Optional[models.BusinessProfile]) -> Optional[str]:
     if not profile:
         return None
     return getattr(profile, "marketing_industry_pack_id", None)
