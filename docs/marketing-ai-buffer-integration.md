@@ -60,7 +60,7 @@ All routes below are mounted under `/api/v1/marketing/connectors/buffer`:
 - The backend rejects unapproved posts, cross-tenant post IDs, unmapped Buffer channels, and channels whose service does not match the post platform.
 - Buffer accepts media via public HTTPS URLs, not a raw upload in this integration. The URL must stay available until Buffer publishes it. Keep generated assets in durable public/object storage and do not use expiring preview URLs.
 - Current adapter supports one image or one video asset per post. Multi-image carousels, platform-specific post metadata, reels/stories-specific options, and document posts require additional channel-aware adapters.
-- A Buffer API acceptance means "queued by Buffer", not "published by the social network". The saved external ID and post status explicitly represent queued/scheduled work. Delivery-status and metrics reconciliation remain a separate integration step.
+- A Buffer API acceptance means "queued by Buffer", not "published by the social network". The ten-minute status task reconciles delivery state by Buffer post ID; this is polling and may lag. Buffer analytics metrics are not pulled by this connector. Buffer documents metric access as limited to personal workflows/automations using a personal API key, so do not assume OAuth can provide those metrics.
 - Buffer's GraphQL API, account scopes and platform-specific features can change. Run a real test against a tenant-owned Buffer account before enabling auto-scheduling in production.
 - A request timeout can leave an ambiguous external result. Never blindly retry a timed-out create mutation; reconcile Buffer's post list first. The current minimal adapter does not claim exactly-once external delivery.
 
