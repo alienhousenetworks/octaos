@@ -1,0 +1,51 @@
+name: Marketing Buffer Integration Tests
+
+on:
+  pull_request:
+    paths:
+      - "app/api/v1/endpoints/buffer_oauth.py"
+      - "app/services/integrations/buffer_service.py"
+      - "app/services/social/publish_helpers.py"
+      - "app/worker/tasks.py"
+      - "app/api/v1/api.py"
+      - "app/core/config.py"
+      - "frontend/src/app/settings/integrations/**"
+      - "tests/marketing/test_buffer_oauth.py"
+      - ".github/workflows/marketing-buffer-quality.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: marketing-buffer-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  buffer-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      DEV: "true"
+      SECRET_KEY: "test-only-secret-key-not-for-production"
+      SQLALCHEMY_DATABASE_URI: "sqlite:///./buffer-tests.db"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install focused backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest fastapi sqlalchemy httpx cryptography pydantic-settings python-jose bcrypt asgiref
+      - name: Compile Buffer integration and publishing modules
+        run: |
+          python -m compileall -q app/api/v1/endpoints/buffer_oauth.py app/services/integrations/buffer_service.py app/services/social/publish_helpers.py app/worker/tasks.py app/api/v1/api.py app/core/config.py
+      - name: Run Buffer integration tests
+        run: pytest -q tests/marketing/test_buffer_oauth.py
+      - name: Frontend type check
+        working-directory: frontend
+        run: |
+          npm ci
+          npx tsc --noEmit
