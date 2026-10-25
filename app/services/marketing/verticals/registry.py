@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
-from app.services.marketing.verticals.packs import PACKS, PACK_ORDER
+from app.services.marketing.verticals.packs import PACKS
 
 DEFAULT_TERMINOLOGY = {
     "campaign": "Marketing Campaign",
