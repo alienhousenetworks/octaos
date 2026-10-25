@@ -13,9 +13,40 @@ async def test_orchestrator_initialization_and_tool_registry():
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_executes_goal_with_governed_tools():
+async def test_orchestrator_executes_goal_with_governed_tools(monkeypatch):
     orch = AIManagerOrchestrator(tenant_id="tenant-test")
     goal = "Analyze our marketing campaign spend and sales pipeline conversion"
+
+    # Keep the unit test deterministic: no live planner or model-provider calls.
+    from app.octa_orchestrator.orchestrator.decomposer import ExecutionPlanDAG, SubTask
+    class MockDecomposer:
+        async def decompose_goal(self, goal, model_name="gpt-4o"):
+            return ExecutionPlanDAG(
+                goal=goal,
+                tasks=[SubTask(
+                    task_id="task_analytics",
+                    description="Summarize available marketing metrics",
+                    assigned_agent="analytics_agent",
+                    dependencies=[],
+                    roi_priority=1,
+                )],
+                estimated_total_roi="Not assessed",
+            )
+    class MockResponse:
+        status_code = 503
+        def json(self):
+            return {}
+    class MockClient:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *args):
+            return False
+        async def post(self, *args, **kwargs):
+            return MockResponse()
+
+    import app.octa_orchestrator.orchestrator.manager as manager_module
+    monkeypatch.setattr(manager_module.httpx, "AsyncClient", lambda: MockClient())
+    orch.decomposer = MockDecomposer()
     result = await orch.execute_goal(goal)
 
     assert "trajectory_id" in result
