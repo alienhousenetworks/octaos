@@ -1308,7 +1308,9 @@ Strict Tone & Quality Rules:
                     real_interested_lead.data = data
                     self.db.commit()
                     update_status(10, "completed", f"{real_interested_lead.company} expressed interest; awaiting an explicit time proposal.", "Meeting coordination is waiting for a prospect-confirmed time.", "completed")
-                    return {"status": "success", "meeting_coordination": "awaiting_time"}
+                    waiting_result = {"status": "success", "meeting_coordination": "awaiting_time", "run_id": workflow_run.id}
+                    transition_run(self.db, tenant_id=self.tenant_id, run_id=workflow_run.id, status="waiting_reply", current_stage="meeting_confirmation", result_payload=waiting_result)
+                    return waiting_result
 
                 from app.services.sales.meeting_booking import book_meeting_for_lead
                 booked = book_meeting_for_lead(
@@ -1329,4 +1331,6 @@ Strict Tone & Quality Rules:
             update_status(10, "failed", str(e), f"Error in Step 10: {str(e)}", "failed")
             return {"status": "error", "message": str(e)}
 
-        return {"status": "success"}
+        final_result = {"status": "success", "run_id": workflow_run.id}
+        transition_run(self.db, tenant_id=self.tenant_id, run_id=workflow_run.id, status="completed", current_stage="crm_reconciliation", result_payload=final_result)
+        return final_result
