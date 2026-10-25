@@ -116,7 +116,8 @@ def update_lead(
 async def generate_outreach(
     lead_id: str,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE)),
 ) -> Any:
     service = SalesService(db, tenant_id)
     try:
