@@ -90,12 +90,28 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   return <label className="text-xs font-medium text-muted-foreground">{children}</label>;
 }
 
+const BUFFER_API_PLATFORMS = [
+  { id: 'instagram', label: 'Instagram', color: 'text-pink-500' },
+  { id: 'facebook', label: 'Facebook', color: 'text-blue-500' },
+  { id: 'linkedin', label: 'LinkedIn', color: 'text-sky-600' },
+  { id: 'twitter', label: 'X', color: 'text-foreground' },
+  { id: 'threads', label: 'Threads', color: 'text-foreground' },
+  { id: 'tiktok', label: 'TikTok', color: 'text-foreground' },
+  { id: 'youtube', label: 'YouTube', color: 'text-red-500' },
+  { id: 'pinterest', label: 'Pinterest', color: 'text-red-600' },
+  { id: 'bluesky', label: 'Bluesky', color: 'text-sky-500' },
+  { id: 'mastodon', label: 'Mastodon', color: 'text-violet-500' },
+  { id: 'googlebusiness', label: 'Google Business Profile', color: 'text-emerald-600' },
+] as const;
+
+const PLATFORM_LABELS: Record<string, string> = Object.fromEntries(
+  BUFFER_API_PLATFORMS.map((platform) => [platform.id, platform.label])
+);
+
 function platformName(value?: string) {
-  if (value === 'linkedin') return 'LinkedIn';
-  if (value === 'instagram') return 'Instagram';
-  if (value === 'facebook') return 'Facebook';
-  if (value === 'twitter' || value === 'x') return 'X / Twitter';
-  return value || 'Unknown';
+  if (!value) return 'Unknown';
+  const normalized = value.toLowerCase() === 'x' ? 'twitter' : value.toLowerCase();
+  return PLATFORM_LABELS[normalized] || value;
 }
 
 function statusName(value?: string) {
@@ -235,20 +251,21 @@ export default function CampaignsView({
   const [curatedModels, setCuratedModels] = useState<CuratedModelItem[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
 
-  const [textProvider, setTextProvider] = useState('openrouter');
-  const [textModel, setTextModel] = useState<string>('meta-llama/llama-3.3-70b-instruct');
+  const [textProvider, setTextProvider] = useState('auto');
+  const [textModel, setTextModel] = useState<string>('');
+  const [routingDefaults, setRoutingDefaults] = useState<any>(null);
   const [textValidation, setTextValidation] = useState<ValidationResult>({ status: 'idle' });
 
   const [generateImages, setGenerateImages] = useState(true);
-  const [imageProvider, setImageProvider] = useState('together');
-  const [imageModel, setImageModel] = useState<string>('black-forest-labs/FLUX.1-schnell');
+  const [imageProvider, setImageProvider] = useState('auto');
+  const [imageModel, setImageModel] = useState<string>('');
   const [imageValidation, setImageValidation] = useState<ValidationResult>({ status: 'idle' });
 
   // In-app video generation enabled via meta-hub provider adapters
   const ENABLE_IN_APP_VIDEO = true;
   const [generateVideos, setGenerateVideos] = useState(false);
-  const [videoProvider, setVideoProvider] = useState('together');
-  const [videoModel, setVideoModel] = useState<string>('minimax/video-01');
+  const [videoProvider, setVideoProvider] = useState('auto');
+  const [videoModel, setVideoModel] = useState<string>('');
   const [videoValidation, setVideoValidation] = useState<ValidationResult>({ status: 'idle' });
 
   // Asynchronous video generation tracking
@@ -443,6 +460,15 @@ export default function CampaignsView({
         const data = await res.json();
         const allModels = [...(data.curated || []), ...(data.custom || [])];
         setCuratedModels(allModels);
+        if (data.defaults) {
+          setRoutingDefaults(data.defaults);
+          setTextProvider('auto');
+          setTextModel(data.defaults.copy?.model || '');
+          setImageProvider('auto');
+          setImageModel(data.defaults.image?.model || '');
+          setVideoProvider('auto');
+          setVideoModel(data.defaults.video?.model || '');
+        }
       }
     } catch (e) {
       console.error("Error loading marketing models:", e);
@@ -450,6 +476,20 @@ export default function CampaignsView({
       setModelsLoading(false);
     }
   };
+
+  const modelsFor = (provider: string, modality: 'text' | 'image' | 'video') => curatedModels.filter((m) => {
+    const providerMatches = provider === 'auto' || m.provider?.toLowerCase() === provider.toLowerCase();
+    const modelModality = String(m.modality || '').toLowerCase();
+    const modalityMatches = modelModality === modality || modelModality.includes(modality) ||
+      (modality === 'text' && modelModality.includes('language')) ||
+      (modality === 'image' && modelModality.includes('vision'));
+    return providerMatches && modalityMatches;
+  });
+  const providerOptions = Array.from(new Set([
+    'openrouter', 'together', 'gemini', 'openai', 'anthropic', 'groq', 'grok', 'heygen',
+    ...configuredProviders,
+    ...curatedModels.map((m) => m.provider),
+  ].filter(Boolean)));
 
   // Debounced model validator helper
   const validateModelSlug = async (
@@ -1752,7 +1792,7 @@ export default function CampaignsView({
       <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6">
       <PageHeader
         title="Campaigns"
-        description="Review drafts, set when they go out, and publish to LinkedIn, Instagram, or Facebook."
+        description="Plan and manage campaigns across Buffer-connected social networks. Actual publishing depends on connected channels and each network’s media rules."
         actions={
           <>
             <button
@@ -2265,11 +2305,7 @@ export default function CampaignsView({
               <div className="space-y-2">
                 <FieldLabel>Target Networks</FieldLabel>
                 <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { id: 'linkedin', label: 'LinkedIn', icon: Share2 },
-                    { id: 'instagram', label: 'Instagram', icon: ImageIcon },
-                    { id: 'facebook', label: 'Facebook', icon: ThumbsUp },
-                  ].map(({ id, label, icon: Icon }) => {
+                  {BUFFER_API_PLATFORMS.map(({ id, label }) => {
                     const isSelected = campaignPlatforms.includes(id);
                     return (
                       <button
@@ -2284,7 +2320,6 @@ export default function CampaignsView({
                             : 'border-border text-muted-foreground hover:bg-muted/40'
                         }`}
                       >
-                        <Icon className="size-3.5" />
                         {label}
                       </button>
                     );
@@ -2521,39 +2556,66 @@ export default function CampaignsView({
               </button>
 
               {showAdvancedModels && (
-                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border border-border bg-muted/20 p-3">
+                <div className="mt-3 grid grid-cols-1 gap-4 rounded-lg border border-border bg-muted/20 p-3">
+                  <p className="text-xs text-muted-foreground">Auto uses the server’s environment-configured default for each modality. Choose a provider to override it. Model IDs can be selected from the catalog or entered manually.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <FieldLabel>Copy Model Provider</FieldLabel>
                     <Select value={textProvider} onValueChange={(v) => { if (v) setTextProvider(v); }}>
                       <SelectTrigger className="w-full text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="auto">Auto / Default (.env)</SelectItem>
-                        <SelectItem value="openrouter">OpenRouter (Gemini, Claude, GPT-4o)</SelectItem>
-                        <SelectItem value="together">Together AI</SelectItem>
-                        <SelectItem value="gemini">Google Gemini</SelectItem>
+                        <SelectItem value="auto">Environment default</SelectItem>
+                        {providerOptions.filter((p) => p !== 'auto').map((p) => <SelectItem key={p} value={p}>{p === 'openrouter' ? 'OpenRouter' : p === 'together' ? 'Together AI' : p === 'gemini' ? 'Google Gemini' : p === 'heygen' ? 'HeyGen' : p.charAt(0).toUpperCase() + p.slice(1)}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                    <div className="mt-2 space-y-1.5">
+                      <FieldLabel>Copy model ID</FieldLabel>
+                      <Input value={textModel} onChange={(e) => { setTextModel(e.target.value); }} placeholder={routingDefaults?.copy?.model || 'Enter provider model ID'} className="h-8 text-xs font-mono" list="marketing-copy-models" />
+                      <datalist id="marketing-copy-models">
+                        {modelsFor(textProvider, 'copy').map((model) => <option key={model.provider + ':' + model.slug} value={model.slug}>{model.display_name}</option>)}
+                      </datalist>
+                      <ModelPicks models={modelsFor(textProvider, 'copy')} active={textModel} onPick={setTextModel} />
+                      <ValidationNote result={textValidation} onUse={setTextModel} />
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <FieldLabel>Image Provider</FieldLabel>
                     <Select value={imageProvider} onValueChange={(v) => { if (v) setImageProvider(v); }}>
                       <SelectTrigger className="w-full text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="together">Together AI (FLUX.1 Schnell)</SelectItem>
-                        <SelectItem value="openrouter">OpenRouter FLUX</SelectItem>
+                        <SelectItem value="auto">Environment default</SelectItem>
+                        {providerOptions.filter((p) => p !== 'auto' && p !== 'heygen').map((p) => <SelectItem key={p} value={p}>{p === 'together' ? 'Together AI' : p === 'openrouter' ? 'OpenRouter' : p.charAt(0).toUpperCase() + p.slice(1)}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                    <div className="mt-2 space-y-1.5">
+                      <FieldLabel>Image model ID</FieldLabel>
+                      <Input value={imageModel} onChange={(e) => { setImageModel(e.target.value); }} placeholder={routingDefaults?.image?.model || 'Enter provider model ID'} className="h-8 text-xs font-mono" list="marketing-image-models" />
+                      <datalist id="marketing-image-models">
+                        {modelsFor(imageProvider, 'image').map((model) => <option key={model.provider + ':' + model.slug} value={model.slug}>{model.display_name}</option>)}
+                      </datalist>
+                      <ModelPicks models={modelsFor(imageProvider, 'image')} active={imageModel} onPick={setImageModel} />
+                      <ValidationNote result={imageValidation} onUse={setImageModel} />
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <FieldLabel>Video Engine</FieldLabel>
                     <Select value={videoProvider} onValueChange={(v) => { if (v) setVideoProvider(v); }}>
                       <SelectTrigger className="w-full text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="together">Together (Minimax Video-01)</SelectItem>
-                        <SelectItem value="heygen">HeyGen (Avatar Voice)</SelectItem>
-                        <SelectItem value="openrouter">OpenRouter Video</SelectItem>
+                        <SelectItem value="auto">Environment default</SelectItem>
+                        {providerOptions.filter((p) => p !== 'auto').map((p) => <SelectItem key={p} value={p}>{p === 'together' ? 'Together AI' : p === 'heygen' ? 'HeyGen' : p === 'openrouter' ? 'OpenRouter' : p.charAt(0).toUpperCase() + p.slice(1)}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                    <div className="mt-2 space-y-1.5">
+                      <FieldLabel>Video model ID</FieldLabel>
+                      <Input value={videoModel} onChange={(e) => { setVideoModel(e.target.value); }} placeholder={routingDefaults?.video?.model || 'Enter provider model ID'} className="h-8 text-xs font-mono" list="marketing-video-models" />
+                      <datalist id="marketing-video-models">
+                        {modelsFor(videoProvider, 'video').map((model) => <option key={model.provider + ':' + model.slug} value={model.slug}>{model.display_name}</option>)}
+                      </datalist>
+                      <ModelPicks models={modelsFor(videoProvider, 'video')} active={videoModel} onPick={setVideoModel} />
+                      <ValidationNote result={videoValidation} onUse={setVideoModel} />
+                    </div>
+                  </div>
                   </div>
                 </div>
               )}
@@ -3081,12 +3143,7 @@ export default function CampaignsView({
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {[
-                    { id: 'linkedin', label: 'LinkedIn', color: 'text-[#0a66c2]' },
-                    { id: 'instagram', label: 'Instagram', color: 'text-[#e4405f]' },
-                    { id: 'facebook', label: 'Facebook', color: 'text-[#1877f2]' },
-                    { id: 'twitter', label: 'X / Twitter', color: 'text-foreground' },
-                  ].map((network) => {
+                  {BUFFER_API_PLATFORMS.map((network) => {
                     const isSelected = createPostPlatforms.includes(network.id);
                     return (
                       <button
