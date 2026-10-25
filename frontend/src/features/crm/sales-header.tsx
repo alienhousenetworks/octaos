@@ -78,7 +78,7 @@ export default function SalesHeader({
                 {current.label}
               </h1>
               {isExecuting ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#263D38] text-[#64B99A] border border-[#64B99A]/20">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#263D38] text-success border border-success/20">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#64B99A] animate-ping" />
                   Agent running
                 </span>
@@ -157,7 +157,7 @@ export default function SalesHeader({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Active Pipeline
             </span>
-            <span className="text-[10px] font-semibold text-[#75AFCB] bg-[#2B3945] px-2 py-0.5 rounded-full border border-[#75AFCB]/20">
+            <span className="text-[10px] font-semibold text-info bg-info/10 px-2 py-0.5 rounded-full border border-info/20">
               In Flight
             </span>
           </div>
@@ -168,7 +168,7 @@ export default function SalesHeader({
               </span>
               <p className="text-[11px] text-muted-foreground mt-0.5">Sum of stored amounts</p>
             </div>
-            <div className="p-2 rounded-xl bg-surface-hover text-[#64B99A] border border-border">
+            <div className="p-2 rounded-xl bg-surface-hover text-success border border-border">
               <TrendingUp size={16} />
             </div>
           </div>
@@ -180,7 +180,7 @@ export default function SalesHeader({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Closed Revenue
             </span>
-            <span className="text-[10px] font-semibold text-[#64B99A] bg-[#263D38] px-2 py-0.5 rounded-full border border-[#64B99A]/20">
+            <span className="text-[10px] font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full border border-success/20">
               {wonCount} Won
             </span>
           </div>
@@ -222,7 +222,7 @@ export default function SalesHeader({
                   cx="24"
                   cy="24"
                   r={radius}
-                  stroke="#414c5a"
+                  stroke="var(--border)"
                   strokeWidth="4"
                   fill="transparent"
                 />
@@ -230,7 +230,7 @@ export default function SalesHeader({
                   cx="24"
                   cy="24"
                   r={radius}
-                  stroke="#7888d9"
+                  stroke="var(--primary)"
                   strokeWidth="4"
                   fill="transparent"
                   strokeDasharray={circumference}
@@ -268,7 +268,7 @@ export default function SalesHeader({
                 {tab.icon}
                 {tab.label}
                 {tab.badge && (
-                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#263D38] text-[#64B99A] border border-[#64B99A]/20">
+                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#263D38] text-success border border-success/20">
                     {tab.badge}
                   </span>
                 )}
