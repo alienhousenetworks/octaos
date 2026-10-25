@@ -1,14 +1,23 @@
 """Create durable Orchestra Data Intelligence run and artifact tables.
 
-Revision ID: f7a8b9c0d1e2
-Revises: e6f7a8b9c0d1
+Revision ID: c4d5e6f7a8b9
+Revises: e8f9a0b1c2d3
 Create Date: 2026-10-25
+
+This file kept its original name. Revision f7a8b9c0d1e2 is already used by
+f7a8b9c0d1e2_hr_talent_lifecycle.py, which is an ancestor of e6f7a8b9c0d1.
+Reusing that id made `alembic upgrade heads` fail:
+
+    Requested revision e8f9a0b1c2d3 overlaps with other requested revisions f7a8b9c0d1e2
+
+The filename stays so this stays a tracked file. scripts/fix_alembic_and_migrate.py
+deletes untracked scripts under alembic/versions before upgrading.
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "f7a8b9c0d1e2"
-down_revision = "e6f7a8b9c0d1"
+revision = "c4d5e6f7a8b9"
+down_revision = "e8f9a0b1c2d3"
 branch_labels = None
 depends_on = None
 
