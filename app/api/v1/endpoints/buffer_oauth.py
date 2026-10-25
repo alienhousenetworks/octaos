@@ -176,12 +176,22 @@ async def connect_buffer_api_key(
     _: User = Depends(require_permission(Resource.INTEGRATIONS, Action.UPDATE)),
 ):
     """BYOK fallback; key is submitted only to the backend and encrypted at rest."""
-    save_buffer_tokens(db, tenant_id, {"access_token": body.api_key, "scope": "api-key"}, auth_type="api_key")
+    # Validate the submitted key before replacing an existing working connection.
     try:
-        await BufferService(db, tenant_id).account_and_channels()
-    except BufferAPIError as exc:
-        disconnect_buffer(db, tenant_id)
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                "https://api.buffer.com",
+                headers={"Authorization": f"Bearer ${body.api_key}", "Content-Type": "application/json"},
+                json={"query": "query OctaOSValidateBufferKey { account { id email organizations { id name } } }"},
+            )
+        if response.status_code >= 400:
+            raise BufferAPIError("Buffer rejected the API key.")
+        payload = response.json()
+        if payload.get("errors") or not (payload.get("data") or {}).get("account"):
+            raise BufferAPIError("Buffer did not return an authorized account.")
+    except (httpx.HTTPError, ValueError, BufferAPIError) as exc:
         raise HTTPException(status_code=400, detail="Buffer API key validation failed. Check the key and try again.") from exc
+    save_buffer_tokens(db, tenant_id, {"access_token": body.api_key, "scope": "api-key"}, auth_type="api_key")
     return {"connected": True, "provider": "buffer", "connection_method": "api_key"}
 
 
