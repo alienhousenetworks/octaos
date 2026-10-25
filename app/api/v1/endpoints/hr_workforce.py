@@ -243,12 +243,7 @@ def approve_leave(
     if not req:
         raise HTTPException(status_code=404, detail="Leave request not found")
 
-    if req.status == "approved":
-        return {"status": "already_approved", "message": "Leave request is already approved."}
-    if req.status != "pending":
-        raise HTTPException(status_code=409, detail="Only pending leave requests can be approved.")
-
-    # Lock the request where supported and re-check state/ledger before writing.
+    # Lock the request and re-check both request state and ledger before writing.
     req = db.query(LeaveRequest).filter_by(id=id, tenant_id=tenant_id).with_for_update().first()
     if not req:
         raise HTTPException(status_code=404, detail="Leave request not found")
@@ -434,6 +429,9 @@ def punch_attendance(
         ))
         db.commit()
         db.refresh(rec)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Attendance was updated concurrently; refresh and retry.")
     except Exception:
         db.rollback()
         raise
