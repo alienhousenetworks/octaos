@@ -20,6 +20,20 @@ from app.services.agents.hr.schemas import RiskTier
 
 router = APIRouter()
 
+_HR_ROLES = {"admin", "organization_admin", "super_admin", "hr_admin", "hr_manager", "hr_recruiter", "hr_hiring_manager", "manager"}
+_HR_APPROVER_ROLES = {"admin", "organization_admin", "super_admin", "hr_admin", "hr_manager", "manager"}
+
+def _role(user: User) -> str:
+    return (getattr(user, "role", None) or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+def _require_hr_role(user: User, approve: bool = False) -> None:
+    if getattr(user, "is_system_admin", False) or getattr(user, "is_superuser", False):
+        return
+    allowed = _HR_APPROVER_ROLES if approve else _HR_ROLES
+    if _role(user) not in allowed:
+        raise HTTPException(status_code=403, detail="You do not have permission to perform this HR operation.")
+
+
 
 class LeaveSubmitRequest(BaseModel):
     employee_id: str
@@ -44,9 +58,11 @@ class RosterOptimizeRequest(BaseModel):
 def list_leaves(
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
-    status: Optional[str] = None
+    status: Optional[str] = None,
+    current_user: User = Depends(deps.get_current_user),
 ):
     """Retrieve leave requests with employee details and coverage scores."""
+    _require_hr_role(current_user)
     q = db.query(LeaveRequest).filter(LeaveRequest.tenant_id == tenant_id)
     if status:
         q = q.filter(LeaveRequest.status == status.lower())
@@ -54,8 +70,8 @@ def list_leaves(
     requests = q.order_by(LeaveRequest.created_at.desc()).all()
     results = []
     for r in requests:
-        emp = db.query(EmployeeProfile).filter_by(id=r.employee_id).first()
-        ltype = db.query(LeaveType).filter_by(id=r.leave_type_id).first()
+        emp = db.query(EmployeeProfile).filter_by(id=r.employee_id, tenant_id=tenant_id).first()
+        ltype = db.query(LeaveType).filter_by(id=r.leave_type_id, tenant_id=tenant_id).first()
         results.append({
             "id": r.id,
             "employee_id": r.employee_id,
@@ -82,7 +98,9 @@ def submit_leave_request(
     tenant_id: str = Depends(deps.get_current_tenant_id),
     current_user: User = Depends(deps.get_current_user)
 ):
-    """Submit a leave request and automatically evaluate AI coverage impact."""
+    """Submit a leave request and evaluate staffing coverage."""
+    if payload.days_requested <= 0:
+        raise HTTPException(status_code=422, detail="Requested leave days must be greater than zero.")
     emp = db.query(EmployeeProfile).filter_by(id=payload.employee_id, tenant_id=tenant_id).first()
     if not emp:
         raise HTTPException(status_code=404, detail="Employee not found")
@@ -93,12 +111,11 @@ def submit_leave_request(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format. Expected YYYY-MM-DD.")
 
-    ltype = db.query(LeaveType).filter_by(tenant_id=tenant_id, code=payload.leave_type_code.upper()).first()
+    if e_date < s_date:
+        raise HTTPException(status_code=422, detail="End date must be on or after start date.")
+    ltype = db.query(LeaveType).filter_by(tenant_id=tenant_id, code=payload.leave_type_code.strip().upper(), is_active=True).first()
     if not ltype:
-        ltype = LeaveType(tenant_id=tenant_id, name="Annual Leave", code="ANNUAL", annual_allowance_days=20.0)
-        db.add(ltype)
-        db.commit()
-        db.refresh(ltype)
+        raise HTTPException(status_code=422, detail="The requested leave type is not configured for this organization.")
 
     # Run AI Coverage Evaluation
     evaluator = LeaveImpactSpecialist(db, tenant_id)
@@ -176,14 +193,17 @@ def approve_leave(
     current_user: User = Depends(deps.get_current_user)
 ):
     """
-    Approves leave request and updates the immutable leave ledger with a deduction transaction.
+    Approves a pending leave request and appends its ledger deduction.
     """
+    _require_hr_role(current_user, approve=True)
     req = db.query(LeaveRequest).filter_by(id=id, tenant_id=tenant_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Leave request not found")
 
     if req.status == "approved":
         return {"status": "already_approved", "message": "Leave request is already approved."}
+    if req.status != "pending":
+        raise HTTPException(status_code=409, detail="Only pending leave requests can be approved.")
 
     req.status = "approved"
     req.approver_user_id = current_user.id
