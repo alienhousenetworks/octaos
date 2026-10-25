@@ -10,12 +10,13 @@ type Capability = { id: string; label: string; status: string; configured_provid
 function apiBase() {
   let configured = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
   while (configured.endsWith("/")) configured = configured.slice(0, -1);
+  if (!configured.endsWith("/api/v1")) configured += "/api/v1";
   return configured;
 }
 
 function bearerToken() {
   if (typeof window === "undefined") return "";
-  return localStorage.getItem("access_token") || localStorage.getItem("token") || "";
+  return localStorage.getItem("access_token") || localStorage.getItem("accessToken") || localStorage.getItem("octaos_access_token") || localStorage.getItem("token") || "";
 }
 
 export default function IntegrationsPage() {

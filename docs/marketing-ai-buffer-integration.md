@@ -40,7 +40,7 @@ The OAuth redirect URI must exactly match the URI registered with Buffer. Do not
 4. OctaOS loads the Buffer organizations and connected channels.
 5. Workspace admin maps OctaOS platforms to the intended Buffer channels.
 6. Campaign agents create posts and media as drafts. The post must be approved in OctaOS before it can be submitted.
-7. The scheduled-post worker sends approved posts to Buffer. Buffer's post ID is saved to prevent the same OctaOS post being queued repeatedly.
+7. The future-post scheduler sends approved posts to Buffer with OctaOS's intended timestamp. Due-time posts without a future Buffer queue entry use the Buffer queue path. Buffer's post ID is saved to prevent the same OctaOS post being queued repeatedly.
 
 ## API routes
 

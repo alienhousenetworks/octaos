@@ -337,6 +337,8 @@ class MarketingAgent(BaseAgent):
                 media_generated = (not generate_media) or bool(
                     video_url if active_media_type == "video" else image_url
                 )
+                from app.services.marketing.workforce_readiness import is_publisher_supported
+                __buffer_publisher_supported = is_publisher_supported(self.db, self.tenant_id, platform)
                 policy_decision = evaluate_marketing_action(
                     confidence=confidence_score,
                     confidence_threshold=confidence_threshold,
@@ -346,7 +348,7 @@ class MarketingAgent(BaseAgent):
                     source_url=getattr(brief, "source_url", None),
                     media_required=bool(generate_media),
                     media_generated=media_generated,
-                    publisher_supported=platform.lower() in {"facebook", "instagram", "linkedin"},
+                    publisher_supported=__buffer_publisher_supported,
                     require_approval=bool(params.get("require_human_approval", False)),
                 )
                 is_approved = bool(policy_decision["approved"])

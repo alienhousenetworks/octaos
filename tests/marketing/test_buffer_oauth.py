@@ -54,13 +54,18 @@ def test_buffer_post_includes_image_asset_and_requires_https():
 
 
 def test_buffer_rejects_private_or_non_https_media_urls():
-    service = BufferService(db=None, tenant_id="tenant-a")
-    with pytest.raises(BufferAPIError):
-        asyncio.run(service.create_post(
-            channel_id="channel-1",
-            text="Do not post a local file",
-            video_url="http://127.0.0.1/private.mp4",
-        ))
+    for media_url in [
+        "http://127.0.0.1/private.mp4",
+        "https://127.0.0.1/private.mp4",
+        "https://user:pass@cdn.example.com/private.mp4",
+    ]:
+        service = BufferService(db=None, tenant_id="tenant-a")
+        with pytest.raises(BufferAPIError):
+            asyncio.run(service.create_post(
+                channel_id="channel-1",
+                text="Do not post a local or credentialed file",
+                video_url=media_url,
+            ))
 
 
 def test_buffer_rejects_image_and_video_on_same_post():
@@ -103,3 +108,25 @@ def test_buffer_status_reconciliation_reads_pages_without_writing():
     assert len(calls) == 2
     assert calls[1]["after"] == "cursor-1"
     assert calls[0]["input"]["filter"]["channelIds"] == ["channel-1"]
+
+
+def test_buffer_custom_schedule_preserves_future_utc_time():
+    from datetime import datetime, timedelta, timezone
+
+    service = BufferService(db=None, tenant_id="tenant-a")
+    seen = {}
+    scheduled_at = datetime.now(timezone.utc) + timedelta(hours=2)
+
+    async def fake_graphql(query, variables=None):
+        seen["variables"] = variables
+        return {"createPost": {"post": {"id": "scheduled-1", "channelId": "channel-1", "dueAt": variables["input"]["dueAt"]}}}
+
+    service.graphql = fake_graphql
+    result = asyncio.run(service.create_post(
+        channel_id="channel-1",
+        text="Scheduled at the intended time",
+        scheduled_at=scheduled_at,
+    ))
+    assert result["id"] == "scheduled-1"
+    assert seen["variables"]["input"]["mode"] == "customScheduled"
+    assert seen["variables"]["input"]["dueAt"].endswith("Z")
