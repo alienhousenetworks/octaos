@@ -45,12 +45,8 @@ import RoomFolderExplorer from '@/components/rooms/room-folder-explorer';
 import RoomHeader from '@/components/rooms/room-header';
 import { SectionRoomData } from '@/components/rooms/room-access-modal';
 import TriggerScheduleCard from '@/components/ui/trigger-schedule-card';
-import MarketingIndustries from '@/features/marketing/marketing-industries';
-import RealEstateCampaignDialog from '@/features/marketing/real-estate-campaign-dialog';
-import { MarketingVerticalPack } from '@/features/marketing/marketing-platform';
 import VirtualInfluencerStudio from '@/features/marketing/virtual-influencer-studio';
 import {
-  Building2,
   ShieldCheck,
   Layers,
   Bot,
@@ -282,18 +278,11 @@ export default function CampaignsView({
   const [postsPerDay, setPostsPerDay] = useState<number>(1);
   const [activeCampaignJob, setActiveCampaignJob] = useState<ActiveCampaignJobState | null>(null);
   const [showConfigWhileGenerating, setShowConfigWhileGenerating] = useState<boolean>(false);
-  const [campaignViewMode, setCampaignViewMode] = useState<'studio' | 'timeline' | 'kanban' | 'influencer' | 'radar' | 'analytics' | 'schedule' | 'verticals'>('studio');
+  const [campaignViewMode, setCampaignViewMode] = useState<'studio' | 'timeline' | 'kanban' | 'influencer' | 'radar' | 'analytics' | 'schedule'>('studio');
   const [strategyPreview, setStrategyPreview] = useState<any>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [radarInspirations, setRadarInspirations] = useState<Array<{ title: string; category?: string }>>([]);
   const [showAdvancedModels, setShowAdvancedModels] = useState(false);
-  const [marketingPacks, setMarketingPacks] = useState<MarketingVerticalPack[]>([]);
-  const [activeMarketingPack, setActiveMarketingPack] = useState<MarketingVerticalPack | null>(null);
-  const [marketingPacksLoading, setMarketingPacksLoading] = useState(false);
-  const [marketingPacksError, setMarketingPacksError] = useState<string | null>(null);
-  const [marketingPackSavingId, setMarketingPackSavingId] = useState<string | null>(null);
-  const [marketingPackNotice, setMarketingPackNotice] = useState<string | null>(null);
-  const [isRealEstateDialogOpen, setIsRealEstateDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [analyticsDash, setAnalyticsDash] = useState<any>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -355,63 +344,7 @@ export default function CampaignsView({
     if (token && (campaignViewMode === 'analytics')) {
       fetchAnalyticsDashboard();
     }
-    if (token && campaignViewMode === 'verticals') {
-      fetchMarketingPacks();
-    }
   }, [token, campaignViewMode]);
-
-  const fetchMarketingPacks = async () => {
-    if (!token) return;
-    setMarketingPacksLoading(true);
-    setMarketingPacksError(null);
-    try {
-      const [packsRes, activeRes] = await Promise.all([
-        fetchWithAuth(`${API_URL}/marketing/verticals`),
-        fetchWithAuth(`${API_URL}/marketing/verticals/active`),
-      ]);
-      if (packsRes.ok) {
-        const data = await packsRes.json();
-        setMarketingPacks(Array.isArray(data.packs) ? data.packs : []);
-      } else {
-        setMarketingPacksError(`Industry packs unavailable (${packsRes.status})`);
-      }
-      if (activeRes.ok) {
-        const activeData = await activeRes.json();
-        setActiveMarketingPack(activeData.pack || null);
-      }
-    } catch (err: any) {
-      setMarketingPacksError(`Failed to load industry packs: ${err?.message || 'network error'}`);
-    } finally {
-      setMarketingPacksLoading(false);
-    }
-  };
-
-  const handleSelectMarketingPack = async (packId: string) => {
-    setMarketingPackSavingId(packId);
-    setMarketingPackNotice(null);
-    try {
-      const res = await fetchWithAuth(`${API_URL}/marketing/verticals/active`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pack_id: packId }),
-      });
-      if (res.ok) {
-        const preview = await res.json();
-        const next = (packId === 'general' || packId === 'none' || !packId)
-          ? null
-          : (marketingPacks.find((p) => p.id === packId) || null);
-        setActiveMarketingPack(next);
-        setMarketingPackNotice(`${preview.to_name} activated. ${preview.campaigns_preserved} existing campaigns preserved.`);
-        notify(`${preview.to_name} activated.`);
-      } else {
-        setMarketingPackNotice('Failed to switch industry pack.');
-      }
-    } catch (err: any) {
-      setMarketingPackNotice(`Failed to switch: ${err?.message || 'network error'}`);
-    } finally {
-      setMarketingPackSavingId(null);
-    }
-  };
 
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const [createPostPlatforms, setCreatePostPlatforms] = useState<string[]>(['linkedin']);
@@ -631,7 +564,7 @@ export default function CampaignsView({
       fetchCampaignPosts(true);
       fetchAvailableModels();
       checkActiveCampaignJob();
-      fetchMarketingPacks();
+
       fetchRadarInspirations();
       const interval = setInterval(() => {
         fetchCampaignPosts(false);
@@ -1447,13 +1380,6 @@ export default function CampaignsView({
             <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${post.is_manual_media ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20' : 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20'}`}>
               {post.is_manual_media ? 'Manual' : 'AI Agent'}
             </span>
-            {activeMarketingPack && (
-              <span
-                className="hidden sm:inline-flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground"
-                title={`Compliant with ${activeMarketingPack.name} regulatory standards`}
-              >
-                <ShieldCheck className="size-3 text-emerald-600" /> Compliant
-              </span>
             )}
           </div>
           <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${
@@ -1812,24 +1738,6 @@ export default function CampaignsView({
               <Sparkles className="size-3.5" />
               Campaign Studio
             </button>
-            <button
-              type="button"
-              onClick={() => setCampaignViewMode('verticals')}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition shadow-xs"
-              title="Click to view or switch marketing industry vertical pack"
-            >
-              <ShieldCheck className="size-3.5" />
-              <span>{activeMarketingPack ? activeMarketingPack.name : 'Choose an industry'}</span>
-            </button>
-            {activeMarketingPack?.id === 'real_estate' && (
-              <Button
-                variant="outline"
-                onClick={() => setIsRealEstateDialogOpen(true)}
-                className="gap-1.5 border-emerald-600/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 font-medium"
-              >
-                <Building2 className="size-4 text-emerald-600" /> Property Hub
-              </Button>
-            )}
             <Button variant="outline" onClick={() => setIsGeneratorExpanded((open) => !open)}>
               {activeCampaignJob && (activeCampaignJob.status === 'queued' || activeCampaignJob.status === 'in_progress') ? (
                 <span className="flex items-center gap-1.5 font-medium text-blue-600 dark:text-blue-400">
@@ -1874,7 +1782,6 @@ export default function CampaignsView({
             { id: 'radar', label: 'Market Radar', icon: Radio },
             { id: 'timeline', label: 'Feed & Timeline', icon: CalendarRange, badge: campaignPosts.length > 0 ? String(campaignPosts.length) : undefined },
             { id: 'kanban', label: 'Board', icon: LayoutGrid },
-            { id: 'verticals', label: 'Industry Packs', icon: Layers, badge: activeMarketingPack?.name },
             { id: 'analytics', label: 'Analytics', icon: TrendingUp },
             { id: 'schedule', label: 'Triggers & Cadence', icon: Clock },
           ].map((tab) => {
@@ -2279,10 +2186,6 @@ export default function CampaignsView({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <FieldLabel>What should this campaign communicate?</FieldLabel>
-                {activeMarketingPack && (
-                  <span className="text-[11px] text-primary font-medium flex items-center gap-1">
-                    <Sparkles className="size-3" /> Industry Pack: {activeMarketingPack.name}
-                  </span>
                 )}
               </div>
               <Textarea
@@ -2291,20 +2194,6 @@ export default function CampaignsView({
                 placeholder="E.g. Launching our autonomous CRM agent: highlight 0 manual data entry, instant pipeline routing, and 24/7 client response. Authentic tone with high-contrast reel visuals."
                 className="min-h-24 resize-y text-sm"
               />
-              {activeMarketingPack?.content_pillars && (
-                <div className="flex flex-wrap items-center gap-1 pt-1">
-                  <span className="text-[10px] text-muted-foreground font-medium mr-1">Suggested Pillars:</span>
-                  {activeMarketingPack.content_pillars.slice(0, 4).map((pillar) => (
-                    <button
-                      key={pillar.id}
-                      type="button"
-                      onClick={() => setCampaignTopic((prev) => prev ? `${prev} · ${pillar.label}: ${pillar.description}` : `${pillar.label}: ${pillar.description}`)}
-                      className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary/50 hover:text-foreground"
-                    >
-                      + {pillar.label}
-                    </button>
-                  ))}
-                </div>
               )}
             </div>
 
@@ -3031,21 +2920,6 @@ export default function CampaignsView({
               />
             </div>
           )}
-          {campaignViewMode === 'verticals' && (
-            <div className="pt-2">
-              <MarketingIndustries
-                packs={marketingPacks}
-                activeId={activeMarketingPack?.id || null}
-                loading={marketingPacksLoading}
-                error={marketingPacksError}
-                savingId={marketingPackSavingId}
-                notice={marketingPackNotice}
-                onSelect={handleSelectMarketingPack}
-                onOpenRealEstateHub={() => setIsRealEstateDialogOpen(true)}
-              />
-            </div>
-          )}
-
       <Dialog open={isMetaModalOpen} onOpenChange={(open) => { if (!open) { setIsMetaModalOpen(false); setPendingPublishPostId(null); setMetaTokenInput(''); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -3791,15 +3665,6 @@ export default function CampaignsView({
         </DialogContent>
       </Dialog>
 
-      <RealEstateCampaignDialog
-        open={isRealEstateDialogOpen}
-        onOpenChange={setIsRealEstateDialogOpen}
-        API_URL={API_URL}
-        fetchWithAuth={fetchWithAuth}
-        onCampaignCreated={() => {
-          fetchCampaignPosts();
-        }}
-      />
       </div>
     </div>
   );
