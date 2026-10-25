@@ -180,6 +180,25 @@ class MarketingExecutionLedger:
             tenant_id=self.tenant_id, id=execution_id
         ).first()
 
+    def list_recent(self, *, limit: int = 50, status: Optional[str] = None):
+        """List recent runs for this tenant only; bounds limit to protect the DB."""
+        safe_limit = min(200, max(1, int(limit)))
+        query = self.db.query(MarketingExecution).filter_by(tenant_id=self.tenant_id)
+        if status:
+            query = query.filter_by(status=status)
+        return query.order_by(MarketingExecution.created_at.desc()).limit(safe_limit).all()
+
+    def list_steps(self, execution_id: str):
+        """Return stage history only when the run belongs to this tenant."""
+        if not self.get(execution_id):
+            raise LookupError("marketing execution not found for this tenant")
+        return (
+            self.db.query(MarketingExecutionStep)
+            .filter_by(tenant_id=self.tenant_id, execution_id=execution_id)
+            .order_by(MarketingExecutionStep.created_at.asc(), MarketingExecutionStep.attempt.asc())
+            .all()
+        )
+
     def _get_run(self, execution_id: str) -> MarketingExecution:
         run = self.get(execution_id)
         if not run:
