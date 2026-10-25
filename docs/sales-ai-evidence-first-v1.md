@@ -16,7 +16,7 @@ This change tightens the legacy V3 workflow and broadens Search V4 query coverag
 - An evidence URL and at least one supporting quote, buying signal, pain point, news item, or hiring signal.
 - No suppression or do-not-contact flag on the candidate.
 
-If any gate fails, the workflow stores the lead/draft and a list of blockers rather than attempting delivery. A failed LLM draft no longer falls back to generic copy. Missing pain points no longer become the fabricated-looking phrase "operational bottlenecks", and missing scores are not silently replaced with 50.
+If any gate fails, the workflow stores the lead/draft and a list of blockers rather than attempting delivery. A failed LLM draft no longer falls back to generic copy. Missing pain points no longer become the fabricated-looking phrase "operational bottlenecks", and missing scores are not silently replaced with 50. An LLM-generated pain-point list by itself does not satisfy the evidence gate; the record needs a sourced excerpt/buying signal or a news/hiring item with its own valid source URL.
 
 Email and WhatsApp permissions are separate. WhatsApp dispatch additionally requires `whatsapp_permission_state="granted"` and `whatsapp_opt_in=true`. The central touch dispatcher re-checks authorization for email/WhatsApp, automated LinkedIn requires the same tenant authorization, and outbox no longer sends email directly when its tenant-scoped lead record is missing. Future cadence touches are not staged unless the first authorized touch actually succeeds.
 
