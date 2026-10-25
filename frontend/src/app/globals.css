@@ -268,3 +268,7 @@ textarea { min-height: 6rem; }
 [class*="bg-[#"][class*="text-white"], [class*="bg-[rgba(0,0,0"][class*="text-white"] {
   color: var(--foreground) !important;
 }
+
+[class*="border-white"] { border-color: var(--border) !important; }
+[class*="bg-gray-"][class*="text-white"], [class*="bg-slate-"][class*="text-white"],
+[class*="bg-zinc-"][class*="text-white"] { color: var(--foreground) !important; }
