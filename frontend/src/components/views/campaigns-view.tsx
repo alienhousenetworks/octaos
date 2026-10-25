@@ -2595,7 +2595,7 @@ export default function CampaignsView({
                       <datalist id="marketing-copy-models">
                         {modelsFor(textProvider, 'text').map((model) => <option key={model.provider + ':' + model.slug} value={model.slug}>{model.display_name}</option>)}
                       </datalist>
-                      <ModelPicks models={modelsFor(textProvider, 'copy')} active={textModel} onPick={setTextModel} />
+                      <ModelPicks models={modelsFor(textProvider, 'text')} active={textModel} onPick={setTextModel} />
                       <ValidationNote result={textValidation} onUse={setTextModel} />
                     </div>
                   </div>
