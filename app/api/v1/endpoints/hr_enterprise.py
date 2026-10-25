@@ -137,7 +137,7 @@ def list_service_requests(
     q = db.query(HRServiceRequest).filter(HRServiceRequest.tenant_id == tenant_id)
     if not (getattr(current_user, "is_system_admin", False) or getattr(current_user, "is_superuser", False) or (getattr(current_user, "role", "") or "").lower() in _ADMIN_ROLES):
         # A regular employee can only see their own tickets; HR needs explicit manage permission.
-        if user_has_perm(db, current_user, "hr.manage_employees"):
+        if user_has_perm(db, current_user, "hr.manage_service_requests") or user_has_perm(db, current_user, "hr.manage_employees"):
             pass
         else:
             own = db.query(EmployeeProfile.id).filter_by(tenant_id=tenant_id, user_id=current_user.id).subquery()
@@ -168,11 +168,14 @@ def update_service_request(
     allowed = {"open", "in_progress", "awaiting_employee", "resolved", "closed"}
     if payload.status not in allowed:
         raise HTTPException(status_code=422, detail="Invalid service-request status.")
-    if row.status in {"resolved", "closed"} and payload.status not in {row.status}:
+    if row.status == "closed" and payload.status != "closed":
         raise HTTPException(status_code=409, detail="Resolved/closed tickets require a reopen workflow.")
     row.status = payload.status
     if payload.assigned_to_id is not None:
-        row.assigned_to_id = payload.assigned_to_id
+        assignee = db.query(User).filter_by(id=payload.assigned_to_id, tenant_id=tenant_id).first()
+        if not assignee:
+            raise HTTPException(status_code=422, detail="Assignee must be an existing user in this organization.")
+        row.assigned_to_id = assignee.id
     if payload.resolution_draft is not None:
         row.ai_resolution_draft = payload.resolution_draft
     if payload.status == "resolved":
@@ -461,3 +464,29 @@ def finalize_lifecycle(
         "case_status": case.status, "employee_status": employee.status,
         "finalized_by_user_id": current_user.id, "finalized_at": case.finalized_at.isoformat(),
     }
+
+
+@router.get("/compensation/proposals")
+def list_compensation_proposals(
+    status: Optional[str] = None,
+    limit: int = Query(50, ge=1, le=200),
+    skip: int = Query(0, ge=0),
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
+):
+    _require_permission(db, current_user, "hr.manage_compensation")
+    q = db.query(HRCompensationChange).filter_by(tenant_id=tenant_id)
+    if status:
+        q = q.filter(HRCompensationChange.status == status.strip().lower())
+    rows = q.order_by(HRCompensationChange.created_at.desc()).offset(skip).limit(limit).all()
+    return [{
+        "id": row.id, "employee_id": row.employee_id, "currency": row.currency,
+        "current_amount": str(row.current_amount) if row.current_amount is not None else None,
+        "proposed_amount": str(row.proposed_amount), "reason": row.reason,
+        "status": row.status, "requested_by_user_id": row.requested_by_user_id,
+        "approver_user_id": row.approver_user_id, "decision_reason": row.decision_reason,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "decided_at": row.decided_at.isoformat() if row.decided_at else None,
+        "payroll_applied": False,
+    } for row in rows]
