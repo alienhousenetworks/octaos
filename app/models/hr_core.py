@@ -208,3 +208,23 @@ class HRLifecycleTask(Base):
     __table_args__ = (
         UniqueConstraint("tenant_id", "employee_id", "lifecycle", "task_key", name="uq_hr_lifecycle_task"),
     )
+
+
+class HRLifecycleCase(Base):
+    """Governed onboarding/offboarding case with explicit initiator and final approver."""
+    __tablename__ = "hr_lifecycle_cases"
+
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    employee_id = Column(String, ForeignKey("hr_employees.id"), nullable=False, index=True)
+    lifecycle = Column(String, nullable=False)
+    initiated_by_user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    status = Column(String, nullable=False, default="in_progress")
+    reason = Column(Text, nullable=True)
+    finalized_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    finalized_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "employee_id", "lifecycle", "status", name="uq_hr_lifecycle_case_status"),
+    )
