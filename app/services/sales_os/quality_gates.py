@@ -8,6 +8,8 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import urlparse
 
+from app.services.sales_os.source_verification import verify_source_receipt
+
 _PLACEHOLDER_NAMES = {
     "", "unknown", "unknown contact", "decision maker", "founder/owner",
     "prospect", "there", "n/a", "not available",
@@ -75,7 +77,9 @@ def assess_outreach_readiness(
     # The caller must persist a deterministic source-verification receipt.
     if not isinstance(source_verification, dict) or source_verification.get("verified") is not True:
         blockers.append("source_quote_not_verified")
-    else:
+    if not verify_source_receipt(source_verification):
+        blockers.append("source_verification_receipt_invalid")
+    if isinstance(source_verification, dict) and source_verification.get("verified") is True:
         verified_url = str(source_verification.get("source_url") or "").strip()
         verified_quote = " ".join(str(source_verification.get("quote") or "").split()).casefold()
         expected_quote = " ".join(evidence_quote.split()).casefold()
