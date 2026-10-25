@@ -154,7 +154,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   href={item.href}
                   id={`nav-${item.id}`}
                   title={item.name}
-                  className={`group/nav mb-1 flex h-10 items-center gap-3 rounded-lg border border-transparent px-3 text-[13px] transition-all ${isActive ? 'border-primary/15 bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-[inset_2px_0_0_var(--primary)]' : 'text-muted-foreground hover:border-border/70 hover:bg-surface-hover hover:text-foreground'}`}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`group/nav mb-1 flex h-10 items-center gap-3 rounded-lg border border-transparent px-3 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar ${isActive ? 'border-primary/15 bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-[inset_2px_0_0_var(--primary)]' : 'text-muted-foreground hover:border-border/70 hover:bg-surface-hover hover:text-foreground'}`}
                 >
                   <Icon className={`size-[17px] shrink-0 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground group-hover/nav:text-foreground'}`} />
                   <span className={`truncate ${collapsed ? 'sr-only' : ''}`}>{item.name}</span>
@@ -170,7 +171,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="hidden border-t border-sidebar-border p-3 md:block">
         <button
           type="button"
-          className="flex h-10 w-full items-center gap-3 rounded-lg border border-transparent px-3 text-[13px] text-muted-foreground transition-colors hover:border-border hover:bg-surface-hover hover:text-foreground"
+          className="flex h-10 w-full items-center gap-3 rounded-lg border border-transparent px-3 text-[13px] text-muted-foreground transition-colors hover:border-border hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
           onClick={() => {
             const next = !collapsed;
             setCollapsed(next);

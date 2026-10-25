@@ -57,9 +57,9 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'Revenue',
+    label: 'Growth',
     items: [
-      { id: 'campaigns', name: 'Campaigns', href: '/app/campaigns', icon: Calendar, section: 'marketing' },
+      { id: 'campaigns', name: 'Marketing', href: '/app/campaigns', icon: Calendar, section: 'marketing', keywords: 'campaigns content publishing brand creative' },
       { id: 'sales', name: 'Sales', href: '/app/sales', icon: TrendingUp, section: 'sales', keywords: 'crm leads pipeline accounts deals sales inbox cadence industry copilot' },
     ],
   },
@@ -216,7 +216,7 @@ export function crumbForPath(pathname: string) {
   }
   if (pathname.startsWith('/app/campaigns/rooms/')) {
     const slug = pathname.replace('/app/campaigns/rooms/', '').split('/')[0];
-    return { section: 'Revenue', name: `Campaign Room (#${slug})` };
+    return { section: 'Growth', name: `Campaign Room (#${slug})` };
   }
   if (pathname.startsWith('/app/support/rooms/')) {
     const slug = pathname.replace('/app/support/rooms/', '').split('/')[0];
@@ -224,7 +224,7 @@ export function crumbForPath(pathname: string) {
   }
   if (pathname.startsWith('/app/sales/rooms/')) {
     const slug = pathname.replace('/app/sales/rooms/', '').split('/')[0];
-    return { section: 'Revenue', name: `Sales Room (#${slug})` };
+    return { section: 'Growth', name: `Sales Room (#${slug})` };
   }
   const item = allNavItems().find((entry) => entry.href === pathname);
   if (!item) return { section: 'Workspace', name: 'OctaOS' };

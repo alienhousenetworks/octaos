@@ -274,7 +274,6 @@ hr { border-color: var(--border); }
 
 
 /* Normalize legacy module palettes without changing their workflows or component logic. */
-:where(.text-white) { color: var(--foreground) !important; }
 :where(.text-gray-300, .text-gray-400, .text-gray-500, .text-gray-600,
        .text-slate-300, .text-slate-400, .text-slate-500,
        .text-zinc-300, .text-zinc-400, .text-zinc-500) {
