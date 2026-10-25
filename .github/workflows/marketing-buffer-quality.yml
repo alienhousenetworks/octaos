@@ -11,6 +11,7 @@ on:
       - "tests/marketing/test_workforce_readiness.py"
       - "app/services/social/publish_helpers.py"
       - "app/worker/tasks.py"
+      - "app/core/celery_app.py"
       - "app/api/v1/api.py"
       - "app/core/config.py"
       - "frontend/src/app/settings/integrations/**"
