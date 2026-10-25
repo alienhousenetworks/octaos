@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import asyncio
 import http.client
+import hmac
+import json
+import os
 import ipaddress
 import re
 import socket
@@ -31,7 +34,34 @@ class SourceVerification:
     matched_end: int | None = None
 
     def as_dict(self) -> dict:
-        return asdict(self)
+        return sign_source_receipt(asdict(self))
+
+
+def sign_source_receipt(payload: dict, secret: str | None = None) -> dict:
+    """Sign a receipt with a server-only key; without a key it remains non-authorizing."""
+    result = dict(payload)
+    result.pop("receipt_signature", None)
+    key = secret or os.getenv("SALES_EVIDENCE_SIGNING_KEY", "")
+    result["receipt_signature"] = None
+    if not key:
+        return result
+    signed_fields = {name: value for name, value in result.items() if name != "receipt_signature"}
+    canonical = json.dumps(signed_fields, sort_keys=True, separators=(",", ":"), default=str)
+    result["receipt_signature"] = hmac.new(key.encode("utf-8"), canonical.encode("utf-8"), sha256).hexdigest()
+    return result
+
+
+def verify_source_receipt(receipt: dict | None, secret: str | None = None) -> bool:
+    if not isinstance(receipt, dict):
+        return False
+    key = secret or os.getenv("SALES_EVIDENCE_SIGNING_KEY", "")
+    signature = receipt.get("receipt_signature")
+    if not key or not isinstance(signature, str) or not signature:
+        return False
+    unsigned = {name: value for name, value in receipt.items() if name != "receipt_signature"}
+    canonical = json.dumps(unsigned, sort_keys=True, separators=(",", ":"), default=str)
+    expected = hmac.new(key.encode("utf-8"), canonical.encode("utf-8"), sha256).hexdigest()
+    return hmac.compare_digest(signature, expected)
 
 
 def _is_public_ip(value: str) -> bool:
