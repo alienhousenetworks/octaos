@@ -215,23 +215,38 @@ def approve_leave(
     if req.status != "pending":
         raise HTTPException(status_code=409, detail="Only pending leave requests can be approved.")
 
-    req.status = "approved"
-    req.approver_user_id = current_user.id
-    req.approved_at = datetime.now()
+    # Lock the request where supported and re-check state/ledger before writing.
+    req = db.query(LeaveRequest).filter_by(id=id, tenant_id=tenant_id).with_for_update().first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Leave request not found")
+    existing_entry = db.query(LeaveLedgerEntry).filter_by(
+        tenant_id=tenant_id, transaction_type="deduction", reference_id=req.id
+    ).first()
+    if req.status == "approved" and existing_entry:
+        return {"status": "already_approved", "message": "Leave request and ledger are already up to date."}
+    if req.status != "pending":
+        raise HTTPException(status_code=409, detail="Only pending leave requests can be approved.")
+    if existing_entry:
+        raise HTTPException(status_code=409, detail="A leave deduction already exists; HR reconciliation is required.")
 
-    # Append immutable ledger deduction
-    ledger_entry = LeaveLedgerEntry(
-        tenant_id=tenant_id,
-        employee_id=req.employee_id,
-        leave_type_id=req.leave_type_id,
-        transaction_type="deduction",
-        amount_days=-abs(req.days_requested),
-        reference_id=req.id,
-        note=f"Approved leave from {req.start_date.strftime('%Y-%m-%d')} to {req.end_date.strftime('%Y-%m-%d')}",
-        created_by_user_id=current_user.id
-    )
-    db.add(ledger_entry)
-    db.commit()
+    try:
+        req.status = "approved"
+        req.approver_user_id = current_user.id
+        req.approved_at = datetime.utcnow()
+        db.add(LeaveLedgerEntry(
+            tenant_id=tenant_id,
+            employee_id=req.employee_id,
+            leave_type_id=req.leave_type_id,
+            transaction_type="deduction",
+            amount_days=-abs(req.days_requested),
+            reference_id=req.id,
+            note=f"Approved leave from {req.start_date.strftime('%Y-%m-%d')} to {req.end_date.strftime('%Y-%m-%d')}",
+            created_by_user_id=current_user.id
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     return {
         "id": req.id,
@@ -325,24 +340,34 @@ def punch_attendance(
 
     now = datetime.now()
     if not rec:
-        rec = AttendanceRecord(
-            tenant_id=tenant_id,
-            employee_id=payload.employee_id,
-            work_date=today_dt,
-            clock_in=now,
-            status="present",
-            total_hours=0.0
-        )
-        db.add(rec)
-    else:
         if payload.punch_type == "clock_out":
-            rec.clock_out = now
-            if rec.clock_in:
-                diff = (now - rec.clock_in).total_seconds() / 3600.0
-                rec.total_hours = round(max(0.0, diff - (rec.break_minutes / 60.0)), 2)
-
-    db.commit()
-    db.refresh(rec)
+            raise HTTPException(status_code=409, detail="Cannot clock out before clocking in.")
+        rec = AttendanceRecord(tenant_id=tenant_id, employee_id=payload.employee_id, work_date=today_dt,
+                               clock_in=now, status="present", total_hours=0.0)
+        db.add(rec)
+    elif payload.punch_type == "clock_in":
+        if rec.clock_in:
+            raise HTTPException(status_code=409, detail="Already clocked in for this workday.")
+        if rec.clock_out:
+            raise HTTPException(status_code=409, detail="Attendance is already closed for this workday.")
+        rec.clock_in = now
+        rec.status = "present"
+    else:
+        if not rec.clock_in:
+            raise HTTPException(status_code=409, detail="Cannot clock out before clocking in.")
+        if rec.clock_out:
+            raise HTTPException(status_code=409, detail="Already clocked out for this workday.")
+        if now < rec.clock_in:
+            raise HTTPException(status_code=409, detail="Clock-out time cannot precede clock-in time.")
+        rec.clock_out = now
+        diff = (now - rec.clock_in).total_seconds() / 3600.0
+        rec.total_hours = round(max(0.0, diff - (rec.break_minutes / 60.0)), 2)
+    try:
+        db.commit()
+        db.refresh(rec)
+    except Exception:
+        db.rollback()
+        raise
 
     return {
         "id": rec.id,
@@ -389,50 +414,32 @@ def optimize_roster(
     _require_hr_role(current_user, approve=True)
     roster = db.query(ShiftRoster).filter_by(id=payload.roster_id, tenant_id=tenant_id).first()
     if not roster:
-        # Create a default roster if none exists
-        start = datetime.now()
-        end = start + timedelta(days=7)
-        roster = ShiftRoster(
-            tenant_id=tenant_id,
-            name="Weekly Team Operations Roster",
-            start_date=start,
-            end_date=end,
-            status="draft"
-        )
-        db.add(roster)
-        db.commit()
-        db.refresh(roster)
-
+        raise HTTPException(status_code=404, detail="Roster not found in this organization.")
+    if roster.status != "draft":
+        raise HTTPException(status_code=409, detail="Only draft rosters can be changed by the optimizer.")
+    if roster.end_date < roster.start_date:
+        raise HTTPException(status_code=422, detail="Roster end date must be on or after its start date.")
     employees = db.query(EmployeeProfile).filter_by(tenant_id=tenant_id, status="active").all()
-    # Create deterministic shift distribution
+    # Honest baseline draft: no availability, skill, labor-rule, or demand model
+    # exists here, so do not claim optimization or invent a score.
     shift_names = ["Morning (08:00 - 16:00)", "General (09:00 - 17:00)", "Evening (14:00 - 22:00)"]
-    
-    # Clean previous draft assignments
-    db.query(ShiftAssignment).filter_by(roster_id=roster.id).delete()
-
+    db.query(ShiftAssignment).filter_by(tenant_id=tenant_id, roster_id=roster.id).delete()
     created_assignments = 0
     for idx, emp in enumerate(employees):
-        s_name = shift_names[idx % len(shift_names)]
-        assign = ShiftAssignment(
-            tenant_id=tenant_id,
-            roster_id=roster.id,
-            employee_id=emp.id,
-            shift_name=s_name,
-            start_time=roster.start_date,
-            end_time=roster.end_date,
-            status="scheduled"
-        )
-        db.add(assign)
+        db.add(ShiftAssignment(tenant_id=tenant_id, roster_id=roster.id, employee_id=emp.id,
+                               shift_name=shift_names[idx % len(shift_names)],
+                               start_time=roster.start_date, end_time=roster.end_date, status="scheduled"))
         created_assignments += 1
-
-    roster.is_optimized = True
-    roster.optimization_score = 0.98
+    roster.is_optimized = False
+    roster.optimization_score = None
+    roster.constraint_violations = ["NOT_EVALUATED: availability, skills, coverage demand, and labor rules are not modeled."]
     db.commit()
-
     return {
         "roster_id": roster.id,
-        "is_optimized": True,
-        "score": 0.98,
+        "is_optimized": False,
+        "score": None,
+        "optimization_status": "baseline_draft_not_optimized",
         "assignments_created": created_assignments,
-        "message": "Roster successfully optimized with zero labor constraint violations."
+        "constraint_violations": roster.constraint_violations,
+        "message": "Baseline roster draft created; validate staffing constraints before publishing."
     }
