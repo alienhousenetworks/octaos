@@ -8,6 +8,7 @@ Workstream E:
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 import logging
+import uuid
 from sqlalchemy.orm import Session
 
 from app.models.verticals import ContentPost
@@ -16,6 +17,7 @@ from app.models.enterprise import ApprovalRequest
 from app.services.knowledge_os.intent_projector import CompanyContextProjectionEngine, IntentType
 from app.services.marketing.campaign_os.roles import CampaignRolesEngine
 from app.services.marketing.compiler.prompt_compiler import MediaPromptCompiler
+from app.services.marketing.autonomy.execution_ledger import MarketingExecutionLedger
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,9 @@ class CampaignOSOrchestrator:
         self.job_id = job_id
         self.roles = CampaignRolesEngine(db, tenant_id)
         self.projector = CompanyContextProjectionEngine(db, tenant_id)
+        self.execution_id: Optional[str] = None
+        self._ledger = MarketingExecutionLedger(db, tenant_id)
+        self._active_ledger_stage: Optional[str] = None
 
     def update_stage(
         self,
@@ -38,6 +43,35 @@ class CampaignOSOrchestrator:
         is_failed: bool = False,
         error: Optional[str] = None,
     ):
+        # Persist stage transitions independently of the UI GenerationJob row.
+        if self.execution_id:
+            try:
+                if self._active_ledger_stage and self._active_ledger_stage != stage_id:
+                    self._ledger.finish_step(
+                        self.execution_id, self._active_ledger_stage,
+                        output_payload={"message": message or "Stage advanced"},
+                    )
+                if is_failed:
+                    self._ledger.finish_step(
+                        self.execution_id, stage_id, error=error or "Stage failed"
+                    )
+                    self._active_ledger_stage = None
+                elif is_complete:
+                    if self._active_ledger_stage == stage_id:
+                        self._ledger.finish_step(
+                            self.execution_id, stage_id,
+                            output_payload={"message": message or "Stage completed"},
+                        )
+                    self._active_ledger_stage = None
+                    self._ledger.complete(self.execution_id, {"status": "completed", "stage": stage_id})
+                elif self._active_ledger_stage != stage_id:
+                    self._ledger.begin_step(
+                        self.execution_id, stage_id,
+                        input_payload={"stage_name": stage_name, "progress_pct": progress_pct},
+                    )
+                    self._active_ledger_stage = stage_id
+            except Exception as ledger_err:
+                logger.warning("[CampaignOS] Execution ledger update failed: %s", ledger_err)
         if not self.job_id:
             return
         try:
@@ -90,6 +124,25 @@ class CampaignOSOrchestrator:
     async def execute_campaign_dag(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the durable multi-stage campaign generation DAG using the 15-Agent Council."""
         topic = params.get("topic", "Enterprise Automation")
+        idempotency_key = str(
+            params.get("idempotency_key") or self.job_id or uuid.uuid4()
+        )
+        execution = self._ledger.start_or_resume(
+            "campaign_os",
+            idempotency_key,
+            {
+                "topic": topic,
+                "days": params.get("days", 3),
+                "platforms": params.get("platforms", ["linkedin", "instagram"]),
+                "posts_per_day": params.get("posts_per_day", 1),
+                "content_format": params.get("content_format", "social_posts"),
+                "generate_images": params.get("generate_images", True),
+                "generate_videos": params.get("generate_videos", False),
+            },
+        )
+        self.execution_id = execution.id
+        if execution.status == "completed" and execution.result_payload:
+            return execution.result_payload
         days = int(params.get("days", 3))
         platforms = params.get("platforms", ["linkedin", "instagram"])
         posts_per_day = int(params.get("posts_per_day", 1))
@@ -490,7 +543,7 @@ class CampaignOSOrchestrator:
             f"[Agent 15: CMO] Confirmed {len(generated_posts)} posts scheduled in drafts ({approved_count} auto-approved, {needs_review_count} flagged for review).",
         )
 
-        return {
+        result = {
             "status": "success" if failed_count == 0 else ("partial" if success_count > 0 else "failed"),
             "campaign_title": narrative_arc.campaign_title,
             "total_posts_generated": len(generated_posts),
@@ -500,7 +553,20 @@ class CampaignOSOrchestrator:
             "posts_per_day": schedule_plan.posts_per_day,
             "cmo_verdict": cmo_verdict.model_dump() if cmo_verdict else None,
             "posts": generated_posts,
+            "execution_id": self.execution_id,
         }
+        if self.execution_id:
+            try:
+                if self._active_ledger_stage:
+                    self._ledger.finish_step(
+                        self.execution_id, self._active_ledger_stage,
+                        output_payload={"status": result["status"], "posts": len(generated_posts)},
+                    )
+                    self._active_ledger_stage = None
+                self._ledger.complete(self.execution_id, result)
+            except Exception as ledger_err:
+                logger.warning("[CampaignOS] Failed to finalize execution ledger: %s", ledger_err)
+        return result
 
     def log_activity(self, action: str, description: str, status: str = "success"):
         try:
