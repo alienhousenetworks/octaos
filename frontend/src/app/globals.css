@@ -254,3 +254,17 @@ textarea { min-height: 6rem; }
   background: var(--surface-2);
   color: var(--foreground);
 }
+
+/* Arbitrary Tailwind color values used by older screens are normalized too. */
+[class*="bg-[#"], [class*="bg-[rgba(0,0,0"], [class*="bg-[rgba(255,255,255"] {
+  background-color: var(--surface-2) !important;
+}
+[class*="border-white/"], [class*="border-[rgba(255,255,255"], [class*="border-[#"] {
+  border-color: var(--border) !important;
+}
+[class*="text-[#"] { color: var(--primary) !important; }
+[class*="from-[#"], [class*="from-[rgba("] { --tw-gradient-from: var(--surface-3) !important; }
+[class*="to-[#"], [class*="to-[rgba("] { --tw-gradient-to: var(--surface-3) !important; }
+[class*="bg-[#"][class*="text-white"], [class*="bg-[rgba(0,0,0"][class*="text-white"] {
+  color: var(--foreground) !important;
+}
