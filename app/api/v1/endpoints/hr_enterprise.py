@@ -13,7 +13,7 @@ from app.api import deps
 from app.models.base import User
 from app.models.hr_core import (
     EmployeeProfile, HRServiceRequest, HRPerformanceReview,
-    HRCompensationChange, HRLifecycleTask,
+    HRCompensationChange, HRLifecycleTask, HRLifecycleCase,
 )
 from app.services.rbac_service import user_has_perm
 
@@ -91,6 +91,10 @@ class LifecycleStart(BaseModel):
 class LifecycleTaskUpdate(BaseModel):
     status: str
     verification_note: Optional[str] = None
+
+
+class LifecycleFinalize(BaseModel):
+    reason: Optional[str] = None
 
 
 @router.post("/service-requests")
@@ -331,6 +335,17 @@ def start_lifecycle(
         raise HTTPException(status_code=409, detail="Onboarding tasks require an onboarding/probation employee.")
     if lifecycle == "offboarding" and employee.status == "terminated":
         raise HTTPException(status_code=409, detail="Employee is already terminated.")
+    active_case = db.query(HRLifecycleCase).filter_by(
+        tenant_id=tenant_id, employee_id=employee.id, lifecycle=lifecycle, status="in_progress"
+    ).first()
+    if not active_case:
+        active_case = HRLifecycleCase(
+            tenant_id=tenant_id, employee_id=employee.id, lifecycle=lifecycle,
+            initiated_by_user_id=current_user.id, status="in_progress"
+        )
+        db.add(active_case)
+        db.flush()
+
     templates = {
         "onboarding": [
             ("identity_verification", "Verify identity and employment documents"),
@@ -355,7 +370,7 @@ def start_lifecycle(
             db.add(task)
         created.append(task)
     db.commit()
-    return {"employee_id": employee.id, "lifecycle": lifecycle, "tasks": [{"id": t.id, "key": t.task_key, "title": t.title, "status": t.status} for t in created]}
+    return {"case_id": active_case.id, "employee_id": employee.id, "lifecycle": lifecycle, "case_status": active_case.status, "tasks": [{"id": t.id, "key": t.task_key, "title": t.title, "status": t.status} for t in created]}
 
 
 @router.get("/lifecycle/{employee_id}")
@@ -399,3 +414,50 @@ def update_lifecycle_task(
         task.verification_note = payload.verification_note.strip() if payload.verification_note else None
     db.commit()
     return {"id": task.id, "status": task.status, "verified_at": task.verified_at.isoformat() if task.verified_at else None}
+
+
+@router.post("/lifecycle/{employee_id}/finalize")
+def finalize_lifecycle(
+    employee_id: str,
+    payload: LifecycleFinalize,
+    lifecycle: str = Query(..., pattern="^(onboarding|offboarding)$"),
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
+):
+    _require_permission(db, current_user, "hr.manage_lifecycle")
+    employee = _employee_or_404(db, tenant_id, employee_id)
+    case = db.query(HRLifecycleCase).filter_by(
+        tenant_id=tenant_id, employee_id=employee.id, lifecycle=lifecycle, status="in_progress"
+    ).with_for_update().first()
+    if not case:
+        raise HTTPException(status_code=404, detail="No active lifecycle case found.")
+    if str(case.initiated_by_user_id) == str(current_user.id):
+        raise HTTPException(status_code=403, detail="The lifecycle initiator cannot finalize the same case.")
+    if lifecycle == "offboarding" and not (payload.reason and payload.reason.strip()):
+        raise HTTPException(status_code=422, detail="A documented offboarding reason is required.")
+    tasks = db.query(HRLifecycleTask).filter_by(
+        tenant_id=tenant_id, employee_id=employee.id, lifecycle=lifecycle
+    ).all()
+    if not tasks:
+        raise HTTPException(status_code=409, detail="Lifecycle checklist is empty; initialize it before finalization.")
+    incomplete = [task.task_key for task in tasks if task.status != "completed" or (task.verification_required and not task.verified_at)]
+    if incomplete:
+        raise HTTPException(status_code=409, detail={"message": "Required lifecycle tasks are incomplete or unverified.", "tasks": incomplete})
+    if lifecycle == "offboarding":
+        employee.status = "terminated"
+        employee.termination_date = datetime.now(timezone.utc)
+        case.reason = payload.reason.strip()
+    else:
+        if employee.status not in {"onboarding", "probation"}:
+            raise HTTPException(status_code=409, detail="Only onboarding/probation employees can complete onboarding.")
+        employee.status = "active"
+    case.status = "completed"
+    case.finalized_by_user_id = current_user.id
+    case.finalized_at = datetime.now(timezone.utc)
+    db.commit()
+    return {
+        "case_id": case.id, "employee_id": employee.id, "lifecycle": lifecycle,
+        "case_status": case.status, "employee_status": employee.status,
+        "finalized_by_user_id": current_user.id, "finalized_at": case.finalized_at.isoformat(),
+    }
