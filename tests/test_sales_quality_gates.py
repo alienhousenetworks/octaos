@@ -1,5 +1,9 @@
 """Deterministic safety and evidence gates for Sales AI outreach."""
-from app.services.sales_os.quality_gates import assess_outreach_readiness, has_real_contact_name
+from app.services.sales_os.quality_gates import (
+    assess_channel_authorization,
+    assess_outreach_readiness,
+    has_real_contact_name,
+)
 
 
 def valid_prospect(**overrides):
@@ -93,3 +97,40 @@ def test_suppression_always_blocks_outreach():
     )
     assert result["ready"] is False
     assert "suppressed" in result["blockers"]
+
+
+def test_central_channel_gate_requires_explicit_email_authorization():
+    blocked = assess_channel_authorization({}, "email")
+    assert blocked["ready"] is False
+    assert "automatic_sending_not_enabled" in blocked["blockers"]
+    assert "outbound_permission_not_granted" in blocked["blockers"]
+
+    allowed = assess_channel_authorization(
+        {
+            "sales_ai_auto_send_enabled": True,
+            "outbound_permission_state": "granted",
+        },
+        "email",
+    )
+    assert allowed["ready"] is True
+
+
+def test_central_channel_gate_requires_whatsapp_permission_and_opt_in():
+    settings = {
+        "sales_ai_auto_send_enabled": True,
+        "outbound_permission_state": "granted",
+    }
+    blocked = assess_channel_authorization(settings, "whatsapp")
+    assert blocked["ready"] is False
+    assert "whatsapp_permission_not_granted" in blocked["blockers"]
+    assert "whatsapp_opt_in_missing" in blocked["blockers"]
+
+    allowed = assess_channel_authorization(
+        {
+            **settings,
+            "whatsapp_permission_state": "granted",
+            "whatsapp_opt_in": True,
+        },
+        "whatsapp",
+    )
+    assert allowed["ready"] is True
