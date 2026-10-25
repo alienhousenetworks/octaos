@@ -57,6 +57,10 @@ celery_app.conf.beat_schedule = {
         "task": "publish_scheduled_posts",
         "schedule": crontab(minute="*/5"),
     },
+    "sync-buffer-delivery-status": {
+        "task": "sync_buffer_delivery_status_task",
+        "schedule": crontab(minute="*/10"),
+    },
     "sales-meeting-reminders": {
         "task": "send_sales_meeting_reminders",
         "schedule": crontab(minute="*/5"),

@@ -1633,3 +1633,15 @@ async def generate_real_estate_project_campaign(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to generate property campaign: {exc}")
 
+
+
+@router.get("/workforce/readiness")
+def marketing_workforce_readiness(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.READ)),
+) -> Any:
+    """Return a truthful capability inventory; configured is not the same as live-verified."""
+    from app.services.marketing.workforce_readiness import get_marketing_workforce_readiness
+
+    return get_marketing_workforce_readiness(db, tenant_id)
