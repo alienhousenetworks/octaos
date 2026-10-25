@@ -44,7 +44,10 @@ def _encode_state(payload: dict) -> str:
 def _decode_state(value: str) -> dict:
     try:
         payload = json.loads(_state_cipher().decrypt(value.encode(), ttl=600))
-    except (InvalidToken, ValueError, json.JSONDecodeError) as exc:
+        issued_at = int(payload["issued_at"])
+        if int(time.time()) - issued_at > 600 or int(time.time()) < issued_at:
+            raise ValueError("expired state")
+    except (InvalidToken, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=400, detail="Buffer connection state is invalid or expired.") from exc
     return payload
 
@@ -115,7 +118,7 @@ async def buffer_callback(
         if int(time.time()) - issued_at > 600 or int(time.time()) < issued_at:
             raise ValueError("expired state")
         tenant_id, user_id, verifier = payload["tenant_id"], payload["user_id"], payload["verifier"]
-    except (KeyError, ValueError, TypeError):
+    except (KeyError, ValueError, TypeError, HTTPException):
         return RedirectResponse(_frontend_url("error"))
     if error or not code:
         return RedirectResponse(_frontend_url("cancelled"))
