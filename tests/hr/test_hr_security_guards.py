@@ -1,10 +1,12 @@
 from types import SimpleNamespace
+from datetime import datetime, timezone
 
 import pytest
 from fastapi import HTTPException
 
 from app.api.v1.endpoints.hr_people import _require_hr_access
-from app.api.v1.endpoints.hr_workforce import _require_hr_role
+from app.api.v1.endpoints.hr_workforce import _require_hr_role, _as_utc
+from app.models.hr_workforce import LeaveLedgerEntry
 from app.services.agents.hr.risk_classifier import HRRiskClassifier
 from app.services.agents.hr.schemas import RiskTier, AutonomyLevel
 
@@ -55,3 +57,18 @@ def test_high_consequence_action_never_runs_autonomously():
     assert tier == RiskTier.R4_HIGH_CONSEQUENCE
     assert autonomy == AutonomyLevel.L4_RESTRICTED
     assert requires_approval is True
+
+
+def test_leave_ledger_has_partial_unique_reference_index():
+    indexes = {index.name: index for index in LeaveLedgerEntry.__table__.indexes}
+    index = indexes["uq_leave_ledger_reference_once"]
+    assert index.unique is True
+    assert index.dialect_options["postgresql"]["where"] is not None
+    assert index.dialect_options["sqlite"]["where"] is not None
+
+
+def test_naive_attendance_timestamp_is_normalized_to_utc():
+    value = datetime(2026, 10, 25, 9, 30)
+    normalized = _as_utc(value)
+    assert normalized.tzinfo == timezone.utc
+    assert normalized.hour == 9
