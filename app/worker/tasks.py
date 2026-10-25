@@ -1461,7 +1461,6 @@ def sync_buffer_delivery_status_task():
         now = datetime.now(timezone.utc)
         for credential in credentials:
             tenant_id = credential.tenant_id
-            channel_map = dict((credential.settings or {}).get("channel_map", {}))
             try:
                 buffer = BufferService(db, tenant_id)
                 account = async_to_sync(buffer.account_and_channels)()
@@ -1503,6 +1502,7 @@ def sync_buffer_delivery_status_task():
                         except (TypeError, ValueError):
                             post.published_at = now
                         post.fallback_reason = None
+                        post.external_url = external.get("externalLink") or post.external_url
                         metric = (
                             db.query(AgentMetric)
                             .filter(
