@@ -24,7 +24,6 @@ def test_sales_settings_default_to_no_automatic_outbound(db_session):
     assert settings["sales_ai_auto_send_enabled"] is False
     assert settings["outbound_permission_state"] == "unknown"
     assert settings["whatsapp_permission_state"] == "unknown"
-    assert settings["whatsapp_opt_in"] is False
 
 
 def test_sales_settings_persist_explicit_channel_authorization(db_session):
@@ -34,7 +33,6 @@ def test_sales_settings_persist_explicit_channel_authorization(db_session):
             "sales_ai_auto_send_enabled": True,
             "outbound_permission_state": "granted",
             "whatsapp_permission_state": "granted",
-            "whatsapp_opt_in": True,
         },
         db_session,
         "sales-settings-tenant",
@@ -45,7 +43,6 @@ def test_sales_settings_persist_explicit_channel_authorization(db_session):
     assert settings["sales_ai_auto_send_enabled"] is True
     assert settings["outbound_permission_state"] == "granted"
     assert settings["whatsapp_permission_state"] == "granted"
-    assert settings["whatsapp_opt_in"] is True
 
 
 def test_sales_settings_reject_invalid_permission_state(db_session):
