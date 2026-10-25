@@ -302,7 +302,6 @@ export default function SalesView({
     sales_ai_auto_send_enabled: false,
     outbound_permission_state: 'unknown',
     whatsapp_permission_state: 'unknown',
-    whatsapp_opt_in: false,
   });
   const [salesSettingsSaving, setSalesSettingsSaving] = useState(false);
   const [packs, setPacks] = useState<VerticalPack[]>([]);
@@ -418,7 +417,6 @@ export default function SalesView({
           sales_ai_auto_send_enabled: data.sales_ai_auto_send_enabled ?? false,
           outbound_permission_state: ['granted', 'denied'].includes(data.outbound_permission_state) ? data.outbound_permission_state : 'unknown',
           whatsapp_permission_state: ['granted', 'denied'].includes(data.whatsapp_permission_state) ? data.whatsapp_permission_state : 'unknown',
-          whatsapp_opt_in: data.whatsapp_opt_in ?? false,
         });
       }
     } catch (e) {
