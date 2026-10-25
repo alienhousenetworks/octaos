@@ -4,7 +4,7 @@ from app.models.rbac import Permission, Group, group_permissions, user_groups, u
 from app.models.teams import AITeam, InstalledApp, AgentMetric
 from app.models.agents import ActivityLog, KnowledgeDocument
 from app.models.verticals import (
-    ContentPost, Lead, Candidate, Contract, Transaction,
+    ContentPost, Lead, Candidate, Contract, Transaction, VirtualInfluencerProfile, CampaignArtifact, CampaignArtifactVersion,
     Ticket, TicketMessage, AgentMeeting, BusinessProfile
 )
 from app.models.workflows import Workflow, WorkflowTask
