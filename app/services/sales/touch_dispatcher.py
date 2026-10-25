@@ -201,15 +201,9 @@ def dispatch_linkedin_touch(
         .first()
     )
 
-    if existing_approval and existing_approval.status == "approved":
-        return {
-            "sent": True,
-            "channel": "linkedin",
-            "reason": "approved_by_operator",
-            "message": "Operator approved LinkedIn touch.",
-            "approval_id": existing_approval.id,
-            "linkedin_url": linkedin_url,
-        }
+    approval_is_granted = bool(
+        existing_approval and str(existing_approval.status or "").lower() == "approved"
+    )
 
     # Automated LinkedIn dispatch requires the same explicit tenant authorization
     # as email/WhatsApp. Without it, retain the human approval queue below.
@@ -217,13 +211,25 @@ def dispatch_linkedin_touch(
     sales_credential = db.query(APICredential).filter_by(tenant_id=tenant_id, provider="sales").first()
     sales_settings = (sales_credential.settings if sales_credential else {}) or {}
     linkedin_authorization = assess_channel_authorization(sales_settings, "linkedin")
-    if (
+    automated_linkedin_enabled = bool(
         apify_cred
         and apify_cred.encrypted_key
         and apify_cred.settings
         and apify_cred.settings.get("enable_automated_linkedin_send")
         and linkedin_authorization["ready"]
-    ):
+    )
+    if approval_is_granted and not automated_linkedin_enabled:
+        return {
+            "sent": False,
+            "channel": "linkedin",
+            "reason": "approved_waiting_for_execution",
+            "requires_action": True,
+            "approval_id": existing_approval.id,
+            "linkedin_url": linkedin_url,
+            "message": "Approved, but no authorized automated connector execution receipt exists. Do not mark this touch as sent.",
+        }
+
+    if automated_linkedin_enabled:
         try:
             from apify_client import ApifyClient
             from app.core.security import decrypt_api_key
@@ -278,11 +284,15 @@ def dispatch_linkedin_touch(
     return {
         "sent": False,
         "channel": "linkedin",
-        "reason": "pending_operator_action",
+        "reason": "approved_but_dispatch_failed" if approval_is_granted else "pending_operator_action",
         "requires_action": True,
         "approval_id": approval_id,
         "linkedin_url": linkedin_url,
-        "message": "Staged in Human-in-the-Loop queue with direct LinkedIn link for operator dispatch.",
+        "message": (
+            "Approval exists, but no successful provider execution receipt was recorded."
+            if approval_is_granted
+            else "Staged in Human-in-the-Loop queue with direct LinkedIn link for operator dispatch."
+        ),
     }
 
 
