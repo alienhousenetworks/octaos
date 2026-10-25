@@ -402,3 +402,32 @@ def test_explicit_contact_opt_out_overrides_stale_top_level_opt_in(db_session):
     assert result["sent"] is False
     assert result["reason"] == "outbound_authorization_blocked"
     assert "recipient_whatsapp_opt_in_missing" in result["blockers"]
+
+
+def test_dispatcher_blocks_authorized_email_without_prospect_evidence(db_session):
+    authorize_outbound(db_session)
+    lead = Lead(
+        tenant_id="test_tenant_cadence",
+        name="Taylor Example",
+        email="taylor@example.com",
+        company="Example Co",
+        data={"contact_status": "READY"},
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    with patch("app.services.sales.touch_dispatcher.send_email_with_status") as send:
+        result = dispatch_sales_touch(
+            db_session,
+            "test_tenant_cadence",
+            lead,
+            channel="email",
+            subject="A relevant question",
+            body="Hello Taylor, would a short discussion be useful?",
+        )
+
+    assert result["sent"] is False
+    assert result["reason"] == "outbound_authorization_blocked"
+    assert "source_url_missing_or_invalid" in result["blockers"]
+    assert "need_evidence_missing" in result["blockers"]
+    send.assert_not_called()
