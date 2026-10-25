@@ -271,3 +271,35 @@ hr { border-color: var(--border); }
   main { scroll-padding-top: 1rem; }
   table { min-width: 640px; }
 }
+
+
+/* Normalize legacy module palettes without changing their workflows or component logic. */
+:where(.text-white) { color: var(--foreground) !important; }
+:where(.text-gray-300, .text-gray-400, .text-gray-500, .text-gray-600,
+       .text-slate-300, .text-slate-400, .text-slate-500,
+       .text-zinc-300, .text-zinc-400, .text-zinc-500) {
+  color: var(--muted-foreground) !important;
+}
+:where(.border-gray-700, .border-gray-800, .border-gray-900,
+       .border-slate-700, .border-slate-800, .border-zinc-700, .border-zinc-800) {
+  border-color: var(--border) !important;
+}
+:where(.bg-gray-950, .bg-gray-900, .bg-slate-950, .bg-slate-900,
+       .bg-zinc-950, .bg-zinc-900) {
+  background-color: var(--card) !important;
+}
+:where(.bg-gray-950\/50, .bg-gray-950\/30, .bg-gray-900\/80, .bg-gray-900\/60,
+       .bg-gray-900\/50, .bg-gray-900\/40, .bg-slate-950\/50, .bg-slate-900\/50) {
+  background-color: rgba(255,255,255,.025) !important;
+}
+:where(.text-emerald-300, .text-emerald-400, .text-emerald-500,
+       .text-green-300, .text-green-400, .text-green-500) {
+  color: var(--success) !important;
+}
+:where(.bg-emerald-500\/5, .bg-emerald-500\/10, .bg-green-500\/5, .bg-green-500\/10) {
+  background-color: rgba(120,219,161,.09) !important;
+}
+:where(.border-emerald-500\/20, .border-emerald-500\/30, .border-green-500\/20, .border-green-500\/30) {
+  border-color: rgba(120,219,161,.24) !important;
+}
+:where(.shadow-lg, .shadow-xl, .shadow-2xl) { --tw-shadow: 0 0 #0000 !important; box-shadow: none !important; }
