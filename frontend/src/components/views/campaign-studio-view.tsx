@@ -100,7 +100,7 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
   }, [API_URL, fetchWithAuth, tab, token]);
   useEffect(() => {
     if (!token) return;
-    fetchWithAuth(`${API_URL}/buffer/status`).then(async r => r.ok ? r.json() : null)
+    fetchWithAuth(`${API_URL}/marketing/connectors/buffer/status`).then(async r => r.ok ? r.json() : null)
       .then(data => { if (data) setBuffer(data); }).catch(() => {});
   }, [API_URL, fetchWithAuth, token]);
 
@@ -148,7 +148,7 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
 
   async function connectBuffer() {
     try {
-      const res = await fetchWithAuth(`${API_URL}/buffer/connect`);
+      const res = await fetchWithAuth(`${API_URL}/marketing/connectors/buffer/connect`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.url) throw new Error(data.detail || 'Buffer connection is not configured.');
       window.location.assign(data.url);
