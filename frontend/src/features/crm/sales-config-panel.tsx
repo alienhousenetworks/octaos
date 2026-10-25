@@ -254,22 +254,12 @@ export default function SalesConfigPanel({
             </span>
           </label>
 
-          <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={salesSettings.whatsapp_opt_in}
-              disabled={salesSettingsSaving}
-              onChange={(e) => onSaveSalesSettings({
-                ...salesSettings,
-                whatsapp_opt_in: e.target.checked,
-              })}
-              className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span>
-              <span className="block text-xs font-bold text-slate-800">WhatsApp recipient opt-in is verified</span>
-              <span className="block text-[11px] text-slate-500 mt-1">The system will not use WhatsApp unless both WhatsApp permission and opt-in are enabled.</span>
+          <div className="rounded-xl border border-slate-200 p-4">
+            <span className="block text-xs font-bold text-slate-800">Recipient-specific WhatsApp opt-in</span>
+            <span className="block text-[11px] text-slate-500 mt-1">
+              Consent must be recorded on each lead with opt-in=true, source, and timestamp. A tenant-wide checkbox cannot authorize messages to every phone number.
             </span>
-          </label>
+          </div>
         </div>
         <p className="text-[11px] text-slate-500">
           These are tenant-level controls, not proof of permission for every individual. Suppression lists and recipient-specific checks still apply.
