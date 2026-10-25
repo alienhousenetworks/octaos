@@ -9,6 +9,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 import httpx
 from sqlalchemy.orm import Session
@@ -174,10 +175,20 @@ class BufferService:
         return account
 
     async def create_post(
-        self, *, channel_id: str, text: str, scheduled_at: Optional[datetime] = None
+        self, *, channel_id: str, text: str, scheduled_at: Optional[datetime] = None,
+        image_url: Optional[str] = None, video_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         if not channel_id or not text.strip():
             raise BufferAPIError("A Buffer channel and non-empty post text are required.")
+        if image_url and video_url:
+            raise BufferAPIError("Buffer publishing currently accepts one image or one video per post.")
+        assets = []
+        for kind, url in (("image", image_url), ("video", video_url)):
+            if url:
+                parsed = urlparse(url)
+                if parsed.scheme != "https" or not parsed.hostname:
+                    raise BufferAPIError("Buffer media must use a publicly accessible HTTPS URL.")
+                assets.append({kind: {"url": url}})
         if scheduled_at:
             if scheduled_at.tzinfo is None:
                 raise BufferAPIError("scheduled_at must include a timezone.")
@@ -189,10 +200,13 @@ class BufferService:
                 ... on MutationError { message }
               }
             }"""
-            variables = {"input": {
+            input_data = {
                 "text": text, "channelId": channel_id, "schedulingType": "automatic",
-                "mode": mode, "dueAt": due_at,
-            }}
+                "mode": mode, "dueAt": due_at, "aiAssisted": True,
+            }
+            if assets:
+                input_data["assets"] = assets
+            variables = {"input": input_data}
         else:
             query = """mutation OctaOSCreatePost($input: CreatePostInput!) {
               createPost(input: $input) {
@@ -200,10 +214,13 @@ class BufferService:
                 ... on MutationError { message }
               }
             }"""
-            variables = {"input": {
+            input_data = {
                 "text": text, "channelId": channel_id, "schedulingType": "automatic",
-                "mode": "addToQueue",
-            }}
+                "mode": "addToQueue", "aiAssisted": True,
+            }
+            if assets:
+                input_data["assets"] = assets
+            variables = {"input": input_data}
         data = await self.graphql(query, variables)
         result = data.get("createPost") or {}
         if result.get("message"):
