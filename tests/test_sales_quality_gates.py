@@ -1,4 +1,9 @@
 """Deterministic safety and evidence gates for Sales AI outreach."""
+import os
+
+os.environ.setdefault("SALES_EVIDENCE_SIGNING_KEY", "test-only-sales-evidence-key")
+
+from app.services.sales_os.source_verification import sign_source_receipt
 from app.services.sales_os.quality_gates import (
     assess_channel_authorization,
     assess_outreach_readiness,
@@ -35,6 +40,8 @@ def valid_prospect(**overrides):
             "verified": bool(prospect.get("evidence_quote")),
             "reason": "exact_quote_match" if prospect.get("evidence_quote") else "quote_missing",
         }
+    if isinstance(prospect.get("source_verification"), dict):
+        prospect["source_verification"] = sign_source_receipt(prospect["source_verification"])
     return prospect
 
 
@@ -243,3 +250,11 @@ def test_outreach_blocks_source_receipt_for_different_url_or_quote():
     result = assess_outreach_readiness(prospect, auto_send_enabled=True, permission_state="granted")
     assert result["ready"] is False
     assert "source_verification_mismatch" in result["blockers"]
+
+
+def test_outreach_rejects_unsigned_source_verification_receipt():
+    prospect = valid_prospect()
+    prospect["source_verification"]["receipt_signature"] = "forged"
+    result = assess_outreach_readiness(prospect, auto_send_enabled=True, permission_state="granted")
+    assert result["ready"] is False
+    assert "source_verification_receipt_invalid" in result["blockers"]
