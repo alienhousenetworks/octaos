@@ -67,6 +67,7 @@ class PublishPostRequest(BaseModel):
 def connect_buffer(
     tenant_id: str = Depends(deps.get_current_tenant_id),
     user: User = Depends(deps.get_current_user),
+    _: User = Depends(require_permission(Resource.INTEGRATIONS, Action.UPDATE)),
 ):
     """Start Buffer OAuth 2.0 Authorization Code + PKCE flow."""
     if not settings.BUFFER_CLIENT_ID or not settings.BUFFER_REDIRECT_URI:
@@ -90,7 +91,7 @@ def connect_buffer(
         "code_challenge_method": "S256",
         "prompt": "consent",
     }
-    return RedirectResponse(f"{BUFFER_AUTH_URL}?{urlencode(params)}", status_code=302)
+    return {"url": f"{BUFFER_AUTH_URL}?{urlencode(params)}"}
 
 
 @router.get("/callback")
