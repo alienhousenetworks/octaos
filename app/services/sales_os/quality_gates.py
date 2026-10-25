@@ -6,6 +6,7 @@ permission must remain a blocker rather than being inferred by an LLM.
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlparse
 
 _PLACEHOLDER_NAMES = {
     "", "unknown", "unknown contact", "decision maker", "founder/owner",
@@ -43,13 +44,15 @@ def assess_outreach_readiness(
         blockers.append("contact_not_qualified_by_discovery")
 
     evidence_url = str(prospect.get("evidence_url") or "").strip()
+    parsed_source = urlparse(evidence_url)
+    evidence_url_valid = parsed_source.scheme in {"http", "https"} and bool(parsed_source.netloc)
     evidence_quote = str(prospect.get("evidence_quote") or "").strip()
     buying_signal = str(prospect.get("buying_signal") or "").strip()
     pain_points = prospect.get("pain_points") or []
     news = prospect.get("news") or []
     jobs = prospect.get("jobs") or []
-    if not evidence_url:
-        blockers.append("source_url_missing")
+    if not evidence_url_valid:
+        blockers.append("source_url_missing_or_invalid")
     if not any((evidence_quote, buying_signal, pain_points, news, jobs)):
         blockers.append("need_evidence_missing")
 
@@ -57,7 +60,7 @@ def assess_outreach_readiness(
         "ready": not blockers,
         "status": "authorized" if not blockers else "blocked",
         "blockers": blockers,
-        "evidence_url_present": bool(evidence_url),
+        "evidence_url_present": evidence_url_valid,
         "contact_identity_present": has_real_contact_name(contact.get("name")),
     }
 
