@@ -120,7 +120,7 @@ class WorkflowOrchestrator:
         from app.services.sales_os.workflow_ledger import (
             create_or_get_run, record_step, transition_run, transition_step,
         )
-        run_key = (idempotency_key or str(uuid.uuid4())).strip()
+        run_key = (idempotency_key or "").strip() or str(uuid.uuid4())
         existing_run = self.db.query(SalesWorkflowRun).filter_by(
             tenant_id=self.tenant_id, idempotency_key=run_key
         ).first()
@@ -297,7 +297,7 @@ class WorkflowOrchestrator:
                 update_status(1, "completed", f"[{domain_archetype}] {icp}", f"Classified Archetype '{domain_archetype}'. Generated ICP & exclusions: {icp}")
         except Exception as e:
             update_status(1, "failed", str(e), f"Error in Step 1: {str(e)}", "failed")
-            return {"status": "error", "message": str(e)}
+            return {"status": "error", "message": str(e), "run_id": workflow_run.id}
 
         # Step 2: Market Discovery
         update_status(2, "executing", f"Sourcing targets for {engine_name}...", f"Starting Step 2: Intelligent Routing & Sourcing ({engine_name})...")
