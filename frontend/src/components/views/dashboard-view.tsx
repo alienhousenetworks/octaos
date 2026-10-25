@@ -174,7 +174,6 @@ export default function DashboardView({
     sla_compliance: null,
     sla_breach_rate: null,
     autonomous_deflection_rate: null,
-    autonomous_deflection_rate: 0,
     avg_resolution_latency_min: 0,
   };
 
