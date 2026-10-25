@@ -233,22 +233,6 @@ def dispatch_linkedin_touch(
 
         lead_data = lead.data if isinstance(getattr(lead, "data", None), dict) else {}
         contact_data = lead_data.get("contact") if isinstance(lead_data.get("contact"), dict) else {}
-        # Suppression and opt-out are the highest-priority policy outcome. Return
-        # their specific reason before evidence/readiness checks obscure it.
-        if ch == "email":
-            early_email = lead.email or lead.company_email or lead.personal_email
-            early_suppressed, early_reason = SuppressionService(db, tenant_id).is_suppressed(
-                email=early_email, channel="email"
-            )
-            if early_suppressed:
-                return {"sent": False, "channel": ch, "reason": "suppressed", "message": f"Email recipient is suppressed: {early_reason}"}
-        elif ch == "whatsapp":
-            early_phone = extract_lead_phone(lead)
-            early_suppressed, early_reason = SuppressionService(db, tenant_id).is_suppressed(
-                phone=early_phone, channel="whatsapp"
-            )
-            if early_suppressed:
-                return {"sent": False, "channel": ch, "reason": "suppressed", "message": f"WhatsApp recipient is suppressed: {early_reason}"}
         evidence = lead_data.get("evidence") if isinstance(lead_data.get("evidence"), dict) else {}
         qualification = lead_data.get("qualification") if isinstance(lead_data.get("qualification"), dict) else {}
         contact_name = (
@@ -396,6 +380,22 @@ def dispatch_sales_touch(
         settings = (sales_credential.settings if sales_credential else {}) or {}
         lead_data = lead.data if isinstance(getattr(lead, "data", None), dict) else {}
         contact_data = lead_data.get("contact") if isinstance(lead_data.get("contact"), dict) else {}
+        # Suppression and opt-out are the highest-priority policy outcome. Return
+        # their specific reason before evidence/readiness checks obscure it.
+        if ch == "email":
+            early_email = lead.email or lead.company_email or lead.personal_email
+            early_suppressed, early_reason = SuppressionService(db, tenant_id).is_suppressed(
+                email=early_email, channel="email"
+            )
+            if early_suppressed:
+                return {"sent": False, "channel": ch, "reason": "suppressed", "message": f"Email recipient is suppressed: {early_reason}"}
+        elif ch == "whatsapp":
+            early_phone = extract_lead_phone(lead)
+            early_suppressed, early_reason = SuppressionService(db, tenant_id).is_suppressed(
+                phone=early_phone, channel="whatsapp"
+            )
+            if early_suppressed:
+                return {"sent": False, "channel": ch, "reason": "suppressed", "message": f"WhatsApp recipient is suppressed: {early_reason}"}
         opt_in_value = (
             contact_data.get("whatsapp_opt_in")
             if "whatsapp_opt_in" in contact_data
