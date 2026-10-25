@@ -85,6 +85,7 @@ jobs:
         run: |
           python -m py_compile \
             app/services/sales/workflow_orchestrator.py \
+            app/services/agents/sales.py \
             app/services/sales/discovery_service.py \
             app/services/sales/touch_dispatcher.py \
             app/services/sales/outbox_service.py \
