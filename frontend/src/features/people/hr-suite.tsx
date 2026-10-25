@@ -223,7 +223,11 @@ export default function HREnterpriseSuite({
       });
       if (res.ok) {
         const data = await res.json();
-        notify.success(`Leave request submitted! Coverage Score: ${Math.round((data.coverage_score || 1) * 100)}%`);
+        if (typeof data.coverage_score === 'number' && Number.isFinite(data.coverage_score)) {
+          notify.success(`Leave request submitted. Coverage assessment: ${Math.round(data.coverage_score * 100)}%.`);
+        } else {
+          notify.success('Leave request submitted. Coverage assessment was not returned by the API.');
+        }
         setIsLeaveModalOpen(false);
         loadLeaves();
       } else {
