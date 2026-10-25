@@ -314,7 +314,7 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
   async function uploadReferenceImage(file?: File) {
     if (!file) return;
     if (!rightsConfirmed) { setNotice('Confirm you have permission to use this character image before uploading.'); return; }
-    const data = new FormData(); data.append('file', file);
+    const data = new FormData(); data.append('file', file); data.append('rights_confirmed', String(rightsConfirmed));
     setReferenceUploading(true); setNotice('');
     try {
       const res = await fetchWithAuth(`${API_URL}/marketing/virtual-influencer/reference-image`, { method: 'POST', body: data });
