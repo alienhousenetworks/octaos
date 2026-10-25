@@ -437,6 +437,8 @@ def finalize_lifecycle(
         raise HTTPException(status_code=404, detail="No active lifecycle case found.")
     if str(case.initiated_by_user_id) == str(current_user.id):
         raise HTTPException(status_code=403, detail="The lifecycle initiator cannot finalize the same case.")
+    if lifecycle == "offboarding" and employee.status not in {"active", "probation", "on_leave"}:
+        raise HTTPException(status_code=409, detail="Only active, probation, or on-leave employees can be offboarded.")
     if lifecycle == "offboarding" and not (payload.reason and payload.reason.strip()):
         raise HTTPException(status_code=422, detail="A documented offboarding reason is required.")
     tasks = db.query(HRLifecycleTask).filter_by(
