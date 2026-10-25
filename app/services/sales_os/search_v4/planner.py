@@ -86,51 +86,93 @@ def plan_tasks(
             "The paid web estimate exceeds the remaining budget. Using the existing DuckDuckGo path.",
             0.0,
         )
-    geo = spec.geography[0] if spec.geography else ""
-    role = spec.buyer_roles[0] if spec.buyer_roles else ""
-    subject = " ".join(part for part in (spec.query, geo) if part).strip()
-    proposals = [
-        _task(
-            spec, "web", provider, "search",
-            " ".join(part for part in (subject, role, "looking for") if part),
-            "Companies publishing an explicit request that matches the campaign.",
-            cost,
-            why,
-            10,
-        ),
-        _task(
-            spec, "news", "google_news", "rss_search",
-            " ".join(part for part in (subject, "funding expansion") if part),
-            "Recent trigger events that may change the buying situation.",
-            0.0,
-            "Google News RSS is a free public headline source and does not replace the lead connectors.",
-            20,
-        ),
-        _task(
-            spec, "jobs", "hn_algolia", "hiring_search",
-            " ".join(part for part in (spec.query, "hiring", role) if part),
-            "Hiring language can reveal a team taking on the problem the offer addresses.",
-            0.0,
-            "Hacker News search is a free public hiring signal and does not invent contacts.",
-            30,
-        ),
+    def unique(values: list[str]) -> list[str]:
+        result = []
+        for value in values:
+            cleaned = " ".join(str(value or "").split())
+            if cleaned and cleaned.casefold() not in {item.casefold() for item in result}:
+                result.append(cleaned)
+        return result
+
+    industries = unique(spec.industries) or [spec.query]
+    geographies = unique(spec.geography) or [""]
+    roles = unique(spec.buyer_roles) or [""]
+    # Guarantee axis coverage first, then add distinct combinations. A bounded
+    # plan keeps broad campaigns useful without creating an unbounded search bill.
+    coverage: list[tuple[str, str, str]] = []
+
+    def add_coverage(industry: str, geography: str, role: str) -> None:
+        item = (industry, geography, role)
+        if item not in coverage and len(coverage) < 12:
+            coverage.append(item)
+
+    for industry in industries:
+        add_coverage(industry, geographies[0], roles[0])
+    for geography in geographies:
+        add_coverage(industries[0], geography, roles[0])
+    for role in roles:
+        add_coverage(industries[0], geographies[0], role)
+    for industry in industries:
+        for geography in geographies:
+            for role in roles:
+                add_coverage(industry, geography, role)
+
+    proposals = []
+    for index, (industry, geography, role) in enumerate(coverage):
+        subject_parts = [industry, geography, role, spec.query]
+        query = " ".join(part for part in subject_parts if part)
+        query += " companies with relevant business needs vendors RFP"
+        proposals.append(
+            _task(
+                spec, "web", provider, "search", query,
+                "Find distinct companies across the campaign's industry, geography, and buyer-role coverage.",
+                cost, why, 10 + index,
+            )
+        )
+
+    # Trigger and hiring research is distributed across industries/geographies,
+    # rather than silently searching only the first configured value.
+    for index, (industry, geography, role) in enumerate(coverage[:6]):
+        subject = " ".join(part for part in (industry, geography, spec.query) if part)
+        proposals.append(
+            _task(
+                spec, "news", "google_news", "rss_search",
+                " ".join(part for part in (subject, "funding expansion new leadership procurement") if part),
+                "Recent trigger events that may change the buying situation.",
+                0.0,
+                "Google News RSS is a free public headline source and does not replace the lead connectors.",
+                30 + index,
+            )
+        )
+        proposals.append(
+            _task(
+                spec, "jobs", "hn_algolia", "hiring_search",
+                " ".join(part for part in (industry, geography, "hiring", role, spec.query) if part),
+                "Hiring language can reveal a team taking on the problem the offer addresses.",
+                0.0,
+                "Hacker News search is a free public hiring signal and does not invent contacts.",
+                40 + index,
+            )
+        )
+
+    proposals.extend([
         _task(
             spec, "social_reddit", "reddit", "official_search",
-            " ".join(part for part in (spec.query, "recommendation") if part),
+            " ".join(part for part in (spec.query, "recommendation vendor problem") if part),
             "Public posts may contain a request for recommendations.",
             0.0,
             "Reddit runs only with an authorized client credential. Otherwise the task is marked unavailable.",
-            40,
+            60,
         ),
         _task(
             spec, "social_x", "x", "recent_search",
-            " ".join(part for part in (spec.query, role) if part),
+            " ".join(part for part in (spec.query, "looking for vendor", roles[0]) if part),
             "Public posts may contain a timely commercial request.",
             0.0,
             "X runs only with an authorized search credential. Otherwise the task is marked unavailable.",
-            50,
+            61,
         ),
-    ]
+    ])
     for url in spec.seed_urls[:2]:
         proposals.append(
             _task(
