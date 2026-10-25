@@ -272,13 +272,24 @@ class MarketingAgent(BaseAgent):
 
                 # 3d. Autonomous Scheduling
                 scheduled_time = (
-                    _compute_optimal_schedule_time(\n                        platform,\n                        offset_days=idx,\n                        timezone_name=params.get("timezone") or params.get("account_timezone") or "UTC",\n                        preferred_hours=params.get("preferred_posting_hours"),\n                    )\n                    if auto_schedule
+                    _compute_optimal_schedule_time(
+                        platform,
+                        offset_days=idx,
+                        timezone_name=params.get("timezone") or params.get("account_timezone") or "UTC",
+                        preferred_hours=params.get("preferred_posting_hours"),
+                    )
+                    if auto_schedule
                     else None
                 )
 
                 # 3e. Critic & Confidence Evaluation
                 confidence_score = self._evaluate_post_confidence(brief, brand_knowledge)
-                # LLM failure/fallback output must never self-approve for scheduling.\n                is_approved = (\n                    confidence_score >= confidence_threshold\n                    and getattr(brief, "generation_status", "generated") == "generated"\n                )\n
+                # LLM failure/fallback output must never self-approve for scheduling.
+                is_approved = (
+                    confidence_score >= confidence_threshold
+                    and getattr(brief, "generation_status", "generated") == "generated"
+                )
+
                 # 3f. Persist ContentPost
                 post = ContentPost(
                     tenant_id=self.tenant_id,
