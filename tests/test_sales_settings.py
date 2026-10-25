@@ -4,7 +4,12 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.api.v1.endpoints.leads import generate_outreach, get_sales_settings, save_sales_settings
+from app.api.v1.endpoints.leads import (
+    generate_outreach,
+    get_sales_settings,
+    save_sales_settings,
+    schedule_meeting,
+)
 from app.models.base import Base, Tenant
 from app.models.verticals import Lead
 
@@ -83,3 +88,30 @@ async def test_generate_outreach_stores_draft_without_claiming_delivery(db_sessi
     assert lead.data["outreach_draft"]["status"] == "draft"
     assert "outreach_sent_at" not in lead.data
     assert "conversation" not in lead.data
+
+
+@pytest.mark.asyncio
+async def test_schedule_meeting_does_not_invent_time_or_meet_link(db_session):
+    lead = Lead(
+        tenant_id="sales-settings-tenant",
+        name="Taylor Example",
+        email="taylor@example.com",
+        company="Example Co",
+        status="replied",
+        data={"prospect_interested": True},
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    result = await schedule_meeting(
+        lead_id=lead.id,
+        payload=None,
+        db=db_session,
+        tenant_id="sales-settings-tenant",
+    )
+    db_session.refresh(lead)
+
+    assert result["status"] == "needs_time_confirmation"
+    assert result["booked"] is False
+    assert lead.status == "replied"
+    assert "meeting_link" not in (lead.data or {})
