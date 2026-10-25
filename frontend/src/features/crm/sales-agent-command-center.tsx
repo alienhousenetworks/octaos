@@ -152,7 +152,7 @@ export default function SalesAgentCommandCenter({ token, API_URL, fetchWithAuth 
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-              <Activity className="text-emerald-400 w-4 h-4" />
+              <Activity className="text-primary w-4 h-4" />
               Live Execution Sessions & Runs ({runs.length})
             </CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
@@ -189,9 +189,9 @@ export default function SalesAgentCommandCenter({ token, API_URL, fetchWithAuth 
                       <td className="py-2.5">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
                           r.status === 'completed'
-                            ? 'bg-emerald-500/20 text-emerald-400'
+                            ? 'bg-primary/20 text-primary'
                             : r.status === 'running'
-                            ? 'bg-amber-500/20 text-amber-300 animate-pulse'
+                            ? 'bg-muted/300/20 text-amber-300 animate-pulse'
                             : 'bg-rose-500/20 text-rose-400'
                         }`}>
                           {r.status}
