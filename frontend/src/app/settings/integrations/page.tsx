@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 type Channel = { id: string; name: string; service: string };
 type Organization = { id: string; name: string; channels: Channel[] };
 type BufferStatus = { connected: boolean; connection_method?: string | null; connected_at?: string | null; scopes?: string };
+type Capability = { id: string; label: string; status: string; configured_providers: string[]; limitation: string; live_verified: boolean };
 
 function apiBase() {
   let configured = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
@@ -19,6 +20,7 @@ function bearerToken() {
 
 export default function IntegrationsPage() {
   const [status, setStatus] = useState<BufferStatus | null>(null);
+  const [capabilities, setCapabilities] = useState<Capability[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [channelMap, setChannelMap] = useState<Record<string, string>>({});
   const [apiKey, setApiKey] = useState("");
@@ -49,6 +51,8 @@ export default function IntegrationsPage() {
     try {
       const next = await request("/marketing/connectors/buffer/status");
       setStatus(next);
+      const readiness = await request("/marketing/workforce/readiness");
+      setCapabilities(readiness.capabilities || []);
       if (next.connected) {
         const channels = await request("/marketing/connectors/buffer/channels");
         setOrganizations(channels.organizations || []);
@@ -144,6 +148,25 @@ export default function IntegrationsPage() {
 
       {error && <div role="alert" className="rounded-xl border border-red-500/40 bg-red-500/5 p-4 text-sm">{error}</div>}
       {message && <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm">{message}</div>}
+
+      <section className="rounded-2xl border p-6 shadow-sm">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold">Marketing workforce readiness</h2>
+          <p className="text-sm text-muted-foreground">This reports configured dependencies, not guaranteed provider health or live publishing success. Missing data is never represented as zero.</p>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {capabilities.map((capability) => (
+            <div key={capability.id} className="rounded-xl border p-4">
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="font-medium">{capability.label}</h3>
+                <span className={"shrink-0 rounded-full px-2 py-1 text-[11px] font-medium " + (capability.status === "configured" || capability.status === "in_app_component" ? "bg-emerald-500/10 text-emerald-700" : "bg-amber-500/10 text-amber-700")}>{capability.status.replaceAll("_", " ")}</span>
+              </div>
+              {capability.configured_providers.length > 0 && <p className="mt-2 text-xs text-muted-foreground">Providers: {capability.configured_providers.join(", ")}</p>}
+              <p className="mt-2 text-xs text-muted-foreground">{capability.limitation}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section className="rounded-2xl border p-6 shadow-sm">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
