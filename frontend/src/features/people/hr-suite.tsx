@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   FileText,
   BarChart3,
+  Activity,
   Bot,
   Send,
   Shield,
@@ -77,21 +78,24 @@ export default function HREnterpriseSuite({
   // People Data State
   const [employees, setEmployees] = useState<any[]>([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [employeesError, setEmployeesError] = useState<string | null>(null);
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false);
   const [newFirstName, setNewFirstName] = useState('');
   const [newLastName, setNewLastName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newTitle, setNewTitle] = useState('');
-  const [newDept, setNewDept] = useState('Engineering');
+  const [newDept, setNewDept] = useState('');
 
   // Workforce & Leave State
   const [leaves, setLeaves] = useState<any[]>([]);
   const [leavesLoading, setLeavesLoading] = useState(false);
+  const [leavesError, setLeavesError] = useState<string | null>(null);
+  const [analyticsError, setAnalyticsError] = useState(false);
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [selectedEmpForLeave, setSelectedEmpForLeave] = useState('');
-  const [leaveDays, setLeaveDays] = useState('3');
-  const [leaveReason, setLeaveReason] = useState('Personal time off');
+  const [leaveDays, setLeaveDays] = useState('');
+  const [leaveReason, setLeaveReason] = useState('');
   const [submittingLeave, setSubmittingLeave] = useState(false);
 
   // Analytics State
@@ -119,17 +123,21 @@ export default function HREnterpriseSuite({
 
   const loadEmployees = async () => {
     setEmployeesLoading(true);
+    setEmployeesError(null);
     try {
       const res = await fetchWithAuth(`${API_URL}/hr/people/employees`);
       if (res.ok) {
         const data = await res.json();
-        setEmployees(data.items || []);
+        if (!Array.isArray(data.items)) throw new Error('Employee API returned an unexpected response.');
+        setEmployees(data.items);
         if (data.items?.length > 0 && !selectedEmpForLeave) {
           setSelectedEmpForLeave(data.items[0].id);
         }
+      } else {
+        setEmployeesError(`Employee directory unavailable (HTTP ${res.status}).`);
       }
-    } catch {
-      // fallback
+    } catch (error) {
+      setEmployeesError(error instanceof Error ? error.message : 'Employee directory unavailable.');
     } finally {
       setEmployeesLoading(false);
     }
@@ -137,27 +145,34 @@ export default function HREnterpriseSuite({
 
   const loadLeaves = async () => {
     setLeavesLoading(true);
+    setLeavesError(null);
     try {
       const res = await fetchWithAuth(`${API_URL}/hr/workforce/leaves`);
       if (res.ok) {
         const data = await res.json();
-        setLeaves(data || []);
+        if (!Array.isArray(data)) throw new Error('Leave API returned an unexpected response.');
+        setLeaves(data);
+      } else {
+        setLeavesError(`Time-off data unavailable (HTTP ${res.status}).`);
       }
-    } catch {
-      // fallback
+    } catch (error) {
+      setLeavesError(error instanceof Error ? error.message : 'Time-off data unavailable.');
     } finally {
       setLeavesLoading(false);
     }
   };
 
   const loadAnalytics = async () => {
+    setAnalyticsError(false);
     try {
       const res = await fetchWithAuth(`${API_URL}/hr/people/analytics/summary`);
       if (res.ok) {
         setAnalytics(await res.json());
+      } else {
+        setAnalyticsError(true);
       }
     } catch {
-      // fallback
+      setAnalyticsError(true);
     }
   };
 
@@ -199,15 +214,27 @@ export default function HREnterpriseSuite({
 
   const handleSubmitLeave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const requestedDays = Number(leaveDays);
     if (!selectedEmpForLeave) {
       notify.error('Select an employee.');
       return;
     }
+    if (!Number.isFinite(requestedDays) || requestedDays < 1 || requestedDays > 30) {
+      notify.error('Enter a number of leave days between 1 and 30.');
+      return;
+    }
+    if (!leaveReason.trim()) {
+      notify.error('Enter a reason for the leave request.');
+      return;
+    }
     setSubmittingLeave(true);
     try {
-      const today = new Date();
-      const start = new Date(today.setDate(today.getDate() + 7)).toISOString().split('T')[0];
-      const end = new Date(today.setDate(today.getDate() + parseInt(leaveDays) - 1)).toISOString().split('T')[0];
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() + 7);
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + Math.ceil(requestedDays) - 1);
+      const start = startDate.toISOString().split('T')[0];
+      const end = endDate.toISOString().split('T')[0];
 
       const res = await fetchWithAuth(`${API_URL}/hr/workforce/leaves`, {
         method: 'POST',
@@ -217,8 +244,8 @@ export default function HREnterpriseSuite({
           leave_type_code: 'ANNUAL',
           start_date: start,
           end_date: end,
-          days_requested: parseFloat(leaveDays),
-          reason: leaveReason
+          days_requested: requestedDays,
+          reason: leaveReason.trim()
         })
       });
       if (res.ok) {
@@ -323,73 +350,49 @@ export default function HREnterpriseSuite({
   );
 
   return (
-    <div className="relative flex flex-col gap-4">
-      <div className="border border-border bg-card rounded-xl px-5 py-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground">People</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Start with who works here, then hire, then handle time off.
+    <div className="min-w-0 space-y-6">
+      <header className="overflow-hidden rounded-2xl border border-border bg-card">
+        <div className="flex flex-col gap-5 px-5 py-6 sm:px-7 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              <Users className="h-4 w-4" /> People &amp; HR
+              <span className="h-1 w-1 rounded-full bg-border" />
+              <span>Workforce workspace</span>
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+              {screen === 'hiring' ? 'Talent acquisition' : screen === 'leave' ? 'Time off & coverage' : screen === 'operations' ? 'People operations' : 'Your people, in one place'}
+            </h1>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+              {screen === 'hiring' ? 'Manage candidates, recruitment workflows, interviews and hiring documents.' : screen === 'leave' ? 'Review leave requests and understand team coverage from returned workforce data.' : screen === 'operations' ? 'Manage employee requests, reviews, lifecycle tasks, attendance and governed decisions.' : 'A connected workspace for your employee directory, hiring pipeline, time off and everyday people operations.'}
             </p>
           </div>
-
-          {/* Quick Metrics & Copilot Trigger */}
-          <div className="flex items-center gap-3">
-            <div className="hidden lg:flex items-center gap-4 bg-muted/50 border border-border rounded-lg px-4 py-1.5 text-xs">
-              <div>
-                <span className="text-slate-400">Headcount:</span>{' '}
-                <span className="font-semibold text-white">{analytics?.headcount?.total_active ?? employees.length}</span>
-              </div>
-              <div className="w-px h-4 bg-slate-700" />
-              <div>
-                <span className="text-slate-400">Pending Leaves:</span>{' '}
-                <span className="font-semibold text-amber-400">{leaves.filter((l) => l.status === 'pending').length}</span>
-              </div>
-            </div>
-
-            <Button
-              onClick={() => setIsCopilotOpen(true)}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm text-xs gap-2 font-medium"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              Ask HR
-              <span className="hidden sm:inline-block px-1.5 py-0.5 bg-indigo-900/60 rounded text-[10px] text-indigo-200 border border-indigo-400/20">
-                ⌘J
-              </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => { void loadEmployees(); void loadLeaves(); void loadAnalytics(); }} className="gap-2">
+              <RefreshCw className="h-4 w-4" /> Refresh data
+            </Button>
+            <Button onClick={() => setIsCopilotOpen(true)} className="gap-2">
+              <Sparkles className="h-4 w-4" /> Ask HR
+              <span className="hidden rounded border border-primary-foreground/20 px-1.5 py-0.5 text-[10px] sm:inline">⌘J</span>
             </Button>
           </div>
         </div>
-
-        <div className="flex items-center gap-1 mt-4 overflow-x-auto">
+        <nav aria-label="People and HR sections" className="flex gap-1 overflow-x-auto border-t border-border px-3 py-2 sm:px-5">
           {([
-            { id: 'people' as const, label: '1. People', count: `${employees.length}` },
-            { id: 'hiring' as const, label: '2. Hiring', count: 'ATS' },
-            { id: 'leave' as const, label: '3. Time off', count: `${leaves.filter((l) => l.status === 'pending').length} pending` },
-            { id: 'operations' as const, label: '4. Operations', count: 'Reviews · Service · Lifecycle' },
+            { id: 'people' as const, label: 'Directory', icon: Users, meta: employeesLoading ? 'Loading' : employeesError ? 'Unavailable' : String(employees.length) },
+            { id: 'hiring' as const, label: 'Hiring', icon: Target, meta: 'ATS' },
+            { id: 'leave' as const, label: 'Time off', icon: Calendar, meta: leavesLoading ? 'Loading' : leavesError ? 'Unavailable' : String(leaves.filter((l) => l.status === 'pending').length) },
+            { id: 'operations' as const, label: 'Operations', icon: Shield, meta: 'HR' },
           ]).map((step) => {
-            const isActive = screen === step.id;
-            return (
-              <button
-                key={step.id}
-                onClick={() => router.push(PEOPLE_ROUTES[step.id])}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border whitespace-nowrap ${
-                  isActive
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-background border-border text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <span>{step.label}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded ${isActive ? 'bg-primary-foreground/15' : 'bg-muted text-muted-foreground'}`}>
-                  {step.count}
-                </span>
-              </button>
-            );
+            const active = screen === step.id;
+            const Icon = step.icon;
+            return <button key={step.id} aria-current={active ? 'page' : undefined} onClick={() => router.push(PEOPLE_ROUTES[step.id])} className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+              <Icon className="h-4 w-4" />{step.label}
+              <span className={`rounded-md px-1.5 py-0.5 text-[11px] ${active ? 'bg-primary-foreground/15' : 'bg-muted'}`}>{step.meta}</span>
+            </button>;
           })}
-        </div>
-      </div>
-
-      {/* ── MAIN WORKSPACE CONTENT ── */}
-      <div className="flex-1 max-w-7xl w-full mx-auto p-6">
+        </nav>
+      </header>
+      <div className="min-w-0 space-y-6">
         {/* ========================================================================= */}
         {/* CASE 1: TALENT MANAGEMENT -> RECRUITMENT (PRESERVED LIVE ATS ENGINE)      */}
         {/* ========================================================================= */}
@@ -412,91 +415,42 @@ export default function HREnterpriseSuite({
         {/* ========================================================================= */}
         {screen === 'people' && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold text-foreground">People directory</h2>
-                <p className="text-xs text-muted-foreground">Everyone who already works here.</p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => router.push(PEOPLE_ROUTES.hiring)}
-                  className="bg-card border-border hover:bg-muted text-xs gap-1.5"
-                >
-                  <FileText className="w-3.5 h-3.5 text-primary" /> Resume Sheets &amp; ATS
-                </Button>
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-500" />
-                  <Input
-                    placeholder="Search by name, role, department..."
-                    value={employeeSearch}
-                    onChange={(e) => setEmployeeSearch(e.target.value)}
-                    className="pl-9 bg-background border-border text-xs w-64 text-foreground"
-                  />
+            {(employeesError || leavesError || analyticsError) && <div role="status" className="flex flex-col gap-2 rounded-xl border border-amber-300/70 bg-amber-50/70 p-4 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between dark:bg-amber-950/20 dark:text-amber-100">
+              <div className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0"/><div><p className="font-medium">Some HR data could not be loaded</p><p className="mt-1 text-xs opacity-80">{[employeesError, leavesError, analyticsError ? 'Workforce analytics unavailable.' : null].filter(Boolean).join(' ')}</p></div></div>
+              <Button size="sm" variant="outline" onClick={() => { void loadEmployees(); void loadLeaves(); void loadAnalytics(); }} className="shrink-0">Retry</Button>
+            </div>}
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                { label: 'Employees in directory', value: employeesError ? '—' : employeesLoading ? '…' : employees.length, note: employeesError ? 'Source unavailable' : 'Records returned by HR', icon: Users },
+                { label: 'Pending time off', value: leavesError ? '—' : leavesLoading ? '…' : leaves.filter((l) => l.status === 'pending').length, note: leavesError ? 'Source unavailable' : 'Requests awaiting review', icon: Calendar },
+                { label: 'Active headcount', value: analyticsError ? '—' : analytics?.headcount?.total_active ?? '—', note: analyticsError ? 'Analytics unavailable' : 'From workforce analytics', icon: UserCheck },
+                { label: 'Departments', value: employeesError ? '—' : new Set(employees.map((e) => e.department_name).filter(Boolean)).size, note: employeesError ? 'Source unavailable' : 'Distinct departments returned', icon: Building },
+              ].map((metric) => { const Icon = metric.icon; return <Card key={metric.label} className="rounded-xl border-border shadow-none"><CardContent className="flex items-start justify-between gap-3 p-5"><div className="min-w-0"><p className="text-sm text-muted-foreground">{metric.label}</p><p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{metric.value}</p><p className="mt-1 text-xs text-muted-foreground">{metric.note}</p></div><span className="rounded-lg border border-border bg-muted/60 p-2.5"><Icon className="h-4 w-4 text-muted-foreground"/></span></CardContent></Card>; })}
+            </div>
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(260px,0.7fr)]">
+              <section className="min-w-0 overflow-hidden rounded-xl border border-border bg-card">
+                <div className="flex flex-col gap-4 border-b border-border p-5 lg:flex-row lg:items-center lg:justify-between">
+                  <div><h2 className="text-base font-semibold">Employee directory</h2><p className="mt-1 text-sm text-muted-foreground">Search current employee records and open a hiring workflow when you need to grow the team.</p></div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"/><Input aria-label="Search employees" placeholder="Name, title or department" value={employeeSearch} onChange={(e) => setEmployeeSearch(e.target.value)} className="w-full pl-9 sm:w-64"/></div>
+                    <Button onClick={() => setIsAddEmployeeOpen(true)} className="gap-2"><Plus className="h-4 w-4"/>Add employee</Button>
+                  </div>
                 </div>
-                <Button
-                  onClick={() => setIsAddEmployeeOpen(true)}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs gap-1.5"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add Employee
-                </Button>
-              </div>
+                {employeesError ? <div className="m-5 rounded-lg border border-dashed border-border p-8 text-center"><AlertTriangle className="mx-auto h-5 w-5 text-muted-foreground"/><p className="mt-3 text-sm font-medium">Directory unavailable</p><p className="mt-1 text-sm text-muted-foreground">The request failed. No employee count or empty-state claim is inferred.</p><Button className="mt-4" variant="outline" size="sm" onClick={() => void loadEmployees()}>Retry directory</Button></div>
+                : employeesLoading ? <div className="space-y-3 p-5">{[1,2,3,4].map((n) => <div key={n} className="h-14 animate-pulse rounded-lg bg-muted/60"/>)}</div>
+                : filteredEmployees.length === 0 ? <div className="p-10 text-center"><Users className="mx-auto h-6 w-6 text-muted-foreground"/><p className="mt-3 text-sm font-medium">{employeeSearch ? 'No matching employees' : 'No employee records returned'}</p><p className="mt-1 text-sm text-muted-foreground">{employeeSearch ? 'Try another name, role or department.' : 'Add an employee or verify the HR data source and your access.'}</p>{!employeeSearch && <Button className="mt-4" onClick={() => setIsAddEmployeeOpen(true)}><Plus className="mr-2 h-4 w-4"/>Add employee</Button>}</div>
+                : <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-muted/40 text-xs text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Employee</th><th className="px-4 py-3 font-medium">Department</th><th className="px-4 py-3 font-medium">Location</th><th className="px-4 py-3 font-medium">Employment</th><th className="px-5 py-3 text-right font-medium">Status</th></tr></thead><tbody>{filteredEmployees.map((emp) => <tr key={emp.id} className="border-t border-border transition-colors hover:bg-muted/20"><td className="px-5 py-3.5"><div className="flex items-center gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground">{[emp.first_name?.[0],emp.last_name?.[0]].filter(Boolean).join('').toUpperCase() || '—'}</div><div className="min-w-0"><p className="font-medium text-foreground">{emp.full_name || [emp.first_name,emp.last_name].filter(Boolean).join(' ') || 'Name unavailable'}</p><p className="mt-0.5 text-xs text-muted-foreground">{emp.job_title || 'Job title unavailable'}{emp.employee_number ? ` · ${emp.employee_number}` : ''}</p></div></div></td><td className="px-4 py-3.5 text-muted-foreground">{emp.department_name || '—'}</td><td className="px-4 py-3.5 text-muted-foreground">{emp.work_location || '—'}</td><td className="px-4 py-3.5 text-muted-foreground">{emp.employment_type || '—'}</td><td className="px-5 py-3.5 text-right"><span className="inline-flex rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground">{emp.status || 'Status unavailable'}</span></td></tr>)}</tbody></table></div>}
+                {!employeesError && !employeesLoading && filteredEmployees.length > 0 && <div className="flex items-center justify-between border-t border-border px-5 py-3 text-xs text-muted-foreground"><span>Showing {filteredEmployees.length} of {employees.length} records</span><span>Live API data</span></div>}
+              </section>
+              <aside className="space-y-4">
+                <section className="rounded-xl border border-border bg-card p-5"><div className="flex items-center gap-2"><Zap className="h-4 w-4 text-muted-foreground"/><h2 className="text-sm font-semibold">Workspaces</h2></div><p className="mt-1 text-sm text-muted-foreground">Go directly to the workflow you need.</p><div className="mt-4 space-y-2">
+                  {[{id:'hiring' as const,title:'Talent acquisition',detail:'Candidates, interviews and hiring docs',icon:Target},{id:'leave' as const,title:'Time off & coverage',detail:'Leave requests and team impact',icon:Calendar},{id:'operations' as const,title:'People operations',detail:'Reviews, service desk and lifecycle',icon:Shield}].map((item) => {const Icon=item.icon;return <button key={item.id} onClick={() => router.push(PEOPLE_ROUTES[item.id])} className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/50"><span className="rounded-md bg-muted p-2"><Icon className="h-4 w-4 text-muted-foreground"/></span><span className="min-w-0 flex-1"><span className="block text-sm font-medium">{item.title}</span><span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{item.detail}</span></span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground"/></button>;})}
+                </div></section>
+                <section className="rounded-xl border border-border bg-card p-5"><div className="flex items-center gap-2"><Activity className="h-4 w-4 text-muted-foreground"/><h2 className="text-sm font-semibold">Data quality</h2></div><p className="mt-1 text-sm text-muted-foreground">This page reports what connected HR endpoints return. Missing fields stay missing.</p><div className="mt-4 space-y-3 text-sm"><div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">Employee directory</span><span className={employeesError?'text-amber-600':'text-foreground'}>{employeesError?'Unavailable':employeesLoading?'Loading':'Responding'}</span></div><div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">Time-off data</span><span className={leavesError?'text-amber-600':'text-foreground'}>{leavesError?'Unavailable':leavesLoading?'Loading':'Responding'}</span></div><div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">Analytics</span><span className={analyticsError?'text-amber-600':'text-foreground'}>{analyticsError?'Unavailable':analytics?'Responding':'No data returned'}</span></div></div></section>
+              </aside>
             </div>
-
-            {/* Employee Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredEmployees.map((emp) => (
-                <Card key={emp.id} className="bg-card border-border hover:border-primary/40 transition-colors">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-semibold text-primary-foreground text-sm">
-                          {emp.first_name?.[0]}{emp.last_name?.[0]}
-                        </div>
-                        <div>
-                          <div className="text-sm font-semibold text-foreground">{emp.full_name}</div>
-                          <div className="text-xs text-muted-foreground">{emp.job_title}</div>
-                        </div>
-                      </div>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-                        {emp.employee_number}
-                      </span>
-                    </div>
-
-                    <div className="text-xs text-muted-foreground space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Building className="w-3.5 h-3.5 text-slate-500" />
-                        <span>{emp.department_name || 'General Operations'}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Briefcase className="w-3.5 h-3.5 text-slate-500" />
-                        <span>{emp.work_location || 'Remote'} · {emp.employment_type}</span>
-                      </div>
-                    </div>
-
-                    {emp.skills?.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-1">
-                        {emp.skills.slice(0, 3).map((s: string) => (
-                          <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-                            {s}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {filteredEmployees.length === 0 && !employeesLoading && (
-              <div className="text-center py-12 border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
-                No employees found matching &quot;{employeeSearch}&quot;.
-              </div>
-            )}
           </div>
         )}
-
         {/* ========================================================================= */}
         {/* CASE 3: COMPENSATION -> LEAVE MANAGEMENT (VERTICAL SLICE 1)               */}
         {/* ========================================================================= */}
@@ -729,7 +683,7 @@ export default function HREnterpriseSuite({
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-slate-400">First Name</label>
-                  <Input value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} required className="bg-slate-800 border-slate-700 text-white mt-1 text-xs" />
+                  <Input value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} required className="bg-background border-border text-foreground mt-1" />
                 </div>
                 <div>
                   <label className="text-slate-400">Last Name</label>
@@ -773,7 +727,7 @@ export default function HREnterpriseSuite({
             </div>
             <form onSubmit={handleSubmitLeave} className="space-y-3 text-xs">
               <div>
-                <label className="text-slate-400">Employee</label>
+                <label className="text-sm text-muted-foreground">Employee</label>
                 <select
                   value={selectedEmpForLeave}
                   onChange={(e) => setSelectedEmpForLeave(e.target.value)}
@@ -785,11 +739,11 @@ export default function HREnterpriseSuite({
                 </select>
               </div>
               <div>
-                <label className="text-slate-400">Days Requested</label>
+                <label className="text-sm text-muted-foreground">Days requested</label>
                 <Input type="number" min="1" max="30" value={leaveDays} onChange={(e) => setLeaveDays(e.target.value)} className="bg-slate-800 border-slate-700 text-white mt-1 text-xs" />
               </div>
               <div>
-                <label className="text-slate-400">Reason</label>
+                <label className="text-sm text-muted-foreground">Reason</label>
                 <Input value={leaveReason} onChange={(e) => setLeaveReason(e.target.value)} className="bg-slate-800 border-slate-700 text-white mt-1 text-xs" />
               </div>
               <div className="p-2.5 rounded bg-slate-800/60 border border-slate-700 text-[11px] text-amber-300 flex items-center gap-2">
@@ -800,8 +754,8 @@ export default function HREnterpriseSuite({
                 <Button type="button" variant="outline" onClick={() => setIsLeaveModalOpen(false)} className="border-slate-700 text-xs">
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submittingLeave} className="bg-amber-600 hover:bg-amber-500 text-white text-xs">
-                  {submittingLeave ? 'Simulating...' : 'Submit Request'}
+                <Button type="submit" disabled={submittingLeave} className="text-xs">
+                  {submittingLeave ? 'Submitting…' : 'Submit request'}
                 </Button>
               </div>
             </form>
