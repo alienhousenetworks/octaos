@@ -129,38 +129,53 @@ async def generate_outreach(
                 provider = p
                 break
         if provider:
-            if provider == "smtp":
-                msg = "I need your SMTP outgoing mail credentials. Please reply with: 'My smtp credential is: smtp://username:password@smtp.mailtrap.io:2525'."
-            else:
-                msg = f"I need your {provider} API key to complete this task. Please reply with 'My {provider} key is: [YOUR_KEY]'."
-            return {"status": "action_required", "message": msg}
-        from fastapi import HTTPException
+            msg = (
+                f"Configure the {provider} integration in OctaOS Settings. "
+                "Do not paste API keys, SMTP passwords, or other secrets into chat."
+            )
+            return {"status": "action_required", "sent": False, "message": msg}
         raise HTTPException(status_code=400, detail=str(e))
-    
-    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
-    if lead:
-        lead.status = "contacted"
-        conv = list((lead.data or {}).get("conversation") or [])
-        conv.append({
-            "direction": "outbound",
-            "channel": "smtp",
-            "content": message,
-            "subject": f"Partnership Opportunity - {lead.company}",
-            "author": "Sales AI Agent",
-            "at": datetime.utcnow().isoformat()
-        })
-        lead.data = {
-            **(lead.data or {}),
-            "outreach_channel": "smtp",
-            "outbound_subject": f"Partnership Opportunity - {lead.company}",
-            "outbound_body": message,
-            "outreach_sent_at": datetime.utcnow().isoformat(),
-            "conversation": conv
+
+    lead = db.query(models.Lead).filter(
+        models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    if not isinstance(message, str) or not message.strip():
+        return {
+            "status": "blocked_no_draft",
+            "sent": False,
+            "message": "No outreach draft was produced. Nothing was sent.",
         }
-        db.commit()
-        db.refresh(lead)
-        
-    return {"message": message}
+
+    # This endpoint creates a draft only. A draft is not a provider receipt and
+    # must never advance the lead to contacted or populate sent-at fields.
+    now = datetime.utcnow().isoformat()
+    subject = f"Partnership Opportunity - {lead.company or 'Prospect'}"
+    lead_data = dict(lead.data or {})
+    lead_data["outreach_draft"] = {
+        "channel": "email",
+        "subject": subject,
+        "body": message.strip(),
+        "status": "draft",
+        "created_at": now,
+        "requires_authorization": True,
+    }
+    lead_data["draft_subject"] = subject
+    lead_data["draft_body"] = message.strip()
+    lead.data = lead_data
+    db.commit()
+    db.refresh(lead)
+
+    return {
+        "status": "draft_ready",
+        "sent": False,
+        "requires_authorization": True,
+        "lead_id": lead.id,
+        "subject": subject,
+        "message": message.strip(),
+    }
 
 @router.post("/{lead_id}/schedule_meeting")
 async def schedule_meeting(
