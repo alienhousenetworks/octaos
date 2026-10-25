@@ -4,8 +4,9 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.api.v1.endpoints.leads import get_sales_settings, save_sales_settings
+from app.api.v1.endpoints.leads import generate_outreach, get_sales_settings, save_sales_settings
 from app.models.base import Base, Tenant
+from app.models.verticals import Lead
 
 
 @pytest.fixture
@@ -54,3 +55,31 @@ def test_sales_settings_reject_invalid_permission_state(db_session):
             None,
         )
     assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_generate_outreach_stores_draft_without_claiming_delivery(db_session, monkeypatch):
+    lead = Lead(
+        tenant_id="sales-settings-tenant",
+        name="Taylor Example",
+        email="taylor@example.com",
+        company="Example Co",
+        status="qualified",
+        data={},
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    async def draft_only(self, lead_id, instructions=""):
+        return "Hello Taylor, would a short discussion about your team's goals be useful?"
+
+    monkeypatch.setattr("app.api.v1.endpoints.leads.SalesService.generate_outreach", draft_only)
+    result = await generate_outreach(lead.id, db_session, "sales-settings-tenant")
+
+    db_session.refresh(lead)
+    assert result["status"] == "draft_ready"
+    assert result["sent"] is False
+    assert lead.status == "qualified"
+    assert lead.data["outreach_draft"]["status"] == "draft"
+    assert "outreach_sent_at" not in lead.data
+    assert "conversation" not in lead.data
