@@ -145,3 +145,20 @@ def test_outreach_rejects_non_http_source_reference():
     )
     assert result["ready"] is False
     assert "source_url_missing_or_invalid" in result["blockers"]
+
+
+def test_llm_pain_point_guess_without_source_evidence_does_not_authorize_outreach():
+    prospect = valid_prospect(
+        evidence_quote="",
+        buying_signal="",
+        pain_points=["operational bottlenecks"],
+        news=[],
+        jobs=[],
+    )
+    result = assess_outreach_readiness(
+        prospect,
+        auto_send_enabled=True,
+        permission_state="granted",
+    )
+    assert result["ready"] is False
+    assert "need_evidence_missing" in result["blockers"]
