@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
+import uuid
+from sqlalchemy.exc import IntegrityError
 
 from app.api import deps
 from app.models.base import User
@@ -14,6 +16,24 @@ from app.models.hr_core import EmployeeProfile, Department, CompanyPolicy
 from app.models.hr_workforce import LeaveRequest, AttendanceRecord
 
 router = APIRouter()
+
+def _has_hr_permission(user: User, codename: str) -> bool:
+    """Resolve HR authorization from OctaOS's canonical permission codenames."""
+    if getattr(user, "is_system_admin", False) or getattr(user, "is_superuser", False):
+        return True
+    if (getattr(user, "role", None) or "").strip().lower().replace("-", "_") in {"admin", "organization_admin", "super_admin"}:
+        return True
+    effective = {getattr(permission, "codename", "") for permission in (getattr(user, "user_permissions", None) or [])}
+    for group in (getattr(user, "groups", None) or []):
+        effective.update(getattr(permission, "codename", "") for permission in (getattr(group, "permissions", None) or []))
+    return codename in effective
+
+
+def _require_hr_access(user: User, *, write: bool = False) -> None:
+    """Fail closed using OctaOS's shared RBAC permission catalogue."""
+    codename = "hr.manage_employees" if write else "hr.view_employees"
+    if not _has_hr_permission(user, codename):
+        raise HTTPException(status_code=403, detail=f"Missing required permission: {codename}.")
 
 
 class EmployeeCreateRequest(BaseModel):
@@ -38,16 +58,22 @@ class PolicyCreateRequest(BaseModel):
     requires_acknowledgement: bool = False
 
 
+class EmployeeStatusUpdateRequest(BaseModel):
+    status: str
+
+
 @router.get("/employees")
 def list_employees(
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
     department: Optional[str] = None,
     search: Optional[str] = None,
-    limit: int = 50,
-    skip: int = 0
+    limit: int = Query(50, ge=1, le=200),
+    skip: int = Query(0, ge=0),
+    current_user: User = Depends(deps.get_current_user),
 ):
     """List and search authorized employee profiles."""
+    _require_hr_access(current_user)
     q = db.query(EmployeeProfile).filter(EmployeeProfile.tenant_id == tenant_id)
     if department:
         q = q.filter(EmployeeProfile.department_name.ilike(f"%{department}%"))
@@ -95,47 +121,55 @@ def create_employee(
     tenant_id: str = Depends(deps.get_current_tenant_id),
     current_user: User = Depends(deps.get_current_user)
 ):
-    """Create a new employee profile with uniqueness and department resolution."""
-    # Check duplicate email
-    existing = db.query(EmployeeProfile).filter_by(tenant_id=tenant_id, email=payload.email).first()
+    """Create an employee with tenant-safe validation and atomic persistence."""
+    _require_hr_access(current_user, write=True)
+    normalized_email = payload.email.strip().lower()
+    if not normalized_email or "@" not in normalized_email:
+        raise HTTPException(status_code=422, detail="A valid employee email is required.")
+    existing = db.query(EmployeeProfile).filter_by(tenant_id=tenant_id, email=normalized_email).first()
     if existing:
         raise HTTPException(status_code=400, detail="An employee with this email already exists.")
 
-    emp_number = payload.employee_number
+    emp_number = (payload.employee_number or f"EMP-{uuid.uuid4().hex[:12].upper()}").strip()
     if not emp_number:
-        count = db.query(EmployeeProfile).filter_by(tenant_id=tenant_id).count() + 1
-        emp_number = f"EMP-{count:04d}"
+        raise HTTPException(status_code=422, detail="Employee number cannot be blank.")
+    if payload.manager_id and not db.query(EmployeeProfile).filter_by(id=payload.manager_id, tenant_id=tenant_id).first():
+        raise HTTPException(status_code=422, detail="Manager must be an employee in this organization.")
 
-    # Department resolution
+    # Resolve/create the department in the same transaction as the employee.
     dept = None
-    if payload.department_name:
-        dept = db.query(Department).filter_by(tenant_id=tenant_id, name=payload.department_name).first()
+    department_name = payload.department_name.strip() if payload.department_name else None
+    if department_name:
+        dept = db.query(Department).filter_by(tenant_id=tenant_id, name=department_name).first()
         if not dept:
-            dept = Department(tenant_id=tenant_id, name=payload.department_name)
+            dept = Department(tenant_id=tenant_id, name=department_name)
             db.add(dept)
-            db.commit()
-            db.refresh(dept)
+            db.flush()
 
     emp = EmployeeProfile(
         tenant_id=tenant_id,
         employee_number=emp_number,
         first_name=payload.first_name,
         last_name=payload.last_name,
-        email=payload.email,
+        email=normalized_email,
         phone=payload.phone,
         job_title=payload.job_title,
         department_id=dept.id if dept else None,
-        department_name=payload.department_name,
+        department_name=department_name,
         manager_id=payload.manager_id,
         employment_type=payload.employment_type,
         work_location=payload.work_location,
         status="active",
         skills=payload.skills,
-        hire_date=datetime.now()
+        hire_date=datetime.now(timezone.utc)
     )
     db.add(emp)
-    db.commit()
-    db.refresh(emp)
+    try:
+        db.commit()
+        db.refresh(emp)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Employee number or email already exists in this organization.")
 
     return {
         "id": emp.id,
@@ -147,12 +181,60 @@ def create_employee(
     }
 
 
+@router.patch("/employees/{employee_id}/status")
+def update_employee_status(
+    employee_id: str,
+    payload: EmployeeStatusUpdateRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """Apply an explicit, tenant-scoped employment status transition."""
+    _require_hr_access(current_user, write=True)
+    allowed_transitions = {
+        "onboarding": {"active", "probation"},
+        "probation": {"active"},
+        "active": {"probation"},
+        "on_leave": set(),  # managed by the approved leave workflow
+        "terminated": set(),  # requires a dedicated audited offboarding workflow
+    }
+    new_status = payload.status.strip().lower()
+    if new_status not in allowed_transitions:
+        raise HTTPException(status_code=422, detail="Unsupported employment status.")
+
+    employee = db.query(EmployeeProfile).filter_by(id=employee_id, tenant_id=tenant_id).with_for_update().first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+    if employee.status == "terminated":
+        raise HTTPException(status_code=409, detail="Terminated employees cannot be reactivated through this endpoint; use a reviewed rehire workflow.")
+    if new_status == employee.status:
+        return {"id": employee.id, "status": employee.status, "changed": False}
+    if new_status not in allowed_transitions.get(employee.status, set()):
+        raise HTTPException(status_code=409, detail="This status transition is not allowed. Leave status and termination require their dedicated workflows.")
+    try:
+        employee.status = new_status
+        db.commit()
+        db.refresh(employee)
+    except Exception:
+        db.rollback()
+        raise
+    return {
+        "id": employee.id,
+        "employee_number": employee.employee_number,
+        "status": employee.status,
+        "changed": True,
+        "message": "Employment status updated."
+    }
+
+
 @router.get("/org-chart")
 def get_org_chart(
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
 ):
     """Generates the organizational hierarchy graph."""
+    _require_hr_access(current_user)
     employees = db.query(EmployeeProfile).filter(
         EmployeeProfile.tenant_id == tenant_id,
         EmployeeProfile.status == "active"
@@ -177,9 +259,11 @@ def get_org_chart(
 def list_policies(
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
-    category: Optional[str] = None
+    category: Optional[str] = None,
+    current_user: User = Depends(deps.get_current_user),
 ):
     """Retrieve company policy documents."""
+    _require_hr_access(current_user)
     q = db.query(CompanyPolicy).filter(
         CompanyPolicy.tenant_id == tenant_id,
         CompanyPolicy.is_active.is_(True)
@@ -206,9 +290,13 @@ def list_policies(
 def create_policy(
     payload: PolicyCreateRequest,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
 ):
     """Publish a new company policy for grounding RAG."""
+    _require_hr_access(current_user, write=True)
+    if not payload.title.strip() or not payload.content.strip():
+        raise HTTPException(status_code=422, detail="Policy title and content are required.")
     policy = CompanyPolicy(
         tenant_id=tenant_id,
         title=payload.title,
@@ -226,9 +314,11 @@ def create_policy(
 @router.get("/analytics/summary")
 def get_workforce_analytics(
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
 ):
-    """Provides validated workforce headcount, department breakdown, and activity metrics."""
+    """Provides tenant-scoped workforce metrics without fabricated values."""
+    _require_hr_access(current_user)
     total_employees = db.query(EmployeeProfile).filter_by(tenant_id=tenant_id, status="active").count()
     onboarding_count = db.query(EmployeeProfile).filter_by(tenant_id=tenant_id, status="onboarding").count()
     on_leave_count = db.query(EmployeeProfile).filter_by(tenant_id=tenant_id, status="on_leave").count()
@@ -255,6 +345,7 @@ def get_workforce_analytics(
         },
         "department_distribution": dept_counts,
         "pending_leave_requests": pending_leaves,
-        "retention_rate_pct": 96.4,
+        "retention_rate_pct": None,
+        "retention_rate_status": "unavailable_without_historical_termination_and_headcount_data",
         "as_of": datetime.now().isoformat()
     }

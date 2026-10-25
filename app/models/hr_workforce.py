@@ -5,7 +5,7 @@ Defines immutable leave ledgers, leave requests, daily attendance punches, and s
 import uuid
 from sqlalchemy import (
     Column, String, Boolean, DateTime, ForeignKey, Integer, Float, Text, JSON,
-    UniqueConstraint, Index
+    UniqueConstraint, Index, CheckConstraint
 )
 from sqlalchemy.sql import func
 from app.models.base import Base
@@ -53,6 +53,16 @@ class LeaveLedgerEntry(Base):
     note = Column(String, nullable=True)
     created_by_user_id = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index(
+            "uq_leave_ledger_reference_once",
+            "tenant_id", "transaction_type", "reference_id",
+            unique=True,
+            postgresql_where=reference_id.is_not(None),
+            sqlite_where=reference_id.is_not(None),
+        ),
+    )
 
 
 class LeaveRequest(Base):
@@ -144,3 +154,83 @@ class ShiftAssignment(Base):
     role_required = Column(String, nullable=True)
     status = Column(String, nullable=False, default="scheduled")  # scheduled, swapped, completed, absent
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+
+class AttendanceAuditEvent(Base):
+    """Append-only record of attendance changes; corrections require a separate authorized event."""
+    __tablename__ = "hr_attendance_audit_events"
+
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    attendance_record_id = Column(String, ForeignKey("hr_attendance_records.id"), nullable=False, index=True)
+    employee_id = Column(String, ForeignKey("hr_employees.id"), nullable=False, index=True)
+    actor_user_id = Column(String, nullable=False)
+    event_type = Column(String, nullable=False)  # clock_in, clock_out, correction_requested
+    occurred_at_utc = Column(DateTime(timezone=True), nullable=False)
+    local_timezone = Column(String, nullable=False, default="UTC")
+    local_work_date = Column(String, nullable=False)
+    before_state = Column(JSON, nullable=True)
+    after_state = Column(JSON, nullable=False)
+    source = Column(String, nullable=False, default="self_service")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class EmployeeAvailability(Base):
+    """Employee availability window used by workforce scheduling."""
+    __tablename__ = "hr_employee_availability"
+
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    employee_id = Column(String, ForeignKey("hr_employees.id"), nullable=False, index=True)
+    starts_at = Column(DateTime(timezone=True), nullable=False)
+    ends_at = Column(DateTime(timezone=True), nullable=False)
+    status = Column(String, nullable=False, default="available")  # available, unavailable, leave
+    source = Column(String, nullable=False, default="employee")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("ends_at > starts_at", name="chk_hr_availability_window"),
+    )
+
+
+class ShiftDemand(Base):
+    """Explicit staffing demand; optimizer must not invent required coverage."""
+    __tablename__ = "hr_shift_demands"
+
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    roster_id = Column(String, ForeignKey("hr_shift_rosters.id"), nullable=False, index=True)
+    shift_name = Column(String, nullable=False)
+    starts_at = Column(DateTime(timezone=True), nullable=False)
+    ends_at = Column(DateTime(timezone=True), nullable=False)
+    role_required = Column(String, nullable=True)
+    required_headcount = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "roster_id", "shift_name", "starts_at", "role_required", name="uq_hr_shift_demand_slot"),
+        CheckConstraint("ends_at > starts_at", name="chk_hr_shift_demand_window"),
+        CheckConstraint("required_headcount >= 1", name="chk_hr_shift_demand_headcount"),
+    )
+
+
+class HRLaborRule(Base):
+    """Tenant-configured scheduling limits; unset limits are deliberately not inferred."""
+    __tablename__ = "hr_labor_rules"
+
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, unique=True, index=True)
+    jurisdiction = Column(String, nullable=False)
+    minimum_rest_hours = Column(Float, nullable=True)
+    maximum_shift_hours = Column(Float, nullable=True)
+    maximum_weekly_hours = Column(Float, nullable=True)
+    updated_by_user_id = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        CheckConstraint("minimum_rest_hours IS NULL OR (minimum_rest_hours >= 0 AND minimum_rest_hours <= 24)", name="chk_hr_labor_rest_hours"),
+        CheckConstraint("maximum_shift_hours IS NULL OR maximum_shift_hours > 0", name="chk_hr_labor_max_shift"),
+        CheckConstraint("maximum_weekly_hours IS NULL OR maximum_weekly_hours > 0", name="chk_hr_labor_max_weekly"),
+    )

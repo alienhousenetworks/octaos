@@ -36,6 +36,8 @@ from app.models.boardroom_events import (  # noqa: F401 — boardroom v2 & v3
 from app.models import flow_engine  # noqa: F401 — Agent Studio, Flow Engine, Telemetry & Marketplace
 from app.models import sales_intelligence  # noqa: F401 — canonical sales accounts, evidence, and outcomes
 from app.models import hr as hr_models  # noqa: F401 — talent acquisition and people operations
+from app.models import hr_core as hr_core_models  # noqa: F401 — employee directory and HR workflows
+from app.models import hr_workforce as hr_workforce_models  # noqa: F401 — leave, attendance, and workforce scheduling
 from app.models import search_v4 as search_v4_models  # noqa: F401 — parallel search jobs and spend
 from app.models import knowledge_connectors  # noqa: F401 — governed knowledge connectors
 from app.models import executive  # noqa: F401 — executive os engine

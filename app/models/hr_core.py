@@ -5,7 +5,7 @@ Defines stable employee identity, organizational structure, policy management, a
 import uuid
 from sqlalchemy import (
     Column, String, Boolean, DateTime, ForeignKey, Integer, Text, JSON,
-    UniqueConstraint, Index
+    UniqueConstraint, Index, CheckConstraint, Numeric
 )
 from sqlalchemy.sql import func
 from app.models.base import Base
@@ -137,3 +137,100 @@ class HRServiceRequest(Base):
     resolved_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class HRPerformanceReview(Base):
+    """Structured review record; AI may assist drafting but cannot set employment outcomes."""
+    __tablename__ = "hr_performance_reviews"
+
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    employee_id = Column(String, ForeignKey("hr_employees.id"), nullable=False, index=True)
+    reviewer_user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    cycle = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="draft")  # draft, submitted, acknowledged
+    goals = Column(JSON, nullable=False, default=list)
+    strengths = Column(Text, nullable=True)
+    development_areas = Column(Text, nullable=True)
+    employee_comments = Column(Text, nullable=True)
+    submitted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "employee_id", "reviewer_user_id", "cycle", name="uq_hr_review_cycle_reviewer"),
+    )
+
+
+class HRCompensationChange(Base):
+    """Compensation proposal requiring a separate authorized human approval."""
+    __tablename__ = "hr_compensation_changes"
+
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    employee_id = Column(String, ForeignKey("hr_employees.id"), nullable=False, index=True)
+    requested_by_user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    currency = Column(String(3), nullable=False)
+    current_amount = Column(Numeric(12, 2), nullable=True)
+    proposed_amount = Column(Numeric(12, 2), nullable=False)
+    reason = Column(Text, nullable=False)
+    status = Column(String, nullable=False, default="pending_approval")  # pending_approval, approved, rejected, applied
+    approver_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    decided_at = Column(DateTime(timezone=True), nullable=True)
+    decision_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("proposed_amount > 0", name="chk_hr_comp_proposed_positive"),
+    )
+
+
+class HRLifecycleTask(Base):
+    """Auditable onboarding/offboarding checklist task attached to a stable employee profile."""
+    __tablename__ = "hr_lifecycle_tasks"
+
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    employee_id = Column(String, ForeignKey("hr_employees.id"), nullable=False, index=True)
+    lifecycle = Column(String, nullable=False)  # onboarding, offboarding
+    task_key = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    owner_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    status = Column(String, nullable=False, default="open")  # open, in_progress, completed, blocked
+    verification_required = Column(Boolean, nullable=False, default=True)
+    verified_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    verification_note = Column(Text, nullable=True)
+    due_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "employee_id", "lifecycle", "task_key", name="uq_hr_lifecycle_task"),
+    )
+
+
+class HRLifecycleCase(Base):
+    """Governed onboarding/offboarding case with explicit initiator and final approver."""
+    __tablename__ = "hr_lifecycle_cases"
+
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    employee_id = Column(String, ForeignKey("hr_employees.id"), nullable=False, index=True)
+    lifecycle = Column(String, nullable=False)
+    initiated_by_user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    status = Column(String, nullable=False, default="in_progress")
+    reason = Column(Text, nullable=True)
+    finalized_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    finalized_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index(
+            "uq_hr_lifecycle_case_in_progress",
+            "tenant_id", "employee_id", "lifecycle",
+            unique=True,
+            postgresql_where=status == "in_progress",
+            sqlite_where=status == "in_progress",
+        ),
+    )
