@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "app/services/sales/**"
+      - "app/services/sales/meeting_booking.py"
       - "app/services/sales_os/**"
       - "app/api/v1/endpoints/leads.py"
       - "app/core/rbac.py"
@@ -75,6 +76,7 @@ jobs:
             app/services/sales/discovery_service.py \
             app/services/sales/touch_dispatcher.py \
             app/services/sales/outbox_service.py \
+            app/services/sales/meeting_booking.py \
             app/services/sales_os/quality_gates.py \
             app/services/sales_os/search_v4/planner.py \
             app/services/sales_os/search_v4/engine.py \
