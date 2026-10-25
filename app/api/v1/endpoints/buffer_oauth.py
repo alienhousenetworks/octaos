@@ -58,6 +58,11 @@ class BufferAPIKeyRequest(BaseModel):
     api_key: str = Field(min_length=12, max_length=2048)
 
 
+class BufferChannelMapRequest(BaseModel):
+    platform: str = Field(min_length=1, max_length=80)
+    channel_id: str = Field(min_length=1, max_length=256)
+
+
 class PublishPostRequest(BaseModel):
     channel_id: str = Field(min_length=1, max_length=256)
     scheduled_at: Optional[datetime] = None
@@ -161,7 +166,7 @@ def buffer_status(
 
 
 @router.post("/api-key")
-def connect_buffer_api_key(
+async def connect_buffer_api_key(
     body: BufferAPIKeyRequest,
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
@@ -169,6 +174,11 @@ def connect_buffer_api_key(
 ):
     """BYOK fallback; key is submitted only to the backend and encrypted at rest."""
     save_buffer_tokens(db, tenant_id, {"access_token": body.api_key, "scope": "api-key"}, auth_type="api_key")
+    try:
+        await BufferService(db, tenant_id).account_and_channels()
+    except BufferAPIError as exc:
+        disconnect_buffer(db, tenant_id)
+        raise HTTPException(status_code=400, detail="Buffer API key validation failed. Check the key and try again.") from exc
     return {"connected": True, "provider": "buffer", "connection_method": "api_key"}
 
 
@@ -182,7 +192,11 @@ async def buffer_channels(
         account = await BufferService(db, tenant_id).account_and_channels()
     except BufferAPIError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    from app.models.base import APICredential
+    credential = db.query(APICredential).filter(APICredential.tenant_id == tenant_id, APICredential.provider == "buffer").first()
+    channel_map = (credential.settings or {}).get("channel_map", {}) if credential else {}
     return {
+        "channel_map": channel_map,
         "account": {"id": account.get("id"), "email": account.get("email")},
         "organizations": [
             {"id": org.get("id"), "name": org.get("name"),
@@ -193,6 +207,46 @@ async def buffer_channels(
             for org in account.get("organizations", [])
         ],
     }
+
+
+@router.post("/channels/map")
+async def map_buffer_channel(
+    body: BufferChannelMapRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.INTEGRATIONS, Action.UPDATE)),
+):
+    """Map a platform to a verified Buffer channel for scheduled campaign delivery."""
+    platform = body.platform.strip().lower().replace("twitter", "x")
+    try:
+        account = await BufferService(db, tenant_id).account_and_channels()
+    except BufferAPIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    channels = [
+        channel
+        for organization in account.get("organizations", [])
+        for channel in organization.get("channels", [])
+    ]
+    selected = next((channel for channel in channels if channel.get("id") == body.channel_id), None)
+    if not selected:
+        raise HTTPException(status_code=400, detail="Channel is not part of this Buffer account.")
+    actual = (selected.get("service") or "").lower().replace("twitter", "x")
+    if platform not in actual and actual not in platform:
+        raise HTTPException(status_code=409, detail="Channel platform does not match the requested platform.")
+    from app.models.base import APICredential
+    credential = db.query(APICredential).filter(
+        APICredential.tenant_id == tenant_id, APICredential.provider == "buffer"
+    ).first()
+    if not credential:
+        raise HTTPException(status_code=409, detail="Connect Buffer before mapping channels.")
+    settings_json = dict(credential.settings or {})
+    channel_map = dict(settings_json.get("channel_map", {}))
+    channel_map[platform] = body.channel_id
+    settings_json["channel_map"] = channel_map
+    credential.settings = settings_json
+    db.add(credential)
+    db.commit()
+    return {"platform": platform, "channel_id": body.channel_id, "mapped": True}
 
 
 @router.post("/publish/{post_id}")
