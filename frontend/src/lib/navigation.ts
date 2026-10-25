@@ -216,6 +216,9 @@ export function crumbForPath(pathname: string) {
   if (pathname.startsWith('/app/hr/leave')) {
     return { section: 'People', name: 'Time off' };
   }
+  if (pathname.startsWith('/app/hr/operations')) {
+    return { section: 'People', name: 'People operations' };
+  }
   if (pathname.startsWith('/app/campaigns/rooms/')) {
     const slug = pathname.replace('/app/campaigns/rooms/', '').split('/')[0];
     return { section: 'Growth', name: `Campaign Room (#${slug})` };
