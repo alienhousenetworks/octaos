@@ -649,7 +649,28 @@ Only return JSON, no other text."""
                     return c
 
             await asyncio.gather(*(_qualify_single(i, c) for i, c in enumerate(companies)))
-            qualified_companies = [c for c in companies if c.get("qualified")]\n\n            # Verify the actual source page before a candidate can pass the final send gate.\n            # Provider snippets and LLM-generated claims alone are not sufficient evidence.\n            from app.services.sales_os.source_verification import fetch_and_verify_source\n            source_verify_semaphore = asyncio.Semaphore(5)\n\n            async def _verify_candidate_source(candidate):\n                source_url = str(candidate.get("evidence_url") or "").strip()\n                source_quote = str(candidate.get("evidence_quote") or "").strip()\n                if not source_url or not source_quote:\n                    candidate["source_verification"] = {\n                        "source_url": source_url, "quote": source_quote, "verified": False,\n                        "reason": "quote_missing_or_source_missing",\n                    }\n                    return\n                async with source_verify_semaphore:\n                    receipt = await fetch_and_verify_source(source_url, source_quote)\n                candidate["source_verification"] = receipt.as_dict()\n\n            await asyncio.gather(*(_verify_candidate_source(candidate) for candidate in qualified_companies))\n
+            qualified_companies = [c for c in companies if c.get("qualified")]
+
+            # Verify the actual source page before a candidate can pass the final send gate.
+            # Provider snippets and LLM-generated claims alone are not sufficient evidence.
+            from app.services.sales_os.source_verification import fetch_and_verify_source
+            source_verify_semaphore = asyncio.Semaphore(5)
+
+            async def _verify_candidate_source(candidate):
+                source_url = str(candidate.get("evidence_url") or "").strip()
+                source_quote = str(candidate.get("evidence_quote") or "").strip()
+                if not source_url or not source_quote:
+                    candidate["source_verification"] = {
+                        "source_url": source_url, "quote": source_quote, "verified": False,
+                        "reason": "quote_missing_or_source_missing",
+                    }
+                    return
+                async with source_verify_semaphore:
+                    receipt = await fetch_and_verify_source(source_url, source_quote)
+                candidate["source_verification"] = receipt.as_dict()
+
+            await asyncio.gather(*(_verify_candidate_source(candidate) for candidate in qualified_companies))
+
             for c in qualified_companies:
                 email_val = c.get("contact", {}).get("email") or ""
                 phone_val = c.get("contact", {}).get("phone") or ""
@@ -1007,7 +1028,16 @@ Strict Tone & Quality Rules:
                 from app.services.sales.touch_dispatcher import dispatch_sales_touch
                 sales_cred_for_policy = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id, provider="sales").first()
                 policy_settings = (sales_cred_for_policy.settings if sales_cred_for_policy else {}) or {}
-                # Persist the verification receipt before the central dispatcher re-checks it.\n                lead.data = {\n                    **(lead.data if isinstance(getattr(lead, "data", None), dict) else {}),\n                    **_build_lead_data(c),\n                    "source_verification": c.get("source_verification"),\n                }\n                self.db.commit()\n\n                readiness = assess_outreach_readiness(\n                    {**c, "source_verification": c.get("source_verification")},                    auto_send_enabled=bool(policy_settings.get("sales_ai_auto_send_enabled", False)),
+                # Persist the verification receipt before the central dispatcher re-checks it.
+                lead.data = {
+                    **(lead.data if isinstance(getattr(lead, "data", None), dict) else {}),
+                    **_build_lead_data(c),
+                    "source_verification": c.get("source_verification"),
+                }
+                self.db.commit()
+
+                readiness = assess_outreach_readiness(
+                    {**c, "source_verification": c.get("source_verification")},                    auto_send_enabled=bool(policy_settings.get("sales_ai_auto_send_enabled", False)),
                     permission_state=policy_settings.get("outbound_permission_state"),
                     suppressed=bool(c.get("suppressed") or c.get("do_not_contact")),
                 )
