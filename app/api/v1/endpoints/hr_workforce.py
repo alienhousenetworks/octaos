@@ -5,7 +5,7 @@ Covers Leave Management, Ledger Balances, Time & Attendance, and Shift Rosters.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -13,7 +13,8 @@ from app.api import deps
 from app.models.base import User
 from app.models.hr_core import EmployeeProfile
 from app.models.hr_workforce import (
-    LeaveType, LeaveLedgerEntry, LeaveRequest, AttendanceRecord, AttendanceAuditEvent, ShiftRoster, ShiftAssignment
+    LeaveType, LeaveLedgerEntry, LeaveRequest, AttendanceRecord, AttendanceAuditEvent, ShiftRoster, ShiftAssignment,
+    EmployeeAvailability, ShiftDemand
 )
 from app.services.agents.hr.specialists.leave_impact import LeaveImpactSpecialist
 from app.services.agents.hr.approval_bridge import HRApprovalBridge
@@ -69,6 +70,23 @@ class AttendancePunchRequest(BaseModel):
 
 class RosterOptimizeRequest(BaseModel):
     roster_id: str
+
+
+
+class AvailabilityCreateRequest(BaseModel):
+    employee_id: str
+    starts_at: datetime
+    ends_at: datetime
+    status: str = "available"
+
+
+class ShiftDemandCreateRequest(BaseModel):
+    roster_id: str
+    shift_name: str = Field(min_length=2, max_length=100)
+    starts_at: datetime
+    ends_at: datetime
+    role_required: Optional[str] = None
+    required_headcount: int = Field(default=1, ge=1, le=500)
 
 
 @router.get("/leaves")
@@ -449,6 +467,60 @@ def list_rosters(
     return results
 
 
+@router.post("/availability")
+def create_employee_availability(
+    payload: AvailabilityCreateRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
+):
+    employee = db.query(EmployeeProfile).filter_by(id=payload.employee_id, tenant_id=tenant_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+    _require_hr_role(current_user, permission="hr.manage_workforce")
+    if payload.ends_at <= payload.starts_at:
+        raise HTTPException(status_code=422, detail="Availability end must be after start.")
+    if payload.status not in {"available", "unavailable", "leave"}:
+        raise HTTPException(status_code=422, detail="Availability status must be available, unavailable, or leave.")
+    row = EmployeeAvailability(tenant_id=tenant_id, employee_id=employee.id, starts_at=payload.starts_at,
+                               ends_at=payload.ends_at, status=payload.status, source="hr_admin")
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {"id": row.id, "employee_id": row.employee_id, "status": row.status}
+
+
+@router.post("/rosters/demand")
+def create_shift_demand(
+    payload: ShiftDemandCreateRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
+):
+    _require_hr_role(current_user, permission="hr.manage_workforce")
+    roster = db.query(ShiftRoster).filter_by(id=payload.roster_id, tenant_id=tenant_id).first()
+    if not roster:
+        raise HTTPException(status_code=404, detail="Roster not found in this organization.")
+    if roster.status != "draft":
+        raise HTTPException(status_code=409, detail="Staffing demand can only be changed on draft rosters.")
+    if payload.ends_at <= payload.starts_at:
+        raise HTTPException(status_code=422, detail="Shift end must be after shift start.")
+    if payload.starts_at < roster.start_date or payload.ends_at > roster.end_date:
+        raise HTTPException(status_code=422, detail="Demand slot must fit within the roster period.")
+    demand = ShiftDemand(tenant_id=tenant_id, roster_id=roster.id, shift_name=payload.shift_name.strip(),
+                         starts_at=payload.starts_at, ends_at=payload.ends_at,
+                         role_required=payload.role_required.strip().lower() if payload.role_required else None,
+                         required_headcount=payload.required_headcount)
+    db.add(demand)
+    try:
+        db.commit()
+        db.refresh(demand)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="An equivalent demand slot already exists.")
+    return {"id": demand.id, "roster_id": demand.roster_id, "required_headcount": demand.required_headcount}
+
+
 @router.post("/rosters/optimize")
 def optimize_roster(
     payload: RosterOptimizeRequest,
@@ -456,36 +528,97 @@ def optimize_roster(
     tenant_id: str = Depends(deps.get_current_tenant_id),
     current_user: User = Depends(deps.get_current_user),
 ):
-    """Generate a draft shift proposal for authorized HR users."""
-    _require_hr_role(current_user, permission="hr.manage_employees")
-    roster = db.query(ShiftRoster).filter_by(id=payload.roster_id, tenant_id=tenant_id).first()
+    """Greedy constraint-based draft scheduler; only scores constraints that are modeled."""
+    _require_hr_role(current_user, permission="hr.manage_workforce")
+    roster = db.query(ShiftRoster).filter_by(id=payload.roster_id, tenant_id=tenant_id).with_for_update().first()
     if not roster:
         raise HTTPException(status_code=404, detail="Roster not found in this organization.")
     if roster.status != "draft":
-        raise HTTPException(status_code=409, detail="Only draft rosters can be changed by the optimizer.")
-    if roster.end_date < roster.start_date:
-        raise HTTPException(status_code=422, detail="Roster end date must be on or after its start date.")
+        raise HTTPException(status_code=409, detail="Only draft rosters can be optimized.")
+    demands = db.query(ShiftDemand).filter_by(tenant_id=tenant_id, roster_id=roster.id).order_by(ShiftDemand.starts_at.asc()).all()
+    if not demands:
+        raise HTTPException(status_code=422, detail="Configure explicit staffing demand before optimization; demand is never invented.")
     employees = db.query(EmployeeProfile).filter_by(tenant_id=tenant_id, status="active").all()
-    # Honest baseline draft: no availability, skill, labor-rule, or demand model
-    # exists here, so do not claim optimization or invent a score.
-    shift_names = ["Morning (08:00 - 16:00)", "General (09:00 - 17:00)", "Evening (14:00 - 22:00)"]
+    availability = db.query(EmployeeAvailability).filter_by(tenant_id=tenant_id, status="available").all()
+    unavailable = db.query(EmployeeAvailability).filter_by(tenant_id=tenant_id).filter(EmployeeAvailability.status.in_(["unavailable", "leave"])).all()
+    availability_by_employee = {}
+    for window in availability:
+        availability_by_employee.setdefault(window.employee_id, []).append(window)
+    unavailable_by_employee = {}
+    for window in unavailable:
+        unavailable_by_employee.setdefault(window.employee_id, []).append(window)
+
+    def utc(dt):
+        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+
+    def overlaps(a_start, a_end, b_start, b_end):
+        return utc(a_start) < utc(b_end) and utc(b_start) < utc(a_end)
+
+    # Existing assignments from other rosters are respected; this optimizer never edits published rosters.
+    other_assignments = db.query(ShiftAssignment).filter(
+        ShiftAssignment.tenant_id == tenant_id,
+        ShiftAssignment.roster_id != roster.id,
+        ShiftAssignment.status.in_(["scheduled", "published"]),
+    ).all()
+    planned = []
     db.query(ShiftAssignment).filter_by(tenant_id=tenant_id, roster_id=roster.id).delete()
-    created_assignments = 0
-    for idx, emp in enumerate(employees):
-        db.add(ShiftAssignment(tenant_id=tenant_id, roster_id=roster.id, employee_id=emp.id,
-                               shift_name=shift_names[idx % len(shift_names)],
-                               start_time=roster.start_date, end_time=roster.end_date, status="scheduled"))
-        created_assignments += 1
-    roster.is_optimized = False
-    roster.optimization_score = None
-    roster.constraint_violations = ["NOT_EVALUATED: availability, skills, coverage demand, and labor rules are not modeled."]
-    db.commit()
+    violations = []
+    required_total = sum(d.required_headcount for d in demands)
+    assigned_total = 0
+    for demand in demands:
+        assigned_for_slot = 0
+        for _ in range(demand.required_headcount):
+            candidates = []
+            for emp in employees:
+                skills = {str(x).strip().lower() for x in (emp.skills or [])}
+                skills.add((emp.job_title or "").strip().lower())
+                if demand.role_required and demand.role_required not in skills:
+                    continue
+                windows = availability_by_employee.get(emp.id, [])
+                if not any(utc(w.starts_at) <= utc(demand.starts_at) and utc(w.ends_at) >= utc(demand.ends_at) for w in windows):
+                    continue
+                if any(overlaps(demand.starts_at, demand.ends_at, w.starts_at, w.ends_at) for w in unavailable_by_employee.get(emp.id, [])):
+                    continue
+                if any(a.employee_id == emp.id and overlaps(demand.starts_at, demand.ends_at, a.start_time, a.end_time) for a in other_assignments):
+                    continue
+                if any(p["employee_id"] == emp.id and overlaps(demand.starts_at, demand.ends_at, p["start_time"], p["end_time"]) for p in planned):
+                    continue
+                # Prefer employees with fewer already-planned hours in this roster.
+                hours = sum((utc(p["end_time"]) - utc(p["start_time"])).total_seconds() for p in planned if p["employee_id"] == emp.id)
+                candidates.append((hours, emp.id, emp))
+            if not candidates:
+                violations.append({"demand_id": demand.id, "shift_name": demand.shift_name, "reason": "no_available_skill_matched_employee"})
+                continue
+            _, _, chosen = sorted(candidates, key=lambda item: (item[0], item[1]))[0]
+            planned.append({"employee_id": chosen.id, "shift_name": demand.shift_name, "start_time": demand.starts_at,
+                            "end_time": demand.ends_at, "role_required": demand.role_required, "demand_id": demand.id})
+            assigned_for_slot += 1
+            assigned_total += 1
+        if assigned_for_slot < demand.required_headcount:
+            pass
+
+    for item in planned:
+        db.add(ShiftAssignment(tenant_id=tenant_id, roster_id=roster.id, employee_id=item["employee_id"],
+                               shift_name=item["shift_name"], start_time=item["start_time"], end_time=item["end_time"],
+                               role_required=item["role_required"], status="scheduled"))
+    score = round(assigned_total / required_total, 4) if required_total else None
+    roster.is_optimized = bool(score == 1.0 and not violations)
+    roster.optimization_score = score
+    roster.constraint_violations = violations
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return {
         "roster_id": roster.id,
-        "is_optimized": False,
-        "score": None,
-        "optimization_status": "baseline_draft_not_optimized",
-        "assignments_created": created_assignments,
-        "constraint_violations": roster.constraint_violations,
-        "message": "Baseline roster draft created; validate staffing constraints before publishing."
+        "is_optimized": roster.is_optimized,
+        "score": score,
+        "optimization_status": "constraints_satisfied" if roster.is_optimized else "partial_coverage",
+        "required_assignments": required_total,
+        "assignments_created": assigned_total,
+        "constraint_violations": violations,
+        "constraints_checked": ["explicit_staffing_demand", "declared_availability", "unavailability_and_leave_windows",
+                                "role_skill_match", "overlapping_assignments_in_other_rosters", "overlapping_assignments_in_this_roster"],
+        "constraints_not_modeled": ["jurisdiction_specific_labor_law", "minimum_rest_period", "maximum_weekly_hours", "budget_cost"],
     }
