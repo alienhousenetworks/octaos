@@ -26,17 +26,6 @@ def test_labor_rule_requires_at_least_one_limit_at_route_layer():
     assert "at least one labor limit" in response.json()["detail"]
 
 
-@pytest.mark.parametrize(
-    "payload",
-    [
-        {"jurisdiction": "IN", "minimum_rest_hours": -1},
-        {"jurisdiction": "IN", "minimum_rest_hours": 25},
-        {"jurisdiction": "IN", "maximum_shift_hours": 0},
-        {"jurisdiction": "IN", "maximum_shift_hours": 25},
-        {"jurisdiction": "IN", "maximum_weekly_hours": 0},
-        {"jurisdiction": "IN", "maximum_weekly_hours": 169},
-    ],
-)
 def test_labor_rule_read_is_tenant_scoped_and_reports_unconfigured_limits():
     class Query:
         filters = None
@@ -71,6 +60,17 @@ def test_labor_rule_read_is_tenant_scoped_and_reports_unconfigured_limits():
     assert db.query_obj.filters == {"tenant_id": "tenant-a"}
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"jurisdiction": "IN", "minimum_rest_hours": -1},
+        {"jurisdiction": "IN", "minimum_rest_hours": 25},
+        {"jurisdiction": "IN", "maximum_shift_hours": 0},
+        {"jurisdiction": "IN", "maximum_shift_hours": 25},
+        {"jurisdiction": "IN", "maximum_weekly_hours": 0},
+        {"jurisdiction": "IN", "maximum_weekly_hours": 169},
+    ],
+)
 def test_labor_rule_rejects_out_of_range_values(payload):
     with pytest.raises(ValidationError):
         LaborRuleUpsertRequest(**payload)
