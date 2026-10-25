@@ -392,7 +392,7 @@ def dispatch_sales_touch(
             return {
                 "sent": False,
                 "channel": ch,
-                "reason": "outbound_readiness_blocked",
+                "reason": "outbound_authorization_blocked",
                 "message": "Outbound dispatch blocked: " + ", ".join(blockers),
                 "blockers": blockers,
                 "readiness": readiness,
