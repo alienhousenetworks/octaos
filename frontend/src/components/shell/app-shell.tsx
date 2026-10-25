@@ -132,7 +132,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const nav = (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex h-12 items-center gap-2 border-b border-sidebar-border px-3">
+      <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
         <Link href="/app/home" className="flex min-w-0 items-center gap-2">
           {workspace.logoUrl ? (
             <img src={workspace.logoUrl} alt="OctaOS" className="h-6 w-auto max-w-[120px] object-contain" />
@@ -143,7 +143,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
       <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Primary">
         {groups.map((group) => (
-          <div key={group.label} className="mb-3">
+          <div key={group.label} className="mb-4">
             <p className={`px-2 pb-1 text-xs font-medium text-muted-foreground ${collapsed ? 'sr-only' : ''}`}>{group.label}</p>
             {group.items.map((item) => {
               const Icon = item.icon;
@@ -154,7 +154,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   href={item.href}
                   id={`nav-${item.id}`}
                   title={item.name}
-                  className={`mb-0.5 flex h-9 items-center gap-2 rounded-lg px-2.5 text-sm transition-colors ${isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium border-l-2 border-primary' : 'text-muted-foreground hover:bg-surface-hover hover:text-foreground'}`}
+                  className={`mb-1 flex h-10 items-center gap-2.5 rounded-lg px-3 text-[13px] transition-colors ${isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium border-l-2 border-primary' : 'text-muted-foreground hover:bg-surface-hover hover:text-foreground'}`}
                 >
                   <Icon className="size-4 shrink-0" />
                   <span className={`truncate ${collapsed ? 'sr-only' : ''}`}>{item.name}</span>
@@ -188,7 +188,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
       <aside
         className="hidden h-full shrink-0 border-r border-sidebar-border md:block"
-        style={{ width: collapsed ? 64 : 240 }}
+        style={{ width: collapsed ? 64 : 248 }}
       >
         {nav}
       </aside>
@@ -200,7 +200,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           onClick={() => setMobileOpen(false)}
         />
       )}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-[240px] border-r border-sidebar-border transition-transform md:hidden ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-[248px] border-r border-sidebar-border transition-transform md:hidden ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {nav}
         <button
           type="button"
@@ -212,7 +212,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </button>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3 md:px-4">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4 md:px-6">
           <button
             type="button"
             className="inline-flex size-9 items-center justify-center rounded-md border border-border md:hidden"
@@ -270,7 +270,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </DropdownMenu>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-7">{children}</main>
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} profile={profile} />
     </div>
