@@ -369,3 +369,36 @@ def test_dispatcher_blocks_email_when_tenant_authorization_is_not_configured(db_
     assert result["sent"] is False
     assert result["reason"] == "outbound_authorization_blocked"
     send.assert_not_called()
+
+
+def test_explicit_contact_opt_out_overrides_stale_top_level_opt_in(db_session):
+    authorize_outbound(db_session)
+    lead = Lead(
+        tenant_id="test_tenant_cadence",
+        name="Taylor Example",
+        phone="+1 555 010 9999",
+        company="Example Co",
+        data={
+            "whatsapp_opt_in": True,
+            "whatsapp_opt_in_source": "old_form",
+            "whatsapp_opt_in_at": "2026-01-01T00:00:00Z",
+            "contact": {
+                "whatsapp_opt_in": False,
+                "whatsapp_opt_in_source": "recipient_opt_out",
+                "whatsapp_opt_in_at": "2026-10-25T00:00:00Z",
+            },
+        },
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    result = dispatch_sales_touch(
+        db_session,
+        "test_tenant_cadence",
+        lead,
+        channel="whatsapp",
+        body="A follow-up message",
+    )
+    assert result["sent"] is False
+    assert result["reason"] == "outbound_authorization_blocked"
+    assert "recipient_whatsapp_opt_in_missing" in result["blockers"]
