@@ -80,7 +80,12 @@ def assess_outreach_readiness(
 
 
 
-def assess_channel_authorization(settings: dict[str, Any] | None, channel: str) -> dict[str, Any]:
+def assess_channel_authorization(
+    settings: dict[str, Any] | None,
+    channel: str,
+    *,
+    recipient_opt_in: bool = False,
+) -> dict[str, Any]:
     """Final defense-in-depth gate used by dispatchers and cadence workers."""
     config = settings if isinstance(settings, dict) else {}
     normalized_channel = (channel or "email").strip().lower()
@@ -92,8 +97,8 @@ def assess_channel_authorization(settings: dict[str, Any] | None, channel: str) 
     if normalized_channel == "whatsapp":
         if str(config.get("whatsapp_permission_state") or "").strip().lower() != "granted":
             blockers.append("whatsapp_permission_not_granted")
-        if not bool(config.get("whatsapp_opt_in", False)):
-            blockers.append("whatsapp_opt_in_missing")
+        if not recipient_opt_in:
+            blockers.append("recipient_whatsapp_opt_in_missing")
     return {
         "ready": not blockers,
         "status": "authorized" if not blockers else "blocked",
