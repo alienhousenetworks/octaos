@@ -57,9 +57,9 @@ def get_marketing_workforce_readiness(db: Session, tenant_id: str) -> Dict[str, 
         "GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY", "GROK_API_KEY",
         "TOGETHER_API_KEY", "NVIDIA_API_KEY",
     ])
-    global_research = _configured_from_env(["FIRECRAWL_API_KEY", "APIFY_TOKEN"])
-    global_image = _configured_from_env(["OPENAI_API_KEY", "OPENROUTER_API_KEY", "TOGETHER_API_KEY", "NVIDIA_API_KEY"])
-    global_video = _configured_from_env(["TOGETHER_API_KEY", "HEYGEN_API_KEY"])
+    global_research = _configured_from_env(["FIRECRAWL_API_KEY", "APIFY_TOKEN", "TAVILY_API_KEY", "SERPAPI_API_KEY", "BRAVE_SEARCH_API_KEY", "DATAFORSEO_LOGIN", "SEMRUSH_API_KEY", "AHREFS_API_KEY"])
+    global_image = _configured_from_env(["OPENAI_API_KEY", "OPENROUTER_API_KEY", "TOGETHER_API_KEY", "NVIDIA_API_KEY", "REPLICATE_API_TOKEN"])
+    global_video = _configured_from_env(["TOGETHER_API_KEY", "HEYGEN_API_KEY", "REPLICATE_API_TOKEN", "RUNWAY_API_KEY", "LUMA_API_KEY", "CREATOMATE_API_KEY", "SHOTSTACK_API_KEY"])
     configured_text = sorted(tenant_providers.intersection(TEXT_PROVIDERS) | {name.lower().replace("_API_KEY", "") for name in global_text})
     configured_research = sorted(tenant_providers.intersection(RESEARCH_PROVIDERS) | {("apify" if name == "APIFY_TOKEN" else name.lower().replace("_API_KEY", "")) for name in global_research})
     configured_image = sorted(tenant_providers.intersection(IMAGE_PROVIDERS) | {name.lower().replace("_API_KEY", "") for name in global_image})
