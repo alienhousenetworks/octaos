@@ -48,7 +48,6 @@ def assess_outreach_readiness(
     parsed_source = urlparse(evidence_url)
     evidence_url_valid = parsed_source.scheme in {"http", "https"} and bool(parsed_source.netloc)
     evidence_quote = str(prospect.get("evidence_quote") or "").strip()
-    buying_signal = str(prospect.get("buying_signal") or "").strip()
     news = prospect.get("news") or []
     jobs = prospect.get("jobs") or []
 
