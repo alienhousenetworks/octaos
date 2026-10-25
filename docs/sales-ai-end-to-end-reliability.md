@@ -5,7 +5,7 @@
 ### Source verification
 
 - `app/services/sales_os/source_verification.py` validates HTTP(S) source URLs, resolves and pins the TCP connection to a globally routable IP, preserves hostname-based TLS SNI/certificate validation, blocks redirects, limits response size/content type, fingerprints retrieved text with SHA-256, and requires a proposed quote to occur in the normalized source text.
-- Quote verification is a deterministic gate. Generated buying signals, summaries, or model confidence cannot replace a source quote.
+- Quote verification is a deterministic gate. Generated buying signals, summaries, or model confidence cannot replace a source quote. The server must configure a high-entropy `SALES_EVIDENCE_SIGNING_KEY`; the HMAC receipt is invalid without it, and outbound dispatch remains blocked.
 - Source-fetch failures return explicit reasons and do not become positive evidence.
 - **Deployment note:** keep outbound egress controls at the infrastructure layer as defense in depth. The fetcher pins the resolved destination at the socket layer, but it is not a browser: it does not execute JavaScript, follow redirects, or decode compressed responses. Those outcomes are intentionally treated as unverified.
 
@@ -24,7 +24,7 @@ The ledger intentionally does not pretend that legacy V3 and Search V4 are alrea
 
 ## Remaining integration gates
 
-1. Wire `fetch_and_verify_source` into the canonical discovery-to-qualification boundary and persist its receipt with the lead dossier.
+1. Provision and rotate `SALES_EVIDENCE_SIGNING_KEY` through the deployment secret manager; without it, signed receipts cannot authorize sending.
 2. Wire `create_or_get_run` and step transitions into the existing V3 workflow, cadence/outbox worker, reply handlers, calendar confirmation, and CRM sync.
 3. Add migration/rollout steps for both new tables if production does not create tables from `Base.metadata`.
 4. Add provider-backed integration tests with tenant-owned credentials; unit tests cannot prove external deliverability, opt-in, inbox sync, or calendar receipts.
