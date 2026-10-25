@@ -35,16 +35,16 @@ export default function KpiMetricCard({
   const isDown = hasDelta && deltaPct < 0;
 
   let deltaColor = 'text-muted-foreground';
-  let sparkColor = '#7888D9'; // Default muted indigo
+  let sparkColor = '#667085'; // Default muted indigo
 
   if (hasDelta) {
     const isGood = isNegativeGood ? isDown : isUp;
     if (isGood) {
-      deltaColor = 'text-[#64B99A]';
-      sparkColor = '#64B99A';
+      deltaColor = 'text-primary';
+      sparkColor = '#365BD6';
     } else if ((isNegativeGood && isUp) || (!isNegativeGood && isDown)) {
-      deltaColor = 'text-[#D9828B]';
-      sparkColor = '#D9828B';
+      deltaColor = 'text-muted-foreground';
+      sparkColor = '#8B95A7';
     }
   }
 
