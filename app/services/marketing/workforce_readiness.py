@@ -61,7 +61,7 @@ def get_marketing_workforce_readiness(db: Session, tenant_id: str) -> Dict[str, 
     global_image = _configured_from_env(["OPENAI_API_KEY", "OPENROUTER_API_KEY", "TOGETHER_API_KEY", "NVIDIA_API_KEY"])
     global_video = _configured_from_env(["TOGETHER_API_KEY", "HEYGEN_API_KEY"])
     configured_text = sorted(tenant_providers.intersection(TEXT_PROVIDERS) | {name.lower().replace("_API_KEY", "") for name in global_text})
-    configured_research = sorted(tenant_providers.intersection(RESEARCH_PROVIDERS) | {name.lower().replace("_API_KEY", "") for name in global_research})
+    configured_research = sorted(tenant_providers.intersection(RESEARCH_PROVIDERS) | {("apify" if name == "APIFY_TOKEN" else name.lower().replace("_API_KEY", "")) for name in global_research})
     configured_image = sorted(tenant_providers.intersection(IMAGE_PROVIDERS) | {name.lower().replace("_API_KEY", "") for name in global_image})
     configured_video = sorted(tenant_providers.intersection(VIDEO_PROVIDERS) | {name.lower().replace("_API_KEY", "") for name in global_video})
 
@@ -111,7 +111,7 @@ def get_marketing_workforce_readiness(db: Session, tenant_id: str) -> Dict[str, 
         ),
         _capability(
             "buffer_publishing", "Buffer publishing",
-            "configured" if buffer_row else "needs_connection",
+            "configured" if (buffer_row and channel_map) else ("needs_channel_mapping" if buffer_row else "needs_connection"),
             ["buffer"] if buffer_row else [], ["Buffer OAuth/API key", "scheduled-post worker"],
             "Requires a mapped channel per platform. A Buffer queue receipt is not proof that the social network published the post.",
         ),
