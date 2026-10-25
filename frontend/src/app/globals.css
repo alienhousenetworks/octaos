@@ -272,3 +272,11 @@ textarea { min-height: 6rem; }
 [class*="border-white"] { border-color: var(--border) !important; }
 [class*="bg-gray-"][class*="text-white"], [class*="bg-slate-"][class*="text-white"],
 [class*="bg-zinc-"][class*="text-white"] { color: var(--foreground) !important; }
+
+/* Descendant text from formerly dark cards/dialogs must remain readable after surface conversion. */
+:is(div, section, article, [role="dialog"])[class*="bg-[#"] [class~="text-white"],
+:is(div, section, article, [role="dialog"])[class*="bg-gray-"][class*="text-white"] [class~="text-white"],
+:is(div, section, article, [role="dialog"])[class*="bg-slate-"][class*="text-white"] [class~="text-white"],
+:is(div, section, article, [role="dialog"])[class*="bg-zinc-"][class*="text-white"] [class~="text-white"] {
+  color: var(--foreground) !important;
+}
