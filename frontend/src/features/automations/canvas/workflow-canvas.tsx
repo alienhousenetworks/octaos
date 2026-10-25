@@ -114,7 +114,7 @@ export default function WorkflowCanvas({
             maxZoom={2.0}
             defaultEdgeOptions={{
               type: 'smoothstep',
-              style: { strokeWidth: 2, stroke: 'var(--color-primary, #3b82f6)' },
+              style: { strokeWidth: 2, stroke: 'var(--color-primary, #7888D9)' },
             }}
           >
             <Background
@@ -126,7 +126,7 @@ export default function WorkflowCanvas({
             <Controls className="!bg-card !border !border-border !rounded-lg !shadow-md !text-foreground" />
             <MiniMap
               className="!bg-card/80 !border !border-border !rounded-lg"
-              nodeColor={() => 'var(--color-primary, #3b82f6)'}
+              nodeColor={() => 'var(--color-primary, #7888D9)'}
               maskColor="rgba(0, 0, 0, 0.6)"
             />
           </ReactFlow>

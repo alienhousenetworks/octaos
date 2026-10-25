@@ -963,7 +963,7 @@ export default function SalesFieldSalesView({
               <div
                 className="absolute inset-0 opacity-20"
                 style={{
-                  backgroundImage: 'radial-gradient(#38bdf8 1px, transparent 1px), radial-gradient(#6366f1 1px, transparent 1px)',
+                  backgroundImage: 'radial-gradient(#414C5A 1px, transparent 1px)',
                   backgroundSize: '24px 24px',
                   backgroundPosition: '0 0, 12px 12px',
                 }}

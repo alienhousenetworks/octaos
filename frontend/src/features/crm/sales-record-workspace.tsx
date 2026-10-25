@@ -476,7 +476,7 @@ export default function SalesRecordWorkspace({
               key={item}
               type="button"
               onClick={() => setTab(item)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${tab === item ? 'bg-[#2563eb] text-white' : 'bg-muted text-muted-foreground'}`}
+              className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${tab === item ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
             >
               {item === 'property' ? 'Property & Showings' : item}
             </button>

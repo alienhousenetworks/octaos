@@ -103,33 +103,33 @@ type Tab = 'calendar' | 'results' | 'news' | 'brand';
 type Mode = 'schedule' | 'draft';
 
 const PLATFORMS = [
-  { id: 'linkedin', label: 'LinkedIn', color: '#0a66c2' },
-  { id: 'instagram', label: 'Instagram', color: '#d6249f' },
-  { id: 'facebook', label: 'Facebook', color: '#1877f2' },
-  { id: 'twitter', label: 'X', color: '#111827' },
+  { id: 'linkedin', label: 'LinkedIn', color: '#7888D9' },
+  { id: 'instagram', label: 'Instagram', color: '#AAB5C4' },
+  { id: 'facebook', label: 'Facebook', color: '#7888D9' },
+  { id: 'twitter', label: 'X', color: '#AAB5C4' },
 ];
 const platformMeta = (id: string) =>
-  PLATFORMS.find((p) => p.id === id) ?? { id, label: id, color: '#64748b' };
+  PLATFORMS.find((p) => p.id === id) ?? { id, label: id, color: '#AAB5C4' };
 
-// Scoped light theme: overrides the design tokens only inside this card.
+// Scoped OctaOS graphite/indigo theme: matches the workspace design tokens.
 const LIGHT_THEME = {
-  '--background': '#ffffff',
-  '--foreground': '#0f172a',
-  '--card': '#ffffff',
-  '--card-foreground': '#0f172a',
-  '--popover': '#ffffff',
-  '--popover-foreground': '#0f172a',
-  '--primary': '#4f46e5',
-  '--primary-foreground': '#ffffff',
-  '--secondary': '#f1f5f9',
-  '--secondary-foreground': '#0f172a',
-  '--muted': '#f1f5f9',
-  '--muted-foreground': '#64748b',
-  '--accent': '#eef2ff',
-  '--accent-foreground': '#3730a3',
-  '--border': '#e2e8f0',
-  '--input': '#e2e8f0',
-  '--ring': '#4f46e5',
+  '--background': '#202630',
+  '--foreground': '#E5EAF1',
+  '--card': '#29323E',
+  '--card-foreground': '#E5EAF1',
+  '--popover': '#29323E',
+  '--popover-foreground': '#E5EAF1',
+  '--primary': '#7888D9',
+  '--primary-foreground': '#202630',
+  '--secondary': '#333E4C',
+  '--secondary-foreground': '#E5EAF1',
+  '--muted': '#333E4C',
+  '--muted-foreground': '#AAB5C4',
+  '--accent': '#333E4C',
+  '--accent-foreground': '#E5EAF1',
+  '--border': '#414C5A',
+  '--input': '#414C5A',
+  '--ring': '#A1AEF0',
 } as React.CSSProperties;
 
 const pad = (n: number) => String(n).padStart(2, '0');

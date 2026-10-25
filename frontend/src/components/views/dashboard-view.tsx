@@ -236,19 +236,19 @@ export default function DashboardView({
   // Real Work-Type Stacked Chart Data
   const workTypeCategories: CategoryDef[] = [
     { key: 'marketing', label: 'Marketing', color: '#7888D9' },
-    { key: 'finance', label: 'Finance', color: '#64B99A' },
-    { key: 'sales', label: 'Sales', color: '#75AFCB' },
-    { key: 'general', label: 'General / Ops', color: '#AAB5C4' },
-    { key: 'support', label: 'Support', color: '#D9AD68' },
+    { key: 'finance', label: 'Finance', color: '#AAB5C4' },
+    { key: 'sales', label: 'Sales', color: '#414C5A' },
+    { key: 'general', label: 'General / Ops', color: '#414C5A' },
+    { key: 'support', label: 'Support', color: '#AAB5C4' },
   ];
 
   const workTypeData: StackedDataPoint[] = currentMetrics?.request_volume_by_worktype || [];
 
   // Token Breakdown Data
   const tokenBreakdownCategories: CategoryDef[] = [
-    { key: 'prompt', label: 'Prompt Tokens', color: '#75AFCB' },
+    { key: 'prompt', label: 'Prompt Tokens', color: '#414C5A' },
     { key: 'completion', label: 'Completion Tokens', color: '#7888D9' },
-    { key: 'cached', label: 'Cached / Reasoning', color: '#64B99A' },
+    { key: 'cached', label: 'Cached / Reasoning', color: '#AAB5C4' },
   ];
 
   const tokenBreakdownData: StackedDataPoint[] = currentMetrics?.token_breakdown_series || [];
@@ -256,13 +256,13 @@ export default function DashboardView({
   // Prompt Token Caching Data
   const promptCachingCategories: CategoryDef[] = [
     { key: 'uncached', label: 'Uncached', color: '#414C5A' },
-    { key: 'cached', label: 'Cached', color: '#64B99A' },
+    { key: 'cached', label: 'Cached', color: '#AAB5C4' },
   ];
 
   const promptCachingData: StackedDataPoint[] = currentMetrics?.prompt_caching_series || [];
 
   // Request Volume by Model dynamically derived from active top models
-  const dynamicModelPalette = ['#7888D9', '#64B99A', '#75AFCB', '#D9AD68', '#AAB5C4', '#D9828B'];
+  const dynamicModelPalette = ['#7888D9', '#AAB5C4', '#414C5A', '#AAB5C4', '#414C5A', '#AAB5C4'];
   const modelCategories: CategoryDef[] =
     currentMetrics?.top_model_names && currentMetrics.top_model_names.length > 0
       ? currentMetrics.top_model_names.map((name: string, idx: number) => ({
@@ -271,9 +271,9 @@ export default function DashboardView({
           color: dynamicModelPalette[idx % dynamicModelPalette.length],
         }))
       : [
-          { key: 'gemini', label: 'Gemini', color: '#10B981' },
-          { key: 'llama', label: 'Llama', color: '#EC4899' },
-          { key: 'claude', label: 'Claude', color: '#38BDF8' },
+          { key: 'gemini', label: 'Gemini', color: '#7888D9' },
+          { key: 'llama', label: 'Llama', color: '#AAB5C4' },
+          { key: 'claude', label: 'Claude', color: '#414C5A' },
         ];
 
   const modelData: StackedDataPoint[] = currentMetrics?.request_volume_by_model || [];

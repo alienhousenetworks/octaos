@@ -191,7 +191,7 @@ export default function EnterpriseView({
         order_id: order.razorpay_order_id,
         prefill: order.prefill || {},
         notes: order.notes || {},
-        theme: order.theme || { color: '#8b5cf6' },
+        theme: order.theme || { color: '#7888D9' },
         handler: async (response: any) => {
           const v = await fetch(`${API_URL}/enterprise/billing/razorpay/verify`, {
             method: 'POST',
@@ -246,7 +246,7 @@ export default function EnterpriseView({
         order_id: order.razorpay_order_id,
         prefill: order.prefill || {},
         notes: order.notes || {},
-        theme: { color: '#8b5cf6' },
+        theme: { color: '#7888D9' },
         handler: async (response: any) => {
           const v = await fetch(`${API_URL}/enterprise/billing/razorpay/verify`, {
             method: 'POST',

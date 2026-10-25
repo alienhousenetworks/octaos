@@ -52,17 +52,37 @@ export default function OrchestratorCharts({ charts }: OrchestratorChartsProps) 
 
     if (plotlyLoaded && window.Plotly) {
       const spec = activeChart.spec;
+      const sourceLayout = spec.layout as Record<string, any>;
+      const chartPalette = ['#7888D9', '#AAB5C4', '#414C5A'];
+      const normalizedData = spec.data.map((rawTrace: any, index: number) => {
+        const color = chartPalette[index % chartPalette.length];
+        const marker = rawTrace.marker && typeof rawTrace.marker === 'object' ? rawTrace.marker : {};
+        const line = rawTrace.line && typeof rawTrace.line === 'object' ? rawTrace.line : {};
+        return {
+          ...rawTrace,
+          marker: {
+            ...marker,
+            color,
+            ...(Array.isArray(marker.colors) ? { colors: marker.colors.map((_: unknown, colorIndex: number) => chartPalette[colorIndex % chartPalette.length]) } : {}),
+          },
+          ...(rawTrace.line ? { line: { ...line, color } } : {}),
+          ...(rawTrace.fillcolor ? { fillcolor: color } : {}),
+        };
+      });
       const responsiveLayout = {
         ...spec.layout,
         autosize: true,
         margin: { l: 40, r: 20, t: 40, b: 40 },
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { ...(sourceLayout.font || {}), color: '#E5EAF1' },
+        xaxis: { ...(sourceLayout.xaxis || {}), color: '#AAB5C4', gridcolor: '#414C5A', linecolor: '#414C5A' },
+        yaxis: { ...(sourceLayout.yaxis || {}), color: '#AAB5C4', gridcolor: '#414C5A', linecolor: '#414C5A' },
       };
 
       window.Plotly.newPlot(
         container,
-        spec.data,
+        normalizedData,
         responsiveLayout,
         spec.config || { responsive: true, displayModeBar: false }
       ).catch((err) => {
