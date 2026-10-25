@@ -124,30 +124,32 @@ async def fetch_and_verify_source(
     owns_client = client is None
     session = client or httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=4.0), follow_redirects=False, headers={"User-Agent": "OctaOS-SalesEvidence/1.0"})
     try:
-        response = await session.get(url, follow_redirects=False)
-        if response.is_redirect:
-            return SourceVerification(url, retrieved, None, str(quote or "")[:MAX_QUOTE_CHARS], False, "redirect_not_followed")
-        if response.status_code != 200:
-            return SourceVerification(url, retrieved, None, str(quote or "")[:MAX_QUOTE_CHARS], False, f"http_status_{response.status_code}")
-        content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-        if content_type not in ALLOWED_CONTENT_TYPES:
-            return SourceVerification(url, retrieved, None, str(quote or "")[:MAX_QUOTE_CHARS], False, "unsupported_content_type")
-        body = response.content
-        if len(body) > MAX_SOURCE_BYTES:
-            return SourceVerification(url, retrieved, None, str(quote or "")[:MAX_QUOTE_CHARS], False, "source_too_large")
-        encoding = response.encoding or "utf-8"
-        page_text = normalize_source_text(body.decode(encoding, errors="replace"))
-        result = verify_quote(url, page_text, quote)
-        return SourceVerification(
-            source_url=result.source_url,
-            retrieved_at=retrieved,
-            content_sha256=result.content_sha256,
-            quote=result.quote,
-            verified=result.verified,
-            reason=result.reason,
-            matched_start=result.matched_start,
-            matched_end=result.matched_end,
-        )
+        async with session.stream("GET", url, follow_redirects=False) as response:
+            if response.is_redirect:
+                return SourceVerification(url, retrieved, None, str(quote or "")[:MAX_QUOTE_CHARS], False, "redirect_not_followed")
+            if response.status_code != 200:
+                return SourceVerification(url, retrieved, None, str(quote or "")[:MAX_QUOTE_CHARS], False, f"http_status_{response.status_code}")
+            content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+            if content_type not in ALLOWED_CONTENT_TYPES:
+                return SourceVerification(url, retrieved, None, str(quote or "")[:MAX_QUOTE_CHARS], False, "unsupported_content_type")
+            body = bytearray()
+            async for chunk in response.aiter_bytes():
+                body.extend(chunk)
+                if len(body) > MAX_SOURCE_BYTES:
+                    return SourceVerification(url, retrieved, None, str(quote or "")[:MAX_QUOTE_CHARS], False, "source_too_large")
+            encoding = response.encoding or "utf-8"
+            page_text = normalize_source_text(bytes(body).decode(encoding, errors="replace"))
+            result = verify_quote(url, page_text, quote)
+            return SourceVerification(
+                source_url=result.source_url,
+                retrieved_at=retrieved,
+                content_sha256=result.content_sha256,
+                quote=result.quote,
+                verified=result.verified,
+                reason=result.reason,
+                matched_start=result.matched_start,
+                matched_end=result.matched_end,
+            )
     except (httpx.HTTPError, UnicodeError, ValueError):
         return SourceVerification(url, retrieved, None, str(quote or "")[:MAX_QUOTE_CHARS], False, "source_fetch_failed")
     finally:
