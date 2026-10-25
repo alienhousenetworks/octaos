@@ -19,7 +19,6 @@ from app.services.rbac_service import user_has_perm
 
 router = APIRouter()
 _ADMIN_ROLES = {"admin", "organization_admin", "super_admin"}
-_HR_ROLES = {"hr_admin", "hr_manager", "hr_recruiter"}
 
 
 def _require_permission(db: Session, user: User, codename: str) -> None:
@@ -213,7 +212,7 @@ def list_performance_reviews(
         employee = _employee_or_404(db, tenant_id, employee_id)
         _self_or_permission(db, current_user, employee, "hr.view_employees")
         q = q.filter(HRPerformanceReview.employee_id == employee.id)
-    elif not user_has_perm(db, current_user, "hr.view_employees") and not getattr(current_user, "is_system_admin", False) and not getattr(current_user, "is_superuser", False):
+    elif not user_has_perm(db, current_user, "hr.view_employees") and not getattr(current_user, "is_system_admin", False) and not getattr(current_user, "is_superuser", False) and (getattr(current_user, "role", "") or "").lower() not in _ADMIN_ROLES:
         own = db.query(EmployeeProfile.id).filter_by(tenant_id=tenant_id, user_id=current_user.id).subquery()
         q = q.filter(HRPerformanceReview.employee_id.in_(own))
     rows = q.order_by(HRPerformanceReview.created_at.desc()).all()
@@ -310,6 +309,7 @@ def decide_compensation_proposal(
     proposal.status = decision
     proposal.approver_user_id = current_user.id
     proposal.decided_at = datetime.now(timezone.utc)
+    proposal.decision_reason = payload.reason.strip()
     db.commit()
     # Approval is a decision record only; this endpoint does not alter payroll or salary systems.
     return {"id": proposal.id, "status": proposal.status, "payroll_applied": False}
@@ -396,5 +396,6 @@ def update_lifecycle_task(
     if payload.status == "completed":
         task.verified_by_user_id = current_user.id
         task.verified_at = datetime.now(timezone.utc)
+        task.verification_note = payload.verification_note.strip() if payload.verification_note else None
     db.commit()
     return {"id": task.id, "status": task.status, "verified_at": task.verified_at.isoformat() if task.verified_at else None}
