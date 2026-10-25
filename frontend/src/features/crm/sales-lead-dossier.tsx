@@ -25,6 +25,7 @@ interface SalesLeadDossierProps {
   onDeleteLead: (leadId: string) => Promise<void>;
   onLogNote: (leadId: string, content: string, channel: string, direction: string) => Promise<void>;
   onSaveLead: (leadId: string, updates: Partial<Lead>) => Promise<void>;
+  onSaveWhatsAppConsent: (leadId: string, optedIn: boolean, source: string) => Promise<void>;
   actionLoading: boolean;
 }
 
@@ -41,6 +42,7 @@ export default function SalesLeadDossier({
   onDeleteLead,
   onLogNote,
   onSaveLead,
+  onSaveWhatsAppConsent,
   actionLoading,
 }: SalesLeadDossierProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'signals' | 'outreach' | 'followups' | 'edit'>('overview');
@@ -48,6 +50,7 @@ export default function SalesLeadDossier({
   const [noteChannel, setNoteChannel] = useState('note');
   const [noteDirection, setNoteDirection] = useState('internal');
   const [meetingTime, setMeetingTime] = useState('');
+  const [whatsappConsentSource, setWhatsappConsentSource] = useState('');
 
   // Edit states
   const [editName, setEditName] = useState(lead?.name || '');
@@ -68,7 +71,8 @@ export default function SalesLeadDossier({
     setDraftBody(lead?.data?.draft_body || '');
     setSchedule(lead?.data?.outreach_schedule || []);
     setMeetingTime('');
-  }, [lead?.id, lead?.data?.draft_body, lead?.data?.outreach_schedule]);
+    setWhatsappConsentSource(lead?.data?.whatsapp_opt_in_source || '');
+  }, [lead?.id, lead?.data?.draft_body, lead?.data?.outreach_schedule, lead?.data?.whatsapp_opt_in_source]);
 
   if (!lead) return null;
 
