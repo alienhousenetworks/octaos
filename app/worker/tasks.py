@@ -1452,7 +1452,9 @@ def sync_buffer_delivery_status_task():
     from app.models.teams import AgentMetric
     from app.models.agents import ActivityLog
     from app.services.integrations.buffer_service import BufferService, BufferAPIError
+    import logging
 
+    task_logger = logging.getLogger("sync_buffer_delivery_status_task")
     db = SessionLocal()
     try:
         credentials = db.query(APICredential).filter(APICredential.provider == "buffer").all()
@@ -1460,18 +1462,16 @@ def sync_buffer_delivery_status_task():
         for credential in credentials:
             tenant_id = credential.tenant_id
             channel_map = dict((credential.settings or {}).get("channel_map", {}))
-            mapped_ids = set(channel_map.values())
-            if not mapped_ids:
-                continue
             try:
                 buffer = BufferService(db, tenant_id)
                 account = async_to_sync(buffer.account_and_channels)()
                 external_posts = {}
                 for organization in account.get("organizations", []):
+                    # Include all account channels so manually queued posts are also reconciled.
                     org_channels = [
                         channel.get("id")
                         for channel in organization.get("channels", [])
-                        if channel.get("id") in mapped_ids
+                        if channel.get("id")
                     ]
                     if not org_channels:
                         continue
@@ -1540,9 +1540,9 @@ def sync_buffer_delivery_status_task():
                 db.commit()
             except BufferAPIError as exc:
                 db.rollback()
-                logger.warning("Buffer status sync unavailable for tenant %s: %s", tenant_id, exc)
+                task_logger.warning("Buffer status sync unavailable for tenant %s: %s", tenant_id, exc)
             except Exception:
                 db.rollback()
-                logger.exception("Buffer status sync failed for tenant %s", tenant_id)
+                task_logger.exception("Buffer status sync failed for tenant %s", tenant_id)
     finally:
         db.close()
