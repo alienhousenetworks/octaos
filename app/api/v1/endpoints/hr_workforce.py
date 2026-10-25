@@ -235,9 +235,15 @@ def approve_leave(
 def get_leave_balances(
     employee_id: str,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
 ):
-    """Calculates authorized balance for all leave types from ledger entries."""
+    """Calculates tenant-scoped balance for all leave types from ledger entries."""
+    emp = db.query(EmployeeProfile).filter_by(id=employee_id, tenant_id=tenant_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+    if not (getattr(current_user, "is_system_admin", False) or getattr(current_user, "is_superuser", False) or _role(current_user) in _HR_ROLES or (emp.user_id and str(emp.user_id) == str(current_user.id))):
+        raise HTTPException(status_code=403, detail="You may only view your own leave balance.")
     ltypes = db.query(LeaveType).filter_by(tenant_id=tenant_id, is_active=True).all()
     evaluator = LeaveImpactSpecialist(db, tenant_id)
 
@@ -258,15 +264,17 @@ def get_leave_balances(
 def list_attendance(
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
-    date: Optional[str] = None
+    date: Optional[str] = None,
+    current_user: User = Depends(deps.get_current_user),
 ):
     """Retrieve daily attendance records with anomaly indicators."""
+    _require_hr_role(current_user)
     q = db.query(AttendanceRecord).filter(AttendanceRecord.tenant_id == tenant_id)
     records = q.order_by(AttendanceRecord.work_date.desc()).limit(100).all()
 
     results = []
     for r in records:
-        emp = db.query(EmployeeProfile).filter_by(id=r.employee_id).first()
+        emp = db.query(EmployeeProfile).filter_by(id=r.employee_id, tenant_id=tenant_id).first()
         results.append({
             "id": r.id,
             "employee_id": r.employee_id,
