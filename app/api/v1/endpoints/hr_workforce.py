@@ -325,23 +325,50 @@ def list_attendance(
     q = db.query(AttendanceRecord).filter(AttendanceRecord.tenant_id == tenant_id)
     records = q.order_by(AttendanceRecord.work_date.desc()).limit(100).all()
 
+    def local_clock(value, tz):
+        if not value:
+            return None
+        instant = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+        return instant.astimezone(tz).strftime("%H:%M")
+
     results = []
     for r in records:
         emp = db.query(EmployeeProfile).filter_by(id=r.employee_id, tenant_id=tenant_id).first()
+        latest_event = db.query(AttendanceAuditEvent).filter_by(
+            tenant_id=tenant_id, attendance_record_id=r.id
+        ).order_by(AttendanceAuditEvent.created_at.desc()).first()
+        tz = ZoneInfo("UTC")
+        local_work_date = r.work_date.strftime("%Y-%m-%d")
+        if latest_event:
+            try:
+                tz = ZoneInfo(latest_event.local_timezone)
+                local_work_date = latest_event.local_work_date
+            except (ZoneInfoNotFoundError, ValueError):
+                pass
+        if date and local_work_date != date:
+            continue
         results.append({
             "id": r.id,
             "employee_id": r.employee_id,
             "employee_name": emp.full_name if emp else "Unknown",
             "department": emp.department_name if emp else "General",
-            "work_date": r.work_date.strftime("%Y-%m-%d"),
-            "clock_in": r.clock_in.strftime("%H:%M") if r.clock_in else None,
-            "clock_out": r.clock_out.strftime("%H:%M") if r.clock_out else None,
+            "work_date": local_work_date,
+            "timezone": str(tz),
+            "clock_in": local_clock(r.clock_in, tz),
+            "clock_out": local_clock(r.clock_out, tz),
             "total_hours": r.total_hours,
             "status": r.status,
             "anomaly_detected": r.anomaly_detected,
             "anomaly_type": r.anomaly_type
         })
     return results
+
+
+def local_clock_value(value: Optional[datetime], tz) -> Optional[str]:
+    if not value:
+        return None
+    instant = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+    return instant.astimezone(tz).strftime("%H:%M")
 
 
 @router.post("/attendance/punch")
@@ -439,8 +466,10 @@ def punch_attendance(
     return {
         "id": rec.id,
         "employee_id": rec.employee_id,
-        "clock_in": rec.clock_in.strftime("%H:%M") if rec.clock_in else None,
-        "clock_out": rec.clock_out.strftime("%H:%M") if rec.clock_out else None,
+        "clock_in": local_clock_value(rec.clock_in, employee_tz),
+        "clock_out": local_clock_value(rec.clock_out, employee_tz),
+        "local_work_date": local_day.isoformat(),
+        "timezone": payload.timezone,
         "total_hours": rec.total_hours
     }
 
