@@ -130,8 +130,11 @@ class BufferService:
                     "grant_type": "refresh_token",
                     "refresh_token": refresh_token,
                 }
-                async with httpx.AsyncClient(timeout=20.0) as client:
-                    response = await client.post(BUFFER_TOKEN_URL, data=form)
+                try:
+                    async with httpx.AsyncClient(timeout=20.0) as client:
+                        response = await client.post(BUFFER_TOKEN_URL, data=form)
+                except httpx.HTTPError as exc:
+                    raise BufferAPIError("Could not refresh Buffer authorization. Reconnect Buffer and retry.") from exc
                 if response.status_code >= 400:
                     logger.warning("Buffer refresh failed with HTTP %s", response.status_code)
                     raise BufferAPIError("Buffer authorization expired. Reconnect Buffer.")
@@ -146,12 +149,15 @@ class BufferService:
 
     async def graphql(self, query: str, variables: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         token = await self._access_token()
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                BUFFER_API_URL,
-                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-                json={"query": query, "variables": variables or {}},
-            )
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    BUFFER_API_URL,
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                    json={"query": query, "variables": variables or {}},
+                )
+        except httpx.HTTPError as exc:
+            raise BufferAPIError("Could not reach Buffer. Check connectivity and reconcile before retrying writes.") from exc
         if response.status_code == 401:
             raise BufferAPIError("Buffer rejected the authorization. Reconnect Buffer.")
         if response.status_code >= 400:
