@@ -856,6 +856,43 @@ export default function SalesView({
     }
   };
 
+  const handleSaveWhatsAppConsent = async (leadId: string, optedIn: boolean, source: string) => {
+    if (optedIn && !source.trim()) {
+      notify('Record the actual consent source before enabling WhatsApp for this recipient.');
+      return;
+    }
+    setSalesActionLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/leads/${leadId}/whatsapp-opt-in`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opted_in: optedIn, source }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setSelectedLead((prev) => prev && prev.id === leadId ? {
+          ...prev,
+          data: {
+            ...(prev.data || {}),
+            whatsapp_opt_in: optedIn,
+            whatsapp_opt_in_source: source,
+            whatsapp_opt_in_at: result.recorded_at,
+            ...(optedIn ? {} : { whatsapp_opt_out_at: result.recorded_at }),
+          },
+        } : prev);
+        notify(optedIn ? 'Recipient WhatsApp opt-in recorded.' : 'Recipient WhatsApp opt-out recorded and suppressed.');
+        fetchLeads();
+      } else {
+        notify(result.detail || 'Could not update recipient WhatsApp consent.');
+      }
+    } catch (e) {
+      console.error(e);
+      notify('Could not update recipient WhatsApp consent.');
+    } finally {
+      setSalesActionLoading(false);
+    }
+  };
+
   const handleSaveSchedule = async (leadId: string, schedule: FollowUpStep[]) => {
     setSalesActionLoading(true);
     try {
@@ -1318,6 +1355,7 @@ export default function SalesView({
         onDeleteLead={handleDeleteLead}
         onLogNote={handleLogHumanUpdate}
         onSaveLead={handleSaveLead}
+        onSaveWhatsAppConsent={handleSaveWhatsAppConsent}
         actionLoading={salesActionLoading}
       />
 
