@@ -15,14 +15,17 @@ class AIManagerOrchestrator:
     respecting human approval gates, and verifying results.
     """
 
-    def __init__(self, api_key: str = None, db: Optional[Any] = None, tenant_id: str = "default", user_context: Optional[Dict[str, Any]] = None):
+    def __init__(self, api_key: str = None, db: Optional[Any] = None, tenant_id: Optional[str] = None, user_context: Optional[Dict[str, Any]] = None):
         self.decomposer = DAGDecomposer(api_key=api_key)
         self.router = ModelRouter()
         self.quality_gate = QualityGate()
         self.api_key = api_key
         self.db = db
-        self.tenant_id = tenant_id
-        self.user_context = user_context or {"role": "admin", "is_superuser": True}
+        if not tenant_id or not str(tenant_id).strip():
+            raise ValueError("An authenticated tenant_id is required for orchestration.")
+        self.tenant_id = str(tenant_id)
+        # Least-privilege default for non-route callers; never infer admin privileges.
+        self.user_context = user_context or {"role": "user", "is_superuser": False}
         self.tool_registry = ToolRegistry.get_instance()
 
     async def execute_goal(self, user_goal: str, risk_level: str = "NORMAL") -> Dict[str, Any]:
@@ -142,9 +145,9 @@ class AIManagerOrchestrator:
                             if res.status_code == 200:
                                 output_text = res.json()["choices"][0]["message"]["content"]
                             else:
-                                output_text = f"Execution verified: {task.description} completed with verified evidence."
-                    except Exception:
-                        output_text = f"Execution verified: {task.description} completed with verified evidence."
+                                output_text = f"[UNAVAILABLE] Model provider returned HTTP {res.status_code}; task output was not generated."
+                    except Exception as exc:
+                        output_text = f"[UNAVAILABLE] Model provider request failed ({type(exc).__name__}); task output was not generated."
 
                 # Quality Reflection Gate Check
                 verification = self.quality_gate.inspect_result(task.task_id, output_text)
