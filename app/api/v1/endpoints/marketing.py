@@ -1793,7 +1793,19 @@ def list_campaign_artifacts(
     if campaign_id:
         query = query.filter(models.CampaignArtifact.campaign_id == campaign_id)
     rows = query.order_by(models.CampaignArtifact.updated_at.desc()).limit(200).all()
-    return {"items": [_campaign_artifact_payload(row) for row in rows]}
+    items = []
+    for row in rows:
+        current = db.query(models.CampaignArtifactVersion).filter(
+            models.CampaignArtifactVersion.artifact_id == row.id,
+            models.CampaignArtifactVersion.tenant_id == tenant_id,
+            models.CampaignArtifactVersion.version == row.current_version,
+        ).first()
+        item = _campaign_artifact_payload(row)
+        if current:
+            item["current_version_hash"] = current.content_hash
+            item["current_version_review_status"] = current.review_status
+        items.append(item)
+    return {"items": items}
 
 
 @router.post("/artifacts")
