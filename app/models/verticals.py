@@ -474,3 +474,49 @@ import app.models.sales_intelligence  # noqa: E402, F401
 import app.models.hr  # noqa: E402, F401
 import app.models.real_estate  # noqa: E402, F401
 
+
+
+
+class VirtualInfluencerProfile(Base):
+    """Tenant-owned AI influencer persona, with versioned draft and review state."""
+    __tablename__ = "virtual_influencer_profiles"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="draft_requires_review", index=True)
+    brief = Column(JSON, nullable=False)
+    created_by = Column(String, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class CampaignArtifact(Base):
+    """Tenant-owned structured campaign deliverable; versions are immutable snapshots."""
+    __tablename__ = "campaign_artifacts"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    campaign_id = Column(String, nullable=True, index=True)
+    title = Column(String, nullable=False)
+    artifact_type = Column(String, nullable=False, index=True)
+    status = Column(String, nullable=False, default="draft", index=True)
+    current_version = Column(Integer, nullable=False, default=1)
+    created_by = Column(String, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class CampaignArtifactVersion(Base):
+    __tablename__ = "campaign_artifact_versions"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    artifact_id = Column(String, ForeignKey("campaign_artifacts.id", ondelete="CASCADE"), nullable=False, index=True)
+    version = Column(Integer, nullable=False)
+    content = Column(JSON, nullable=False)
+    content_hash = Column(String(64), nullable=False, index=True)
+    sources = Column(JSON, nullable=False, default=list)
+    review_status = Column(String, nullable=False, default="draft", index=True)
+    reviewed_by = Column(String, ForeignKey("users.id"), nullable=True)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    created_by = Column(String, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    __table_args__ = (UniqueConstraint("artifact_id", "version", name="uq_campaign_artifact_version"),)
