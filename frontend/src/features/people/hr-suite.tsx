@@ -335,7 +335,7 @@ export default function HREnterpriseSuite({
 
           {/* Quick Metrics & Copilot Trigger */}
           <div className="flex items-center gap-3">
-            <div className="hidden lg:flex items-center gap-4 bg-slate-800/60 border border-slate-700/60 rounded-lg px-4 py-1.5 text-xs">
+            <div className="hidden lg:flex items-center gap-4 bg-muted/50 border border-border rounded-lg px-4 py-1.5 text-xs">
               <div>
                 <span className="text-slate-400">Headcount:</span>{' '}
                 <span className="font-semibold text-white">{analytics?.headcount?.total_active ?? employees.length}</span>
@@ -349,7 +349,7 @@ export default function HREnterpriseSuite({
 
             <Button
               onClick={() => setIsCopilotOpen(true)}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-indigo-500/20 text-xs gap-2 font-medium"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm text-xs gap-2 font-medium"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
               Ask HR
@@ -432,12 +432,12 @@ export default function HREnterpriseSuite({
                     placeholder="Search by name, role, department..."
                     value={employeeSearch}
                     onChange={(e) => setEmployeeSearch(e.target.value)}
-                    className="pl-9 bg-slate-900 border-slate-800 text-xs w-64 text-white"
+                    className="pl-9 bg-background border-border text-xs w-64 text-foreground"
                   />
                 </div>
                 <Button
                   onClick={() => setIsAddEmployeeOpen(true)}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs gap-1.5"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs gap-1.5"
                 >
                   <Plus className="w-3.5 h-3.5" /> Add Employee
                 </Button>
@@ -447,24 +447,24 @@ export default function HREnterpriseSuite({
             {/* Employee Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredEmployees.map((emp) => (
-                <Card key={emp.id} className="bg-slate-900/60 border-slate-800/80 hover:border-slate-700 transition-all">
+                <Card key={emp.id} className="bg-card border-border hover:border-primary/40 transition-colors">
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white text-sm">
+                        <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-semibold text-primary-foreground text-sm">
                           {emp.first_name?.[0]}{emp.last_name?.[0]}
                         </div>
                         <div>
-                          <div className="text-sm font-semibold text-white">{emp.full_name}</div>
-                          <div className="text-xs text-slate-400">{emp.job_title}</div>
+                          <div className="text-sm font-semibold text-foreground">{emp.full_name}</div>
+                          <div className="text-xs text-muted-foreground">{emp.job_title}</div>
                         </div>
                       </div>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
                         {emp.employee_number}
                       </span>
                     </div>
 
-                    <div className="text-xs text-slate-400 space-y-1">
+                    <div className="text-xs text-muted-foreground space-y-1">
                       <div className="flex items-center gap-2">
                         <Building className="w-3.5 h-3.5 text-slate-500" />
                         <span>{emp.department_name || 'General Operations'}</span>
@@ -478,7 +478,7 @@ export default function HREnterpriseSuite({
                     {emp.skills?.length > 0 && (
                       <div className="flex flex-wrap gap-1 pt-1">
                         {emp.skills.slice(0, 3).map((s: string) => (
-                          <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                          <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
                             {s}
                           </span>
                         ))}
@@ -512,7 +512,7 @@ export default function HREnterpriseSuite({
 
               <Button
                 onClick={() => setIsLeaveModalOpen(true)}
-                className="bg-amber-600 hover:bg-amber-500 text-white text-xs gap-1.5"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs gap-1.5"
               >
                 <Plus className="w-3.5 h-3.5" /> Submit Leave Request
               </Button>
@@ -556,7 +556,7 @@ export default function HREnterpriseSuite({
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
                             l.status === 'approved'
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              ? 'bg-muted text-muted-foreground border border-border'
                               : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                           }`}
                         >
@@ -610,7 +610,7 @@ export default function HREnterpriseSuite({
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-400" />
               <div>
-                <h3 className="text-sm font-semibold text-white">Universal HR Copilot</h3>
+                <h3 className="text-sm font-semibold text-foreground">Universal HR Copilot</h3>
                 <span className="text-[10px] text-slate-400">Multi-agent orchestrator with HITL approvals</span>
               </div>
             </div>
@@ -688,7 +688,7 @@ export default function HREnterpriseSuite({
               </div>
             ))}
             {copilotLoading && (
-              <div className="text-xs text-slate-400 flex items-center gap-2 italic">
+              <div className="text-xs text-muted-foreground flex items-center gap-2 italic">
                 <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />
                 Specialist agent analyzing workforce data...
               </div>
