@@ -403,7 +403,8 @@ def publish_scheduled_posts():
             .filter(
                 ContentPost.approval_status == "approved",
                 ContentPost.scheduled_at <= now,
-                ContentPost.status != "published",
+                ContentPost.status.notin_(["published", "needs_configuration", "publish_uncertain"]),
+                ContentPost.external_post_id.is_(None),
             )
             .all()
         )
