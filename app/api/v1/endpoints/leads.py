@@ -763,6 +763,10 @@ def get_sales_settings(
         "sales_auto_reply": True,
         "reply_mode": "review_first",
         "auto_book_meetings": True,
+        "sales_ai_auto_send_enabled": False,
+        "outbound_permission_state": "unknown",
+        "whatsapp_permission_state": "unknown",
+        "whatsapp_opt_in": False,
     }
     cred = db.query(APICredential).filter_by(tenant_id=tenant_id, provider="sales").first()
     if cred and cred.settings:
@@ -781,10 +785,22 @@ def save_sales_settings(
     mode = str(payload.get("reply_mode") or "review_first").lower()
     if mode not in ("review_first", "auto_send"):
         raise HTTPException(400, "reply_mode must be review_first or auto_send")
+    outbound_permission = str(payload.get("outbound_permission_state") or "unknown").lower()
+    whatsapp_permission = str(payload.get("whatsapp_permission_state") or "unknown").lower()
+    allowed_permission_states = {"unknown", "granted", "denied"}
+    if outbound_permission not in allowed_permission_states:
+        raise HTTPException(400, "outbound_permission_state must be unknown, granted, or denied")
+    if whatsapp_permission not in allowed_permission_states:
+        raise HTTPException(400, "whatsapp_permission_state must be unknown, granted, or denied")
+
     settings = {
         "sales_auto_reply": bool(payload.get("sales_auto_reply", True)),
         "reply_mode": mode,
         "auto_book_meetings": bool(payload.get("auto_book_meetings", True)),
+        "sales_ai_auto_send_enabled": bool(payload.get("sales_ai_auto_send_enabled", False)),
+        "outbound_permission_state": outbound_permission,
+        "whatsapp_permission_state": whatsapp_permission,
+        "whatsapp_opt_in": bool(payload.get("whatsapp_opt_in", False)),
     }
     for key in ("follow_up_cadence_days", "max_ai_touchpoints", "meeting_duration_minutes", "buffer_minutes"):
         if payload.get(key) is not None:
