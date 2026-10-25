@@ -1041,8 +1041,20 @@ export default function SalesRecordWorkspace({
                   </div>
                   {confirmMeeting ? (
                     <div className="rounded-xl border border-border p-3">
-                      <p className="text-sm">Book a meeting through the existing meeting service?</p>
-                      <Button type="button" className="mt-2" disabled={actionLoading} onClick={() => void onBookMeeting(lead.id)}>
+                      <p className="text-sm">Enter the exact prospect-agreed meeting time in your local timezone.</p>
+                      <Input
+                        type="datetime-local"
+                        value={meetingTime}
+                        onChange={(event) => setMeetingTime(event.target.value)}
+                        disabled={actionLoading}
+                        className="mt-2"
+                      />
+                      <Button
+                        type="button"
+                        className="mt-2"
+                        disabled={actionLoading || !meetingTime}
+                        onClick={() => void onBookMeeting(lead.id, meetingTime)}
+                      >
                         Confirm booking
                       </Button>
                     </div>
