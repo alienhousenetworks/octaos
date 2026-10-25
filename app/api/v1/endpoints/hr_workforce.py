@@ -102,7 +102,7 @@ def list_leaves(
     current_user: User = Depends(deps.get_current_user),
 ):
     """Retrieve leave requests with employee details and coverage scores."""
-    _require_hr_role(current_user)
+    _require_hr_role(current_user, permission="hr.manage_leave")
     q = db.query(LeaveRequest).filter(LeaveRequest.tenant_id == tenant_id)
     if status:
         q = q.filter(LeaveRequest.status == status.lower())
@@ -204,7 +204,7 @@ def check_leave_impact(
     current_user: User = Depends(deps.get_current_user),
 ):
     """Re-runs the staffing coverage assessment for an existing leave request."""
-    _require_hr_role(current_user)
+    _require_hr_role(current_user, permission="hr.manage_leave")
     req = db.query(LeaveRequest).filter_by(id=id, tenant_id=tenant_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Leave request not found")
@@ -321,7 +321,7 @@ def list_attendance(
     current_user: User = Depends(deps.get_current_user),
 ):
     """Retrieve daily attendance records with anomaly indicators."""
-    _require_hr_role(current_user)
+    _require_hr_role(current_user, permission="hr.manage_workforce")
     q = db.query(AttendanceRecord).filter(AttendanceRecord.tenant_id == tenant_id)
     records = q.order_by(AttendanceRecord.work_date.desc()).limit(100).all()
 
@@ -425,7 +425,7 @@ def punch_attendance(
                 "status": rec.status,
                 "total_hours": rec.total_hours,
             },
-            source="hr_admin" if _role(current_user) in _HR_ROLES else "self_service",
+            source="hr_admin" if _has_hr_permission(current_user, "hr.manage_workforce") else "self_service",
         ))
         db.commit()
         db.refresh(rec)
@@ -477,7 +477,7 @@ def list_rosters(
     current_user: User = Depends(deps.get_current_user),
 ):
     """Retrieve shift rosters and coverage scores."""
-    _require_hr_role(current_user)
+    _require_hr_role(current_user, permission="hr.manage_workforce")
     rosters = db.query(ShiftRoster).filter_by(tenant_id=tenant_id).order_by(ShiftRoster.start_date.desc()).all()
     results = []
     for r in rosters:
