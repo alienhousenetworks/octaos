@@ -190,3 +190,19 @@ def test_dossier_builder_preserves_unknown_verification_and_score():
     assert data["contact_status"] == "NEEDS_VERIFICATION"
     assert data["evidence_tier"] == "UNKNOWN"
     assert data["qualification_score"] is None
+
+
+def test_generated_buying_signal_alone_is_not_source_evidence():
+    prospect = valid_prospect(
+        evidence_quote="",
+        buying_signal="Likely needs automation",
+        news=[],
+        jobs=[],
+    )
+    result = assess_outreach_readiness(
+        prospect,
+        auto_send_enabled=True,
+        permission_state="granted",
+    )
+    assert result["ready"] is False
+    assert "need_evidence_missing" in result["blockers"]
