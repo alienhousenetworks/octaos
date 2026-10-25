@@ -42,11 +42,11 @@ This is a safety and decision-quality foundation, not a claim that every channel
 
 ## Next implementation increments
 
-1. Add an execution ledger with durable run/step/agent/tool events, idempotency keys, bounded retries, and resumable failed steps.
-2. Unify the 15-agent Campaign OS and autonomous pulse around shared contracts and explicit gates, preserving existing behavior behind compatibility tests.
+1. Unify the 15-agent Campaign OS and autonomous pulse around shared contracts and explicit gates, preserving existing behavior behind compatibility tests.
+2. Add a recovery worker/operator interface that reclaims interrupted ledger runs and retries only safe, idempotent stages.
 3. Add evidence-backed brand claims and source freshness to the creative review contract.
 4. Add asset provenance, generation settings, visual/audio QA, and bounded revision loops for image/video.
-5. Add fictional virtual-influencer identity consistency, rights/disclosure checks, and a separate workflow for real-person influencer discovery.
+5. Add durable virtual-influencer identity consistency, rights/disclosure checks, and a separate workflow for real-person influencer discovery.
 6. Harden each social connector with permission diagnostics, publish idempotency, post-publication verification, and explicit capability matrices.
 7. Learn posting-time recommendations only from sufficient account-specific analytics; keep the fallback heuristic labeled as a fallback.
 8. Add versioned industry packs for regulated and non-regulated industries, with per-pack claim rules, source requirements, KPIs, and approval thresholds.
