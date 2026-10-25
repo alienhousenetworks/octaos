@@ -1093,6 +1093,7 @@ Strict Tone & Quality Rules:
                         "conversation": conv,
                         "outreach_schedule": channel_schedule,
                         "sent_actual": True,
+                        "outreach_readiness": readiness,
                     }
                 else:
                     lead.status = "scored"
