@@ -398,6 +398,7 @@ def publish_scheduled_posts():
                 ContentPost.approval_status == "approved",
                 ContentPost.scheduled_at <= now,
                 ContentPost.status != "published",
+                ContentPost.external_post_id.is_(None),
             )
             .all()
         )
