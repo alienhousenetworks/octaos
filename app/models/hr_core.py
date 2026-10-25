@@ -177,6 +177,7 @@ class HRCompensationChange(Base):
     status = Column(String, nullable=False, default="pending_approval")  # pending_approval, approved, rejected, applied
     approver_user_id = Column(String, ForeignKey("users.id"), nullable=True)
     decided_at = Column(DateTime(timezone=True), nullable=True)
+    decision_reason = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     __table_args__ = (
@@ -199,6 +200,7 @@ class HRLifecycleTask(Base):
     verification_required = Column(Boolean, nullable=False, default=True)
     verified_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
     verified_at = Column(DateTime(timezone=True), nullable=True)
+    verification_note = Column(Text, nullable=True)
     due_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
