@@ -21,18 +21,26 @@ from app.services.agents.hr.schemas import RiskTier
 
 router = APIRouter()
 
-_HR_ROLES = {"admin", "organization_admin", "super_admin", "hr_admin", "hr_manager", "hr_recruiter", "hr_hiring_manager", "manager"}
-_HR_APPROVER_ROLES = {"admin", "organization_admin", "super_admin", "hr_admin", "hr_manager", "manager"}
-
 def _role(user: User) -> str:
     return (getattr(user, "role", None) or "").strip().lower().replace("-", "_").replace(" ", "_")
 
-def _require_hr_role(user: User, approve: bool = False) -> None:
+
+def _has_hr_permission(user: User, codename: str) -> bool:
     if getattr(user, "is_system_admin", False) or getattr(user, "is_superuser", False):
-        return
-    allowed = _HR_APPROVER_ROLES if approve else _HR_ROLES
-    if _role(user) not in allowed:
-        raise HTTPException(status_code=403, detail="You do not have permission to perform this HR operation.")
+        return True
+    if _role(user) in {"admin", "organization_admin", "super_admin"}:
+        return True
+    effective = {getattr(permission, "codename", "") for permission in (getattr(user, "user_permissions", None) or [])}
+    for group in (getattr(user, "groups", None) or []):
+        effective.update(getattr(permission, "codename", "") for permission in (getattr(group, "permissions", None) or []))
+    return codename in effective
+
+
+def _require_hr_role(user: User, approve: bool = False, permission: Optional[str] = None) -> None:
+    # Permission codenames come from app.services.rbac_service.SYSTEM_PERMISSIONS.
+    codename = permission or ("hr.manage_leave" if approve else "hr.view_employees")
+    if not _has_hr_permission(user, codename):
+        raise HTTPException(status_code=403, detail=f"Missing required permission: {codename}.")
 
 
 
@@ -449,7 +457,7 @@ def optimize_roster(
     current_user: User = Depends(deps.get_current_user),
 ):
     """Generate a draft shift proposal for authorized HR users."""
-    _require_hr_role(current_user, approve=True)
+    _require_hr_role(current_user, permission="hr.manage_employees")
     roster = db.query(ShiftRoster).filter_by(id=payload.roster_id, tenant_id=tenant_id).first()
     if not roster:
         raise HTTPException(status_code=404, detail="Roster not found in this organization.")
