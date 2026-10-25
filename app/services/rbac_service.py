@@ -33,7 +33,7 @@ SYSTEM_PERMISSIONS = [
     {"name": "Can manage performance reviews", "codename": "hr.manage_performance", "content_type": "hr", "description": "Create, submit, and administer performance review cycles"},
     {"name": "Can manage compensation proposals", "codename": "hr.manage_compensation", "content_type": "hr", "description": "Create compensation proposals and participate in authorized approval workflows"},
     {"name": "Can manage HR service desk", "codename": "hr.manage_service_requests", "content_type": "hr", "description": "Assign, update, and resolve internal employee service requests"},
-    {"name": "Can manage onboarding and offboarding", "codename": "hr.manage_lifecycle", "content_type": "hr", "description": "Manage governed onboarding and offboarding checklists and verification"}
+    {"name": "Can manage onboarding and offboarding", "codename": "hr.manage_lifecycle", "content_type": "hr", "description": "Manage governed onboarding and offboarding checklists and verification"},
 
     # Marketing Domain
     {"name": "Can view marketing campaigns", "codename": "marketing.view_campaigns", "content_type": "marketing", "description": "View marketing calendar, campaign performance, and radar"},
