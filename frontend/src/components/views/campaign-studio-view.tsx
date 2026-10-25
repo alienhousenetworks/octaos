@@ -25,6 +25,8 @@ type Post = {
   day?: number | null;
 };
 
+type SavedPersona = { id: string; name: string; status: string; brief: Persona };
+
 type Artifact = { id: string; title: string; artifact_type: string; status: string; current_version: number; campaign_id?: string | null };
 
 type Persona = {
@@ -75,6 +77,7 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
   const [personaInput, setPersonaInput] = useState({ company_name: '', industry: '', brand_tone: 'Confident, useful and human', audience: '', platform: 'instagram', creative_direction: '' });
   const [persona, setPersona] = useState<Persona | null>(null);
   const [personaLoading, setPersonaLoading] = useState(false);
+  const [savedPersonas, setSavedPersonas] = useState<SavedPersona[]>([]);
   const [buffer, setBuffer] = useState<any>(null);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [artifactLoading, setArtifactLoading] = useState(false);
@@ -102,6 +105,18 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
       .catch(e => { if (!cancelled) setError(e?.message || 'Analytics are unavailable.'); });
     return () => { cancelled = true; };
   }, [API_URL, fetchWithAuth, tab, token]);
+  const loadPersonas = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/marketing/virtual-influencer/profiles`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setSavedPersonas(Array.isArray(data.items) ? data.items : []);
+    } catch { /* existing brief remains usable when profile listing is unavailable */ }
+  }, [API_URL, fetchWithAuth, token]);
+
+  useEffect(() => { if (tab === 'influencers') void loadPersonas(); }, [tab, loadPersonas]);
+
   const loadArtifacts = useCallback(async () => {
     if (!token) return;
     setArtifactLoading(true);
@@ -159,7 +174,8 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || 'Virtual influencer generation is unavailable.');
       setPersona(data);
-      setNotice('Persona brief generated. It remains a draft and requires human review.');
+      void loadPersonas();
+      setNotice('Persona brief saved. It remains a draft and requires human review.');
     } catch (e: any) { setNotice(e?.message || 'Virtual influencer generation is unavailable.'); }
     finally { setPersonaLoading(false); }
   }
@@ -281,6 +297,8 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{filtered.map(post => <article key={post.id} className="overflow-hidden rounded-xl border border-border bg-card">{post.image_url && !String(post.image_url).startsWith('error:') ? <img src={post.image_url} alt="Campaign creative" className="aspect-[16/9] w-full bg-background object-cover" /> : <div className="grid aspect-[16/9] place-items-center bg-background"><ImageIcon className="size-8 text-muted-foreground" /></div>}<div className="space-y-3 p-4"><div className="flex items-center justify-between gap-2"><span className="text-xs capitalize text-muted-foreground">{post.platform || 'Unknown channel'}</span><span className="rounded-full border border-border px-2 py-1 text-xs">{statusLabel(post)}</span></div><p className="line-clamp-4 whitespace-pre-wrap text-sm">{post.content || 'No caption available.'}</p>{post.video_url && <a className="text-sm text-primary underline" href={post.video_url} target="_blank" rel="noreferrer">Open video asset</a>}</div></article>)}</div>
       {!loading && filtered.length === 0 && <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No matching content.</div>}
     </section>}
+
+    {tab === 'influencers' && savedPersonas.length > 0 && <section className="rounded-xl border border-border bg-card"><div className="border-b border-border p-4"><h2 className="font-semibold">Saved virtual influencers</h2><p className="mt-1 text-xs text-muted-foreground">Tenant-owned persona briefs; all remain drafts until reviewed.</p></div><div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">{savedPersonas.map(p => <button key={p.id} onClick={() => setPersona(p.brief)} className="rounded-lg border border-border p-3 text-left hover:bg-muted"><p className="font-medium">{p.name}</p><p className="mt-1 text-xs text-muted-foreground">{p.status.replaceAll('_',' ')}</p><p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{p.brief?.persona || 'No persona description'}</p></button>)}</div></section>}
 
     {tab === 'influencers' && <section className="grid gap-5 xl:grid-cols-[minmax(320px,.85fr)_minmax(0,1.15fr)]">
       <div className="rounded-xl border border-border bg-card p-5 md:p-6"><div className="flex items-center gap-2"><Users className="size-5 text-primary" /><h2 className="text-xl font-semibold">Create a virtual influencer</h2></div><p className="mt-2 text-sm leading-6 text-muted-foreground">Design an original fictional adult persona for your brand. Generated personas must be disclosed as AI and reviewed before use.</p>
