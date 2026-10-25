@@ -2572,7 +2572,15 @@ export default function CampaignsView({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <FieldLabel>Copy Model Provider</FieldLabel>
-                    <Select value={textProvider} onValueChange={(v) => { if (v) setTextProvider(v); }}>
+                    <Select value={textProvider} onValueChange={(v) => {
+                      if (!v) return;
+                      setTextProvider(v);
+                      if (v === 'auto') setTextModel(routingDefaults?.copy?.model || '');
+                      else {
+                        const options = modelsFor(v, 'text');
+                        if (!options.some((m) => m.slug === textModel)) setTextModel(options[0]?.slug || '');
+                      }
+                    }}>
                       <SelectTrigger className="w-full text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="auto">Environment default</SelectItem>
@@ -2591,7 +2599,15 @@ export default function CampaignsView({
                   </div>
                   <div className="space-y-1">
                     <FieldLabel>Image Provider</FieldLabel>
-                    <Select value={imageProvider} onValueChange={(v) => { if (v) setImageProvider(v); }}>
+                    <Select value={imageProvider} onValueChange={(v) => {
+                      if (!v) return;
+                      setImageProvider(v);
+                      if (v === 'auto') setImageModel(routingDefaults?.image?.model || '');
+                      else {
+                        const options = modelsFor(v, 'image');
+                        if (!options.some((m) => m.slug === imageModel)) setImageModel(options[0]?.slug || '');
+                      }
+                    }}>
                       <SelectTrigger className="w-full text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="auto">Environment default</SelectItem>
@@ -2610,7 +2626,15 @@ export default function CampaignsView({
                   </div>
                   <div className="space-y-1">
                     <FieldLabel>Video Engine</FieldLabel>
-                    <Select value={videoProvider} onValueChange={(v) => { if (v) setVideoProvider(v); }}>
+                    <Select value={videoProvider} onValueChange={(v) => {
+                      if (!v) return;
+                      setVideoProvider(v);
+                      if (v === 'auto') setVideoModel(routingDefaults?.video?.model || '');
+                      else {
+                        const options = modelsFor(v, 'video');
+                        if (!options.some((m) => m.slug === videoModel)) setVideoModel(options[0]?.slug || '');
+                      }
+                    }}>
                       <SelectTrigger className="w-full text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="auto">Environment default</SelectItem>
