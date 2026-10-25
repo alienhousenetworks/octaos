@@ -468,6 +468,6 @@ async def test_search_engine_runs_bounded_adaptive_expansion_rounds():
     batch = await engine.run(spec())
     payload = store.get_job("tenant-1", batch.job_id)
 
-    assert payload["expansion_round"] <= 3
+    assert 2 <= payload["expansion_round"] <= 3
     assert payload["expansion_done"] is True
     assert any(record["company_domain"] == "acme.example" for record in payload["records"])
