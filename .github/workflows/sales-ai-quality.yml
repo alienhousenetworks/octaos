@@ -6,6 +6,10 @@ on:
       - "app/services/sales/**"
       - "app/services/sales/meeting_booking.py"
       - "app/services/sales_os/**"
+      - "app/models/sales_workflow.py"
+      - "app/models/__init__.py"
+      - "tests/test_sales_workflow_ledger.py"
+      - "docs/sales-ai-end-to-end-reliability.md"
       - "app/api/v1/endpoints/leads.py"
       - "app/core/rbac.py"
       - "tests/test_sales_quality_gates.py"
@@ -84,6 +88,9 @@ jobs:
             app/services/sales/meeting_service.py \
             app/services/sales/utils.py \
             app/services/sales_os/quality_gates.py \
+            app/services/sales_os/source_verification.py \
+            app/services/sales_os/workflow_ledger.py \
+            app/models/sales_workflow.py \
             app/services/sales_os/search_v4/planner.py \
             app/services/sales_os/search_v4/engine.py \
             app/api/v1/endpoints/leads.py \
@@ -93,6 +100,7 @@ jobs:
         run: |
           pytest -q \
             tests/test_sales_quality_gates.py \
+            tests/test_sales_workflow_ledger.py \
             tests/test_sales_gatekeeper.py \
             tests/test_sales_cadence_multichannel.py \
             tests/test_sales_settings.py
