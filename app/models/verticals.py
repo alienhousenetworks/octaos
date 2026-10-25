@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Float, Text, JSON
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Float, Text, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 import uuid
@@ -90,7 +90,10 @@ class ContentPost(Base):
 class MarketingExecution(Base):
     """Durable tenant-scoped run record for resumable marketing workflows."""
     __tablename__ = "marketing_executions"
-    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "workflow_type", "idempotency_key", name="uq_marketing_execution_idempotency"),
+    )
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     workflow_type = Column(String, nullable=False, index=True)
     idempotency_key = Column(String, nullable=False)
@@ -110,7 +113,7 @@ class MarketingExecution(Base):
 class MarketingExecutionStep(Base):
     """Append-oriented stage history for debugging and bounded recovery."""
     __tablename__ = "marketing_execution_steps"
-    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     execution_id = Column(String, ForeignKey("marketing_executions.id"), nullable=False, index=True)
     stage_id = Column(String, nullable=False)
