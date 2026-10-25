@@ -78,8 +78,8 @@ export default function SalesHeader({
                 {current.label}
               </h1>
               {isExecuting ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#263D38] text-success border border-success/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#64B99A] animate-ping" />
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-success/10 text-success border border-success/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-success animate-ping" />
                   Agent running
                 </span>
               ) : null}
@@ -268,7 +268,7 @@ export default function SalesHeader({
                 {tab.icon}
                 {tab.label}
                 {tab.badge && (
-                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#263D38] text-success border border-success/20">
+                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-success/10 text-success border border-success/20">
                     {tab.badge}
                   </span>
                 )}
