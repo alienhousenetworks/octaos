@@ -61,17 +61,29 @@ def _build_lead_data(c: dict) -> dict:
         "publisher": c.get("publisher") or "",
         "buying_signal": c.get("buying_signal") or "",
         "evidence_quote": c.get("evidence_quote") or "",
-        "contact_status": c.get("contact_status") or "READY",
+        "contact_status": c.get("contact_status") or "NEEDS_VERIFICATION",
         "contact_confidence": c.get("contact_confidence") or "UNKNOWN",
         "platform_contact": c.get("platform_contact") or "",
-        "evidence_tier": c.get("evidence_tier") or "VERIFIED",
-        "qualification_score": c.get("qualification_score") or (
-            c.get("scoring", {}).get("total") if isinstance(c.get("scoring"), dict) else 0.0
+        "evidence_tier": c.get("evidence_tier") or "UNKNOWN",
+        "qualification_score": (
+            c.get("qualification_score")
+            if c.get("qualification_score") is not None
+            else (
+                c.get("scoring", {}).get("total")
+                if isinstance(c.get("scoring"), dict) and c["scoring"].get("total") is not None
+                else None
+            )
         ),
         "rejection_reason": c.get("rejection_reason"),
     }
     if c.get("pain_points"):
         data["pain_points"] = c["pain_points"]
+    if c.get("news"):
+        data["news"] = c["news"]
+    if c.get("jobs"):
+        data["jobs"] = c["jobs"]
+    if c.get("contact_verification"):
+        data["contact_verification"] = c["contact_verification"]
     if c.get("scoring"):
         data["scoring_breakdown"] = c["scoring"]
     return data
