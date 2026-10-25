@@ -1,5 +1,6 @@
 """Deterministic safety and evidence gates for Sales AI outreach."""
 import os
+from datetime import datetime, timezone
 
 os.environ.setdefault("SALES_EVIDENCE_SIGNING_KEY", "test-only-sales-evidence-key")
 
@@ -22,6 +23,8 @@ def valid_prospect(**overrides):
             "quote": "Acme announced a new regional sales team.",
             "verified": True,
             "reason": "exact_quote_match",
+            "retrieved_at": datetime.now(timezone.utc).isoformat(),
+            "content_sha256": "a" * 64,
         },
         "buying_signal": "Expansion announcement",
         "pain_points": ["regional lead routing"],
