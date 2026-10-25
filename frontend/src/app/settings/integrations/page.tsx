@@ -20,6 +20,7 @@ function bearerToken() {
 export default function IntegrationsPage() {
   const [status, setStatus] = useState<BufferStatus | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [channelMap, setChannelMap] = useState<Record<string, string>>({});
   const [apiKey, setApiKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -51,6 +52,7 @@ export default function IntegrationsPage() {
       if (next.connected) {
         const channels = await request("/marketing/connectors/buffer/channels");
         setOrganizations(channels.organizations || []);
+        setChannelMap(channels.channel_map || {});
       } else {
         setOrganizations([]);
       }
@@ -99,6 +101,23 @@ export default function IntegrationsPage() {
     }
   }
 
+  async function saveChannelMapping(platform: string, channelId: string) {
+    setBusy(true);
+    setError("");
+    try {
+      await request("/marketing/connectors/buffer/channels/map", {
+        method: "POST",
+        body: JSON.stringify({ platform, channel_id: channelId }),
+      });
+      setChannelMap((current) => ({ ...current, [platform]: channelId }));
+      setMessage("Mapped " + platform + " publishing to the selected Buffer channel.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save channel mapping.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function disconnect() {
     setBusy(true);
     setError("");
@@ -106,6 +125,7 @@ export default function IntegrationsPage() {
       await request("/marketing/connectors/buffer/disconnect", { method: "DELETE" });
       setStatus({ connected: false });
       setOrganizations([]);
+      setChannelMap({});
       setMessage("Buffer disconnected from this OctaOS workspace.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not disconnect Buffer.");
@@ -163,6 +183,32 @@ export default function IntegrationsPage() {
       </section>
 
       <section className="space-y-4">
+        {status?.connected && organizations.some((org) => org.channels.length > 0) && (
+          <div className="rounded-2xl border p-5">
+            <h2 className="text-xl font-semibold">Default channel mapping</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Map each OctaOS platform to a Buffer channel. Approved scheduled posts use these mappings; mismatched channels are rejected.</p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {["instagram", "facebook", "linkedin", "x", "youtube", "tiktok", "threads", "pinterest", "bluesky"].map((platform) => (
+                <label key={platform} className="space-y-2 text-sm">
+                  <span className="font-medium capitalize">{platform}</span>
+                  <select
+                    value={channelMap[platform] || ""}
+                    disabled={busy}
+                    onChange={(event) => {
+                      if (event.target.value) void saveChannelMapping(platform, event.target.value);
+                    }}
+                    className="w-full rounded-xl border bg-background px-3 py-2"
+                  >
+                    <option value="">Not mapped</option>
+                    {organizations.flatMap((org) => org.channels).map((channel) => (
+                      <option key={channel.id} value={channel.id}>{channel.name} · {channel.service}</option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
         <div>
           <h2 className="text-xl font-semibold">Connected organizations and channels</h2>
           <p className="text-sm text-muted-foreground">These are the accounts Buffer reports for the authorized user. Publishing remains approval-gated.</p>
