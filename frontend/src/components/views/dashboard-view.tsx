@@ -118,7 +118,7 @@ export default function DashboardView({
   const pending = posts.length + leads.length;
 
   // Primary Business Metrics & Harvested Data
-  const rate = currentMetrics?.automation_success_rate ?? (currentMetrics?.token_usage?.total_requests ? 100 : 0);
+  const rate: number | null = typeof currentMetrics?.automation_success_rate === 'number' ? currentMetrics.automation_success_rate : null;
   const revenue = currentMetrics?.revenue_impact ?? 0;
   const pipelineVal = currentMetrics?.pipeline_value ?? 0;
   const aiCost = currentMetrics?.ai_cost ?? 0;
@@ -492,11 +492,11 @@ export default function DashboardView({
               />
               <KpiMetricCard
                 label="Autonomous Success"
-                value={`${rate}%`}
+                value={rate === null ? '—' : `${rate}%`}
                 sparklineData={sparklines.requests}
                 deltaPct={null}
                 deltaText="vs prev period"
-                hint={`${reliability.succeeded}/${reliability.total_runs || 0} tasks clean`}
+                hint={reliability.total_runs > 0 ? `${reliability.succeeded}/${reliability.total_runs} tasks clean` : 'No execution data yet'}
                 onExplore={() => setActiveView('orchestrator')}
               />
               <KpiMetricCard
