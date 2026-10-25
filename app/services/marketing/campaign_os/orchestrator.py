@@ -9,6 +9,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 import logging
 import uuid
+from functools import wraps
 from sqlalchemy.orm import Session
 
 from app.models.verticals import ContentPost
@@ -20,6 +21,23 @@ from app.services.marketing.compiler.prompt_compiler import MediaPromptCompiler
 from app.services.marketing.autonomy.execution_ledger import MarketingExecutionLedger
 
 logger = logging.getLogger(__name__)
+
+
+def _persist_execution_failure(method):
+    """Ensure uncaught campaign-level failures are recorded before propagating."""
+    @wraps(method)
+    async def wrapped(self, *args, **kwargs):
+        try:
+            return await method(self, *args, **kwargs)
+        except Exception as exc:
+            if self.execution_id:
+                try:
+                    self._ledger.fail(self.execution_id, str(exc))
+                except Exception as ledger_err:
+                    logger.warning("[CampaignOS] Failed to persist run failure: %s", ledger_err)
+                    self.db.rollback()
+            raise
+    return wrapped
 
 
 class CampaignOSOrchestrator:
@@ -120,6 +138,7 @@ class CampaignOSOrchestrator:
         except Exception as e:
             logger.debug(f"[CampaignOS] Failed to update job stage: {e}")
 
+    @_persist_execution_failure
     async def execute_campaign_dag(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the durable multi-stage campaign generation DAG using the 15-Agent Council."""
         topic = params.get("topic", "Enterprise Automation")
