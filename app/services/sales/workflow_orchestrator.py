@@ -1009,7 +1009,13 @@ Strict Tone & Quality Rules:
                     permission_state=policy_settings.get("outbound_permission_state"),
                     suppressed=bool(c.get("suppressed") or c.get("do_not_contact")),
                 )
-                if outreach_body and readiness["ready"]:
+                email_allowed = bool(c["contact"].get("email"))
+                whatsapp_allowed = (
+                    bool(c["contact"].get("phone"))
+                    and str(policy_settings.get("whatsapp_permission_state") or "").lower() == "granted"
+                    and bool(policy_settings.get("whatsapp_opt_in"))
+                )
+                if outreach_body and readiness["ready"] and email_allowed:
                     delivery = dispatch_sales_touch(
                         self.db,
                         self.tenant_id,
@@ -1019,7 +1025,7 @@ Strict Tone & Quality Rules:
                         subject=subject,
                         step_number=1,
                     )
-                    if not delivery.get("sent") and c["contact"].get("phone"):
+                    if not delivery.get("sent") and whatsapp_allowed:
                         whatsapp_delivery = dispatch_sales_touch(
                             self.db,
                             self.tenant_id,
@@ -1031,13 +1037,26 @@ Strict Tone & Quality Rules:
                         )
                         if whatsapp_delivery.get("sent"):
                             delivery = whatsapp_delivery
+                elif outreach_body and readiness["ready"] and whatsapp_allowed:
+                    delivery = dispatch_sales_touch(
+                        self.db,
+                        self.tenant_id,
+                        lead,
+                        channel="whatsapp",
+                        body=body,
+                        subject=subject,
+                        step_number=1,
+                    )
                 else:
+                    blockers = list(readiness["blockers"])
+                    if not email_allowed and not whatsapp_allowed:
+                        blockers.append("no_channel_specific_permission_or_contact_route")
                     delivery = {
                         "sent": False,
                         "channel": "email",
                         "reason": "outreach_readiness_blocked",
-                        "message": "Outbound not dispatched; readiness blockers: " + ", ".join(readiness["blockers"]),
-                        "blockers": readiness["blockers"],
+                        "message": "Outbound not dispatched; readiness blockers: " + ", ".join(blockers),
+                        "blockers": blockers,
                     }
 
                 sent_successfully = bool(delivery.get("sent"))
