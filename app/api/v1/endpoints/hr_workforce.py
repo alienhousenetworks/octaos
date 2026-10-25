@@ -534,7 +534,8 @@ def create_employee_availability(
     employee = db.query(EmployeeProfile).filter_by(id=payload.employee_id, tenant_id=tenant_id).first()
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found.")
-    _require_hr_role(current_user, permission="hr.manage_workforce")
+    if not (employee.user_id and str(employee.user_id) == str(current_user.id)):
+        _require_hr_role(current_user, permission="hr.manage_workforce")
     if payload.ends_at <= payload.starts_at:
         raise HTTPException(status_code=422, detail="Availability end must be after start.")
     if payload.status not in {"available", "unavailable", "leave"}:
