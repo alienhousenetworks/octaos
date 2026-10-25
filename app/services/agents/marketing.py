@@ -301,6 +301,7 @@ class MarketingAgent(BaseAgent):
                     source_url=getattr(brief, "source_url", None),
                     media_required=bool(generate_media),
                     media_generated=media_generated,
+                    publisher_supported=platform.lower() in {"facebook", "instagram", "linkedin"},
                     require_approval=bool(params.get("require_human_approval", False)),
                 )
                 is_approved = bool(policy_decision["approved"])
