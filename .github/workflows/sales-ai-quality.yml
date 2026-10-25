@@ -18,6 +18,7 @@ on:
       - "frontend/src/features/crm/sales-config-panel.tsx"
       - "frontend/src/features/crm/sales-view.tsx"
       - "frontend/src/features/crm/sales-types.ts"
+      - "frontend/src/features/crm/sales-lead-dossier.tsx"
       - "frontend/package.json"
       - "frontend/package-lock.json"
       - "frontend/tsconfig.json"
