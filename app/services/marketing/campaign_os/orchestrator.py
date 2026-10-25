@@ -63,7 +63,6 @@ class CampaignOSOrchestrator:
                             output_payload={"message": message or "Stage completed"},
                         )
                     self._active_ledger_stage = None
-                    self._ledger.complete(self.execution_id, {"status": "completed", "stage": stage_id})
                 elif self._active_ledger_stage != stage_id:
                     self._ledger.begin_step(
                         self.execution_id, stage_id,
