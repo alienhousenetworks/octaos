@@ -1,6 +1,6 @@
 """Durable, tenant-scoped Orchestra data intelligence runs and source artifacts."""
 import uuid
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, JSON, Text, Float, Index
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, JSON, Text, Index, UniqueConstraint
 from sqlalchemy.sql import func
 from app.models.base import Base
 
@@ -24,7 +24,10 @@ class DataAnalysisRun(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
-    __table_args__ = (Index("ix_data_analysis_tenant_created", "tenant_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_data_analysis_tenant_created", "tenant_id", "created_at"),
+        UniqueConstraint("tenant_id", "idempotency_key", name="uq_data_analysis_tenant_idempotency"),
+    )
 
 
 class DataAnalysisArtifact(Base):
