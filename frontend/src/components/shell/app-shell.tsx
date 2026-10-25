@@ -132,7 +132,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const nav = (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex h-[68px] items-center gap-3 border-b border-sidebar-border px-4">
+      <div className="flex h-[68px] items-center gap-3 border-b border-sidebar-border px-5">
         <Link href="/app/home" className="flex min-w-0 items-center gap-2">
           {workspace.logoUrl ? (
             <img src={workspace.logoUrl} alt="OctaOS" className="h-7 w-auto max-w-[132px] object-contain" />
@@ -155,7 +155,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   id={`nav-${item.id}`}
                   title={item.name}
                   aria-current={isActive ? "page" : undefined}
-                  className={`group/nav mb-1 flex h-10 items-center gap-3 rounded-lg border border-transparent px-3 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar ${isActive ? 'border-primary/15 bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-[inset_2px_0_0_var(--primary)]' : 'text-muted-foreground hover:border-border/70 hover:bg-surface-hover hover:text-foreground'}`}
+                  className={`group/nav mb-1 flex h-10 items-center gap-3 rounded-lg border border-transparent px-3 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar ${isActive ? 'border-primary/15 bg-sidebar-accent text-sidebar-accent-foreground font-semibold' : 'text-muted-foreground hover:border-border/70 hover:bg-surface-hover hover:text-foreground'}`}
                 >
                   <Icon className={`size-[17px] shrink-0 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground group-hover/nav:text-foreground'}`} />
                   <span className={`truncate ${collapsed ? 'sr-only' : ''}`}>{item.name}</span>
@@ -213,7 +213,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </button>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[68px] shrink-0 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur md:px-7">
+        <header className="flex h-[68px] shrink-0 items-center gap-3 border-b border-border bg-card px-4 md:px-7">
           <button
             type="button"
             className="inline-flex size-9 items-center justify-center rounded-md border border-border md:hidden"
@@ -234,7 +234,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <span className="hidden text-xs text-muted-foreground lg:inline">⌘K</span>
             </Button>
             {approvalCount ? (
-              <Link href="/app/approvals" className="hidden rounded-md border border-amber-500/30 px-2 py-1 text-xs text-amber-300 sm:inline">
+              <Link href="/app/approvals" className="hidden rounded-md border border-border bg-muted px-2 py-1 text-xs text-muted-foreground sm:inline">
                 {approvalCount} to review
               </Link>
             ) : null}
@@ -246,7 +246,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <DropdownMenuTrigger
                 render={<button type="button" id="header-profile-btn" className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-2 text-sm" />}
               >
-                <span className="inline-flex size-6 items-center justify-center rounded-md bg-primary text-xs font-medium text-primary-foreground">{initials}</span>
+                <span className="inline-flex size-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{initials}</span>
                 <span className="hidden max-w-[140px] truncate sm:inline">{profile?.name || profile?.email || 'Account'}</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
@@ -271,7 +271,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </DropdownMenu>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8"><div className="mx-auto w-full max-w-[1680px]">{children}</div></main>
+        <main className="flex-1 overflow-auto px-4 py-6 md:px-7 md:py-8"><div className="mx-auto w-full max-w-[1600px]">{children}</div></main>
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} profile={profile} />
     </div>
