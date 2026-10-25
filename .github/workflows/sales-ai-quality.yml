@@ -6,6 +6,8 @@ on:
       - "app/services/sales/**"
       - "app/services/sales_os/**"
       - "tests/test_sales_quality_gates.py"
+      - "tests/test_sales_cadence_multichannel.py"
+      - "tests/test_sales_settings.py"
       - "tests/test_search_v4.py"
       - ".github/workflows/sales-ai-quality.yml"
       - "requirements.txt"
