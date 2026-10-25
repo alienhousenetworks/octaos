@@ -84,10 +84,10 @@ def validate_public_source_url(
 
 def normalize_source_text(raw: str) -> str:
     """Convert basic HTML to searchable text without interpreting page scripts."""
-    text = re.sub(r"(?is)<(script|style|noscript|svg)[^>]*>.*?</\\1\\s*>", " ", raw or "")
+    text = re.sub(r"(?is)<(script|style|noscript|svg)[^>]*>.*?</\1\s*>", " ", raw or "")
     text = re.sub(r"(?s)<[^>]+>", " ", text)
     text = unescape(text)
-    return re.sub(r"\\s+", " ", text).strip()
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def verify_quote(source_url: str, source_text: str, quote: str) -> SourceVerification:
