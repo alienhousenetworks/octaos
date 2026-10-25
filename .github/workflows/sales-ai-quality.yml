@@ -1,0 +1,55 @@
+name: Sales AI Quality Gates
+
+on:
+  pull_request:
+    paths:
+      - "app/services/sales/**"
+      - "app/services/sales_os/**"
+      - "tests/test_sales_quality_gates.py"
+      - "tests/test_search_v4.py"
+      - ".github/workflows/sales-ai-quality.yml"
+      - "requirements.txt"
+  push:
+    branches:
+      - main
+      - "feat/sales-ai-evidence-first-runtime"
+    paths:
+      - "app/services/sales/**"
+      - "app/services/sales_os/**"
+      - "tests/test_sales_quality_gates.py"
+      - "tests/test_search_v4.py"
+      - ".github/workflows/sales-ai-quality.yml"
+      - "requirements.txt"
+
+permissions:
+  contents: read
+
+jobs:
+  sales-ai-tests:
+    name: Sales AI Evidence and Search Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio
+
+      - name: Run deterministic Sales AI quality gates
+        run: |
+          pytest -q tests/test_sales_quality_gates.py tests/test_sales_gatekeeper.py
+
+      - name: Run Search V4 discovery and evidence tests
+        run: |
+          pytest -q tests/test_search_v4.py
