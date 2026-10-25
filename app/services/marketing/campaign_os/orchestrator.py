@@ -32,6 +32,13 @@ def _persist_execution_failure(method):
         except Exception as exc:
             if self.execution_id:
                 try:
+                    if self._active_ledger_stage:
+                        self._ledger.finish_step(
+                            self.execution_id,
+                            self._active_ledger_stage,
+                            error=str(exc),
+                        )
+                        self._active_ledger_stage = None
                     self._ledger.fail(self.execution_id, str(exc))
                 except Exception as ledger_err:
                     logger.warning("[CampaignOS] Failed to persist run failure: %s", ledger_err)
