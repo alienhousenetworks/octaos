@@ -35,6 +35,15 @@ def test_required_but_missing_media_requires_review():
     assert "required_media_not_generated" in decision["reasons"]
 
 
+
+def test_unavailable_publisher_adapter_cannot_auto_schedule():
+    decision = evaluate_marketing_action(
+        confidence=1.0,
+        publisher_supported=False,
+    )
+    assert decision["approved"] is False
+    assert "publisher_adapter_unavailable" in decision["reasons"]
+
 def test_tenant_approval_policy_overrides_confidence():
     decision = evaluate_marketing_action(confidence=1.0, require_approval=True)
     assert not decision["approved"]
