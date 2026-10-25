@@ -102,8 +102,13 @@ def run_task(
     if task.status not in {"queued", "blocked", "failed"}:
         raise HTTPException(status_code=409, detail=f"Task cannot be run from status '{task.status}'.")
     if task.status in {"blocked", "failed"}:
-        # Requeue only non-terminal recoverable states; keep previous events as history.
-        task.status = "queued"
+        # Requeue only recoverable states and preserve the transition in the event ledger.
+        runtime = AutonomousRuntime(db)
+        try:
+            runtime.transition(task, "queued", "Task manually requeued by an authorized user.",
+                               payload={"actor_id": user.id})
+        except RuntimePolicyError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         task.blocker = None
         task.error_code = None
         task.finished_at = None
