@@ -1649,6 +1649,11 @@ def marketing_workforce_readiness(
     return get_marketing_workforce_readiness(db, tenant_id)
 
 
+class VirtualInfluencerReviewRequest(BaseModel):
+    decision: str = Field(pattern="^(approve|changes_requested|reject)$")
+    comment: str = Field(default="", max_length=3000)
+
+
 class CampaignArtifactCreateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=240)
     artifact_type: str = Field(min_length=1, max_length=80)
@@ -1780,6 +1785,41 @@ def list_virtual_influencer_profiles(
     ).order_by(models.VirtualInfluencerProfile.updated_at.desc()).limit(200).all()
     return {"items": [{"id": p.id, "name": p.name, "status": p.status, "brief": p.brief,
                        "created_at": p.created_at, "updated_at": p.updated_at} for p in rows]}
+
+
+@router.post("/virtual-influencer/profiles/{profile_id}/review")
+def review_virtual_influencer_profile(
+    profile_id: str,
+    body: VirtualInfluencerReviewRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(require_permission(Resource.CAMPAIGNS, Action.UPDATE)),
+) -> Dict[str, Any]:
+    profile = db.query(models.VirtualInfluencerProfile).filter(
+        models.VirtualInfluencerProfile.id == profile_id,
+        models.VirtualInfluencerProfile.tenant_id == tenant_id,
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Virtual influencer profile not found")
+    profile.status = {
+        "approve": "approved_for_content_review",
+        "changes_requested": "changes_requested",
+        "reject": "rejected",
+    }[body.decision]
+    profile.updated_at = datetime.now(timezone.utc)
+    profile.brief = {
+        **(profile.brief or {}),
+        "review": {
+            "decision": body.decision,
+            "comment": body.comment,
+            "reviewed_by": getattr(current_user, "id", None),
+            "reviewed_at": profile.updated_at.isoformat(),
+        },
+    }
+    db.commit()
+    db.refresh(profile)
+    return {"id": profile.id, "name": profile.name, "status": profile.status,
+            "brief": profile.brief, "updated_at": profile.updated_at}
 
 
 @router.get("/artifacts")
