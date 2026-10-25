@@ -841,7 +841,12 @@ export default function SalesView({
       });
       if (res.ok) {
         const d = await res.json();
-        notify(d.sent ? 'Outreach sent.' : (d.send_message || 'Outreach staged (email not sent).'));
+        if (d.sent === true) {
+          notify('Outreach sent successfully.');
+        } else {
+          const blockers = Array.isArray(d.blockers) ? d.blockers.join(', ') : '';
+          notify(d.send_message || d.message || blockers || 'Outreach was not sent.');
+        }
         fetchLeads();
       }
     } catch (e) {
