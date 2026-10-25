@@ -222,7 +222,7 @@ export default function SupportView({
           live_chat_enabled: data.live_chat_enabled ?? true,
           widget_title: data.widget_title || 'Customer Support',
           widget_welcome: data.widget_welcome || 'Hi there! How can we assist you today?',
-          widget_color: data.widget_color || '#2563eb',
+          widget_color: data.widget_color || '#9dff1f',
           reply_mode: data.reply_mode === 'auto_send' ? 'auto_send' : 'review_first',
         });
       }
