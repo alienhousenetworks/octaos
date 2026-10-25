@@ -54,6 +54,10 @@ class LeaveLedgerEntry(Base):
     created_by_user_id = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "transaction_type", "reference_id", name="uq_leave_ledger_reference_once"),
+    )
+
 
 class LeaveRequest(Base):
     """Formal employee leave application with AI coverage assessment and approval routing."""
