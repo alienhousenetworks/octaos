@@ -79,6 +79,12 @@ class Settings(BaseSettings):
     PUBLIC_BASE_URL: str = "http://localhost:8000"
     MEDIA_UPLOAD_DIR: str = "uploads"
 
+    # Buffer OAuth (confidential Authorization Code + PKCE client)
+    BUFFER_CLIENT_ID: Optional[str] = None
+    BUFFER_CLIENT_SECRET: Optional[str] = None
+    BUFFER_REDIRECT_URI: Optional[str] = None
+    FRONTEND_BASE_URL: str = "http://localhost:3000"
+
     # OAUTH — Meta
     META_APP_ID: Optional[str] = None
     META_APP_SECRET: Optional[str] = None
