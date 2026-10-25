@@ -1,0 +1,43 @@
+name: Marketing Autonomy Tests
+
+on:
+  pull_request:
+    paths:
+      - "app/services/marketing/**"
+      - "app/services/agents/marketing.py"
+      - "app/models/verticals.py"
+      - "alembic/versions/*marketing*"
+      - "tests/marketing/**"
+      - ".github/workflows/marketing-autonomy-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-marketing-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Compile changed Python modules
+        run: |
+          python -m compileall -q app/services/marketing/autonomy app/services/marketing/context_radar/trend_synthesizer.py app/services/marketing/campaign_os/orchestrator.py app/services/agents/marketing.py app/services/marketing/virtual_influencer.py app/models/verticals.py
+      - name: Run focused autonomy tests
+        env:
+          DATABASE_URL: sqlite:///./marketing-autonomy-tests.db
+        run: |
+          pytest -q tests/marketing/test_autonomy_decision_engine.py tests/marketing/test_autonomy_policy.py tests/marketing/test_marketing_execution_ledger.py
+      - name: Run Campaign OS regression tests
+        env:
+          DATABASE_URL: sqlite:///./marketing-autonomy-tests.db
+        run: pytest -q tests/evaluation_harness/test_campaign_15_agents_orchestration.py
