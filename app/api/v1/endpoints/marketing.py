@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
 from sqlalchemy.orm import Session
 from typing import List, Any, Optional, Dict
 from pydantic import BaseModel, Field
 from datetime import datetime, timedelta, timezone
+import hashlib
+import json
 from asgiref.sync import async_to_sync
 
 from app.api import deps
@@ -1645,6 +1647,27 @@ def marketing_workforce_readiness(
     from app.services.marketing.workforce_readiness import get_marketing_workforce_readiness
 
     return get_marketing_workforce_readiness(db, tenant_id)
+
+
+class CampaignArtifactCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=240)
+    artifact_type: str = Field(min_length=1, max_length=80)
+    campaign_id: Optional[str] = Field(default=None, max_length=200)
+    content: Dict[str, Any]
+    sources: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class CampaignArtifactVersionRequest(BaseModel):
+    content: Dict[str, Any]
+    sources: List[Dict[str, Any]] = Field(default_factory=list)
+    expected_version: int = Field(ge=1)
+
+
+class CampaignArtifactReviewRequest(BaseModel):
+    version: int = Field(ge=1)
+    content_hash: str = Field(min_length=64, max_length=64)
+    decision: str = Field(pattern="^(approve|changes_requested|reject)$")
+    comment: str = Field(default="", max_length=3000)
 
 
 class VirtualInfluencerBriefRequest(BaseModel):
