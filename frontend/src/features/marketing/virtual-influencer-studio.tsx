@@ -244,9 +244,16 @@ export default function VirtualInfluencerStudio({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="instagram">Instagram (Reels & Feed)</SelectItem>
-                    <SelectItem value="linkedin">LinkedIn (Creator Mode)</SelectItem>
                     <SelectItem value="facebook">Facebook (Stories & Video)</SelectItem>
-                    <SelectItem value="twitter">X / Twitter (Social Clip)</SelectItem>
+                    <SelectItem value="linkedin">LinkedIn (Creator Mode)</SelectItem>
+                    <SelectItem value="twitter">X / Twitter</SelectItem>
+                    <SelectItem value="threads">Threads</SelectItem>
+                    <SelectItem value="tiktok">TikTok</SelectItem>
+                    <SelectItem value="youtube">YouTube / Shorts</SelectItem>
+                    <SelectItem value="pinterest">Pinterest</SelectItem>
+                    <SelectItem value="bluesky">Bluesky</SelectItem>
+                    <SelectItem value="mastodon">Mastodon</SelectItem>
+                    <SelectItem value="googlebusiness">Google Business Profile</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
