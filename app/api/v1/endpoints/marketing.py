@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response
 from sqlalchemy.orm import Session
 from typing import List, Any, Optional, Dict
 from pydantic import BaseModel, Field
@@ -1779,10 +1779,13 @@ class InfluencerCreativeGenerateRequest(BaseModel):
 @router.post("/virtual-influencer/reference-image")
 async def upload_influencer_reference_image(
     file: UploadFile = File(...),
+    rights_confirmed: bool = Form(...),
     tenant_id: str = Depends(deps.get_current_tenant_id),
     _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.CREATE)),
 ) -> Dict[str, Any]:
-    """Store an image reference for this tenant; the caller must have rights to use it."""
+    """Store an image reference only after the caller confirms usage rights."""
+    if not rights_confirmed:
+        raise HTTPException(status_code=400, detail="Confirm permission to use this character image before uploading.")
     allowed = {"image/jpeg", "image/png", "image/webp"}
     content_type = (file.content_type or "").lower().split(";")[0].strip()
     if content_type not in allowed:
@@ -1859,7 +1862,7 @@ async def create_influencer_creative_plan(
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Creative plan generation failed. Check the tenant text-model configuration and try again.") from exc
     plan["status"] = "draft_requires_review"
-    plan["generation_mode"] = "live_model_response"
+    plan["generation_mode"] = "tenant_ai_gateway_response"
     plan["brand_inputs"] = {"company": body.company_name, "industry": body.industry, "goal": body.campaign_goal}
     return plan
 
