@@ -211,9 +211,19 @@ def dispatch_linkedin_touch(
             "linkedin_url": linkedin_url,
         }
 
-    # If automated third-party LinkedIn bot is configured in credentials
+    # Automated LinkedIn dispatch requires the same explicit tenant authorization
+    # as email/WhatsApp. Without it, retain the human approval queue below.
     apify_cred = db.query(APICredential).filter_by(tenant_id=tenant_id, provider="apify").first()
-    if apify_cred and apify_cred.encrypted_key and apify_cred.settings and apify_cred.settings.get("enable_automated_linkedin_send"):
+    sales_credential = db.query(APICredential).filter_by(tenant_id=tenant_id, provider="sales").first()
+    sales_settings = (sales_credential.settings if sales_credential else {}) or {}
+    linkedin_authorization = assess_channel_authorization(sales_settings, "linkedin")
+    if (
+        apify_cred
+        and apify_cred.encrypted_key
+        and apify_cred.settings
+        and apify_cred.settings.get("enable_automated_linkedin_send")
+        and linkedin_authorization["ready"]
+    ):
         try:
             from apify_client import ApifyClient
             from app.core.security import decrypt_api_key
