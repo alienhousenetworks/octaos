@@ -49,7 +49,7 @@ export type NavGroup = {
 
 export const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Work',
+    label: 'Workspace',
     items: [
       { id: 'dashboard', name: 'Home', href: '/app/home', icon: BarChart3, section: 'dashboard', keywords: 'dashboard operating' },
       { id: 'approvals', name: 'Approvals', href: '/app/approvals', icon: CheckCheck, section: 'system', keywords: 'hitl review queue' },
@@ -64,13 +64,13 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'Service',
+    label: 'Customer service',
     items: [
       { id: 'support', name: 'Support', href: '/app/support', icon: MessageSquare, section: 'support' },
     ],
   },
   {
-    label: 'People',
+    label: 'People & HR',
     items: [
       { id: 'hr', name: 'People', href: '/app/hr', icon: Users, section: 'hr', match: 'exact', keywords: 'employees directory headcount hr' },
       { id: 'hr_hiring', name: 'Hiring', href: '/app/hr/hiring', icon: Briefcase, section: 'hr', also: ['/app/hiring'], keywords: 'ats candidates resumes interviews offers recruitment' },
@@ -78,20 +78,20 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'Workforce',
+    label: 'AI workforce',
     items: [
-      { id: 'agents', name: 'Agents', href: '/app/agents', icon: Bot, section: 'teams', keywords: 'workforce agents directory cockpit' },
-      { id: 'orchestrator', name: 'Live runs', href: '/app/orchestrator', icon: Activity, section: 'orchestrator', keywords: 'orchestrator running tasks' },
-      { id: 'automations', name: 'Workflows', href: '/app/automations', icon: GitFork, section: 'automations', keywords: 'automations workflows triggers' },
+      { id: 'agents', name: 'AI employees', href: '/app/agents', icon: Bot, section: 'teams', keywords: 'workforce agents directory cockpit' },
+      { id: 'orchestrator', name: 'Activity & runs', href: '/app/orchestrator', icon: Activity, section: 'orchestrator', keywords: 'orchestrator running tasks' },
+      { id: 'automations', name: 'Workflow builder', href: '/app/automations', icon: GitFork, section: 'automations', keywords: 'automations workflows triggers' },
       { id: 'teams', name: 'Teams', href: '/app/teams', icon: Users, section: 'teams' },
       { id: 'marketplace', name: 'Marketplace', href: '/app/marketplace', icon: Store, section: 'marketplace' },
     ],
   },
   {
-    label: 'Oversight',
+    label: 'Governance',
     items: [
-      { id: 'ceo', name: 'Business autonomy', href: '/app/ceo', icon: Target, section: 'ceo', keywords: 'business autonomy control plane objectives execution strategy' },
-      { id: 'coordination', name: 'Decision assurance', href: '/app/boardroom', icon: ShieldCheck, section: 'coordination', keywords: 'decision assurance boardroom governance risk audit' },
+      { id: 'ceo', name: 'Objectives & execution', href: '/app/ceo', icon: Target, section: 'ceo', keywords: 'business autonomy control plane objectives execution strategy' },
+      { id: 'coordination', name: 'Governance & risk', href: '/app/boardroom', icon: ShieldCheck, section: 'coordination', keywords: 'decision assurance boardroom governance risk audit' },
     ],
   },
   {
@@ -99,10 +99,10 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'api_management', name: 'Integrations', href: '/app/settings/integrations', icon: KeyRound, section: 'system', keywords: 'api keys byok' },
       { id: 'profile', name: 'Organization', href: '/app/settings/organization', icon: UserCircle, section: 'profile' },
-      { id: 'members', name: 'Members', href: '/app/settings/members', icon: Users, section: 'members', adminOnly: true },
-      { id: 'rbac', name: 'Access Control (Django RBAC)', href: '/app/admin/rbac', icon: ShieldCheck, section: 'members', adminOnly: true, keywords: 'django admin rbac groups permissions roles users auth' },
-      { id: 'ai_optimization', name: 'AI cost', href: '/app/costs', icon: DollarSign, section: 'ai_optimization' },
-      { id: 'enterprise', name: 'Enterprise', href: '/app/settings/enterprise', icon: Shield, section: 'system' },
+      { id: 'members', name: 'Team members', href: '/app/settings/members', icon: Users, section: 'members', adminOnly: true },
+      { id: 'rbac', name: 'Roles & permissions', href: '/app/admin/rbac', icon: ShieldCheck, section: 'members', adminOnly: true, keywords: 'django admin rbac groups permissions roles users auth' },
+      { id: 'ai_optimization', name: 'AI usage & costs', href: '/app/costs', icon: DollarSign, section: 'ai_optimization' },
+      { id: 'enterprise', name: 'Security & enterprise', href: '/app/settings/enterprise', icon: Shield, section: 'system' },
       { id: 'system_admin', name: 'System admin', href: '/app/admin', icon: Zap, section: 'system_admin', systemAdminOnly: true },
     ],
   },
