@@ -59,9 +59,9 @@ export default function HRView({
     access_list: [],
     created_at: new Date().toISOString(),
     data: {
-      role: 'Senior Full Stack Engineer',
-      requirements: 'Python, FastAPI, React, TypeScript, PostgreSQL, Docker, 3+ years experience',
-      salary: '$130,000/year',
+      role: '',
+      requirements: '',
+      salary: '',
     },
   };
 
@@ -71,11 +71,9 @@ export default function HRView({
 
   // ── Main Candidates & ATS State ──
   const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [hrRole, setHrRole] = useState('Senior Full Stack Engineer');
-  const [hrRequirements, setHrRequirements] = useState(
-    'Python, FastAPI, React, TypeScript, PostgreSQL, Docker, 3+ years experience'
-  );
-  const [hrSalary, setHrSalary] = useState('$130,000/year');
+  const [hrRole, setHrRole] = useState('');
+  const [hrRequirements, setHrRequirements] = useState('');
+  const [hrSalary, setHrSalary] = useState('');
   const [hrProvider, setHrProvider] = useState('auto');
   const [hrModel, setHrModel] = useState('');
 
@@ -134,8 +132,8 @@ export default function HRView({
   const [interviewDate, setInterviewDate] = useState<string>('');
   const [interviewTime, setInterviewTime] = useState<string>('11:00 AM');
   const [interviewRound, setInterviewRound] = useState<string>('Technical System Design');
-  const [meetingLink, setMeetingLink] = useState<string>('https://meet.google.com/octa-interview');
-  const [interviewerName, setInterviewerName] = useState<string>('Engineering Hiring Lead');
+  const [meetingLink, setMeetingLink] = useState<string>('');
+  const [interviewerName, setInterviewerName] = useState<string>('');
   const [interviewTimezone, setInterviewTimezone] = useState<string>(
     typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' : 'UTC'
   );
@@ -407,10 +405,6 @@ export default function HRView({
     ]);
 
     try {
-      const progressTimer = setInterval(() => {
-        setUploadPercent((prev) => (prev < 85 ? prev + 8 : prev));
-      }, 700);
-
       const formData = new FormData();
       selected.forEach((item) => formData.append('files', item.file));
       formData.append('role', hrRole);
@@ -430,9 +424,6 @@ export default function HRView({
         method: 'POST',
         body: formData,
       });
-
-      clearInterval(progressTimer);
-      setUploadPercent(95);
 
       const data = await res.json();
       if (res.ok) {

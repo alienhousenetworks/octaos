@@ -75,6 +75,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: 'hr', name: 'People', href: '/app/hr', icon: Users, section: 'hr', match: 'exact', keywords: 'employees directory headcount hr' },
       { id: 'hr_hiring', name: 'Hiring', href: '/app/hr/hiring', icon: Briefcase, section: 'hr', also: ['/app/hiring'], keywords: 'ats candidates resumes interviews offers recruitment' },
       { id: 'hr_leave', name: 'Time off', href: '/app/hr/leave', icon: Calendar, section: 'hr', keywords: 'leave pto coverage' },
+      { id: 'hr_operations', name: 'People operations', href: '/app/hr/operations', icon: ShieldCheck, section: 'hr', keywords: 'service desk performance reviews compensation onboarding offboarding lifecycle workforce' },
     ],
   },
   {
@@ -150,6 +151,7 @@ const VIEW_PATHS: Record<string, string> = {
   hr: '/app/hr',
   hr_hiring: '/app/hr/hiring',
   hr_leave: '/app/hr/leave',
+  hr_operations: '/app/hr/operations',
   sales_find: '/app/sales/find',
   sales_activity: '/app/sales/activity',
   sales_revenue: '/app/sales/revenue',
@@ -213,6 +215,9 @@ export function crumbForPath(pathname: string) {
   }
   if (pathname.startsWith('/app/hr/leave')) {
     return { section: 'People', name: 'Time off' };
+  }
+  if (pathname.startsWith('/app/hr/operations')) {
+    return { section: 'People', name: 'People operations' };
   }
   if (pathname.startsWith('/app/campaigns/rooms/')) {
     const slug = pathname.replace('/app/campaigns/rooms/', '').split('/')[0];
