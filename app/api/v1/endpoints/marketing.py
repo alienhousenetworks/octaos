@@ -1684,9 +1684,9 @@ async def generate_virtual_influencer_brief(
     body: VirtualInfluencerBriefRequest,
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
-    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.CREATE)),
+    current_user: User = Depends(require_permission(Resource.CAMPAIGNS, Action.CREATE)),
 ) -> Any:
-    """Generate a tenant-scoped fictional adult virtual-influencer brief; never publishes it."""
+    """Generate and persist a tenant-scoped fictional adult virtual-influencer draft; never publishes it."""
     from app.services.ai_gateway import ai_gateway
     from app.services.marketing.virtual_influencer import create_virtual_influencer_brief
 
@@ -1725,7 +1725,21 @@ async def generate_virtual_influencer_brief(
             platform=body.platform,
             creative_direction=body.creative_direction,
         )
-        return {**result, "persistence": "not_persisted", "message": "Draft generated; review and export it before use."}
+        profile = models.VirtualInfluencerProfile(
+            tenant_id=tenant_id,
+            name=str(result.get("name") or "Untitled virtual influencer")[:200],
+            status="draft_requires_review",
+            brief=result,
+            created_by=getattr(current_user, "id", None),
+        )
+        db.add(profile)
+        db.commit()
+        db.refresh(profile)
+        return {
+            **result, "id": profile.id, "status": profile.status,
+            "persistence": "persisted",
+            "message": "Draft saved to this workspace. Human review is required before use.",
+        }
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
