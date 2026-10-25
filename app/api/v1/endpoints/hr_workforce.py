@@ -35,6 +35,13 @@ def _require_hr_role(user: User, approve: bool = False) -> None:
 
 
 
+def _require_self_or_hr(user: User, employee: EmployeeProfile) -> None:
+    if getattr(user, "is_system_admin", False) or getattr(user, "is_superuser", False) or _role(user) in _HR_ROLES:
+        return
+    if employee.user_id and str(employee.user_id) == str(user.id):
+        return
+    raise HTTPException(status_code=403, detail="You may only access your own employee record.")
+
 class LeaveSubmitRequest(BaseModel):
     employee_id: str
     leave_type_code: str = "ANNUAL"
@@ -104,6 +111,7 @@ def submit_leave_request(
     emp = db.query(EmployeeProfile).filter_by(id=payload.employee_id, tenant_id=tenant_id).first()
     if not emp:
         raise HTTPException(status_code=404, detail="Employee not found")
+    _require_self_or_hr(current_user, emp)
 
     try:
         s_date = datetime.strptime(payload.start_date, "%Y-%m-%d")
@@ -159,14 +167,16 @@ def submit_leave_request(
 def check_leave_impact(
     id: str,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
 ):
-    """Re-runs the real-time AI staffing coverage simulation for an existing leave request."""
+    """Re-runs the staffing coverage assessment for an existing leave request."""
+    _require_hr_role(current_user)
     req = db.query(LeaveRequest).filter_by(id=id, tenant_id=tenant_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Leave request not found")
 
-    ltype = db.query(LeaveType).filter_by(id=req.leave_type_id).first()
+    ltype = db.query(LeaveType).filter_by(id=req.leave_type_id, tenant_id=tenant_id).first()
     evaluator = LeaveImpactSpecialist(db, tenant_id)
     impact = evaluator.evaluate_leave_request(
         employee_id=req.employee_id,
