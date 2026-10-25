@@ -159,6 +159,44 @@ class MarketingAgent(BaseAgent):
     async def autonomous_marketing_pulse(
         self, params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
+        """Run an autonomous pulse with durable execution/idempotency tracking."""
+        from app.services.marketing.autonomy.execution_ledger import MarketingExecutionLedger
+
+        params = params or {}
+        key = str(params.get("idempotency_key") or uuid.uuid4())
+        ledger = MarketingExecutionLedger(self.db, self.tenant_id)
+        execution = ledger.start_or_resume(
+            "autonomous_marketing_pulse",
+            key,
+            {k: v for k, v in params.items() if k != "idempotency_key"},
+        )
+        if execution.status == "completed" and execution.result_payload:
+            return execution.result_payload
+        try:
+            ledger.begin_step(execution.id, "context_and_content_generation", {
+                "platforms": params.get("platforms") or ["linkedin", "instagram"],
+                "generate_media": params.get("generate_media", True),
+            })
+            result = await self._run_autonomous_marketing_pulse(params)
+            ledger.finish_step(
+                execution.id,
+                "context_and_content_generation",
+                output_payload={"posts_created": result.get("posts_created", 0), "status": result.get("status")},
+            )
+            ledger.complete(execution.id, {**result, "execution_id": execution.id})
+            return {**result, "execution_id": execution.id}
+        except Exception as exc:
+            self.db.rollback()
+            try:
+                ledger.fail(execution.id, str(exc))
+            except Exception:
+                self.db.rollback()
+            logger.exception("[AutoPulse] Durable execution failed")
+            return {"status": "failed", "error": str(exc), "execution_id": execution.id}
+
+    async def _run_autonomous_marketing_pulse(
+        self, params: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
         Execute an autonomous marketing pulse:
           1. Synthesize brand & product knowledge from the KB.
