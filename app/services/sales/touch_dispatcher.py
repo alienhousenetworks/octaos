@@ -309,7 +309,17 @@ def dispatch_sales_touch(
             tenant_id=tenant_id, provider="sales"
         ).first()
         settings = (sales_credential.settings if sales_credential else {}) or {}
-        authorization = assess_channel_authorization(settings, ch)
+        lead_data = lead.data if isinstance(getattr(lead, "data", None), dict) else {}
+        contact_data = lead_data.get("contact") if isinstance(lead_data.get("contact"), dict) else {}
+        recipient_opt_in = (
+            ch == "whatsapp"
+            and bool(contact_data.get("whatsapp_opt_in") or lead_data.get("whatsapp_opt_in"))
+            and bool(contact_data.get("whatsapp_opt_in_source") or lead_data.get("whatsapp_opt_in_source"))
+            and bool(contact_data.get("whatsapp_opt_in_at") or lead_data.get("whatsapp_opt_in_at"))
+        )
+        authorization = assess_channel_authorization(
+            settings, ch, recipient_opt_in=recipient_opt_in
+        )
         if not authorization["ready"]:
             return {
                 "sent": False,
