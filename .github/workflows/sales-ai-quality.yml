@@ -12,7 +12,6 @@ on:
   push:
     branches:
       - main
-      - "feat/sales-ai-evidence-first-runtime"
     paths:
       - "app/services/sales/**"
       - "app/services/sales_os/**"
