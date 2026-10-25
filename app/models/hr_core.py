@@ -226,5 +226,11 @@ class HRLifecycleCase(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     __table_args__ = (
-        UniqueConstraint("tenant_id", "employee_id", "lifecycle", "status", name="uq_hr_lifecycle_case_status"),
+        Index(
+            "uq_hr_lifecycle_case_in_progress",
+            "tenant_id", "employee_id", "lifecycle",
+            unique=True,
+            postgresql_where=status == "in_progress",
+            sqlite_where=status == "in_progress",
+        ),
     )
