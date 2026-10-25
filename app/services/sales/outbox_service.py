@@ -18,7 +18,6 @@ from sqlalchemy import or_
 from app.models.base import APICredential
 from app.models.deal_room import SalesOutboxItem
 from app.models.verticals import Lead
-from app.services.email.sender import send_email_with_status
 from app.services.sales_os.governance.gatekeeper import PreSendGatekeeper
 from app.services.sales_os.governance.suppression import SuppressionService
 
@@ -269,21 +268,15 @@ class SalesOutboxService:
                     step_number=item.step_number or 1,
                     outbox_item_id=item.id,
                 )
-            elif channel != "email":
+            else:
+                # Never bypass the central dispatcher or tenant-scoped lead record.
+                # A recipient address alone is not enough provenance to authorize sending.
                 send_result = {
                     "sent": False,
                     "channel": channel,
                     "reason": "lead_not_found",
-                    "message": "Cannot dispatch a non-email touch without its tenant-scoped lead.",
+                    "message": "Outbox dispatch requires a tenant-scoped lead; direct email fallback is disabled.",
                 }
-            else:
-                send_result = send_email_with_status(
-                    self.db,
-                    self.tenant_id,
-                    item.recipient_email,
-                    item.subject or "Partnership Opportunity",
-                    item.body,
-                )
 
             if send_result.get("sent"):
                 item.status = "sent"
