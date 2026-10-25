@@ -406,6 +406,7 @@ def publish_scheduled_posts():
                 ContentPost.status.notin_(["published", "needs_configuration", "publish_uncertain"]),
                 ContentPost.external_post_id.is_(None),
             )
+            .with_for_update(skip_locked=True)
             .all()
         )
 
@@ -1488,6 +1489,7 @@ def sync_buffer_delivery_status_task():
                         ContentPost.tenant_id == tenant_id,
                         ContentPost.external_post_id.in_(list(external_posts.keys())),
                     )
+                    .with_for_update(skip_locked=True)
                     .all()
                 )
                 for post in local_posts:
