@@ -8,7 +8,7 @@ from app.api.v1.endpoints import (
     hr_workflow, candidate_portal,
     data_collection,
     automation_nodes, automation_documents,
-    hr_people, hr_workforce, hr_copilot,
+    hr_people, hr_workforce, hr_copilot, hr_enterprise,
     sales_crm, sales_inbox, sales_platform,
     sales_real_estate, sales_inbound_webhooks, field_sales,
     integrations, rbac, heygen, autonomous_work,
@@ -30,6 +30,7 @@ api_router.include_router(support.router, prefix="/support", tags=["support"])
 api_router.include_router(hr.router, prefix="/hr", tags=["hr"])
 api_router.include_router(hr_people.router, prefix="/hr/people", tags=["hr-people"])
 api_router.include_router(hr_workforce.router, prefix="/hr/workforce", tags=["hr-workforce"])
+api_router.include_router(hr_enterprise.router, prefix="/hr/enterprise", tags=["hr-enterprise"])
 api_router.include_router(hr_copilot.router, prefix="/hr/copilot", tags=["hr-copilot"])
 api_router.include_router(hr_workflow.router, prefix="/hr-workflows", tags=["hr-workflows"])
 api_router.include_router(hr_workflow.router, prefix="/hr/workflow", tags=["hr-workflow"])
