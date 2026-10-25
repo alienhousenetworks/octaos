@@ -58,7 +58,7 @@ def test_schedule_respects_account_timezone_and_returns_utc():
 
     assert scheduled.tzinfo == timezone.utc
     assert scheduled.hour == 13  # 19:00 IST = 13:30 UTC; scheduler uses top of hour.
-    assert scheduled.minute == 30 or scheduled.minute == 0
+    assert scheduled.minute == 30
 
 
 def test_invalid_timezone_falls_back_to_utc():
