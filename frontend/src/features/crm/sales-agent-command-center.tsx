@@ -129,10 +129,10 @@ export default function SalesAgentCommandCenter({ token, API_URL, fetchWithAuth 
         <div>
           <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
             <Cpu className="text-primary w-5 h-5" />
-            Agent Command Center & 50-Agent Organization
+            Sales Agent Command Center
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Durable, governed agent runtime. 10 specialized functional teams orchestrated under strict tenant boundaries.
+            Inspect available agent roles and execution runs. A listed role is not proof that a live adapter or provider is configured.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -152,11 +152,11 @@ export default function SalesAgentCommandCenter({ token, API_URL, fetchWithAuth 
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-              <Activity className="text-emerald-400 w-4 h-4" />
+              <Activity className="text-primary w-4 h-4" />
               Live Execution Sessions & Runs ({runs.length})
             </CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              Durable execution sessions tracked in real time.
+              Run records returned by the Sales API; the list refreshes periodically.
             </CardDescription>
           </div>
           <Button variant="ghost" size="sm" onClick={fetchRuns} className="h-7 text-xs gap-1">
@@ -189,9 +189,9 @@ export default function SalesAgentCommandCenter({ token, API_URL, fetchWithAuth 
                       <td className="py-2.5">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
                           r.status === 'completed'
-                            ? 'bg-emerald-500/20 text-emerald-400'
+                            ? 'bg-primary/20 text-primary'
                             : r.status === 'running'
-                            ? 'bg-amber-500/20 text-amber-300 animate-pulse'
+                            ? 'bg-muted/300/20 text-amber-300 animate-pulse'
                             : 'bg-rose-500/20 text-rose-400'
                         }`}>
                           {r.status}
