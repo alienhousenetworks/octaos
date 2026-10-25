@@ -314,9 +314,14 @@ async def create_analysis_run(
                 all_findings.append({"id":f"F-{len(all_findings)+1:03d}","severity":"high","title":f"Could not analyze {name}","observation":f"Extraction failed ({type(exc).__name__}); no content-level conclusions were generated.","why_it_matters":"An unreadable source can leave material gaps in the report.","recommended_action":"Validate the file and retry; review parser logs without exposing sensitive content.","evidence":[{"artifact_id":artifact_id,"file":name,"metric":"extraction_status","value":"failed"}],"scope":"FILE_VERIFIED"})
             db.add(artifact)
             artifact_summaries.append({"id":artifact_id,"filename":name,"sha256":sha,"size_bytes":len(data),"status":artifact.extraction_status,"summary":artifact.extraction_summary})
-        run.profile = {"artifacts": combined_profiles, "files_received": len(incoming), "files_parsed": sum(1 for a in artifact_summaries if a["status"] == "completed")}
+        # Finding IDs are report-global, not reset for every file.
+        for finding_index, finding in enumerate(all_findings, start=1):
+            finding["id"] = f"F-{finding_index:03d}"
+        parsed_count = sum(1 for a in artifact_summaries if a["status"] == "completed")
+        parsed_or_empty_count = sum(1 for a in artifact_summaries if a["status"] in {"completed", "empty"})
+        run.profile = {"artifacts": combined_profiles, "files_received": len(incoming), "files_parsed": parsed_count}
         run.findings = all_findings
-        run.status = "completed" if any(a["status"] == "completed" for a in artifact_summaries) else "partial"
+        run.status = "completed" if parsed_count == len(artifact_summaries) else ("partial" if parsed_or_empty_count else "failed")
         run.completed_at = datetime.now(timezone.utc)
         run.report = {
             "schema_version": "1.0", "run_id": run.id, "title": run.title, "status": run.status,
