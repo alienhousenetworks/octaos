@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.services.sales_os.verticals.packs import PACK_ORDER, PACKS
+from app.services.sales_os.verticals.packs import PACKS
 
 SHARED_TERMINOLOGY = {
     "lead": "Lead",
