@@ -144,3 +144,23 @@ class ShiftAssignment(Base):
     role_required = Column(String, nullable=True)
     status = Column(String, nullable=False, default="scheduled")  # scheduled, swapped, completed, absent
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+
+class AttendanceAuditEvent(Base):
+    """Append-only record of attendance changes; corrections require a separate authorized event."""
+    __tablename__ = "hr_attendance_audit_events"
+
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    attendance_record_id = Column(String, ForeignKey("hr_attendance_records.id"), nullable=False, index=True)
+    employee_id = Column(String, ForeignKey("hr_employees.id"), nullable=False, index=True)
+    actor_user_id = Column(String, nullable=False)
+    event_type = Column(String, nullable=False)  # clock_in, clock_out, correction_requested
+    occurred_at_utc = Column(DateTime(timezone=True), nullable=False)
+    local_timezone = Column(String, nullable=False, default="UTC")
+    local_work_date = Column(String, nullable=False)
+    before_state = Column(JSON, nullable=True)
+    after_state = Column(JSON, nullable=False)
+    source = Column(String, nullable=False, default="self_service")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
