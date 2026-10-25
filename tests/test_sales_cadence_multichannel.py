@@ -87,6 +87,10 @@ def test_whatsapp_dispatch_unconfigured(db_session):
         phone="+1 555 123 4567",
         company="Acme Corp",
         data={
+            "contact_status": "READY",
+            "evidence_url": "https://example.com/news/acme",
+            "evidence_quote": "Acme Corp announced a new customer support initiative.",
+            "buying_signal": "Customer support initiative",
             "whatsapp_opt_in": True,
             "whatsapp_opt_in_source": "test_fixture",
             "whatsapp_opt_in_at": datetime.now(timezone.utc).isoformat(),
@@ -141,6 +145,12 @@ def test_dispatcher_blocks_suppressed_email_before_provider_call(db_session):
         name="Opted Out",
         email="opted-out@example.com",
         company="Suppressed Co",
+        data={
+            "contact_status": "READY",
+            "evidence_url": "https://example.com/news/suppressed-co",
+            "evidence_quote": "Suppressed Co announced a new service line.",
+            "buying_signal": "New service line",
+        },
     )
     db_session.add(lead)
     db_session.commit()
