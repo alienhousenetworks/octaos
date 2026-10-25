@@ -25,6 +25,8 @@ type Post = {
   day?: number | null;
 };
 
+type Artifact = { id: string; title: string; artifact_type: string; status: string; current_version: number; campaign_id?: string | null };
+
 type Persona = {
   name: string; persona: string; audience: string; voice: string;
   visual_prompt: string; intro_caption: string; content_pillars: string[];
@@ -74,6 +76,8 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
   const [persona, setPersona] = useState<Persona | null>(null);
   const [personaLoading, setPersonaLoading] = useState(false);
   const [buffer, setBuffer] = useState<any>(null);
+  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [artifactLoading, setArtifactLoading] = useState(false);
 
   const loadPosts = useCallback(async () => {
     if (!token) { setLoading(false); return; }
@@ -98,6 +102,20 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
       .catch(e => { if (!cancelled) setError(e?.message || 'Analytics are unavailable.'); });
     return () => { cancelled = true; };
   }, [API_URL, fetchWithAuth, tab, token]);
+  const loadArtifacts = useCallback(async () => {
+    if (!token) return;
+    setArtifactLoading(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/marketing/artifacts`);
+      if (!res.ok) throw new Error('Could not load saved artifacts.');
+      const data = await res.json();
+      setArtifacts(Array.isArray(data.items) ? data.items : []);
+    } catch (e: any) { setError(e?.message || 'Could not load saved artifacts.'); }
+    finally { setArtifactLoading(false); }
+  }, [API_URL, fetchWithAuth, token]);
+
+  useEffect(() => { if (tab === 'artifacts') void loadArtifacts(); }, [tab, loadArtifacts]);
+
   useEffect(() => {
     if (!token) return;
     fetchWithAuth(`${API_URL}/marketing/connectors/buffer/status`).then(async r => r.ok ? r.json() : null)
@@ -144,6 +162,39 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
       setNotice('Persona brief generated. It remains a draft and requires human review.');
     } catch (e: any) { setNotice(e?.message || 'Virtual influencer generation is unavailable.'); }
     finally { setPersonaLoading(false); }
+  }
+
+  async function savePersonaArtifact() {
+    if (!persona) return;
+    setNotice('');
+    try {
+      const res = await fetchWithAuth(`${API_URL}/marketing/artifacts`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `${persona.name} — Virtual Influencer Brief`,
+          artifact_type: 'virtual_influencer_brief',
+          content: persona,
+          sources: [{ type: 'user_input', label: 'Brief inputs supplied in Campaign Studio' }]
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'Could not save artifact.');
+      setNotice(`Saved artifact as version ${data.current_version || 1}; it is still a draft.`);
+      setTab('artifacts');
+      void loadArtifacts();
+    } catch (e: any) { setNotice(e?.message || 'Could not save artifact.'); }
+  }
+
+  async function exportArtifact(artifact: Artifact) {
+    try {
+      const res = await fetchWithAuth(`${API_URL}/marketing/artifacts/${artifact.id}/versions/${artifact.current_version}/export`);
+      if (!res.ok) throw new Error('Artifact export failed.');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `${artifact.title.replace(/[^a-z0-9_.-]+/gi, '-')}-v${artifact.current_version}.json`;
+      a.click(); URL.revokeObjectURL(url);
+    } catch (e: any) { setNotice(e?.message || 'Artifact export failed.'); }
   }
 
   async function connectBuffer() {
@@ -237,10 +288,16 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
       <label className="block text-sm font-medium">Brand voice<input value={personaInput.brand_tone} onChange={e => setPersonaInput(p => ({...p,brand_tone:e.target.value}))} className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-normal" /></label>
       <label className="block text-sm font-medium">Primary platform<select value={personaInput.platform} onChange={e => setPersonaInput(p => ({...p,platform:e.target.value}))} className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-normal"><option value="instagram">Instagram</option><option value="linkedin">LinkedIn</option><option value="facebook">Facebook</option><option value="twitter">X</option></select></label>
       <button onClick={createPersona} disabled={personaLoading} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{personaLoading ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />} Generate persona brief</button></div></div>
-      <div className="rounded-xl border border-border bg-card p-5 md:p-6">{persona ? <div className="space-y-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-muted-foreground">Draft persona · Review required</p><h2 className="mt-2 text-2xl font-semibold">{persona.name}</h2></div><button onClick={downloadBrief} className="rounded-lg border border-border px-3 py-2 text-sm">Export brief</button></div><p className="text-sm leading-6">{persona.persona}</p><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-border p-3"><p className="text-xs text-muted-foreground">Audience</p><p className="mt-1 text-sm">{persona.audience}</p></div><div className="rounded-lg border border-border p-3"><p className="text-xs text-muted-foreground">Voice</p><p className="mt-1 text-sm">{persona.voice}</p></div></div><div><h3 className="font-semibold">Content pillars</h3><div className="mt-2 flex flex-wrap gap-2">{persona.content_pillars?.map(p => <span key={p} className="rounded-full border border-border px-3 py-1.5 text-xs">{p}</span>)}</div></div><div><h3 className="font-semibold">Visual direction</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{persona.visual_prompt}</p></div><div className="rounded-lg border border-border bg-background p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Intro caption</p><p className="mt-2 whitespace-pre-wrap text-sm">{persona.intro_caption}</p><p className="mt-3 text-xs text-muted-foreground">{persona.disclosure}</p></div></div> : <div className="flex min-h-[420px] flex-col items-center justify-center text-center"><div className="grid size-14 place-items-center rounded-2xl border border-border"><Bot className="size-6" /></div><h2 className="mt-4 text-lg font-semibold">Your persona brief appears here</h2><p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">Start with a brand and industry. OctaOS will return a fictional persona, audience, voice, visual prompt, content pillars and disclosure.</p></div>}</div>
+      <div className="rounded-xl border border-border bg-card p-5 md:p-6">{persona ? <div className="space-y-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-muted-foreground">Draft persona · Review required</p><h2 className="mt-2 text-2xl font-semibold">{persona.name}</h2></div><button onClick={downloadBrief} className="rounded-lg border border-border px-3 py-2 text-sm">Export brief</button><button onClick={savePersonaArtifact} className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">Save as artifact</button></div><p className="text-sm leading-6">{persona.persona}</p><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-border p-3"><p className="text-xs text-muted-foreground">Audience</p><p className="mt-1 text-sm">{persona.audience}</p></div><div className="rounded-lg border border-border p-3"><p className="text-xs text-muted-foreground">Voice</p><p className="mt-1 text-sm">{persona.voice}</p></div></div><div><h3 className="font-semibold">Content pillars</h3><div className="mt-2 flex flex-wrap gap-2">{persona.content_pillars?.map(p => <span key={p} className="rounded-full border border-border px-3 py-1.5 text-xs">{p}</span>)}</div></div><div><h3 className="font-semibold">Visual direction</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{persona.visual_prompt}</p></div><div className="rounded-lg border border-border bg-background p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Intro caption</p><p className="mt-2 whitespace-pre-wrap text-sm">{persona.intro_caption}</p><p className="mt-3 text-xs text-muted-foreground">{persona.disclosure}</p></div></div> : <div className="flex min-h-[420px] flex-col items-center justify-center text-center"><div className="grid size-14 place-items-center rounded-2xl border border-border"><Bot className="size-6" /></div><h2 className="mt-4 text-lg font-semibold">Your persona brief appears here</h2><p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">Start with a brand and industry. OctaOS will return a fictional persona, audience, voice, visual prompt, content pillars and disclosure.</p></div>}</div>
     </section>}
 
-    {tab === 'artifacts' && <section className="space-y-4"><div><h2 className="text-xl font-semibold">Campaign artifacts</h2><p className="mt-1 text-sm text-muted-foreground">Download the current influencer brief, or open the established campaign planner for strategy and content generation.</p></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"><button onClick={() => setTab('influencers')} className="rounded-xl border border-border bg-card p-5 text-left hover:bg-muted"><FileText className="size-5 text-primary" /><h3 className="mt-3 font-semibold">Virtual influencer brief</h3><p className="mt-1 text-sm text-muted-foreground">Structured persona, voice, audience, pillars and required disclosure.</p><span className="mt-4 inline-flex items-center gap-1 text-sm text-primary">Create brief <ChevronRight className="size-4" /></span></button><button onClick={() => window.location.assign('/app/campaigns')} className="rounded-xl border border-border bg-card p-5 text-left hover:bg-muted"><Workflow className="size-5 text-primary" /><h3 className="mt-3 font-semibold">Campaign plan and schedule</h3><p className="mt-1 text-sm text-muted-foreground">Use the existing campaign planner and its persisted generation workflow.</p><span className="mt-4 inline-flex items-center gap-1 text-sm text-primary">Open campaign planner <ChevronRight className="size-4" /></span></button><div className="rounded-xl border border-dashed border-border p-5"><FileText className="size-5 text-muted-foreground" /><h3 className="mt-3 font-semibold">Versioned artifact library</h3><p className="mt-1 text-sm text-muted-foreground">Not yet backed by a dedicated artifact/version API in this change. No placeholder files or fake exports are shown.</p></div></div></section>}
+    {tab === 'artifacts' && <section className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-xl font-semibold">Campaign artifacts</h2><p className="mt-1 text-sm text-muted-foreground">Tenant-owned deliverables with immutable versions, content hashes and explicit review state.</p></div><button onClick={() => void loadArtifacts()} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm"><RefreshCw className="size-4" /> Refresh</button></div>
+      <div className="grid gap-3 md:grid-cols-2"><button onClick={() => setTab('influencers')} className="rounded-xl border border-border bg-card p-5 text-left hover:bg-muted"><FileText className="size-5 text-primary" /><h3 className="mt-3 font-semibold">Create virtual influencer brief</h3><p className="mt-1 text-sm text-muted-foreground">Generate a disclosed fictional persona, then save its brief as a versioned artifact.</p><span className="mt-4 inline-flex items-center gap-1 text-sm text-primary">Open Influencer Studio <ChevronRight className="size-4" /></span></button><button onClick={() => window.location.assign('/app/campaigns')} className="rounded-xl border border-border bg-card p-5 text-left hover:bg-muted"><Workflow className="size-5 text-primary" /><h3 className="mt-3 font-semibold">Campaign plan and schedule</h3><p className="mt-1 text-sm text-muted-foreground">Open the existing campaign planner and persisted generation workflow.</p><span className="mt-4 inline-flex items-center gap-1 text-sm text-primary">Open campaign planner <ChevronRight className="size-4" /></span></button></div>
+      <div className="overflow-hidden rounded-xl border border-border bg-card"><div className="border-b border-border p-4"><h3 className="font-semibold">Saved artifacts</h3><p className="mt-1 text-xs text-muted-foreground">Export currently downloads the selected immutable version as JSON; PDF/DOCX/PPTX renderers are not claimed here.</p></div>
+        {artifactLoading ? <p className="p-5 text-sm text-muted-foreground">Loading saved artifacts…</p> : artifacts.length ? <div className="divide-y divide-border">{artifacts.map(a => <div key={a.id} className="flex flex-wrap items-center gap-3 p-4"><div className="grid size-10 place-items-center rounded-lg border border-border"><FileText className="size-4" /></div><div className="min-w-0 flex-1"><p className="font-medium">{a.title}</p><p className="mt-1 text-xs text-muted-foreground">{a.artifact_type.replaceAll('_',' ')} · Version {a.current_version} · {a.status}</p></div><button onClick={() => void exportArtifact(a)} className="rounded-lg border border-border px-3 py-2 text-sm">Export JSON</button></div>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">No saved artifacts yet. Generate an influencer brief and choose “Save as artifact”.</p>}
+      </div>
+    </section>}
 
     {tab === 'calendar' && <section className="space-y-4"><div><h2 className="text-xl font-semibold">Publishing calendar</h2><p className="mt-1 text-sm text-muted-foreground">A read-only view of scheduled dates stored on campaign posts. Scheduling changes remain in the established campaign planner.</p></div><div className="rounded-xl border border-border bg-card"><div className="divide-y divide-border">{posts.filter(p => p.scheduled_at).sort((a,b) => String(a.scheduled_at).localeCompare(String(b.scheduled_at))).map(post => <div key={post.id} className="flex flex-wrap items-center gap-4 p-4"><div className="min-w-36"><p className="text-sm font-medium">{new Date(post.scheduled_at!).toLocaleDateString()}</p><p className="text-xs text-muted-foreground">{new Date(post.scheduled_at!).toLocaleTimeString()}</p></div><div className="min-w-0 flex-1"><p className="line-clamp-2 text-sm">{post.content || 'Untitled content'}</p><p className="mt-1 text-xs capitalize text-muted-foreground">{post.platform}</p></div><span className="rounded-full border border-border px-2 py-1 text-xs">{statusLabel(post)}</span></div>)}</div>{posts.every(p => !p.scheduled_at) && <p className="p-8 text-center text-sm text-muted-foreground">No scheduled posts are returned by the API.</p>}</div></section>}
 
