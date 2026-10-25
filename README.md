@@ -1320,3 +1320,15 @@ A menu item is not proof of a working feature. An agent name is not proof that i
 
 **Repository:** [alienhousenetworks/octaos](https://github.com/alienhousenetworks/octaos)  
 **Primary purpose of this document:** product orientation, logical directory map, feature/sub-feature catalogue, workflow and agent diagrams, connector overview, and engineering guardrails.
+
+---
+
+## License and proprietary-use notice
+
+**OctaOS is proprietary software. All rights are reserved by AlienHouse Networks.** Public visibility of this repository does not grant permission to copy, modify, redistribute, deploy, commercialize, or create derivative works from the proprietary code.
+
+See the full [proprietary license](./LICENSE) before using any material from this repository. Use beyond the limited permission stated there requires prior written authorization from AlienHouse Networks: **connect@alienhousenetworks.com**.
+
+Third-party dependencies and components remain governed by their own licenses; this notice does not replace or override those licenses. The software is provided without warranty to the maximum extent permitted by applicable law.
+
+**Important:** A license notice establishes terms and helps communicate ownership; it cannot guarantee that nobody will copy the code, bring a legal claim, or sue. Enforceability and available remedies depend on applicable law and the facts. For legal advice and stronger protection, have an intellectual-property lawyer review ownership, contributor agreements, third-party licenses, repository visibility, and the terms before commercial distribution.
