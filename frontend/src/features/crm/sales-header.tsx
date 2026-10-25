@@ -78,8 +78,8 @@ export default function SalesHeader({
                 {current.label}
               </h1>
               {isExecuting ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-success/10 text-success border border-success/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-success animate-ping" />
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-muted text-primary border border-border">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
                   Agent running
                 </span>
               ) : null}
@@ -168,7 +168,7 @@ export default function SalesHeader({
               </span>
               <p className="text-[11px] text-muted-foreground mt-0.5">Sum of stored amounts</p>
             </div>
-            <div className="p-2 rounded-xl bg-surface-hover text-success border border-border">
+            <div className="p-2 rounded-xl bg-surface-hover text-primary border border-border">
               <TrendingUp size={16} />
             </div>
           </div>
@@ -180,7 +180,7 @@ export default function SalesHeader({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Closed Revenue
             </span>
-            <span className="text-[10px] font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full border border-success/20">
+            <span className="text-[10px] font-semibold text-primary bg-muted px-2 py-0.5 rounded-full border border-border">
               {wonCount} Won
             </span>
           </div>
@@ -268,7 +268,7 @@ export default function SalesHeader({
                 {tab.icon}
                 {tab.label}
                 {tab.badge && (
-                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-success/10 text-success border border-success/20">
+                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-muted text-primary border border-border">
                     {tab.badge}
                   </span>
                 )}
