@@ -403,7 +403,7 @@ def publish_scheduled_posts():
             .filter(
                 ContentPost.approval_status == "approved",
                 ContentPost.scheduled_at <= now,
-                ContentPost.status.notin_(["published", "needs_configuration", "publish_uncertain"]),
+                ContentPost.status.notin_(["published", "needs_configuration", "publish_uncertain", "buffer_scheduling"]),
                 ContentPost.external_post_id.is_(None),
             )
             .with_for_update(skip_locked=True)
@@ -1546,5 +1546,108 @@ def sync_buffer_delivery_status_task():
             except Exception:
                 db.rollback()
                 task_logger.exception("Buffer status sync failed for tenant %s", tenant_id)
+    finally:
+        db.close()
+
+
+@celery_app.task(name="schedule_future_buffer_posts_task")
+def schedule_future_buffer_posts_task():
+    """Send approved future posts to Buffer early so Buffer honors OctaOS's chosen time."""
+    from datetime import datetime, timedelta, timezone
+    from asgiref.sync import async_to_sync
+    import logging
+    from app.models.base import APICredential
+    from app.models.verticals import ContentPost
+    from app.models.agents import ActivityLog
+    from app.services.integrations.buffer_service import BufferService
+
+    task_logger = logging.getLogger("schedule_future_buffer_posts_task")
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        credentials = db.query(APICredential).filter(APICredential.provider == "buffer").all()
+        for credential in credentials:
+            tenant_id = credential.tenant_id
+            channel_map = dict((credential.settings or {}).get("channel_map", {}))
+            if not channel_map:
+                continue
+
+            # Recover stale claims conservatively. Never automatically retry an uncertain write.
+            claimed = (
+                db.query(ContentPost)
+                .filter(
+                    ContentPost.tenant_id == tenant_id,
+                    ContentPost.status == "buffer_scheduling",
+                    ContentPost.external_post_id.is_(None),
+                )
+                .with_for_update(skip_locked=True)
+                .all()
+            )
+            for stuck in claimed:
+                marker = "Buffer scheduling started at "
+                try:
+                    started = datetime.fromisoformat((stuck.fallback_reason or "").split(marker, 1)[1].split(".", 1)[0] + "Z")
+                except (IndexError, ValueError):
+                    started = now - timedelta(minutes=16)
+                if started.tzinfo is None:
+                    started = started.replace(tzinfo=timezone.utc)
+                if now - started > timedelta(minutes=15):
+                    stuck.status = "publish_uncertain"
+                    stuck.fallback_reason = "A Buffer scheduling attempt was interrupted. Inspect the Buffer queue before retrying."
+                    db.add(stuck)
+            db.commit()
+
+            posts = (
+                db.query(ContentPost)
+                .filter(
+                    ContentPost.tenant_id == tenant_id,
+                    ContentPost.approval_status == "approved",
+                    ContentPost.scheduled_at > now,
+                    ContentPost.external_post_id.is_(None),
+                    ContentPost.status.notin_(["published", "failed", "needs_configuration", "publish_uncertain", "buffer_scheduling"]),
+                )
+                .with_for_update(skip_locked=True)
+                .limit(100)
+                .all()
+            )
+            for post in posts:
+                platform = (post.platform or "").lower().replace("twitter", "x")
+                channel_id = channel_map.get(platform)
+                if not channel_id:
+                    continue
+                post.status = "buffer_scheduling"
+                post.fallback_reason = "Buffer scheduling started at " + now.isoformat() + "."
+                db.add(post)
+                db.commit()
+                try:
+                    created = async_to_sync(BufferService(db, tenant_id).create_post)(
+                        channel_id=channel_id,
+                        text=post.content or "",
+                        scheduled_at=post.scheduled_at,
+                        image_url=post.image_url,
+                        video_url=post.video_url,
+                    )
+                    post.external_post_id = created["id"]
+                    post.status = "scheduled"
+                    post.fallback_reason = "Accepted by Buffer for the OctaOS scheduled time; awaiting delivery reconciliation."
+                    db.add(ActivityLog(
+                        tenant_id=tenant_id,
+                        agent_name="Marketing AI",
+                        action="Schedule Future Post in Buffer",
+                        description=f"Buffer accepted post {post.id} for {post.scheduled_at} (external id={created['id']}).",
+                        status="success",
+                    ))
+                    db.commit()
+                except Exception as exc:
+                    db.rollback()
+                    uncertain = db.query(ContentPost).filter(
+                        ContentPost.id == post.id, ContentPost.tenant_id == tenant_id
+                    ).first()
+                    if uncertain and not uncertain.external_post_id:
+                        uncertain.status = "publish_uncertain"
+                        uncertain.fallback_reason = "Buffer scheduling result is uncertain. Inspect Buffer before retrying. " + str(exc)[:160]
+                        db.add(uncertain)
+                        db.commit()
+                    task_logger.warning("Buffer scheduling needs reconciliation for post %s: %s", post.id, exc)
     finally:
         db.close()
