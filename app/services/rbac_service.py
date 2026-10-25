@@ -29,6 +29,11 @@ SYSTEM_PERMISSIONS = [
     {"name": "Can manage hiring & interviews", "codename": "hr.manage_hiring", "content_type": "hr", "description": "Schedule candidate interviews, invite panelists, and manage stages"},
     {"name": "Can review and approve leave requests", "codename": "hr.manage_leave", "content_type": "hr", "description": "Approve or decline employee time-off and PTO requests"},
     {"name": "Can generate candidate offers", "codename": "hr.manage_offers", "content_type": "hr", "description": "Generate employment contracts and send offer letters"},
+    {"name": "Can manage workforce scheduling", "codename": "hr.manage_workforce", "content_type": "hr", "description": "Manage attendance policies, shift rosters, staffing demand, and schedule publication"},
+    {"name": "Can manage performance reviews", "codename": "hr.manage_performance", "content_type": "hr", "description": "Create, submit, and administer performance review cycles"},
+    {"name": "Can manage compensation proposals", "codename": "hr.manage_compensation", "content_type": "hr", "description": "Create compensation proposals and participate in authorized approval workflows"},
+    {"name": "Can manage HR service desk", "codename": "hr.manage_service_requests", "content_type": "hr", "description": "Assign, update, and resolve internal employee service requests"},
+    {"name": "Can manage onboarding and offboarding", "codename": "hr.manage_lifecycle", "content_type": "hr", "description": "Manage governed onboarding and offboarding checklists and verification"}
 
     # Marketing Domain
     {"name": "Can view marketing campaigns", "codename": "marketing.view_campaigns", "content_type": "marketing", "description": "View marketing calendar, campaign performance, and radar"},
@@ -83,6 +88,11 @@ DEFAULT_GROUP_TEMPLATES = [
             "hr.manage_hiring",
             "hr.manage_leave",
             "hr.manage_offers",
+            "hr.manage_workforce",
+            "hr.manage_performance",
+            "hr.manage_compensation",
+            "hr.manage_service_requests",
+            "hr.manage_lifecycle",
         ],
     },
     {
