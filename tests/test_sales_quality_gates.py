@@ -162,3 +162,22 @@ def test_llm_pain_point_guess_without_source_evidence_does_not_authorize_outreac
     )
     assert result["ready"] is False
     assert "need_evidence_missing" in result["blockers"]
+
+
+def test_human_approved_outreach_can_bypass_auto_send_toggle_but_not_permission():
+    allowed = assess_outreach_readiness(
+        valid_prospect(),
+        auto_send_enabled=False,
+        permission_state="granted",
+        human_approved=True,
+    )
+    assert allowed["ready"] is True
+
+    blocked = assess_outreach_readiness(
+        valid_prospect(),
+        auto_send_enabled=False,
+        permission_state="unknown",
+        human_approved=True,
+    )
+    assert blocked["ready"] is False
+    assert "outbound_permission_not_granted" in blocked["blockers"]
