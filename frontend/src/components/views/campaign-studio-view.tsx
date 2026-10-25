@@ -180,6 +180,19 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
     finally { setPersonaLoading(false); }
   }
 
+  async function reviewPersona(profile: SavedPersona, decision: 'approve' | 'changes_requested' | 'reject') {
+    try {
+      const res = await fetchWithAuth(`${API_URL}/marketing/virtual-influencer/profiles/${profile.id}/review`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision, comment: '' })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'Persona review failed.');
+      setNotice(`Virtual influencer review state: ${data.status}.`);
+      void loadPersonas();
+    } catch (e: any) { setNotice(e?.message || 'Persona review failed.'); }
+  }
+
   async function savePersonaArtifact() {
     if (!persona) return;
     setNotice('');
@@ -312,7 +325,7 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
       {!loading && filtered.length === 0 && <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No matching content.</div>}
     </section>}
 
-    {tab === 'influencers' && savedPersonas.length > 0 && <section className="rounded-xl border border-border bg-card"><div className="border-b border-border p-4"><h2 className="font-semibold">Saved virtual influencers</h2><p className="mt-1 text-xs text-muted-foreground">Tenant-owned persona briefs; all remain drafts until reviewed.</p></div><div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">{savedPersonas.map(p => <button key={p.id} onClick={() => setPersona(p.brief)} className="rounded-lg border border-border p-3 text-left hover:bg-muted"><p className="font-medium">{p.name}</p><p className="mt-1 text-xs text-muted-foreground">{p.status.replaceAll('_',' ')}</p><p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{p.brief?.persona || 'No persona description'}</p></button>)}</div></section>}
+    {tab === 'influencers' && savedPersonas.length > 0 && <section className="rounded-xl border border-border bg-card"><div className="border-b border-border p-4"><h2 className="font-semibold">Saved virtual influencers</h2><p className="mt-1 text-xs text-muted-foreground">Tenant-owned persona briefs; all remain drafts until reviewed.</p></div><div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">{savedPersonas.map(p => <div key={p.id} className="rounded-lg border border-border p-3"><button onClick={() => setPersona(p.brief)} className="w-full text-left"><p className="font-medium">{p.name}</p><p className="mt-1 text-xs text-muted-foreground">{p.status.replaceAll('_',' ')}</p><p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{p.brief?.persona || 'No persona description'}</p></button>{p.status !== 'approved_for_content_review' && p.status !== 'rejected' && <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => void reviewPersona(p, 'approve')} className="rounded-md border border-border px-2 py-1.5 text-xs">Approve persona</button><button onClick={() => void reviewPersona(p, 'changes_requested')} className="rounded-md border border-border px-2 py-1.5 text-xs">Request changes</button></div>}</div>)}</div></section>}
 
     {tab === 'influencers' && <section className="grid gap-5 xl:grid-cols-[minmax(320px,.85fr)_minmax(0,1.15fr)]">
       <div className="rounded-xl border border-border bg-card p-5 md:p-6"><div className="flex items-center gap-2"><Users className="size-5 text-primary" /><h2 className="text-xl font-semibold">Create a virtual influencer</h2></div><p className="mt-2 text-sm leading-6 text-muted-foreground">Design an original fictional adult persona for your brand. Generated personas must be disclosed as AI and reviewed before use.</p>
