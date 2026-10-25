@@ -6,8 +6,18 @@ controls and a virtual-influencer brief workflow.
 
 ## Shared decision policy
 `app/services/marketing/autonomy/policy.py` makes the schedule decision explicit:
-fallback generation, low confidence, source-less news, weak context, required media
-failure, or a tenant-level approval requirement route the draft to human review.
+fallback generation, low or invalid confidence, invalid source URLs, source-less news,
+weak or invalid context scores, required media failure, unsupported publisher adapters,
+or a tenant-level approval requirement route the draft to human review.
+
+Confidence and context scores must be finite numbers in the inclusive range 0–1.
+NaN, positive/negative infinity, malformed values, and out-of-range values fail closed.
+News source links must be absolute HTTP(S) URLs with a hostname; arbitrary strings,
+JavaScript URLs, whitespace-containing URLs, and URLs with embedded credentials are
+not accepted as evidence links. These checks validate shape, not whether the linked
+source is truthful or reachable. Source retrieval and evidence provenance still need
+their own verification.
+
 This is not a legal compliance certification and does not bypass platform scopes.
 
 ## Virtual influencer workflow
