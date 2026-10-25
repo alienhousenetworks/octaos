@@ -283,7 +283,8 @@ async def publish_approved_post(
         if expected and expected not in actual and actual not in expected:
             raise HTTPException(status_code=409, detail="Selected Buffer channel does not match this post's target platform.")
         result = await buffer.create_post(
-            channel_id=body.channel_id, text=post.content or "", scheduled_at=body.scheduled_at
+            channel_id=body.channel_id, text=post.content or "", scheduled_at=body.scheduled_at,
+            image_url=post.image_url, video_url=post.video_url,
         )
     except HTTPException:
         raise
