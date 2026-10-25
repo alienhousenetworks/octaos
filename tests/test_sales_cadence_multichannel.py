@@ -445,3 +445,28 @@ def test_dispatcher_blocks_authorized_email_without_prospect_evidence(db_session
     assert "source_url_missing_or_invalid" in result["blockers"]
     assert "need_evidence_missing" in result["blockers"]
     send.assert_not_called()
+
+
+def test_dispatcher_rejects_cross_tenant_lead_before_provider_call(db_session):
+    lead = Lead(
+        tenant_id="test_tenant_cadence",
+        name="Taylor Example",
+        email="taylor@example.com",
+        company="Example Co",
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    with patch("app.services.sales.touch_dispatcher.send_email_with_status") as send:
+        result = dispatch_sales_touch(
+            db_session,
+            "another_tenant",
+            lead,
+            channel="email",
+            subject="Hello",
+            body="Hello Taylor.",
+        )
+
+    assert result["sent"] is False
+    assert result["reason"] == "tenant_scope_mismatch"
+    send.assert_not_called()
