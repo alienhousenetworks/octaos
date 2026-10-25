@@ -27,6 +27,7 @@ import {
   LayoutGrid,
   Loader2,
   MessageSquare,
+  Minus,
   Plus,
   Repeat,
   Search,
@@ -2291,13 +2292,16 @@ export default function CampaignsView({
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
                   <FieldLabel>Campaign Duration</FieldLabel>
-                  <span className="text-xs font-mono text-primary font-semibold">{campaignDays} Days</span>
+                  <span className="text-xs font-mono text-primary font-semibold">
+                    {campaignDays > 0 ? `${campaignDays} ${campaignDays === 1 ? 'Day' : 'Days'}` : 'Select duration'}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {[
+                    { days: 1, label: '1 Day' },
                     { days: 3, label: '3-Day Sprint' },
                     { days: 7, label: '7-Day Week' },
                     { days: 14, label: '14-Day Growth' },
@@ -2307,16 +2311,62 @@ export default function CampaignsView({
                       key={preset.days}
                       type="button"
                       onClick={() => setCampaignDays(preset.days)}
-                      className={`flex-1 rounded-md border py-1 text-xs transition-colors ${
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                         campaignDays === preset.days
-                          ? 'border-primary bg-primary text-primary-foreground font-semibold'
-                          : 'border-border text-muted-foreground hover:bg-muted/40'
+                          ? 'border-primary bg-primary text-primary-foreground font-semibold shadow-xs'
+                          : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                       }`}
                     >
                       {preset.label}
                     </button>
                   ))}
+
+                  <div className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-2.5 py-1 ml-auto">
+                    <span className="text-xs text-muted-foreground font-medium">Custom:</span>
+                    <button
+                      type="button"
+                      onClick={() => setCampaignDays((prev) => Math.max(1, (prev || 1) - 1))}
+                      disabled={campaignDays <= 1}
+                      className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 transition-colors"
+                      aria-label="Decrease days"
+                    >
+                      <Minus className="size-3.5" />
+                    </button>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={campaignDays || ''}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (isNaN(val)) {
+                          setCampaignDays(0);
+                        } else {
+                          setCampaignDays(Math.min(30, Math.max(1, val)));
+                        }
+                      }}
+                      onBlur={() => {
+                        if (!campaignDays || campaignDays < 1) setCampaignDays(1);
+                      }}
+                      placeholder="1-30"
+                      className="h-6 w-14 border-0 bg-background text-center text-xs font-mono font-semibold p-0 shadow-none focus-visible:ring-1"
+                      aria-label="Enter custom campaign days"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCampaignDays((prev) => Math.min(30, (prev || 0) + 1))}
+                      disabled={campaignDays >= 30}
+                      className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 transition-colors"
+                      aria-label="Increase days"
+                    >
+                      <Plus className="size-3.5" />
+                    </button>
+                    <span className="text-xs text-muted-foreground font-medium">days</span>
+                  </div>
                 </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Pick a standard sprint preset or enter any custom schedule length from 1 to 30 days.
+                </p>
               </div>
             </div>
           </div>
