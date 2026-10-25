@@ -27,7 +27,7 @@ type Post = {
 
 type SavedPersona = { id: string; name: string; status: string; brief: Persona };
 
-type Artifact = { id: string; title: string; artifact_type: string; status: string; current_version: number; campaign_id?: string | null };
+type Artifact = { id: string; title: string; artifact_type: string; status: string; current_version: number; current_version_hash?: string; current_version_review_status?: string; campaign_id?: string | null };
 
 type Persona = {
   name: string; persona: string; audience: string; voice: string;
@@ -201,6 +201,20 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
     } catch (e: any) { setNotice(e?.message || 'Could not save artifact.'); }
   }
 
+  async function reviewArtifact(artifact: Artifact, decision: 'approve' | 'changes_requested') {
+    if (!artifact.current_version_hash) { setNotice('Current version hash is unavailable. Refresh the library before reviewing.'); return; }
+    try {
+      const res = await fetchWithAuth(`${API_URL}/marketing/artifacts/${artifact.id}/review`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version: artifact.current_version, content_hash: artifact.current_version_hash, decision })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'Artifact review failed.');
+      setNotice(`Version ${artifact.current_version} review state: ${data.version?.review_status || decision}.`);
+      void loadArtifacts();
+    } catch (e: any) { setNotice(e?.message || 'Artifact review failed.'); }
+  }
+
   async function exportArtifact(artifact: Artifact) {
     try {
       const res = await fetchWithAuth(`${API_URL}/marketing/artifacts/${artifact.id}/versions/${artifact.current_version}/export`);
@@ -313,7 +327,7 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
       <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-xl font-semibold">Campaign artifacts</h2><p className="mt-1 text-sm text-muted-foreground">Tenant-owned deliverables with immutable versions, content hashes and explicit review state.</p></div><button onClick={() => void loadArtifacts()} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm"><RefreshCw className="size-4" /> Refresh</button></div>
       <div className="grid gap-3 md:grid-cols-2"><button onClick={() => setTab('influencers')} className="rounded-xl border border-border bg-card p-5 text-left hover:bg-muted"><FileText className="size-5 text-primary" /><h3 className="mt-3 font-semibold">Create virtual influencer brief</h3><p className="mt-1 text-sm text-muted-foreground">Generate a disclosed fictional persona, then save its brief as a versioned artifact.</p><span className="mt-4 inline-flex items-center gap-1 text-sm text-primary">Open Influencer Studio <ChevronRight className="size-4" /></span></button><button onClick={() => window.location.assign('/app/campaigns')} className="rounded-xl border border-border bg-card p-5 text-left hover:bg-muted"><Workflow className="size-5 text-primary" /><h3 className="mt-3 font-semibold">Campaign plan and schedule</h3><p className="mt-1 text-sm text-muted-foreground">Open the existing campaign planner and persisted generation workflow.</p><span className="mt-4 inline-flex items-center gap-1 text-sm text-primary">Open campaign planner <ChevronRight className="size-4" /></span></button></div>
       <div className="overflow-hidden rounded-xl border border-border bg-card"><div className="border-b border-border p-4"><h3 className="font-semibold">Saved artifacts</h3><p className="mt-1 text-xs text-muted-foreground">Export currently downloads the selected immutable version as JSON; PDF/DOCX/PPTX renderers are not claimed here.</p></div>
-        {artifactLoading ? <p className="p-5 text-sm text-muted-foreground">Loading saved artifacts…</p> : artifacts.length ? <div className="divide-y divide-border">{artifacts.map(a => <div key={a.id} className="flex flex-wrap items-center gap-3 p-4"><div className="grid size-10 place-items-center rounded-lg border border-border"><FileText className="size-4" /></div><div className="min-w-0 flex-1"><p className="font-medium">{a.title}</p><p className="mt-1 text-xs text-muted-foreground">{a.artifact_type.replaceAll('_',' ')} · Version {a.current_version} · {a.status}</p></div><button onClick={() => void exportArtifact(a)} className="rounded-lg border border-border px-3 py-2 text-sm">Export JSON</button></div>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">No saved artifacts yet. Generate an influencer brief and choose “Save as artifact”.</p>}
+        {artifactLoading ? <p className="p-5 text-sm text-muted-foreground">Loading saved artifacts…</p> : artifacts.length ? <div className="divide-y divide-border">{artifacts.map(a => <div key={a.id} className="flex flex-wrap items-center gap-3 p-4"><div className="grid size-10 place-items-center rounded-lg border border-border"><FileText className="size-4" /></div><div className="min-w-0 flex-1"><p className="font-medium">{a.title}</p><p className="mt-1 text-xs text-muted-foreground">{a.artifact_type.replaceAll('_',' ')} · Version {a.current_version} · {a.current_version_review_status || a.status}</p></div><div className="flex flex-wrap gap-2">{a.current_version_review_status !== 'approved' && <button onClick={() => void reviewArtifact(a, 'approve')} className="rounded-lg border border-border px-3 py-2 text-sm">Approve v{a.current_version}</button>}<button onClick={() => void reviewArtifact(a, 'changes_requested')} className="rounded-lg border border-border px-3 py-2 text-sm">Request changes</button><button onClick={() => void exportArtifact(a)} className="rounded-lg border border-border px-3 py-2 text-sm">Export JSON</button></div></div>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">No saved artifacts yet. Generate an influencer brief and choose “Save as artifact”.</p>}
       </div>
     </section>}
 
