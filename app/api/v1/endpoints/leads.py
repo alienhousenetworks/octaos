@@ -170,6 +170,17 @@ def update_whatsapp_opt_in(
             channel="whatsapp",
         )
 
+    # Keep the recipient-level contact object and top-level compatibility fields in sync.
+    consent_fields = {
+        key: lead_data[key]
+        for key in ("whatsapp_opt_in", "whatsapp_opt_in_source", "whatsapp_opt_in_at", "whatsapp_opt_out_at")
+        if key in lead_data
+    }
+    contact_data = lead_data.get("contact") if isinstance(lead_data.get("contact"), dict) else {}
+    contact_data = dict(contact_data)
+    contact_data.update(consent_fields)
+    lead_data["contact"] = contact_data
+
     lead.data = lead_data
     db.commit()
     db.refresh(lead)
