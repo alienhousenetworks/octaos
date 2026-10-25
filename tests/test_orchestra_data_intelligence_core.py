@@ -66,3 +66,16 @@ def test_evidence_ledger_rejects_missing_refs_and_id_collisions():
 def test_hashes_are_deterministic():
     assert sha256_bytes(b"abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
     assert canonical_json_sha256({"a": 1, "b": 2}) == canonical_json_sha256({"b": 2, "a": 1})
+
+
+@pytest.mark.asyncio
+async def test_sandbox_fails_closed_without_trusted_image(tmp_path):
+    from app.services.data_intelligence.sandbox import DockerAnalysisSandbox
+    workspace = tmp_path / "tenant" / "run-1"
+    workspace.mkdir(parents=True)
+    (workspace / "analysis.py").write_text("print('not executed')", encoding="utf-8")
+    sandbox = DockerAnalysisSandbox(image="", workspace_root=tmp_path)
+    result = await sandbox.run(workspace)
+    assert result.status == "unavailable"
+    assert "not executed" not in result.stdout
+    assert "not executed" not in result.stderr
