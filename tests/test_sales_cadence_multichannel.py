@@ -40,6 +40,21 @@ def db_session():
     session.close()
 
 
+def authorize_outbound(db_session):
+    db_session.add(APICredential(
+        tenant_id="test_tenant_cadence",
+        provider="sales",
+        encrypted_key=encrypt_api_key("test-sales-key"),
+        settings={
+            "sales_ai_auto_send_enabled": True,
+            "outbound_permission_state": "granted",
+            "whatsapp_permission_state": "granted",
+            "whatsapp_opt_in": True,
+        },
+    ))
+    db_session.commit()
+
+
 def test_extract_phone_and_linkedin(db_session):
     lead = Lead(
         tenant_id="test_tenant_cadence",
@@ -64,6 +79,7 @@ def test_extract_phone_and_linkedin(db_session):
 
 
 def test_whatsapp_dispatch_unconfigured(db_session):
+    authorize_outbound(db_session)
     lead = Lead(
         tenant_id="test_tenant_cadence",
         name="Alex Smith",
@@ -114,6 +130,7 @@ def test_whatsapp_only_lead_can_be_staged_in_durable_outbox(db_session):
 
 
 def test_dispatcher_blocks_suppressed_email_before_provider_call(db_session):
+    authorize_outbound(db_session)
     lead = Lead(
         tenant_id="test_tenant_cadence",
         name="Opted Out",
@@ -142,6 +159,7 @@ def test_dispatcher_blocks_suppressed_email_before_provider_call(db_session):
 
 
 def test_whatsapp_dispatch_with_mocked_meta_api(db_session):
+    authorize_outbound(db_session)
     lead = Lead(
         tenant_id="test_tenant_cadence",
         name="Jane Doe",
@@ -220,6 +238,7 @@ def test_linkedin_dispatch_stages_approval_request(db_session):
 
 
 def test_outbox_drain_handles_multichannel_without_mocks(db_session):
+    authorize_outbound(db_session)
     lead = Lead(
         id="lead_drain_1",
         tenant_id="test_tenant_cadence",
