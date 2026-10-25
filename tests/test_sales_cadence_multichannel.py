@@ -267,6 +267,10 @@ def test_outbox_drain_handles_multichannel_without_mocks(db_session):
         phone="+1 555 444 3333",
         company="Schrute Farms",
         data={
+            "contact_status": "READY",
+            "evidence_url": "https://example.com/news/schrute-farms",
+            "evidence_quote": "Schrute Farms announced a new agritourism offering.",
+            "buying_signal": "New agritourism offering",
             "contact": {
                 "linkedin_url": "https://www.linkedin.com/in/dwight-schrute",
             },
