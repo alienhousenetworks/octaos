@@ -1,9 +1,9 @@
-"""Look up industry packs and preview a switch that keeps existing records."""
+"""Industry-neutral Sales defaults. Legacy pack data is retained only for migration compatibility."""
 from __future__ import annotations
 
 from typing import Any
 
-from app.services.sales_os.verticals.packs import PACK_ORDER, PACKS
+from app.services.sales_os.verticals.packs import PACKS
 
 SHARED_TERMINOLOGY = {
     "lead": "Lead",
@@ -27,7 +27,8 @@ PACK_ALIASES: dict[str, str] = {
 
 
 def list_packs() -> list[dict[str, Any]]:
-    return [dict(PACKS[pack_id]) for pack_id in PACK_ORDER]
+    """No industry packs are exposed to the general Sales runtime."""
+    return []
 
 
 def get_pack(pack_id: str) -> dict[str, Any] | None:
@@ -51,11 +52,9 @@ def shared_terminology() -> dict[str, str]:
     return dict(SHARED_TERMINOLOGY)
 
 
-def terminology_for(pack_id: str | None) -> dict[str, str]:
-    pack = get_pack(pack_id) if pack_id else None
-    if not pack:
-        return shared_terminology()
-    return dict(pack["terminology"])
+def terminology_for(pack_id: str | None = None) -> dict[str, str]:
+    """Use universal CRM terminology regardless of any legacy stored pack ID."""
+    return shared_terminology()
 
 
 def preview_switch(current_id: str | None, next_id: str, record_count: int) -> dict[str, Any]:
