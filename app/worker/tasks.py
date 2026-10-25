@@ -1572,8 +1572,8 @@ def schedule_future_buffer_posts_task():
             if not channel_map:
                 continue
 
-            # Recover stale claims conservatively. Never automatically retry an uncertain write.
-            claimed = (
+            # Recover stale claims conservatively; ambiguous writes must not be retried blindly.
+            stale_claims = (
                 db.query(ContentPost)
                 .filter(
                     ContentPost.tenant_id == tenant_id,
@@ -1583,10 +1583,11 @@ def schedule_future_buffer_posts_task():
                 .with_for_update(skip_locked=True)
                 .all()
             )
-            for stuck in claimed:
+            for stuck in stale_claims:
                 marker = "Buffer scheduling started at "
                 try:
-                    started = datetime.fromisoformat((stuck.fallback_reason or "").split(marker, 1)[1].split(".", 1)[0] + "Z")
+                    raw_timestamp = (stuck.fallback_reason or "").split(marker, 1)[1].rstrip(".")
+                    started = datetime.fromisoformat(raw_timestamp)
                 except (IndexError, ValueError):
                     started = now - timedelta(minutes=16)
                 if started.tzinfo is None:
@@ -1597,7 +1598,7 @@ def schedule_future_buffer_posts_task():
                     db.add(stuck)
             db.commit()
 
-            posts = (
+            candidates = (
                 db.query(ContentPost)
                 .filter(
                     ContentPost.tenant_id == tenant_id,
@@ -1610,7 +1611,8 @@ def schedule_future_buffer_posts_task():
                 .limit(100)
                 .all()
             )
-            for post in posts:
+            claimed_posts = []
+            for post in candidates:
                 platform = (post.platform or "").lower().replace("twitter", "x")
                 channel_id = channel_map.get(platform)
                 if not channel_id:
@@ -1618,12 +1620,19 @@ def schedule_future_buffer_posts_task():
                 post.status = "buffer_scheduling"
                 post.fallback_reason = "Buffer scheduling started at " + now.isoformat() + "."
                 db.add(post)
-                db.commit()
+                claimed_posts.append((post, channel_id))
+            # Commit every claim before any network write so concurrent workers cannot select it.
+            db.commit()
+
+            for post, channel_id in claimed_posts:
                 try:
+                    scheduled_at = post.scheduled_at
+                    if scheduled_at and scheduled_at.tzinfo is None:
+                        scheduled_at = scheduled_at.replace(tzinfo=timezone.utc)
                     created = async_to_sync(BufferService(db, tenant_id).create_post)(
                         channel_id=channel_id,
                         text=post.content or "",
-                        scheduled_at=post.scheduled_at,
+                        scheduled_at=scheduled_at,
                         image_url=post.image_url,
                         video_url=post.video_url,
                     )
@@ -1634,7 +1643,7 @@ def schedule_future_buffer_posts_task():
                         tenant_id=tenant_id,
                         agent_name="Marketing AI",
                         action="Schedule Future Post in Buffer",
-                        description=f"Buffer accepted post {post.id} for {post.scheduled_at} (external id={created['id']}).",
+                        description=f"Buffer accepted post {post.id} for {scheduled_at} (external id={created['id']}).",
                         status="success",
                     ))
                     db.commit()
