@@ -262,7 +262,8 @@ textarea { min-height: 6rem; }
 [class*="border-white/"], [class*="border-[rgba(255,255,255"], [class*="border-[#"] {
   border-color: var(--border) !important;
 }
-[class*="text-[#"] { color: var(--primary) !important; }
+[class*="text-[#"] { color: var(--muted-foreground) !important; }
+[class*="text-[#0f172a]"], [class*="text-[#172033]"], [class*="text-[#111827]"] { color: var(--foreground) !important; }
 [class*="from-[#"], [class*="from-[rgba("] { --tw-gradient-from: var(--surface-3) !important; }
 [class*="to-[#"], [class*="to-[rgba("] { --tw-gradient-to: var(--surface-3) !important; }
 [class*="bg-[#"][class*="text-white"], [class*="bg-[rgba(0,0,0"][class*="text-white"] {
