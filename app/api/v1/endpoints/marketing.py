@@ -1916,16 +1916,26 @@ def create_campaign_artifact_version(
         raise HTTPException(status_code=404, detail="Campaign artifact not found")
     if artifact.current_version != body.expected_version:
         raise HTTPException(status_code=409, detail="Artifact changed since it was loaded; refresh before editing.")
-    next_version = artifact.current_version + 1
+    next_version = body.expected_version + 1
+    now = datetime.now(timezone.utc)
+    # Atomic compare-and-swap also protects SQLite deployments where FOR UPDATE is ignored.
+    changed = db.query(models.CampaignArtifact).filter(
+        models.CampaignArtifact.id == artifact.id,
+        models.CampaignArtifact.tenant_id == tenant_id,
+        models.CampaignArtifact.current_version == body.expected_version,
+    ).update(
+        {"current_version": next_version, "status": "draft", "updated_at": now},
+        synchronize_session=False,
+    )
+    if changed != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Artifact changed while saving; refresh before editing.")
     version = models.CampaignArtifactVersion(
         tenant_id=tenant_id, artifact_id=artifact.id, version=next_version,
         content=body.content, sources=body.sources,
         content_hash=_campaign_artifact_hash(body.content, body.sources),
         review_status="draft", created_by=getattr(current_user, "id", None),
     )
-    artifact.current_version = next_version
-    artifact.status = "draft"
-    artifact.updated_at = datetime.now(timezone.utc)
     db.add(version)
     db.commit()
     db.refresh(artifact)

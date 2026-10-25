@@ -1,26 +1,29 @@
 # Autonomous Campaign Studio implementation status
 
-## Included in this branch
+## Implemented in this branch
 
-- Adds a dedicated `/app/campaigns/studio` workspace with a restrained neutral enterprise surface system, consistent borders, typography, spacing and one primary accent.
-- Adds Overview, Content Studio, AI Influencer Studio, Artifacts, Calendar and Performance sections.
-- Connects campaign overview/content/calendar to the existing tenant-scoped marketing posts API.
-- Queues campaigns through the existing `/marketing/campaign` worker API and reports the returned job identifier rather than claiming completion.
-- Reads the existing analytics dashboard without fabricating metric values.
-- Connects Buffer status and OAuth through the registered `/marketing/connectors/buffer/*` routes.
-- Adds a virtual-influencer brief endpoint that uses the existing tenant AI gateway and existing safe brief validator. It requires a fictional adult persona, synthetic disclosure and human review; it never publishes.
-- Adds validation tests for required persona fields, disclosure and review status.
-- Adds a link from the existing campaign planner into the new studio.
+- Adds a dedicated `/app/campaigns/studio` workspace with a restrained neutral enterprise surface system.
+- Adds Overview, Content Studio, AI Influencer Studio, Artifacts, Calendar and Performance sections while preserving the existing campaign planner.
+- Connects campaign overview/content/calendar to the existing tenant-scoped marketing posts API and queues campaign work through the existing background worker.
+- Adds tenant-owned virtual influencer profile persistence and listing. Generated personas must be fictional adults, include the synthetic-persona disclosure, and remain review-gated. A review endpoint supports approve, request-changes and reject decisions; approval is for content review, not auto-publishing.
+- Adds tenant-scoped campaign artifact and immutable version tables with SHA-256 content/source hashes.
+- Adds artifact create/list/detail APIs, version creation with expected-version conflict checks, review bound to exact version/hash, and JSON export of a selected immutable version.
+- Adds an artifact JSON editor that creates a new version and resets approval state.
+- Connects Buffer status/OAuth entry points and the existing analytics endpoint.
+- Adds tests for virtual-influencer brief validation and deterministic artifact content hashing.
 
-## Known gaps; do not treat these as implemented
+## Explicitly not complete
 
-- Virtual influencer briefs are generated on request but are not yet stored in a dedicated persistent persona library. The response explicitly reports `persistence: not_persisted`.
-- The Artifacts section is an honest workspace entry point, not a complete versioned artifact backend. Durable artifact/version/source/review/export APIs and migrations are still required.
-- Calendar is read-only in this change. Drag/drop scheduling and rescheduling are not implemented here.
-- Performance currently displays the backend analytics payload for transparency; a normalized metric visualization and learning-insight evidence panel remain to be built.
-- Provider capability diagnostics, publishing reconciliation, durable orchestration recovery and full end-to-end browser tests require a further integration pass.
-- This branch has not been run through a local frontend build or backend test suite in this environment. CI results must be reviewed before merge.
+- Export is JSON only. PDF/DOCX/PPTX generation, a rich document editor, object-storage asset pipeline, automatic artifact-generation triggers, and verified external evidence ingestion remain to be implemented.
+- Calendar is read-only. Drag/drop scheduling, provider reconciliation, durable publishing recovery and duplicate-send end-to-end tests remain outstanding.
+- Performance still displays the backend analytics payload rather than a normalized chart dashboard with evidence-backed learning panels.
+- Full browser tests, local production build, and live database migration were not run in this chat. Review GitHub Actions on the latest PR head before merge.
+- No deployment or production migration has been run.
 
-## Verification policy
+## Integrity and safety policy
 
-A queued job is not a completed campaign; a generated brief is not an approved persona; a Buffer credential is not proof that every channel can publish; and a missing metric is not zero. Preserve those distinctions in UI and API responses.
+- Tenant-owned profile and artifact queries are tenant-filtered.
+- New artifact versions reset review state to draft.
+- Reviews must reference the exact version and matching SHA-256 content/source hash.
+- Export downloads a selected immutable version and returns a checksum header.
+- A queued campaign is not a completed campaign; a reviewed persona is not permission to publish; a connected provider is not proof that every channel is supported; and unavailable metrics are not zero.
