@@ -186,10 +186,11 @@ def generate_campaign_task(tenant_id: str, params: dict, job_id: str = None, *ar
         platforms = params.get("platforms", ["linkedin", "instagram", "facebook"])
         img_sel = params.get("image", {}) if isinstance(params.get("image"), dict) else {}
         vid_sel = params.get("video", {}) if isinstance(params.get("video"), dict) else {}
-        image_provider = img_sel.get("provider") or params.get("image_provider", "together")
-        image_model = img_sel.get("model") or params.get("image_model")
-        video_provider = vid_sel.get("provider") or params.get("video_provider", "together")
-        video_model = vid_sel.get("model") or params.get("video_model")
+        import os
+        image_provider = img_sel.get("provider") or params.get("image_provider") or os.getenv("DEFAULT_IMAGE_PROVIDER") or os.getenv("IMAGE_PROVIDER") or "together"
+        image_model = img_sel.get("model") or params.get("image_model") or os.getenv("DEFAULT_IMAGE_MODEL") or os.getenv("IMAGE_MODEL") or "black-forest-labs/FLUX.1-schnell"
+        video_provider = vid_sel.get("provider") or params.get("video_provider") or os.getenv("DEFAULT_VIDEO_PROVIDER") or os.getenv("VIDEO_PROVIDER") or "together"
+        video_model = vid_sel.get("model") or params.get("video_model") or os.getenv("DEFAULT_VIDEO_MODEL") or os.getenv("VIDEO_MODEL") or "minimax/video-01"
         reference_image_url = params.get("reference_image_url")
         generate_images = bool(params.get("generate_images", True))
         generate_videos = bool(params.get("generate_videos", False))
