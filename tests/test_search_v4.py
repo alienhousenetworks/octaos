@@ -420,3 +420,17 @@ def test_planner_covers_multiple_industries_geographies_and_buyer_roles():
     assert any("vp sales" in query for query in web_queries)
     assert any("coo" in query for query in web_queries)
     assert any("head of operations" in query for query in web_queries)
+
+
+def test_planner_uses_multiple_configured_web_providers_when_budget_allows():
+    tasks, _notes = plan_tasks(
+        spec(),
+        {"brave_search": "brave-test-key", "tavily": "tavily-test-key"},
+        [],
+        ProviderStats(),
+        ProviderHealth(),
+        700,
+    )
+    web_providers = {task.provider for task in tasks if task.method == "web"}
+    assert "brave" in web_providers
+    assert "tavily" in web_providers
