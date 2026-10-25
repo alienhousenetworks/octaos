@@ -198,11 +198,11 @@ async def fetch_and_verify_source(
     """Fetch a public source with DNS-pinned TCP, bounded bytes, and no redirects."""
     retrieved = datetime.now(timezone.utc).isoformat()
     clean_quote = str(quote or "")[:MAX_QUOTE_CHARS]
-    parsed, addresses, reason = _validate_and_resolve(url, resolver)
-    if reason != "url_validated" or parsed is None:
-        return SourceVerification(url, retrieved, None, clean_quote, False, reason)
     if not str(quote or "").strip():
         return SourceVerification(url, retrieved, None, "", False, "quote_missing")
+    parsed, addresses, reason = await asyncio.to_thread(_validate_and_resolve, url, resolver)
+    if reason != "url_validated" or parsed is None:
+        return SourceVerification(url, retrieved, None, clean_quote, False, reason)
 
     host = parsed.hostname.rstrip(".").encode("idna").decode("ascii").lower()
     port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
