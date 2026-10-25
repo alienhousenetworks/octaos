@@ -36,6 +36,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { notify } from '@/lib/notify';
 import HRView from './hiring/hr-view';
+import HROperationsView from './hr-operations-view';
 
 interface HREnterpriseSuiteProps {
   token: string | null;
@@ -360,6 +361,7 @@ export default function HREnterpriseSuite({
             { id: 'people' as const, label: '1. People', count: `${employees.length}` },
             { id: 'hiring' as const, label: '2. Hiring', count: 'ATS' },
             { id: 'leave' as const, label: '3. Time off', count: `${leaves.filter((l) => l.status === 'pending').length} pending` },
+            { id: 'operations' as const, label: '4. Operations', count: 'Reviews · Service · Lifecycle' },
           ]).map((step) => {
             const isActive = screen === step.id;
             return (
@@ -387,6 +389,8 @@ export default function HREnterpriseSuite({
         {/* ========================================================================= */}
         {/* CASE 1: TALENT MANAGEMENT -> RECRUITMENT (PRESERVED LIVE ATS ENGINE)      */}
         {/* ========================================================================= */}
+        {screen === 'operations' && <HROperationsView API_URL={API_URL} fetchWithAuth={fetchWithAuth} />}
+
         {screen === 'hiring' && (
           <HRView
             token={token}
