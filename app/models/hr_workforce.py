@@ -55,7 +55,13 @@ class LeaveLedgerEntry(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
-        UniqueConstraint("tenant_id", "transaction_type", "reference_id", name="uq_leave_ledger_reference_once"),
+        Index(
+            "uq_leave_ledger_reference_once",
+            "tenant_id", "transaction_type", "reference_id",
+            unique=True,
+            postgresql_where=reference_id.is_not(None),
+            sqlite_where=reference_id.is_not(None),
+        ),
     )
 
 
