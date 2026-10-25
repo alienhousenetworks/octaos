@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import DashboardView from '@/components/views/dashboard-view';
 import KnowledgeView from '@/components/views/knowledge-view';
 import CampaignsView from '@/components/views/campaigns-view';
+import CampaignStudioView from '@/components/views/campaign-studio-view';
 import SupportView from '@/components/views/support-view';
 import OrchestratorView from '@/components/views/orchestrator-view';
 import TeamsView from '@/components/views/teams-view';
@@ -128,6 +129,19 @@ export default function WorkspaceScreen() {
   }
   if (pathname === '/app/knowledge') {
     return <KnowledgeView {...shared} knowledge={workspace.knowledge} />;
+  }
+  if (pathname === '/app/campaigns/studio') {
+    if (!isAgentAllowed('marketing', workspace.userProfile)) {
+      return (
+        <AgentLockedScreen
+          agentKey="marketing"
+          token={workspace.token}
+          API_URL={workspace.apiUrl}
+          fetchData={workspace.fetchData}
+        />
+      );
+    }
+    return <CampaignStudioView token={workspace.token} API_URL={workspace.apiUrl} fetchWithAuth={workspace.fetchWithAuth} />;
   }
   if (pathname === '/app/campaigns' || pathname.startsWith('/app/campaigns/')) {
     if (!isAgentAllowed('marketing', workspace.userProfile)) {

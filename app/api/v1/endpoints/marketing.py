@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
 from sqlalchemy.orm import Session
 from typing import List, Any, Optional, Dict
 from pydantic import BaseModel, Field
 from datetime import datetime, timedelta, timezone
+import hashlib
+import json
 from asgiref.sync import async_to_sync
 
 from app.api import deps
@@ -1645,3 +1647,354 @@ def marketing_workforce_readiness(
     from app.services.marketing.workforce_readiness import get_marketing_workforce_readiness
 
     return get_marketing_workforce_readiness(db, tenant_id)
+
+
+class VirtualInfluencerReviewRequest(BaseModel):
+    decision: str = Field(pattern="^(approve|changes_requested|reject)$")
+    comment: str = Field(default="", max_length=3000)
+
+
+class CampaignArtifactCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=240)
+    artifact_type: str = Field(min_length=1, max_length=80)
+    campaign_id: Optional[str] = Field(default=None, max_length=200)
+    content: Dict[str, Any]
+    sources: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class CampaignArtifactVersionRequest(BaseModel):
+    content: Dict[str, Any]
+    sources: List[Dict[str, Any]] = Field(default_factory=list)
+    expected_version: int = Field(ge=1)
+
+
+class CampaignArtifactReviewRequest(BaseModel):
+    version: int = Field(ge=1)
+    content_hash: str = Field(min_length=64, max_length=64)
+    decision: str = Field(pattern="^(approve|changes_requested|reject)$")
+    comment: str = Field(default="", max_length=3000)
+
+
+class VirtualInfluencerBriefRequest(BaseModel):
+    company_name: str = Field(min_length=1, max_length=200)
+    industry: str = Field(min_length=1, max_length=200)
+    brand_tone: str = Field(default="Confident, useful and human", max_length=500)
+    audience: str = Field(default="", max_length=1000)
+    platform: str = Field(default="instagram", max_length=80)
+    creative_direction: str = Field(default="", max_length=2000)
+
+
+@router.post("/virtual-influencer/brief")
+async def generate_virtual_influencer_brief(
+    body: VirtualInfluencerBriefRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(require_permission(Resource.CAMPAIGNS, Action.CREATE)),
+) -> Any:
+    """Generate and persist a tenant-scoped fictional adult virtual-influencer draft; never publishes it."""
+    from app.services.ai_gateway import ai_gateway
+    from app.services.marketing.virtual_influencer import create_virtual_influencer_brief
+
+    class TenantLLM:
+        async def complete(self, *, prompt: str, system_prompt: str, max_tokens: int = 1400) -> str:
+            return await ai_gateway.executeRequest(
+                db,
+                tenant_id,
+                prompt=prompt,
+                system_prompt=system_prompt,
+                task_type="marketing",
+                complexity="medium",
+                max_tokens=max_tokens,
+            )
+
+    try:
+        projection = {}
+        try:
+            from app.services.knowledge_os.intent_projector import CompanyContextProjectionEngine, IntentType
+            projection = await CompanyContextProjectionEngine(db, tenant_id).get_projection(
+                intent=IntentType.CAMPAIGN_MARKETING
+            )
+        except Exception:
+            # A brief can still be generated from explicitly supplied inputs; do not invent brand facts.
+            projection = {}
+        approved_products = []
+        if isinstance(projection, dict):
+            approved_products = projection.get("approved_products") or projection.get("products") or []
+        result = await create_virtual_influencer_brief(
+            TenantLLM(),
+            company_name=body.company_name,
+            industry=body.industry,
+            brand_tone=body.brand_tone,
+            approved_products=approved_products if isinstance(approved_products, list) else [],
+            audience=body.audience,
+            platform=body.platform,
+            creative_direction=body.creative_direction,
+        )
+        profile = models.VirtualInfluencerProfile(
+            tenant_id=tenant_id,
+            name=str(result.get("name") or "Untitled virtual influencer")[:200],
+            status="draft_requires_review",
+            brief=result,
+            created_by=getattr(current_user, "id", None),
+        )
+        db.add(profile)
+        db.commit()
+        db.refresh(profile)
+        return {
+            **result, "id": profile.id, "status": profile.status,
+            "persistence": "persisted",
+            "message": "Draft saved to this workspace. Human review is required before use.",
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Virtual influencer generation failed. Check tenant AI provider configuration and try again.") from exc
+
+
+
+def _campaign_artifact_hash(content: Dict[str, Any], sources: List[Dict[str, Any]]) -> str:
+    canonical = json.dumps({"content": content, "sources": sources}, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _campaign_artifact_payload(artifact: Any, version: Any = None) -> Dict[str, Any]:
+    result = {
+        "id": artifact.id, "campaign_id": artifact.campaign_id, "title": artifact.title,
+        "artifact_type": artifact.artifact_type, "status": artifact.status,
+        "current_version": artifact.current_version, "created_at": artifact.created_at,
+        "updated_at": artifact.updated_at,
+    }
+    if version is not None:
+        result["version"] = {
+            "id": version.id, "version": version.version, "content": version.content,
+            "sources": version.sources, "content_hash": version.content_hash,
+            "review_status": version.review_status, "reviewed_by": version.reviewed_by,
+            "reviewed_at": version.reviewed_at, "created_at": version.created_at,
+        }
+    return result
+
+
+@router.get("/virtual-influencer/profiles")
+def list_virtual_influencer_profiles(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.READ)),
+) -> Dict[str, Any]:
+    rows = db.query(models.VirtualInfluencerProfile).filter(
+        models.VirtualInfluencerProfile.tenant_id == tenant_id
+    ).order_by(models.VirtualInfluencerProfile.updated_at.desc()).limit(200).all()
+    return {"items": [{"id": p.id, "name": p.name, "status": p.status, "brief": p.brief,
+                       "created_at": p.created_at, "updated_at": p.updated_at} for p in rows]}
+
+
+@router.post("/virtual-influencer/profiles/{profile_id}/review")
+def review_virtual_influencer_profile(
+    profile_id: str,
+    body: VirtualInfluencerReviewRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(require_permission(Resource.CAMPAIGNS, Action.UPDATE)),
+) -> Dict[str, Any]:
+    profile = db.query(models.VirtualInfluencerProfile).filter(
+        models.VirtualInfluencerProfile.id == profile_id,
+        models.VirtualInfluencerProfile.tenant_id == tenant_id,
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Virtual influencer profile not found")
+    profile.status = {
+        "approve": "approved_for_content_review",
+        "changes_requested": "changes_requested",
+        "reject": "rejected",
+    }[body.decision]
+    profile.updated_at = datetime.now(timezone.utc)
+    profile.brief = {
+        **(profile.brief or {}),
+        "review": {
+            "decision": body.decision,
+            "comment": body.comment,
+            "reviewed_by": getattr(current_user, "id", None),
+            "reviewed_at": profile.updated_at.isoformat(),
+        },
+    }
+    db.commit()
+    db.refresh(profile)
+    return {"id": profile.id, "name": profile.name, "status": profile.status,
+            "brief": profile.brief, "updated_at": profile.updated_at}
+
+
+@router.get("/artifacts")
+def list_campaign_artifacts(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.READ)),
+    campaign_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    query = db.query(models.CampaignArtifact).filter(models.CampaignArtifact.tenant_id == tenant_id)
+    if campaign_id:
+        query = query.filter(models.CampaignArtifact.campaign_id == campaign_id)
+    rows = query.order_by(models.CampaignArtifact.updated_at.desc()).limit(200).all()
+    items = []
+    for row in rows:
+        current = db.query(models.CampaignArtifactVersion).filter(
+            models.CampaignArtifactVersion.artifact_id == row.id,
+            models.CampaignArtifactVersion.tenant_id == tenant_id,
+            models.CampaignArtifactVersion.version == row.current_version,
+        ).first()
+        item = _campaign_artifact_payload(row)
+        if current:
+            item["current_version_hash"] = current.content_hash
+            item["current_version_review_status"] = current.review_status
+        items.append(item)
+    return {"items": items}
+
+
+@router.post("/artifacts")
+def create_campaign_artifact(
+    body: CampaignArtifactCreateRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(require_permission(Resource.CAMPAIGNS, Action.CREATE)),
+) -> Dict[str, Any]:
+    import uuid
+    artifact_id = str(uuid.uuid4())
+    artifact = models.CampaignArtifact(
+        id=artifact_id, tenant_id=tenant_id, campaign_id=body.campaign_id,
+        title=body.title.strip(), artifact_type=body.artifact_type.strip().lower(),
+        status="draft", current_version=1, created_by=getattr(current_user, "id", None),
+    )
+    version = models.CampaignArtifactVersion(
+        tenant_id=tenant_id, artifact_id=artifact_id, version=1,
+        content=body.content, sources=body.sources,
+        content_hash=_campaign_artifact_hash(body.content, body.sources),
+        review_status="draft", created_by=getattr(current_user, "id", None),
+    )
+    db.add(artifact)
+    db.add(version)
+    db.commit()
+    db.refresh(artifact)
+    db.refresh(version)
+    return _campaign_artifact_payload(artifact, version)
+
+
+@router.get("/artifacts/{artifact_id}")
+def get_campaign_artifact(
+    artifact_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.READ)),
+) -> Dict[str, Any]:
+    artifact = db.query(models.CampaignArtifact).filter(
+        models.CampaignArtifact.id == artifact_id,
+        models.CampaignArtifact.tenant_id == tenant_id,
+    ).first()
+    if not artifact:
+        raise HTTPException(status_code=404, detail="Campaign artifact not found")
+    versions = db.query(models.CampaignArtifactVersion).filter(
+        models.CampaignArtifactVersion.artifact_id == artifact.id,
+        models.CampaignArtifactVersion.tenant_id == tenant_id,
+    ).order_by(models.CampaignArtifactVersion.version.desc()).all()
+    return {**_campaign_artifact_payload(artifact), "versions": [
+        {"id": v.id, "version": v.version, "content": v.content, "sources": v.sources,
+         "content_hash": v.content_hash, "review_status": v.review_status,
+         "reviewed_by": v.reviewed_by, "reviewed_at": v.reviewed_at, "created_at": v.created_at}
+        for v in versions
+    ]}
+
+
+@router.put("/artifacts/{artifact_id}/versions")
+def create_campaign_artifact_version(
+    artifact_id: str,
+    body: CampaignArtifactVersionRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(require_permission(Resource.CAMPAIGNS, Action.UPDATE)),
+) -> Dict[str, Any]:
+    artifact = db.query(models.CampaignArtifact).filter(
+        models.CampaignArtifact.id == artifact_id, models.CampaignArtifact.tenant_id == tenant_id
+    ).with_for_update().first()
+    if not artifact:
+        raise HTTPException(status_code=404, detail="Campaign artifact not found")
+    if artifact.current_version != body.expected_version:
+        raise HTTPException(status_code=409, detail="Artifact changed since it was loaded; refresh before editing.")
+    next_version = artifact.current_version + 1
+    version = models.CampaignArtifactVersion(
+        tenant_id=tenant_id, artifact_id=artifact.id, version=next_version,
+        content=body.content, sources=body.sources,
+        content_hash=_campaign_artifact_hash(body.content, body.sources),
+        review_status="draft", created_by=getattr(current_user, "id", None),
+    )
+    artifact.current_version = next_version
+    artifact.status = "draft"
+    artifact.updated_at = datetime.now(timezone.utc)
+    db.add(version)
+    db.commit()
+    db.refresh(artifact)
+    db.refresh(version)
+    return _campaign_artifact_payload(artifact, version)
+
+
+@router.post("/artifacts/{artifact_id}/review")
+def review_campaign_artifact_version(
+    artifact_id: str,
+    body: CampaignArtifactReviewRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(require_permission(Resource.CAMPAIGNS, Action.UPDATE)),
+) -> Dict[str, Any]:
+    artifact = db.query(models.CampaignArtifact).filter(
+        models.CampaignArtifact.id == artifact_id, models.CampaignArtifact.tenant_id == tenant_id
+    ).first()
+    if not artifact:
+        raise HTTPException(status_code=404, detail="Campaign artifact not found")
+    version = db.query(models.CampaignArtifactVersion).filter(
+        models.CampaignArtifactVersion.artifact_id == artifact.id,
+        models.CampaignArtifactVersion.tenant_id == tenant_id,
+        models.CampaignArtifactVersion.version == body.version,
+    ).first()
+    if not version:
+        raise HTTPException(status_code=404, detail="Artifact version not found")
+    if version.content_hash != body.content_hash:
+        raise HTTPException(status_code=409, detail="Content hash mismatch; reload the exact version before reviewing.")
+    version.reviewed_by = getattr(current_user, "id", None)
+    version.reviewed_at = datetime.now(timezone.utc)
+    version.review_status = {"approve": "approved", "changes_requested": "changes_requested", "reject": "rejected"}[body.decision]
+    if artifact.current_version == version.version:
+        artifact.status = version.review_status
+    db.commit()
+    db.refresh(version)
+    db.refresh(artifact)
+    return _campaign_artifact_payload(artifact, version)
+
+
+@router.get("/artifacts/{artifact_id}/versions/{version_number}/export")
+def export_campaign_artifact_version(
+    artifact_id: str,
+    version_number: int,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.READ)),
+) -> Response:
+    artifact = db.query(models.CampaignArtifact).filter(
+        models.CampaignArtifact.id == artifact_id, models.CampaignArtifact.tenant_id == tenant_id
+    ).first()
+    if not artifact:
+        raise HTTPException(status_code=404, detail="Campaign artifact not found")
+    version = db.query(models.CampaignArtifactVersion).filter(
+        models.CampaignArtifactVersion.artifact_id == artifact.id,
+        models.CampaignArtifactVersion.tenant_id == tenant_id,
+        models.CampaignArtifactVersion.version == version_number,
+    ).first()
+    if not version:
+        raise HTTPException(status_code=404, detail="Artifact version not found")
+    document = {
+        "artifact": {"id": artifact.id, "title": artifact.title, "type": artifact.artifact_type},
+        "version": version.version, "content": version.content, "sources": version.sources,
+        "content_hash": version.content_hash, "review_status": version.review_status,
+    }
+    payload = json.dumps(document, ensure_ascii=False, indent=2)
+    filename = "".join(ch if ch.isalnum() or ch in "-_." else "-" for ch in artifact.title).strip(".-")[:100] or "campaign-artifact"
+    return Response(
+        content=payload, media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}-v{version.version}.json"',
+                 "X-Content-SHA256": hashlib.sha256(payload.encode("utf-8")).hexdigest()},
+    )

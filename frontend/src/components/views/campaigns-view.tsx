@@ -1626,6 +1626,15 @@ export default function CampaignsView({
           <>
             <button
               type="button"
+              onClick={() => window.location.assign('/app/campaigns/studio')}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
+              title="Open the unified Campaign Studio"
+            >
+              <Sparkles className="size-3.5" />
+              Campaign Studio
+            </button>
+            <button
+              type="button"
               onClick={() => setCampaignViewMode('verticals')}
               className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition shadow-xs"
               title="Click to view or switch marketing industry vertical pack"
