@@ -1413,3 +1413,7 @@ def execute_sales_cadence_touches():
 
 # Registers the sales-os discovery task. It is not on the beat schedule.
 from app.workers.sales_os.discovery import run_sales_os_discovery_task  # noqa: E402, F401
+
+
+# Register the durable autonomous-work Celery task.
+from app.services.autonomous_runtime import worker as _autonomous_runtime_worker  # noqa: F401

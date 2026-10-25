@@ -70,7 +70,7 @@ def startup_db_check():
     # Ensure Flow Engine tables and seeded agents/packages exist
     try:
         from app.models.base import Base
-        from app.models import enterprise, flow_engine, automations, schedules, verticals, rooms, hr, field_sales, real_estate, rbac  # noqa: F401
+        from app.models import enterprise, flow_engine, automations, schedules, verticals, rooms, hr, field_sales, real_estate, rbac, autonomous_work  # noqa: F401
         from app.db.session import SessionLocal
         from app.services.agents.seeder import seed_system_agents, seed_system_packages
         # One failing CREATE (pgvector) must not roll back the other tables.
