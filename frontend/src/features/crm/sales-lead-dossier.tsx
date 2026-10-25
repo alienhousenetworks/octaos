@@ -21,7 +21,7 @@ interface SalesLeadDossierProps {
   onGenerateDraft: (leadId: string, instructions: string) => Promise<{ subject: string; body: string } | null>;
   onSendDraft: (leadId: string, subject: string, body: string) => Promise<void>;
   onSaveSchedule: (leadId: string, schedule: FollowUpStep[]) => Promise<void>;
-  onBookMeeting: (leadId: string) => Promise<void>;
+  onBookMeeting: (leadId: string, suggestedTime: string) => Promise<void>;
   onDeleteLead: (leadId: string) => Promise<void>;
   onLogNote: (leadId: string, content: string, channel: string, direction: string) => Promise<void>;
   onSaveLead: (leadId: string, updates: Partial<Lead>) => Promise<void>;
@@ -47,6 +47,7 @@ export default function SalesLeadDossier({
   const [noteText, setNoteText] = useState('');
   const [noteChannel, setNoteChannel] = useState('note');
   const [noteDirection, setNoteDirection] = useState('internal');
+  const [meetingTime, setMeetingTime] = useState('');
 
   // Edit states
   const [editName, setEditName] = useState(lead?.name || '');
@@ -66,6 +67,7 @@ export default function SalesLeadDossier({
     setDraftSubject(lead?.data?.draft_subject || '');
     setDraftBody(lead?.data?.draft_body || '');
     setSchedule(lead?.data?.outreach_schedule || []);
+    setMeetingTime('');
   }, [lead?.id, lead?.data?.draft_body, lead?.data?.outreach_schedule]);
 
   if (!lead) return null;
@@ -360,24 +362,35 @@ export default function SalesLeadDossier({
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-2.5 pt-2">
-                <Button
-                  onClick={() => onSendOutreach(lead.id)}
+              <div className="pt-2 space-y-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                  Prospect-agreed meeting time (your local timezone)
+                </label>
+                <Input
+                  type="datetime-local"
+                  value={meetingTime}
+                  onChange={(e) => setMeetingTime(e.target.value)}
                   disabled={actionLoading}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl h-10 shadow-sm"
-                >
-                  {actionLoading ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Send size={14} className="mr-1.5" />}
-                  Generate Grounded Outreach
-                </Button>
-                <Button
-                  onClick={() => onBookMeeting(lead.id)}
-                  disabled={actionLoading}
-                  variant="outline"
-                  className="flex-1 text-xs font-semibold rounded-xl h-10 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-sm"
-                >
-                  <Calendar size={14} className="mr-1.5 text-blue-600" /> Book Meeting
-                </Button>
+                  className="text-xs bg-white border-slate-200 text-slate-900"
+                />
+                <div className="flex flex-wrap gap-2.5">
+                  <Button
+                    onClick={() => onSendOutreach(lead.id)}
+                    disabled={actionLoading}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl h-10 shadow-sm"
+                  >
+                    {actionLoading ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Send size={14} className="mr-1.5" />}
+                    Generate Grounded Outreach
+                  </Button>
+                  <Button
+                    onClick={() => onBookMeeting(lead.id, meetingTime)}
+                    disabled={actionLoading || !meetingTime}
+                    variant="outline"
+                    className="flex-1 text-xs font-semibold rounded-xl h-10 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-sm"
+                  >
+                    <Calendar size={14} className="mr-1.5 text-blue-600" /> Book Meeting
+                  </Button>
+                </div>
               </div>
             </div>
           )}
