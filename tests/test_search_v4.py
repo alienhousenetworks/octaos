@@ -434,3 +434,40 @@ def test_planner_uses_multiple_configured_web_providers_when_budget_allows():
     web_providers = {task.provider for task in tasks if task.method == "web"}
     assert "brave" in web_providers
     assert "tavily" in web_providers
+
+
+@pytest.mark.asyncio
+async def test_search_engine_runs_bounded_adaptive_expansion_rounds():
+    async def handler(task):
+        if task.method != "web":
+            return ConnectorResult(status="empty", reason="not a web task")
+        query = task.query.lower()
+        if task.parent_record_id is None:
+            name, domain = "Acme", "acme.example"
+        elif "acme" in query:
+            name, domain = "Beta", "beta.example"
+        elif "beta" in query:
+            name, domain = "Gamma", "gamma.example"
+        else:
+            return ConnectorResult(status="empty", reason="no new account")
+        return ConnectorResult(
+            status="ok",
+            hits=[
+                Hit(
+                    url=f"https://{domain}/company",
+                    title=f"{name} company overview",
+                    snippet=f"{name} is looking for a sales automation vendor.",
+                    company_name=name,
+                    company_domain=domain,
+                )
+            ],
+        )
+
+    store = MemorySearchStore()
+    engine = SearchEngine(store, FakeConnectors(handler), {})
+    batch = await engine.run(spec())
+    payload = store.get_job("tenant-1", batch.job_id)
+
+    assert payload["expansion_round"] <= 3
+    assert payload["expansion_done"] is True
+    assert any(record["company_domain"] == "acme.example" for record in payload["records"])
