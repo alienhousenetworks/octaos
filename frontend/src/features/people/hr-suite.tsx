@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   FileText,
   BarChart3,
+  Activity,
   Bot,
   Send,
   Shield,
@@ -213,15 +214,27 @@ export default function HREnterpriseSuite({
 
   const handleSubmitLeave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const requestedDays = Number(leaveDays);
     if (!selectedEmpForLeave) {
       notify.error('Select an employee.');
       return;
     }
+    if (!Number.isFinite(requestedDays) || requestedDays < 1 || requestedDays > 30) {
+      notify.error('Enter a number of leave days between 1 and 30.');
+      return;
+    }
+    if (!leaveReason.trim()) {
+      notify.error('Enter a reason for the leave request.');
+      return;
+    }
     setSubmittingLeave(true);
     try {
-      const today = new Date();
-      const start = new Date(today.setDate(today.getDate() + 7)).toISOString().split('T')[0];
-      const end = new Date(today.setDate(today.getDate() + parseInt(leaveDays) - 1)).toISOString().split('T')[0];
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() + 7);
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + Math.ceil(requestedDays) - 1);
+      const start = startDate.toISOString().split('T')[0];
+      const end = endDate.toISOString().split('T')[0];
 
       const res = await fetchWithAuth(`${API_URL}/hr/workforce/leaves`, {
         method: 'POST',
@@ -231,8 +244,8 @@ export default function HREnterpriseSuite({
           leave_type_code: 'ANNUAL',
           start_date: start,
           end_date: end,
-          days_requested: parseFloat(leaveDays),
-          reason: leaveReason
+          days_requested: requestedDays,
+          reason: leaveReason.trim()
         })
       });
       if (res.ok) {
@@ -670,7 +683,7 @@ export default function HREnterpriseSuite({
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-slate-400">First Name</label>
-                  <Input value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} required className="bg-slate-800 border-slate-700 text-white mt-1 text-xs" />
+                  <Input value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} required className="bg-background border-border text-foreground mt-1" />
                 </div>
                 <div>
                   <label className="text-slate-400">Last Name</label>
@@ -714,7 +727,7 @@ export default function HREnterpriseSuite({
             </div>
             <form onSubmit={handleSubmitLeave} className="space-y-3 text-xs">
               <div>
-                <label className="text-slate-400">Employee</label>
+                <label className="text-sm text-muted-foreground">Employee</label>
                 <select
                   value={selectedEmpForLeave}
                   onChange={(e) => setSelectedEmpForLeave(e.target.value)}
@@ -726,11 +739,11 @@ export default function HREnterpriseSuite({
                 </select>
               </div>
               <div>
-                <label className="text-slate-400">Days Requested</label>
+                <label className="text-sm text-muted-foreground">Days requested</label>
                 <Input type="number" min="1" max="30" value={leaveDays} onChange={(e) => setLeaveDays(e.target.value)} className="bg-slate-800 border-slate-700 text-white mt-1 text-xs" />
               </div>
               <div>
-                <label className="text-slate-400">Reason</label>
+                <label className="text-sm text-muted-foreground">Reason</label>
                 <Input value={leaveReason} onChange={(e) => setLeaveReason(e.target.value)} className="bg-slate-800 border-slate-700 text-white mt-1 text-xs" />
               </div>
               <div className="p-2.5 rounded bg-slate-800/60 border border-slate-700 text-[11px] text-amber-300 flex items-center gap-2">
@@ -741,8 +754,8 @@ export default function HREnterpriseSuite({
                 <Button type="button" variant="outline" onClick={() => setIsLeaveModalOpen(false)} className="border-slate-700 text-xs">
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submittingLeave} className="bg-amber-600 hover:bg-amber-500 text-white text-xs">
-                  {submittingLeave ? 'Simulating...' : 'Submit Request'}
+                <Button type="submit" disabled={submittingLeave} className="text-xs">
+                  {submittingLeave ? 'Submitting…' : 'Submit request'}
                 </Button>
               </div>
             </form>
