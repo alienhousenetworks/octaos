@@ -350,7 +350,6 @@ class MarketingAgent(BaseAgent):
                             "policy_decision": policy_decision,
                             "generation_status": getattr(brief, "generation_status", "generated"),
                             "source_url": getattr(brief, "source_url", None),
-                    "policy_decision": policy_decision,
                         },
                         confidence=confidence_score,
                         status="pending",
@@ -374,6 +373,7 @@ class MarketingAgent(BaseAgent):
                     "generation_status": getattr(brief, "generation_status", "generated"),
                     "context_score": getattr(brief, "context_score", None),
                     "source_url": getattr(brief, "source_url", None),
+                    "policy_decision": policy_decision,
                 })
 
             except Exception as platform_err:
