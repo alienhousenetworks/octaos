@@ -1053,93 +1053,171 @@ async def send_outreach_smart(
     lead_id: str,
     payload: dict = None,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE)),
 ) -> Any:
-    """Send AI-generated outreach email for a lead. Always returns structured result including config status."""
-    from app.services.email.sender import check_smtp_configured, check_gmail_configured, send_email_with_status
-    
-    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
+    """Send a reviewed draft through the central policy-gated dispatcher."""
+    from app.services.email.sender import check_smtp_configured, check_gmail_configured
+    from app.services.sales.touch_dispatcher import dispatch_sales_touch
+    from app.services.sales_os.quality_gates import assess_outreach_readiness
+
+    lead = db.query(models.Lead).filter(
+        models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id
+    ).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    
+
     smtp_ok = check_smtp_configured(db, tenant_id)
     gmail_ok = check_gmail_configured(db, tenant_id)
-    email_configured = smtp_ok or gmail_ok
-    
-    # Use the user's edited draft if provided, otherwise generate via AI
     custom_body = str((payload or {}).get("body") or "").strip()
     custom_subject = str((payload or {}).get("subject") or "").strip()
-    service = SalesService(db, tenant_id)
     message = custom_body or None
     if not message:
         try:
-            message = await service.generate_outreach(lead_id)
-        except Exception as e:
+            message = await SalesService(db, tenant_id).generate_outreach(lead_id)
+        except Exception:
             message = None
-    
-    if not message:
-        # Fallback: use stored outbound body if available
-        message = (lead.data or {}).get("outbound_body", "")
-    
-    subject = custom_subject or f"Partnership Opportunity - {lead.company or 'Your Company'}"
-    
-    # Record in conversation regardless of send outcome
-    conv = list((lead.data or {}).get("conversation") or [])
-    email_send_status = "not_configured"
-    send_result = {"sent": False, "channel": None, "reason": "no_email_configured", "message": "Email credentials not configured."}
-    
-    if email_configured:
-        # Try to send
-        send_result = send_email_with_status(db, tenant_id, lead.email or lead.company_email or lead.personal_email, subject, message)
-        email_send_status = "sent" if send_result.get("sent") else "failed"
-    
-    # Always add to conversation history (even if not sent — marked as "staged")
-    conv_entry = {
-        "direction": "outbound",
-        "channel": send_result.get("channel") or "email",
-        "content": message,
-        "subject": subject,
-        "author": "Sales AI Agent",
-        "at": datetime.utcnow().isoformat(),
-        "sent": send_result.get("sent", False),
-        "send_status": email_send_status,
-    }
-    conv.append(conv_entry)
-    
-    new_status = "contacted" if send_result.get("sent") else lead.status
-    lead.status = new_status
-    lead.data = {
-        **(lead.data or {}),
-        "outreach_channel": send_result.get("channel") or "email",
-        "outbound_subject": subject,
-        "outbound_body": message,
-        "outreach_sent_at": datetime.utcnow().isoformat() if send_result.get("sent") else (lead.data or {}).get("outreach_sent_at"),
-        "conversation": conv,
-        "sent_actual": send_result.get("sent", False),
-        "email_send_status": email_send_status,
-    }
-    db.commit()
-    db.refresh(lead)
-    
-    return {
-        "lead_id": lead_id,
-        "message": message,
-        "email_configured": email_configured,
-        "smtp_configured": smtp_ok,
-        "gmail_configured": gmail_ok,
-        "sent": send_result.get("sent", False),
-        "channel": send_result.get("channel"),
-        "send_status": email_send_status,
-        "send_message": send_result.get("message", ""),
-        "lead": {
-            "id": lead.id,
-            "status": lead.status,
-            "email": lead.email,
-            "name": lead.name,
-            "company": lead.company,
+
+    if not isinstance(message, str) or not message.strip():
+        return {
+            "lead_id": lead_id,
+            "status": "blocked_no_draft",
+            "sent": False,
+            "message": "No outreach draft was produced. Nothing was sent.",
+            "email_configured": bool(smtp_ok or gmail_ok),
+            "smtp_configured": smtp_ok,
+            "gmail_configured": gmail_ok,
+        }
+
+    data = dict(lead.data or {})
+    contact_data = data.get("contact") if isinstance(data.get("contact"), dict) else {}
+    qualification = data.get("qualification") if isinstance(data.get("qualification"), dict) else {}
+    contact_name = contact_data.get("name") or data.get("contact_name")
+    if not contact_name and lead.name and lead.name.strip().casefold() != (lead.company or "").strip().casefold():
+        contact_name = lead.name
+    recipient_email = lead.email or lead.company_email or lead.personal_email
+    prospect = {
+        "contact_status": data.get("contact_status") or contact_data.get("contact_status") or qualification.get("contact_status"),
+        "evidence_url": data.get("evidence_url") or getattr(lead, "evidence_url", None),
+        "evidence_quote": data.get("evidence_quote") or data.get("evidence", {}).get("quote") if isinstance(data.get("evidence"), dict) else data.get("evidence_quote"),
+        "buying_signal": data.get("buying_signal"),
+        "news": data.get("news") or [],
+        "jobs": data.get("jobs") or [],
+        "contact": {
+            "name": contact_name,
+            "email": recipient_email,
+            "phone": lead.phone or lead.mobile_no or lead.company_contact_no,
         },
     }
+    sales_credential = db.query(models.APICredential).filter_by(
+        tenant_id=tenant_id, provider="sales"
+    ).first()
+    policy_settings = (sales_credential.settings if sales_credential else {}) or {}
+    readiness = assess_outreach_readiness(
+        prospect,
+        auto_send_enabled=bool(policy_settings.get("sales_ai_auto_send_enabled", False)),
+        permission_state=policy_settings.get("outbound_permission_state"),
+        suppressed=bool(data.get("suppressed") or data.get("do_not_contact")),
+        human_approved=True,
+    )
+    subject = custom_subject or f"Partnership Opportunity - {lead.company or 'Prospect'}"
+    if not readiness["ready"]:
+        data["outreach_draft"] = {
+            "channel": "email",
+            "subject": subject,
+            "body": message.strip(),
+            "status": "blocked",
+            "created_at": datetime.utcnow().isoformat() + "Z",
+            "blockers": readiness["blockers"],
+        }
+        data["draft_subject"] = subject
+        data["draft_body"] = message.strip()
+        data["outreach_readiness"] = readiness
+        lead.data = data
+        db.commit()
+        return {
+            "lead_id": lead_id,
+            "status": "blocked",
+            "sent": False,
+            "message": "Outbound blocked by readiness checks: " + ", ".join(readiness["blockers"]),
+            "blockers": readiness["blockers"],
+            "email_configured": bool(smtp_ok or gmail_ok),
+            "smtp_configured": smtp_ok,
+            "gmail_configured": gmail_ok,
+        }
 
+    send_result = dispatch_sales_touch(
+        db,
+        tenant_id,
+        lead,
+        channel="email",
+        subject=subject,
+        body=message.strip(),
+        step_number=1,
+        human_approved=True,
+    )
+    sent = bool(send_result.get("sent"))
+    now = datetime.utcnow().isoformat() + "Z"
+    data = dict(lead.data or {})
+    data["outreach_attempt"] = {
+        "channel": send_result.get("channel") or "email",
+        "attempted_at": now,
+        "sent": sent,
+        "reason": send_result.get("reason"),
+        "message": send_result.get("message"),
+        "provider_message_id": send_result.get("message_id") or send_result.get("provider_message_id"),
+    }
+    data["outreach_readiness"] = readiness
+    data["outreach_draft"] = {
+        "channel": "email",
+        "subject": subject,
+        "body": message.strip(),
+        "status": "sent" if sent else "blocked",
+        "created_at": now,
+        "blockers": [] if sent else send_result.get("blockers", [send_result.get("reason") or "dispatch_failed"]),
+    }
+    data["draft_subject"] = subject
+    data["draft_body"] = message.strip()
+    if sent:
+        conversation = list(data.get("conversation") or [])
+        conversation.append({
+            "direction": "outbound",
+            "channel": send_result.get("channel") or "email",
+            "content": message.strip(),
+            "subject": subject,
+            "author": "Sales AI Agent",
+            "at": now,
+            "sent": True,
+            "send_status": "sent",
+            "provider_message_id": send_result.get("message_id") or send_result.get("provider_message_id"),
+        })
+        data["conversation"] = conversation
+        data["outreach_channel"] = send_result.get("channel") or "email"
+        data["outbound_subject"] = subject
+        data["outbound_body"] = message.strip()
+        data["outreach_sent_at"] = now
+        data["sent_actual"] = True
+        lead.status = "contacted"
+    else:
+        data["sent_actual"] = False
+    lead.data = data
+    db.commit()
+    db.refresh(lead)
+
+    return {
+        "lead_id": lead_id,
+        "status": "sent" if sent else "blocked",
+        "message": message.strip(),
+        "email_configured": bool(smtp_ok or gmail_ok),
+        "smtp_configured": smtp_ok,
+        "gmail_configured": gmail_ok,
+        "sent": sent,
+        "channel": send_result.get("channel"),
+        "send_status": "sent" if sent else "blocked",
+        "send_message": send_result.get("message", ""),
+        "blockers": [] if sent else send_result.get("blockers", [send_result.get("reason") or "dispatch_failed"]),
+        "lead": {"id": lead.id, "status": lead.status, "email": lead.email, "name": lead.name, "company": lead.company},
+    }
 
 class ClarifyReplyRequest(BaseModel):
     answer: str
