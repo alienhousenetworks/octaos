@@ -13,7 +13,7 @@
 
 The new SQLAlchemy tables `sales_workflow_runs` and `sales_workflow_steps` provide tenant-scoped run/step persistence, uniqueness for tenant idempotency keys, stage tracking, attempt counts, result/error payloads, and explicit state transitions. The lifecycle stages cover discovery, source verification, account enrichment, contact verification, qualification, personalization, approval, delivery, reply handling, meeting confirmation, and CRM reconciliation.
 
-The ledger intentionally does not pretend that legacy V3 and Search V4 are already routed through it. Integration must happen at each real workflow boundary; use the ledger around side effects before enabling retries. A completed step is terminal and cannot be reopened accidentally. Failed/blocked steps can be retried only through an explicit transition.
+The V3 workflow now creates/claims a tenant-scoped run using an API-supplied idempotency key, records stage transitions and outcomes, persists the run ID in workflow status, and returns the run ID with terminal results. A repeated key returns the existing terminal result or active-run status rather than starting the same campaign again. Search V4 discovery jobs, cadence/outbox delivery, inbox/reply handling, meeting booking, and CRM reconciliation are not yet all unified under this same run ledger; integrate those boundaries before claiming full end-to-end resumability. A completed step is terminal and cannot be reopened accidentally. Failed/blocked steps can be retried only through an explicit transition.
 
 ## Evidence states and policy
 
