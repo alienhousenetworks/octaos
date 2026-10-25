@@ -325,11 +325,26 @@ def dispatch_sales_touch(
         settings = (sales_credential.settings if sales_credential else {}) or {}
         lead_data = lead.data if isinstance(getattr(lead, "data", None), dict) else {}
         contact_data = lead_data.get("contact") if isinstance(lead_data.get("contact"), dict) else {}
+        opt_in_value = (
+            contact_data.get("whatsapp_opt_in")
+            if "whatsapp_opt_in" in contact_data
+            else lead_data.get("whatsapp_opt_in")
+        )
+        opt_in_source = (
+            contact_data.get("whatsapp_opt_in_source")
+            if "whatsapp_opt_in_source" in contact_data
+            else lead_data.get("whatsapp_opt_in_source")
+        )
+        opt_in_at = (
+            contact_data.get("whatsapp_opt_in_at")
+            if "whatsapp_opt_in_at" in contact_data
+            else lead_data.get("whatsapp_opt_in_at")
+        )
         recipient_opt_in = (
             ch == "whatsapp"
-            and bool(contact_data.get("whatsapp_opt_in") or lead_data.get("whatsapp_opt_in"))
-            and bool(contact_data.get("whatsapp_opt_in_source") or lead_data.get("whatsapp_opt_in_source"))
-            and bool(contact_data.get("whatsapp_opt_in_at") or lead_data.get("whatsapp_opt_in_at"))
+            and opt_in_value is True
+            and bool(opt_in_source)
+            and bool(opt_in_at)
         )
         authorization = assess_channel_authorization(
             settings,
