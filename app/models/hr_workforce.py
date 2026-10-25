@@ -5,7 +5,7 @@ Defines immutable leave ledgers, leave requests, daily attendance punches, and s
 import uuid
 from sqlalchemy import (
     Column, String, Boolean, DateTime, ForeignKey, Integer, Float, Text, JSON,
-    UniqueConstraint, Index
+    UniqueConstraint, Index, CheckConstraint
 )
 from sqlalchemy.sql import func
 from app.models.base import Base
@@ -189,6 +189,10 @@ class EmployeeAvailability(Base):
     source = Column(String, nullable=False, default="employee")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
+    __table_args__ = (
+        CheckConstraint("ends_at > starts_at", name="chk_hr_availability_window"),
+    )
+
 
 class ShiftDemand(Base):
     """Explicit staffing demand; optimizer must not invent required coverage."""
@@ -206,4 +210,6 @@ class ShiftDemand(Base):
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "roster_id", "shift_name", "starts_at", "role_required", name="uq_hr_shift_demand_slot"),
+        CheckConstraint("ends_at > starts_at", name="chk_hr_shift_demand_window"),
+        CheckConstraint("required_headcount >= 1", name="chk_hr_shift_demand_headcount"),
     )
