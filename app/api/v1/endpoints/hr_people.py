@@ -17,16 +17,23 @@ from app.models.hr_workforce import LeaveRequest, AttendanceRecord
 
 router = APIRouter()
 
-_HR_READ_ROLES = {"admin", "organization_admin", "super_admin", "hr_admin", "hr_manager", "hr_recruiter", "hr_hiring_manager", "manager"}
-_HR_WRITE_ROLES = {"admin", "organization_admin", "super_admin", "hr_admin", "hr_manager"}
+def _has_hr_permission(user: User, codename: str) -> bool:
+    """Resolve HR authorization from OctaOS's canonical permission codenames."""
+    if getattr(user, "is_system_admin", False) or getattr(user, "is_superuser", False):
+        return True
+    if (getattr(user, "role", None) or "").strip().lower().replace("-", "_") in {"admin", "organization_admin", "super_admin"}:
+        return True
+    effective = {getattr(permission, "codename", "") for permission in (getattr(user, "user_permissions", None) or [])}
+    for group in (getattr(user, "groups", None) or []):
+        effective.update(getattr(permission, "codename", "") for permission in (getattr(group, "permissions", None) or []))
+    return codename in effective
+
 
 def _require_hr_access(user: User, *, write: bool = False) -> None:
-    """Fail closed for HR endpoints; section visibility is not authorization."""
-    if getattr(user, "is_system_admin", False) or getattr(user, "is_superuser", False):
-        return
-    role = (getattr(user, "role", None) or "").strip().lower().replace("-", "_").replace(" ", "_")
-    if role not in (_HR_WRITE_ROLES if write else _HR_READ_ROLES):
-        raise HTTPException(status_code=403, detail="You do not have permission to access this HR operation.")
+    """Fail closed using OctaOS's shared RBAC permission catalogue."""
+    codename = "hr.manage_employees" if write else "hr.view_employees"
+    if not _has_hr_permission(user, codename):
+        raise HTTPException(status_code=403, detail=f"Missing required permission: {codename}.")
 
 
 class EmployeeCreateRequest(BaseModel):
