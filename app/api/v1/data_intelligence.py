@@ -20,6 +20,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import get_current_user, get_db
 from app.models.data_intelligence import DataAnalysisArtifact, DataAnalysisRun
@@ -326,6 +327,16 @@ async def create_analysis_run(
         }
         db.commit()
         db.refresh(run)
+    except IntegrityError:
+        db.rollback()
+        # A concurrent request may have won the unique tenant/idempotency-key race.
+        if idempotency_key:
+            prior = db.query(DataAnalysisRun).filter_by(tenant_id=str(tenant_id), idempotency_key=idempotency_key).first()
+            if prior:
+                if prior.request_fingerprint != fingerprint:
+                    raise HTTPException(409, detail="Idempotency key was already used with a different upload payload.")
+                return {"run": _serialize_run(prior), "idempotent_replay": True}
+        raise HTTPException(409, detail="A conflicting analysis write was detected; retry with a new idempotency key.")
     except Exception:
         db.rollback()
         raise
