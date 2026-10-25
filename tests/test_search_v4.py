@@ -397,3 +397,26 @@ async def test_news_connector_distinguishes_transport_failure_from_an_empty_feed
     assert failed.status == "failed"
     assert failed.failure_class == "transient"
     del request, failed_task
+
+
+
+def test_planner_covers_multiple_industries_geographies_and_buyer_roles():
+    campaign = spec(
+        industries=["fintech", "healthcare", "manufacturing"],
+        geography=["India", "United Kingdom", "Singapore"],
+        buyer_roles=["VP Sales", "COO", "Head of Operations"],
+    )
+    tasks, _notes = plan_tasks(
+        campaign, {}, [], ProviderStats(), ProviderHealth(), 700
+    )
+    web_queries = [task.query.lower() for task in tasks if task.method == "web"]
+    assert len(web_queries) > 1
+    assert any("fintech" in query for query in web_queries)
+    assert any("healthcare" in query for query in web_queries)
+    assert any("manufacturing" in query for query in web_queries)
+    assert any("india" in query for query in web_queries)
+    assert any("united kingdom" in query for query in web_queries)
+    assert any("singapore" in query for query in web_queries)
+    assert any("vp sales" in query for query in web_queries)
+    assert any("coo" in query for query in web_queries)
+    assert any("head of operations" in query for query in web_queries)
