@@ -870,15 +870,21 @@ export default function CampaignsView({
           platforms: campaignPlatforms,
           content_format: contentFormat,
           reference_image_url: referenceImageUrl.trim() || undefined,
-          text: textProvider === 'auto' ? undefined : { provider: textProvider, model: textModel },
-          image: generateImages ? { provider: imageProvider, model: imageModel } : undefined,
-          video: (ENABLE_IN_APP_VIDEO && generateVideos) ? { provider: videoProvider, model: videoModel } : undefined,
+          text: textProvider !== 'auto'
+            ? { provider: textProvider, model: textModel || undefined }
+            : (textModel && textModel !== routingDefaults?.copy?.model ? { provider: routingDefaults?.copy?.provider, model: textModel } : undefined),
+          image: generateImages && imageProvider !== 'auto'
+            ? { provider: imageProvider, model: imageModel || undefined }
+            : (generateImages && imageModel && imageModel !== routingDefaults?.image?.model ? { provider: routingDefaults?.image?.provider, model: imageModel } : undefined),
+          video: (ENABLE_IN_APP_VIDEO && generateVideos && videoProvider !== 'auto')
+            ? { provider: videoProvider, model: videoModel || undefined }
+            : (ENABLE_IN_APP_VIDEO && generateVideos && videoModel && videoModel !== routingDefaults?.video?.model ? { provider: routingDefaults?.video?.provider, model: videoModel } : undefined),
           text_provider: textProvider === 'auto' ? undefined : textProvider,
-          text_model: textProvider === 'auto' ? undefined : textModel,
-          image_provider: imageProvider,
-          image_model: imageModel,
-          video_provider: videoProvider,
-          video_model: videoModel,
+          text_model: textProvider === 'auto' && textModel === routingDefaults?.copy?.model ? undefined : (textModel || undefined),
+          image_provider: imageProvider === 'auto' ? undefined : imageProvider,
+          image_model: imageProvider === 'auto' && imageModel === routingDefaults?.image?.model ? undefined : (imageModel || undefined),
+          video_provider: videoProvider === 'auto' ? undefined : videoProvider,
+          video_model: videoProvider === 'auto' && videoModel === routingDefaults?.video?.model ? undefined : (videoModel || undefined),
           generate_images: contentFormat === 'virtual_influencer' ? true : generateImages,
           generate_videos: contentFormat === 'virtual_influencer' ? true : (ENABLE_IN_APP_VIDEO && generateVideos),
           generate_remotion: ENABLE_IN_APP_VIDEO && generateRemotion,
@@ -2558,6 +2564,11 @@ export default function CampaignsView({
               {showAdvancedModels && (
                 <div className="mt-3 grid grid-cols-1 gap-4 rounded-lg border border-border bg-muted/20 p-3">
                   <p className="text-xs text-muted-foreground">Auto uses the server’s environment-configured default for each modality. Choose a provider to override it. Model IDs can be selected from the catalog or entered manually.</p>
+                  <div className="grid grid-cols-1 gap-1 text-[11px] text-muted-foreground sm:grid-cols-3">
+                    <span>Copy default: {routingDefaults?.copy?.provider || 'server default'} · {routingDefaults?.copy?.model || 'model resolved by server'}</span>
+                    <span>Image default: {routingDefaults?.image?.provider || 'server default'} · {routingDefaults?.image?.model || 'model resolved by server'}</span>
+                    <span>Video default: {routingDefaults?.video?.provider || 'server default'} · {routingDefaults?.video?.model || 'model resolved by server'}</span>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <FieldLabel>Copy Model Provider</FieldLabel>
@@ -2572,7 +2583,7 @@ export default function CampaignsView({
                       <FieldLabel>Copy model ID</FieldLabel>
                       <Input value={textModel} onChange={(e) => { setTextModel(e.target.value); }} placeholder={routingDefaults?.copy?.model || 'Enter provider model ID'} className="h-8 text-xs font-mono" list="marketing-copy-models" />
                       <datalist id="marketing-copy-models">
-                        {modelsFor(textProvider, 'copy').map((model) => <option key={model.provider + ':' + model.slug} value={model.slug}>{model.display_name}</option>)}
+                        {modelsFor(textProvider, 'text').map((model) => <option key={model.provider + ':' + model.slug} value={model.slug}>{model.display_name}</option>)}
                       </datalist>
                       <ModelPicks models={modelsFor(textProvider, 'copy')} active={textModel} onPick={setTextModel} />
                       <ValidationNote result={textValidation} onUse={setTextModel} />
