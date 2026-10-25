@@ -123,7 +123,7 @@ def test_central_channel_gate_requires_whatsapp_permission_and_opt_in():
     blocked = assess_channel_authorization(settings, "whatsapp")
     assert blocked["ready"] is False
     assert "whatsapp_permission_not_granted" in blocked["blockers"]
-    assert "whatsapp_opt_in_missing" in blocked["blockers"]
+    assert "recipient_whatsapp_opt_in_missing" in blocked["blockers"]
 
     allowed = assess_channel_authorization(
         {
