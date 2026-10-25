@@ -54,13 +54,18 @@ def test_buffer_post_includes_image_asset_and_requires_https():
 
 
 def test_buffer_rejects_private_or_non_https_media_urls():
-    service = BufferService(db=None, tenant_id="tenant-a")
-    with pytest.raises(BufferAPIError):
-        asyncio.run(service.create_post(
-            channel_id="channel-1",
-            text="Do not post a local file",
-            video_url="http://127.0.0.1/private.mp4",
-        ))
+    for media_url in [
+        "http://127.0.0.1/private.mp4",
+        "https://127.0.0.1/private.mp4",
+        "https://user:pass@cdn.example.com/private.mp4",
+    ]:
+        service = BufferService(db=None, tenant_id="tenant-a")
+        with pytest.raises(BufferAPIError):
+            asyncio.run(service.create_post(
+                channel_id="channel-1",
+                text="Do not post a local or credentialed file",
+                video_url=media_url,
+            ))
 
 
 def test_buffer_rejects_image_and_video_on_same_post():
