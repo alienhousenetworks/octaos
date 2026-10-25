@@ -287,9 +287,17 @@ def list_attendance(
 def punch_attendance(
     payload: AttendancePunchRequest,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
 ):
-    """Simulates daily biometric or self-service punch clock."""
+    """Record an attendance punch for an employee in this tenant."""
+    if payload.punch_type not in {"clock_in", "clock_out"}:
+        raise HTTPException(status_code=422, detail="punch_type must be clock_in or clock_out.")
+    employee = db.query(EmployeeProfile).filter_by(id=payload.employee_id, tenant_id=tenant_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+    if not (getattr(current_user, "is_system_admin", False) or getattr(current_user, "is_superuser", False) or _role(current_user) in _HR_ROLES or (employee.user_id and str(employee.user_id) == str(current_user.id))):
+        raise HTTPException(status_code=403, detail="You may only record attendance for your own employee record.")
     today = datetime.now().date()
     today_dt = datetime(today.year, today.month, today.day)
 
@@ -330,9 +338,11 @@ def punch_attendance(
 @router.get("/rosters")
 def list_rosters(
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
 ):
     """Retrieve shift rosters and coverage scores."""
+    _require_hr_role(current_user)
     rosters = db.query(ShiftRoster).filter_by(tenant_id=tenant_id).order_by(ShiftRoster.start_date.desc()).all()
     results = []
     for r in rosters:
@@ -354,9 +364,11 @@ def list_rosters(
 def optimize_roster(
     payload: RosterOptimizeRequest,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
 ):
-    """Generates an optimal, constraint-abiding shift distribution for the team."""
+    """Generate a draft shift proposal for authorized HR users."""
+    _require_hr_role(current_user, approve=True)
     roster = db.query(ShiftRoster).filter_by(id=payload.roster_id, tenant_id=tenant_id).first()
     if not roster:
         # Create a default roster if none exists
