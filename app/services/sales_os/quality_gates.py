@@ -60,3 +60,26 @@ def assess_outreach_readiness(
         "evidence_url_present": bool(evidence_url),
         "contact_identity_present": has_real_contact_name(contact.get("name")),
     }
+
+
+
+def assess_channel_authorization(settings: dict[str, Any] | None, channel: str) -> dict[str, Any]:
+    """Final defense-in-depth gate used by dispatchers and cadence workers."""
+    config = settings if isinstance(settings, dict) else {}
+    normalized_channel = (channel or "email").strip().lower()
+    blockers: list[str] = []
+    if not bool(config.get("sales_ai_auto_send_enabled", False)):
+        blockers.append("automatic_sending_not_enabled")
+    if str(config.get("outbound_permission_state") or "").strip().lower() != "granted":
+        blockers.append("outbound_permission_not_granted")
+    if normalized_channel == "whatsapp":
+        if str(config.get("whatsapp_permission_state") or "").strip().lower() != "granted":
+            blockers.append("whatsapp_permission_not_granted")
+        if not bool(config.get("whatsapp_opt_in", False)):
+            blockers.append("whatsapp_opt_in_missing")
+    return {
+        "ready": not blockers,
+        "status": "authorized" if not blockers else "blocked",
+        "channel": normalized_channel,
+        "blockers": blockers,
+    }
