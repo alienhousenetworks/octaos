@@ -180,36 +180,63 @@ async def generate_outreach(
 @router.post("/{lead_id}/schedule_meeting")
 async def schedule_meeting(
     lead_id: str,
+    payload: dict | None = None,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id)
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE)),
 ) -> Any:
-    lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
+    lead = db.query(models.Lead).filter(
+        models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id
+    ).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-        
-    lead.status = "meeting_scheduled"
-    meeting_link = f"https://meet.google.com/sales-{lead.id[:4]}-{lead.company[:3].lower()}"
-    meeting_time = "Next Tuesday at 2:00 PM EST"
-    
-    conv = list((lead.data or {}).get("conversation") or [])
-    conv.append({
-        "direction": "outbound",
-        "channel": "google_calendar",
-        "content": f"Meeting scheduled for {meeting_time}. Join link: {meeting_link}",
-        "subject": "Meeting Confirmation",
-        "author": "Sales AI Agent",
-        "at": datetime.utcnow().isoformat()
-    })
-    lead.data = {
-        **(lead.data or {}),
-        "meeting_link": meeting_link,
-        "meeting_time": meeting_time,
-        "prospect_interested": True,
-        "conversation": conv
-    }
-    db.commit()
+
+    lead_data = dict(lead.data or {})
+    reply_classification = lead_data.get("reply_classification")
+    reply_classification = reply_classification if isinstance(reply_classification, dict) else {}
+    suggested_time = (
+        (payload or {}).get("suggested_time")
+        or lead_data.get("meeting_requested_at")
+        or reply_classification.get("suggested_time")
+    )
+    if not suggested_time:
+        return {
+            "status": "needs_time_confirmation",
+            "booked": False,
+            "message": "No explicit meeting time is recorded. Confirm a date, time, and timezone with the prospect before booking.",
+        }
+
+    from app.services.sales.meeting_booking import book_meeting_for_lead
+
+    try:
+        booked = book_meeting_for_lead(
+            db,
+            tenant_id,
+            lead,
+            suggested_time=str(suggested_time),
+        )
+    except ValueError as exc:
+        return {
+            "status": "action_required",
+            "booked": False,
+            "message": str(exc),
+        }
+
     db.refresh(lead)
-    return {"message": "Meeting scheduled successfully", "meeting_time": meeting_time, "meeting_link": meeting_link}
+    if not booked:
+        return {
+            "status": "already_scheduled",
+            "booked": False,
+            "meeting_time": lead.data.get("meeting_time"),
+            "meeting_link": lead.data.get("meeting_link"),
+        }
+    return {
+        "status": "booked",
+        "booked": True,
+        "meeting_time": lead.data.get("meeting_time"),
+        "meeting_link": lead.data.get("meeting_link"),
+        "message": "Google Calendar confirmed the meeting event.",
+    }
 
 
 def get_case_insensitive_value(d: dict, keys: list, default: Any = None) -> Any:
