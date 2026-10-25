@@ -48,12 +48,26 @@ def assess_outreach_readiness(
     evidence_url_valid = parsed_source.scheme in {"http", "https"} and bool(parsed_source.netloc)
     evidence_quote = str(prospect.get("evidence_quote") or "").strip()
     buying_signal = str(prospect.get("buying_signal") or "").strip()
-    pain_points = prospect.get("pain_points") or []
     news = prospect.get("news") or []
     jobs = prospect.get("jobs") or []
+
+    def has_sourced_signal(items: Any) -> bool:
+        if not isinstance(items, list):
+            return False
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            source_url = str(item.get("url") or item.get("source_url") or "").strip()
+            claim_text = str(item.get("title") or item.get("summary") or item.get("description") or "").strip()
+            parsed = urlparse(source_url)
+            if claim_text and parsed.scheme in {"http", "https"} and parsed.netloc:
+                return True
+        return False
+
     if not evidence_url_valid:
         blockers.append("source_url_missing_or_invalid")
-    if not any((evidence_quote, buying_signal, pain_points, news, jobs)):
+    # Generated pain-point guesses alone are not evidence for outbound claims.
+    if not any((evidence_quote, buying_signal, has_sourced_signal(news), has_sourced_signal(jobs))):
         blockers.append("need_evidence_missing")
 
     return {
