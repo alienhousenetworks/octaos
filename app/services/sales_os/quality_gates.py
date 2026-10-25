@@ -67,8 +67,9 @@ def assess_outreach_readiness(
 
     if not evidence_url_valid:
         blockers.append("source_url_missing_or_invalid")
-    # Generated pain-point guesses alone are not evidence for outbound claims.
-    if not any((evidence_quote, buying_signal, has_sourced_signal(news), has_sourced_signal(jobs))):
+    # A generated buying-signal label is not source evidence by itself.
+    # Require a captured quote tied to the URL or a separately sourced news/jobs item.
+    if not any((evidence_quote, has_sourced_signal(news), has_sourced_signal(jobs))):
         blockers.append("need_evidence_missing")
 
     return {
