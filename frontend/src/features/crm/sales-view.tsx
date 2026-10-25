@@ -415,6 +415,10 @@ export default function SalesView({
           buffer_minutes: data.buffer_minutes ?? 15,
           follow_up_cadence_days: data.follow_up_cadence_days ?? 3,
           max_ai_touchpoints: data.max_ai_touchpoints ?? 5,
+          sales_ai_auto_send_enabled: data.sales_ai_auto_send_enabled ?? false,
+          outbound_permission_state: ['granted', 'denied'].includes(data.outbound_permission_state) ? data.outbound_permission_state : 'unknown',
+          whatsapp_permission_state: ['granted', 'denied'].includes(data.whatsapp_permission_state) ? data.whatsapp_permission_state : 'unknown',
+          whatsapp_opt_in: data.whatsapp_opt_in ?? false,
         });
       }
     } catch (e) {
