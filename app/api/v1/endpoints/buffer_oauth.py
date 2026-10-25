@@ -6,7 +6,7 @@ import hashlib
 import json
 import secrets
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -278,8 +278,8 @@ async def publish_approved_post(
         raise HTTPException(status_code=404, detail="Post not found.")
     if post.approval_status != "approved":
         raise HTTPException(status_code=409, detail="Post must be approved before publishing.")
-    if post.status == "published" or post.external_post_id:
-        raise HTTPException(status_code=409, detail="This post already has a Buffer post ID; reconcile before retrying.")
+    if post.status in {"published", "buffer_scheduling", "publish_uncertain"} or post.external_post_id:
+        raise HTTPException(status_code=409, detail="This post is already queued or has an unresolved Buffer attempt; reconcile before retrying.")
     try:
         buffer = BufferService(db, tenant_id)
         account = await buffer.account_and_channels()
@@ -295,13 +295,32 @@ async def publish_approved_post(
         actual = (selected.get("service") or "").lower().replace("twitter", "x")
         if expected and expected not in actual and actual not in expected:
             raise HTTPException(status_code=409, detail="Selected Buffer channel does not match this post's target platform.")
+    except HTTPException:
+        raise
+    except BufferAPIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    # Persist a claim before the external write. If the process crashes or times out,
+    # the scheduled recovery task marks it uncertain rather than blindly creating a duplicate.
+    post.status = "buffer_scheduling"
+    post.fallback_reason = "Buffer scheduling started at " + datetime.now(timezone.utc).isoformat() + "."
+    db.add(post)
+    db.commit()
+    try:
         result = await buffer.create_post(
             channel_id=body.channel_id, text=post.content or "", scheduled_at=body.scheduled_at,
             image_url=post.image_url, video_url=post.video_url,
         )
-    except HTTPException:
-        raise
     except BufferAPIError as exc:
+        db.rollback()
+        uncertain = db.query(ContentPost).filter(
+            ContentPost.id == post_id, ContentPost.tenant_id == tenant_id
+        ).first()
+        if uncertain and not uncertain.external_post_id:
+            uncertain.status = "publish_uncertain"
+            uncertain.fallback_reason = "Buffer scheduling result is uncertain. Inspect Buffer before retrying. " + str(exc)[:160]
+            db.add(uncertain)
+            db.commit()
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     post.external_post_id = result["id"]
     post.status = "scheduled"
