@@ -8,7 +8,8 @@ type BufferStatus = { connected: boolean; connection_method?: string | null; con
 
 function apiBase() {
   const configured = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-  return configured.replace(/\\/+$/, "");
+  while (configured.endsWith("/")) configured = configured.slice(0, -1);
+  return configured;
 }
 
 function bearerToken() {
