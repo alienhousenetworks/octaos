@@ -221,12 +221,12 @@ def plan_tasks(
             continue
         normalized = " ".join(task.query.lower().split())
         history_duplicate = task.method == "web" and semantic_duplicate(task.query, history)
-        same_method_duplicate = task.method != "web" and semantic_duplicate(
+        same_method_duplicate = task.method in {"social_reddit", "social_x"} and semantic_duplicate(
             task.query, seen_by_method.get(task.method, [])
         )
-        # Web queries are intentionally similar when only the ICP axis changes.
-        # Compare web queries against prior-run history, but do not collapse distinct
-        # industry/geography/role coverage within the current run.
+        # Discovery, news, and hiring queries are intentionally similar when only an
+        # ICP axis changes. Do not collapse distinct industry/geography/role coverage
+        # within the current run; only compare web against prior-run query history.
         if normalized in exact_seen or history_duplicate or same_method_duplicate:
             notes.append(f"Rejected duplicate query for {task.method}.")
             continue
