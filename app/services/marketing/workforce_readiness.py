@@ -137,7 +137,7 @@ def get_marketing_workforce_readiness(db: Session, tenant_id: str) -> Dict[str, 
     ]
     return {
         "tenant_id": tenant_id,
-        "status": "partial" if any(c["status"] in {"needs_configuration", "needs_connection"} for c in capabilities) else "configured_not_live_verified",
+        "status": "partial" if any(c["status"] in {"needs_configuration", "needs_connection", "needs_channel_mapping"} for c in capabilities) else "configured_not_live_verified",
         "capabilities": capabilities,
         "connected_buffer": bool(buffer_row),
         "buffer_channel_map": channel_map,
