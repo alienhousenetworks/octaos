@@ -113,7 +113,6 @@ export interface SalesSettings {
   sales_ai_auto_send_enabled: boolean;
   outbound_permission_state: 'unknown' | 'granted' | 'denied';
   whatsapp_permission_state: 'unknown' | 'granted' | 'denied';
-  whatsapp_opt_in: boolean;
 }
 
 export interface BusinessProfileData {
