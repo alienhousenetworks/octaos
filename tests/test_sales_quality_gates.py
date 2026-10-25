@@ -129,9 +129,9 @@ def test_central_channel_gate_requires_whatsapp_permission_and_opt_in():
         {
             **settings,
             "whatsapp_permission_state": "granted",
-            "whatsapp_opt_in": True,
         },
         "whatsapp",
+        recipient_opt_in=True,
     )
     assert allowed["ready"] is True
 
