@@ -37,4 +37,5 @@ jobs:
           ENVIRONMENT: test
           DEV: "true"
           SECRET_KEY: "test-only-secret-key-not-for-production"
+          PYTHONPATH: ${{ github.workspace }}
         run: pytest -q tests/hr
