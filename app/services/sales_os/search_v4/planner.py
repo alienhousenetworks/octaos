@@ -220,7 +220,14 @@ def plan_tasks(
             notes.append(f"Rejected {task.method}: unauthorized method.")
             continue
         normalized = " ".join(task.query.lower().split())
-        if normalized in exact_seen or semantic_duplicate(task.query, seen_by_method.get(task.method, [])):
+        history_duplicate = task.method == "web" and semantic_duplicate(task.query, history)
+        same_method_duplicate = task.method != "web" and semantic_duplicate(
+            task.query, seen_by_method.get(task.method, [])
+        )
+        # Web queries are intentionally similar when only the ICP axis changes.
+        # Compare web queries against prior-run history, but do not collapse distinct
+        # industry/geography/role coverage within the current run.
+        if normalized in exact_seen or history_duplicate or same_method_duplicate:
             notes.append(f"Rejected duplicate query for {task.method}.")
             continue
         if task.estimated_cost_inr > remaining_inr + 1e-9:
