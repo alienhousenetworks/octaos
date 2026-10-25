@@ -15,6 +15,12 @@ on:
       - "frontend/package.json"
       - "frontend/package-lock.json"
       - "frontend/tsconfig.json"
+      - "frontend/src/features/crm/sales-config-panel.tsx"
+      - "frontend/src/features/crm/sales-view.tsx"
+      - "frontend/src/features/crm/sales-types.ts"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "frontend/tsconfig.json"
   push:
     branches:
       - main
