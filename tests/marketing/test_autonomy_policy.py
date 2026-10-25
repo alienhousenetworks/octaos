@@ -1,4 +1,6 @@
 """Tests for marketing autonomy policy and virtual influencer guardrails."""
+import math
+
 import pytest
 
 from app.services.marketing.autonomy.policy import evaluate_marketing_action
@@ -22,7 +24,7 @@ def test_news_without_source_requires_review():
         source_url=None,
     )
     assert decision["decision"] == "needs_review"
-    assert "news_context_has_no_source_url" in decision["reasons"]
+    assert "news_context_has_no_valid_source_url" in decision["reasons"]
 
 
 def test_required_but_missing_media_requires_review():
@@ -35,7 +37,6 @@ def test_required_but_missing_media_requires_review():
     assert "required_media_not_generated" in decision["reasons"]
 
 
-
 def test_unavailable_publisher_adapter_cannot_auto_schedule():
     decision = evaluate_marketing_action(
         confidence=1.0,
@@ -44,9 +45,60 @@ def test_unavailable_publisher_adapter_cannot_auto_schedule():
     assert decision["approved"] is False
     assert "publisher_adapter_unavailable" in decision["reasons"]
 
+
 def test_tenant_approval_policy_overrides_confidence():
     decision = evaluate_marketing_action(confidence=1.0, require_approval=True)
     assert not decision["approved"]
+
+
+@pytest.mark.parametrize("bad_score", [float("nan"), float("inf"), float("-inf"), -0.01, 1.01, "not-a-number", None])
+def test_invalid_confidence_fails_closed(bad_score):
+    decision = evaluate_marketing_action(confidence=bad_score)
+    assert not decision["approved"]
+    assert decision["confidence"] == 0.0
+    assert "confidence_unavailable_or_invalid" in decision["reasons"]
+
+
+@pytest.mark.parametrize("bad_threshold", [float("nan"), float("inf"), -0.1, 1.1, "invalid"])
+def test_invalid_threshold_fails_closed(bad_threshold):
+    decision = evaluate_marketing_action(confidence=1.0, confidence_threshold=bad_threshold)
+    assert not decision["approved"]
+    assert "confidence_threshold_invalid" in decision["reasons"]
+
+
+@pytest.mark.parametrize("bad_context", [float("nan"), float("inf"), -0.1, 1.1, "unknown"])
+def test_invalid_context_score_fails_closed_for_news(bad_context):
+    decision = evaluate_marketing_action(
+        confidence=1.0,
+        context_trigger="news",
+        context_score=bad_context,
+        source_url="https://example.com/story",
+    )
+    assert not decision["approved"]
+    assert "context_score_unavailable_or_invalid" in decision["reasons"]
+
+
+@pytest.mark.parametrize("bad_url", ["", "example.com/story", "javascript:alert(1)", "https://", "https://user:pass@example.com/story", "https://example.com/a b"])
+def test_invalid_news_source_url_fails_closed(bad_url):
+    decision = evaluate_marketing_action(
+        confidence=1.0,
+        context_trigger="news",
+        context_score=0.9,
+        source_url=bad_url,
+    )
+    assert not decision["approved"]
+    assert "news_context_has_no_valid_source_url" in decision["reasons"]
+
+
+def test_valid_evidence_link_can_be_scheduled_when_all_policy_checks_pass():
+    decision = evaluate_marketing_action(
+        confidence=0.95,
+        context_trigger="news",
+        context_score=0.9,
+        source_url="https://news.example.com/story?id=123",
+    )
+    assert decision["approved"]
+    assert decision["decision"] == "allow_schedule"
 
 
 def test_virtual_influencer_brief_requires_minimum_fields_and_disclosure():
