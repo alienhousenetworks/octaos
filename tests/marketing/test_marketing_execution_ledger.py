@@ -13,6 +13,8 @@ class Query:
     def with_for_update(self): return self
     def first(self): return self.rows[0] if self.rows else None
     def order_by(self, *args): return self
+    def limit(self, n): self.rows = self.rows[:n]; return self
+    def all(self): return self.rows
 
 
 class FakeDB:
@@ -60,6 +62,17 @@ def test_step_history_and_completion_are_persisted():
     assert run.status == "completed"
     assert run.result_payload["status"] == "success"
 
+
+
+def test_run_and_step_history_queries_are_tenant_scoped():
+    db = FakeDB()
+    ledger = MarketingExecutionLedger(db, "tenant-A")
+    run = ledger.start_or_resume("campaign", "request-1", {"topic": "launch"})
+    ledger.begin_step(run.id, "strategy", {"topic": "launch"})
+    assert [item.id for item in ledger.list_recent(limit=10)] == [run.id]
+    assert len(ledger.list_steps(run.id)) == 1
+    with pytest.raises(LookupError, match="not found for this tenant"):
+        MarketingExecutionLedger(db, "tenant-B").list_steps(run.id)
 
 def test_execution_cannot_be_loaded_across_tenants():
     db = FakeDB()
