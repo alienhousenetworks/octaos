@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Float, Text, JSON
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Float, Text, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 import uuid
@@ -83,6 +83,47 @@ class ContentPost(Base):
     used_model = Column(String, nullable=True)  # Concrete model slug used
     fallback_reason = Column(Text, nullable=True)  # Fallback alert note if applicable
     cost_usd = Column(Float, default=0.0)  # Estimated or actual cost
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+
+class MarketingExecution(Base):
+    """Durable tenant-scoped run record for resumable marketing workflows."""
+    __tablename__ = "marketing_executions"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "workflow_type", "idempotency_key", name="uq_marketing_execution_idempotency"),
+    )
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    workflow_type = Column(String, nullable=False, index=True)
+    idempotency_key = Column(String, nullable=False)
+    request_hash = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="queued", index=True)
+    current_stage = Column(String, nullable=True)
+    attempts = Column(Integer, nullable=False, default=0)
+    request_payload = Column(JSON, nullable=True)
+    result_payload = Column(JSON, nullable=True)
+    error = Column(Text, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class MarketingExecutionStep(Base):
+    """Append-oriented stage history for debugging and bounded recovery."""
+    __tablename__ = "marketing_execution_steps"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    execution_id = Column(String, ForeignKey("marketing_executions.id"), nullable=False, index=True)
+    stage_id = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="pending")
+    attempt = Column(Integer, nullable=False, default=1)
+    input_payload = Column(JSON, nullable=True)
+    output_payload = Column(JSON, nullable=True)
+    error = Column(Text, nullable=True)
+    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    finished_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

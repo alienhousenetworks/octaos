@@ -194,6 +194,9 @@ class MarketingAnalyticsService:
         except Exception:
             eng = {}
 
+        if not mapped and not eng:
+            raise RuntimeError("Facebook insights unavailable; preserving previous metrics instead of writing synthetic zeros")
+
         likes = float((eng.get("likes") or {}).get("summary", {}).get("total_count") or 0)
         comments = float((eng.get("comments") or {}).get("summary", {}).get("total_count") or 0)
         shares = float((eng.get("shares") or {}).get("count") or 0)
@@ -247,6 +250,9 @@ class MarketingAnalyticsService:
             )
         except Exception:
             basic = {}
+
+        if not mapped and not basic:
+            raise RuntimeError("Instagram insights unavailable; preserving previous metrics instead of writing synthetic zeros")
 
         likes = float(mapped.get("likes") or basic.get("like_count") or 0)
         comments = float(mapped.get("comments") or basic.get("comments_count") or 0)
