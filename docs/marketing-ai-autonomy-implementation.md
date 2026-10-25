@@ -1,40 +1,54 @@
-# Marketing AI Autonomy Foundation — implementation notes
+# Marketing AI Autonomy — implementation and operational notes
 
 This branch preserves the existing Campaign OS, Trend Synthesizer, Visual Creative
-Orchestrator, publisher, and analytics service while adding evidence-aware autonomy
-controls and a virtual-influencer brief workflow.
+Orchestrator, publisher, and analytics service while adding evidence-aware decisions
+and durable execution tracking.
 
-## Shared decision policy
-`app/services/marketing/autonomy/policy.py` makes the schedule decision explicit:
-fallback generation, low or invalid confidence, invalid source URLs, source-less news,
-weak or invalid context scores, required media failure, unsupported publisher adapters,
-or a tenant-level approval requirement route the draft to human review.
+## Durable execution ledger
+- `MarketingExecution` stores tenant-scoped run identity, request hash, state, attempts,
+  current stage, safe request/result payloads, errors, and timestamps.
+- `MarketingExecutionStep` stores stage attempts, input/output summaries, state, and
+  failure details.
+- `MarketingExecutionLedger` enforces tenant-scoped lookups and idempotency-key reuse
+  checks; a key cannot be reused with a different request payload.
+- Migration `d7e8f9a0b1c2` creates the execution tables and indexes.
+- Campaign OS DAG stages and autonomous marketing pulse outcomes are written to the
+  ledger. Supply a stable `idempotency_key` (or a durable Campaign OS `job_id`) when
+  the caller may retry the same request.
 
-Confidence and context scores must be finite numbers in the inclusive range 0–1.
-NaN, positive/negative infinity, malformed values, and out-of-range values fail closed.
-News source links must be absolute HTTP(S) URLs with a hostname; arbitrary strings,
-JavaScript URLs, whitespace-containing URLs, and URLs with embedded credentials are
-not accepted as evidence links. These checks validate shape, not whether the linked
-source is truthful or reachable. Source retrieval and evidence provenance still need
-their own verification.
+The ledger is persistence and recovery metadata, not a distributed queue or full
+workflow engine. It does not itself restart workers, guarantee exactly-once external
+publishing, or make third-party side effects transactional. Resume behavior must be
+coordinated with the caller/worker, and provider-side idempotency is still required
+where available. Failed/incomplete runs remain visible for recovery rather than
+being silently reported as completed.
 
-This is not a legal compliance certification and does not bypass platform scopes.
+## Shared scheduling policy
+`app/services/marketing/autonomy/policy.py` routes fallback generation, low
+confidence, source-less news, weak context, missing required media, tenant-requested
+review, and unsupported publisher adapters to human review. It is a conservative
+operational gate, not a legal/compliance certification.
 
 ## Virtual influencer workflow
-`app/services/marketing/virtual_influencer.py` creates a structured fictional adult
-persona brief from supplied brand facts. It rejects incomplete responses and requires
-synthetic-persona disclosure. The current integration is a draft/review workflow; it
-does not claim a durable influencer registry, likeness rights management, provider
-availability, or automatic publishing.
+`app/services/marketing/virtual_influencer.py` creates an original fictional adult
+persona brief using supplied brand facts. It requires synthetic-persona disclosure
+and saves content as a review-only draft with an approval request. It does not claim
+a separate durable persona registry, likeness-rights management, or automatic
+publishing.
 
-## Remaining production prerequisites
-- Configure and validate image/video provider credentials and model availability.
-- Verify connected social-account scopes and platform-specific publishing requirements.
-- Run the focused tests and the existing Campaign OS regression suite in the repo's
-  supported environment.
-- Add persistent run/step execution records and migration-backed retry/idempotency
-  before describing the complete marketing workflow as crash-resumable.
-- Add tenant-configurable approval policies to persisted settings rather than trusting
-  per-request parameters alone.
-- Calibrate context and confidence thresholds against real account outcomes; defaults
-  are heuristics, not measured performance claims.
+## Analytics and creative safety
+- Copy prompts can use tenant-specific stored performance-learning patterns as data,
+  not instructions.
+- Failed Facebook/Instagram insight fetches do not replace prior metrics with
+  fabricated zeros when both provider paths are unavailable.
+- Trend prompts treat external context as untrusted data and prohibit invented claims.
+- Readiness scores are heuristics, not calibrated probabilities.
+
+## Production prerequisites
+- Apply the Alembic migration in the target environment after checking the actual
+  database revision and migration graph.
+- Configure and validate image/video provider credentials and platform account scopes.
+- Run the focused tests and the Campaign OS regression suite in CI.
+- Add operator tooling for inspecting/retrying failed ledger runs and reconcile
+  interrupted stage states.
+- Verify end-to-end behavior against real connected accounts before enabling auto-publish.
