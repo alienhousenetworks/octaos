@@ -11,25 +11,25 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-dashed border-border px-6 py-10 text-center">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-      {description && <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{description}</p>}
-      {action && <div className="mt-4 flex justify-center">{action}</div>}
+    <div className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/40 px-6 py-12 text-center">
+      <h2 className="text-base font-semibold tracking-tight text-foreground">{title}</h2>
+      {description && <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">{description}</p>}
+      {action && <div className="mt-5 flex justify-center">{action}</div>}
     </div>
   );
 }
 
 export function LoadingState({ label = 'Loading' }: { label?: string }) {
   return (
-    <div className="space-y-3" aria-busy="true" aria-live="polite">
+    <div className="space-y-4" aria-busy="true" aria-live="polite">
       <span className="sr-only">{label}</span>
-      <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="h-9 w-56 animate-pulse rounded-lg bg-muted" aria-hidden="true" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-hidden="true">
         {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="h-20 animate-pulse rounded-lg bg-muted" />
+          <div key={index} className="h-24 animate-pulse rounded-xl border border-border bg-card" />
         ))}
       </div>
-      <div className="h-64 animate-pulse rounded-lg bg-muted" />
+      <div className="h-64 animate-pulse rounded-xl border border-border bg-card" aria-hidden="true" />
     </div>
   );
 }
@@ -44,9 +44,9 @@ export function ErrorState({
   onRetry?: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-6 py-8 text-center">
+    <div className="rounded-xl border border-destructive/25 bg-destructive/5 px-6 py-9 text-center">
       <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-      {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+      {description && <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{description}</p>}
       {onRetry && (
         <Button variant="outline" className="mt-4" onClick={onRetry}>
           Try again
