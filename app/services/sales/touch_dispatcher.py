@@ -188,6 +188,13 @@ def dispatch_linkedin_touch(
     2. Otherwise, creates a verified Human-In-The-Loop ApprovalRequest with direct profile link
        so the operator can execute/send with 1-click and tracks real status.
     """
+    if not tenant_id or str(getattr(lead, "tenant_id", "")) != str(tenant_id):
+        return {
+            "sent": False,
+            "channel": "linkedin",
+            "reason": "tenant_scope_mismatch",
+            "message": "LinkedIn dispatch blocked because the lead does not belong to the requested tenant.",
+        }
     linkedin_url = extract_lead_linkedin_url(lead)
 
     # Check if there is an approved action already executed
@@ -355,6 +362,13 @@ def dispatch_sales_touch(
     Routes touch through real, non-mocked channels and logs provenance.
     """
     ch = (channel or "email").lower().strip()
+    if not tenant_id or str(getattr(lead, "tenant_id", "")) != str(tenant_id):
+        return {
+            "sent": False,
+            "channel": ch,
+            "reason": "tenant_scope_mismatch",
+            "message": "Dispatch blocked because the lead does not belong to the requested tenant.",
+        }
 
     # Central authorization is enforced here as well as in the V3 orchestrator,
     # so cadence/outbox callers cannot bypass the tenant's send policy.
