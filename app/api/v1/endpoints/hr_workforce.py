@@ -295,7 +295,7 @@ def get_leave_balances(
     emp = db.query(EmployeeProfile).filter_by(id=employee_id, tenant_id=tenant_id).first()
     if not emp:
         raise HTTPException(status_code=404, detail="Employee not found.")
-    if not (getattr(current_user, "is_system_admin", False) or getattr(current_user, "is_superuser", False) or _role(current_user) in _HR_ROLES or (emp.user_id and str(emp.user_id) == str(current_user.id))):
+    if not (getattr(current_user, "is_system_admin", False) or getattr(current_user, "is_superuser", False) or _has_hr_permission(current_user, "hr.manage_workforce") or _has_hr_permission(current_user, "hr.manage_employees") or _has_hr_permission(current_user, "hr.manage_leave") or (emp.user_id and str(emp.user_id) == str(current_user.id))):
         raise HTTPException(status_code=403, detail="You may only view your own leave balance.")
     ltypes = db.query(LeaveType).filter_by(tenant_id=tenant_id, is_active=True).all()
     evaluator = LeaveImpactSpecialist(db, tenant_id)
