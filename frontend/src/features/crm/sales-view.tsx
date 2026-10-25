@@ -575,12 +575,14 @@ export default function SalesView({
   const handleCreateLead = async (leadData: any) => {
     setCreatingLead(true);
     try {
+      const targetRoomId = currentRoom?.id && currentRoom.id !== 'sales-default' ? currentRoom.id : undefined;
       const res = await fetchWithAuth(`${API_URL}/leads/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...leadData,
-          room_id: currentRoom?.id,
+          room_id: targetRoomId,
+          room_slug: currentRoom?.slug || 'default',
         }),
       });
       if (res.ok) {
@@ -603,7 +605,9 @@ export default function SalesView({
       const formData = new FormData();
       formData.append('file', file);
       formData.append('handle_with_ai', String(withAI));
-      if (currentRoom?.id) formData.append('room_id', currentRoom.id);
+      if (currentRoom?.id && currentRoom.id !== 'sales-default') {
+        formData.append('room_id', currentRoom.id);
+      }
       if (currentRoom?.slug) formData.append('room_slug', currentRoom.slug);
 
       const res = await fetchWithAuth(`${API_URL}/leads/upload`, {

@@ -224,17 +224,23 @@ def generate_campaign_task(tenant_id: str, params: dict, job_id: str = None, *ar
 
         # Dispatch Media Rendering with Circuit Breakers (if requested and prompt exists)
         llm = LLMGateway(db, tenant_id)
+        target_post_ids = [
+            p.get("post_id")
+            for p in result.get("posts", [])
+            if p.get("post_id") and not p.get("failed")
+        ]
         created_posts = (
             db.query(ContentPost)
             .filter(
                 ContentPost.tenant_id == tenant_id,
+                ContentPost.id.in_(target_post_ids),
                 ContentPost.status != "failed",
                 ContentPost.approval_status != "failed",
                 ContentPost.image_url == None,  # noqa: E711
             )
-            .order_by(ContentPost.created_at.desc())
-            .limit(days * len(platforms))
             .all()
+            if target_post_ids
+            else []
         )
 
         from app.services.marketing.visual_creative.critic import VisualCritic
@@ -973,9 +979,13 @@ def run_sales_v3_task(
     count: int = 50,
     freshness: str = None,
     mode: str = "configured_engine",
-    prompt_instructions: str = None
+    prompt_instructions: str = None,
+    *args,
+    **kwargs
 ):
     from app.services.agents.sales import SalesAgent
+    from app.models.verticals import BusinessProfile
+    from datetime import datetime
     db = SessionLocal()
     try:
         agent = SalesAgent(db, tenant_id)
@@ -989,6 +999,18 @@ def run_sales_v3_task(
         )
     except Exception as e:
         print(f"Error in run_sales_v3_task: {e}")
+        try:
+            p = db.query(BusinessProfile).filter_by(tenant_id=tenant_id).first()
+            if p and p.v3_workflow_status:
+                st = dict(p.v3_workflow_status)
+                st["status"] = "failed"
+                logs_list = list(st.get("logs", []))
+                logs_list.append(f"[{datetime.now().strftime('%H:%M:%S')}] Workflow execution error: {str(e)}")
+                st["logs"] = logs_list
+                p.v3_workflow_status = st
+                db.commit()
+        except Exception:
+            pass
         raise e
     finally:
         db.close()

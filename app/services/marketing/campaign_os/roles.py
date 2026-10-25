@@ -569,25 +569,24 @@ Output JSON format:
         pack_id: Optional[str] = None,
         provider: Optional[str] = None,
         model: Optional[str] = None,
+        brand_anchor: Optional[BrandContextAnchor] = None,
     ) -> CritiqueScoreCard:
         """Independent judge auditing groundedness, platform fit, and brand voice with 1-attempt repair loop."""
-        from app.services.marketing.campaign_os.claim_verifier import ClaimVerifier
-        from app.services.marketing.campaign_os.compliance_engine import ComplianceRulesEngine
-
-        # 1. Deterministic Claim Verification
-        claim_result = ClaimVerifier.verify_post_claims(
-            content=post_draft.formatted_full_post,
+        # 1. Independent Deterministic Claim Verification (Agent 13)
+        claim_result = await self.execute_fact_check_verifier(
+            post_content=post_draft.formatted_full_post,
             approved_evidence=approved_evidence,
         )
 
-        # 2. Deterministic Compliance Check
-        comp_result = ComplianceRulesEngine.audit_post(
-            content=post_draft.formatted_full_post,
+        # 2. Independent Deterministic Compliance & Disclosures Check (Agent 14)
+        comp_result = await self.execute_brand_compliance_sentinel(
+            post_content=post_draft.formatted_full_post,
+            brand_anchor=brand_anchor,
             platform=post_draft.platform,
             pack_id=pack_id,
         )
 
-        # 3. LLM Qualitative Evaluation
+        # 3. LLM Qualitative Evaluation (Fails Closed on Model Error)
         system_prompt = (
             "You are an impartial Executive Editor. Evaluate this marketing post on a strict 0.0 to 1.0 scale. "
             "Output JSON only."
@@ -605,38 +604,44 @@ Return JSON:
   "brand_voice_score": 0.90,
   "critique_notes": "Observations on tone, flow, and clarity"
 }}"""
-        platform_fit = 0.90
-        brand_voice = 0.90
-        critique_notes = "Meets editorial standards."
+        platform_fit = 0.0
+        brand_voice = 0.0
+        critique_notes = "Evaluation pending."
 
         try:
             resp = await self.llm.complete(prompt, system_prompt=system_prompt, provider=provider, model=model)
             data = extract_json_safe(resp)
-            platform_fit = float(data.get("platform_fit_score", 0.90))
-            brand_voice = float(data.get("brand_voice_score", 0.90))
-            raw_notes = data.get("critique_notes", "")
-            if isinstance(raw_notes, list):
-                critique_notes = "\n".join(str(n) for n in raw_notes if n)
-            elif isinstance(raw_notes, str):
-                critique_notes = raw_notes
-            elif raw_notes is not None:
-                critique_notes = str(raw_notes)
+            if isinstance(data, dict):
+                platform_fit = float(data.get("platform_fit_score", 0.0))
+                brand_voice = float(data.get("brand_voice_score", 0.0))
+                raw_notes = data.get("critique_notes", "")
+                if isinstance(raw_notes, list):
+                    critique_notes = "\n".join(str(n) for n in raw_notes if n)
+                elif isinstance(raw_notes, str):
+                    critique_notes = raw_notes
+                elif raw_notes is not None:
+                    critique_notes = str(raw_notes)
+                else:
+                    critique_notes = "Meets editorial standards."
             else:
-                critique_notes = "Meets editorial standards."
-        except Exception:
-            pass
+                critique_notes = "Non-JSON response from editorial evaluator."
+        except Exception as eval_err:
+            logger.warning(f"[CriticJudge] Qualitative evaluation failed ({eval_err}), failing closed.")
+            platform_fit = 0.0
+            brand_voice = 0.0
+            critique_notes = f"Evaluation unavailable: {eval_err}"
 
         # Compute overall confidence
-        groundedness = claim_result.citation_coverage_score
+        groundedness = claim_result.groundedness_score
         overall_conf = round(min(groundedness, platform_fit, brand_voice), 2)
-        is_approved = claim_result.all_claims_grounded and comp_result.passed and overall_conf >= 0.85
+        is_approved = claim_result.all_claims_grounded and comp_result.compliance_passed and overall_conf >= 0.85
 
         # 4. Targeted Self-Repair Loop (1 Attempt) if validation failed
-        if not is_approved:
+        if not is_approved and (not claim_result.all_claims_grounded or not comp_result.compliance_passed):
             issues = []
             if not claim_result.all_claims_grounded:
                 issues.extend([f"Ungrounded claim: {u}" for u in claim_result.unsupported_claims])
-            if not comp_result.passed:
+            if not comp_result.compliance_passed:
                 issues.extend(comp_result.violations)
 
             repair_prompt = f"""The previous post draft had compliance/grounding issues:
@@ -654,30 +659,38 @@ Output JSON with formatted_full_post only:
                 repaired_text = repair_data.get("formatted_full_post")
                 if repaired_text and len(repaired_text) > 20:
                     post_draft.formatted_full_post = repaired_text
-                    # Re-verify
-                    second_claim = ClaimVerifier.verify_post_claims(content=repaired_text, approved_evidence=approved_evidence)
-                    second_comp = ComplianceRulesEngine.audit_post(
-                        content=repaired_text,
+                    # Re-verify through independent gates
+                    second_claim = await self.execute_fact_check_verifier(post_content=repaired_text, approved_evidence=approved_evidence)
+                    second_comp = await self.execute_brand_compliance_sentinel(
+                        post_content=repaired_text,
+                        brand_anchor=brand_anchor,
                         platform=post_draft.platform,
                         pack_id=pack_id,
                     )
-                    if second_claim.all_claims_grounded and second_comp.passed:
-                        is_approved = True
-                        overall_conf = 0.90
-                        critique_notes = "Auto-repaired compliance issues successfully."
+                    if second_claim.all_claims_grounded and second_comp.compliance_passed:
+                        claim_result = second_claim
+                        comp_result = second_comp
+                        groundedness = 1.0
+                        platform_fit = max(platform_fit, 0.85)
+                        brand_voice = max(brand_voice, 0.85)
+                        overall_conf = round(min(groundedness, platform_fit, brand_voice), 2)
+                        is_approved = overall_conf >= 0.85
+                        critique_notes = "Auto-repaired compliance and grounding issues successfully."
             except Exception:
                 pass
 
         return CritiqueScoreCard(
-            groundedness_score=groundedness,
+            groundedness_score=claim_result.groundedness_score,
             unsupported_claims=claim_result.unsupported_claims,
             platform_fit_score=platform_fit,
             brand_voice_score=brand_voice,
-            compliance_passed=comp_result.passed,
+            compliance_passed=comp_result.compliance_passed,
             compliance_issues=comp_result.violations,
             overall_confidence=overall_conf,
             is_approved=is_approved,
             critique_notes=critique_notes,
+            fact_check=claim_result,
+            compliance=comp_result,
         )
 
     # ── Agent 1: Brand DNA & Tone Synthesizer ────────────────────────────
@@ -858,9 +871,9 @@ Output JSON format:
                 metrics.append(c)
 
         return EvidenceProofCurator(
-            approved_evidence_ids=approved_ids or ["ev_verified_catalog"],
+            approved_evidence_ids=approved_ids or [],
             approved_claims=approved if isinstance(approved, list) else [],
-            verified_metrics=metrics or ["Eliminates up to 80% of repetitive operational tasks", "Sub-second deterministic workflow dispatch"],
+            verified_metrics=metrics or [],
             prohibited_claims=[
                 "Unsubstantiated 100% guarantees without operational prerequisites",
                 "Speculative competitor benchmarks without verifiable audit trail",
@@ -1066,42 +1079,50 @@ Output JSON format:
             content=post_content,
             approved_evidence=approved_evidence,
         )
+        status = "PASS" if claim_result.all_claims_grounded else "FAIL"
         return FactCheckAuditResult(
             groundedness_score=claim_result.citation_coverage_score,
             all_claims_grounded=claim_result.all_claims_grounded,
             unsupported_claims=claim_result.unsupported_claims,
             cited_evidence_ids=claim_result.verified_claims,
+            status=status,
         )
 
     # ── Agent 14: Brand Voice & Compliance Sentinel ──────────────────────
     async def execute_brand_compliance_sentinel(
         self,
         post_content: str,
-        brand_anchor: BrandContextAnchor,
-        platform: str,
+        brand_anchor: Optional[BrandContextAnchor] = None,
+        platform: str = "linkedin",
+        pack_id: Optional[str] = None,
     ) -> ComplianceAuditResult:
-        """Agent 14: Checks tone keyword alignment, banned buzzwords, platform rules, and disclaimers."""
+        """Agent 14: Checks tone keyword alignment, banned buzzwords, platform rules, and disclosures."""
         from app.services.marketing.campaign_os.compliance_engine import ComplianceRulesEngine
         comp_result = ComplianceRulesEngine.audit_post(
             content=post_content,
             platform=platform,
+            pack_id=pack_id,
         )
         banned = []
-        for word in brand_anchor.brand_dna.banned_words:
-            if re.search(r"\b" + re.escape(word) + r"\b", post_content, re.IGNORECASE):
-                banned.append(word)
+        if brand_anchor and getattr(brand_anchor, "brand_dna", None):
+            for word in brand_anchor.brand_dna.banned_words:
+                if re.search(r"\b" + re.escape(word) + r"\b", post_content, re.IGNORECASE):
+                    banned.append(word)
 
         passed = comp_result.passed and len(banned) == 0
         violations = list(comp_result.violations)
         if banned:
             violations.append(f"Forbidden buzzwords detected: {', '.join(banned)}")
 
-        voice_score = 0.95 if not banned else 0.70
+        voice_score = 0.95 if not banned else 0.40
+        status = "PASS" if passed else "FAIL"
         return ComplianceAuditResult(
             compliance_passed=passed,
             violations=violations,
             brand_voice_score=voice_score,
             banned_words_detected=banned,
+            missing_disclosures=getattr(comp_result, "missing_disclosures", []),
+            status=status,
         )
 
     # ── Agent 15: Chief Marketing Officer (CMO Orchestrator) ─────────────
@@ -1110,30 +1131,133 @@ Output JSON format:
         campaign_title: str,
         total_slots: int,
         scorecards: List[CritiqueScoreCard],
-        brand_anchor: BrandContextAnchor,
+        brand_anchor: Optional[BrandContextAnchor] = None,
         provider: Optional[str] = None,
         model: Optional[str] = None,
     ) -> CMOExecutiveVerdict:
         """Agent 15: Chief Marketing Officer reviews full council telemetry and arbitrates the campaign release verdict."""
         approved_count = sum(1 for s in scorecards if s.is_approved)
         needs_review_count = total_slots - approved_count
-        conf_scores = [s.overall_confidence for s in scorecards] if scorecards else [0.90]
+        conf_scores = [s.overall_confidence for s in scorecards] if scorecards else [0.0]
         avg_conf = round(sum(conf_scores) / max(1, len(conf_scores)), 2)
 
-        summary = (
-            f"Campaign '{campaign_title}' reviewed by the 15-Agent Council. "
-            f"{approved_count}/{total_slots} time slots fully approved with {int(avg_conf * 100)}% composite confidence. "
-            f"Anchored in verified capabilities for {brand_anchor.company_name}."
+        # Audit all slot failures
+        ungrounded = []
+        compliance_issues = []
+        for s in scorecards:
+            if s.unsupported_claims:
+                ungrounded.extend(s.unsupported_claims)
+            if s.compliance_issues:
+                compliance_issues.extend(s.compliance_issues)
+
+        required_edits = []
+        if ungrounded:
+            required_edits.append(f"Remove or substantiate {len(ungrounded)} ungrounded claims: {', '.join(ungrounded[:3])}")
+        if compliance_issues:
+            required_edits.append(f"Resolve {len(compliance_issues)} compliance issues: {', '.join(compliance_issues[:3])}")
+        if avg_conf < 0.85:
+            required_edits.append(f"Composite confidence {int(avg_conf * 100)}% is below 85% release threshold")
+
+        is_approved = (len(required_edits) == 0) and (approved_count == total_slots) and (avg_conf >= 0.85)
+        brand_name = brand_anchor.company_name if brand_anchor else "Verified Brand"
+        industry_name = brand_anchor.industry if brand_anchor else "Enterprise"
+
+        if is_approved:
+            verdict_status = "APPROVED"
+            summary = (
+                f"Campaign '{campaign_title}' approved by CMO. All {total_slots} time slots fully verified "
+                f"with {int(avg_conf * 100)}% composite confidence anchored in {brand_name} truth."
+            )
+        elif ungrounded or compliance_issues:
+            verdict_status = "REJECTED"
+            summary = (
+                f"Campaign '{campaign_title}' rejected by CMO due to blocking governance failures: "
+                f"{'; '.join(required_edits)}."
+            )
+        else:
+            verdict_status = "REVIEW_REQUIRED"
+            summary = (
+                f"Campaign '{campaign_title}' requires human review. {approved_count}/{total_slots} slots approved. "
+                f"Composite confidence: {int(avg_conf * 100)}%."
+            )
+
+        # Agent 15: LLM Strategic Arbitration & Qualitative Risk Review
+        system_prompt = (
+            "You are the Chief Marketing Officer (Agent 15 of 15). "
+            "Review the full campaign portfolio, strategic alignment, and governance telemetry. "
+            "Output JSON with is_approved (bool), verdict_status (APPROVED, APPROVED_WITH_EDITS, REJECTED, REVIEW_REQUIRED), "
+            "strategic_alignment, brand_risk_assessment, creative_differentiation, executive_summary, and required_edits."
         )
+        prompt = f"""Campaign Title: {campaign_title}
+Total Slots: {total_slots}
+Approved Slots: {approved_count}
+Needs Review: {needs_review_count}
+Average Confidence: {avg_conf}
+Ungrounded Claims: {ungrounded}
+Compliance Issues: {compliance_issues}
+Brand Anchor: {brand_name} ({industry_name})
+
+Output JSON format:
+{{
+  "is_approved": false,
+  "verdict_status": "REJECTED",
+  "confidence_score": 0.40,
+  "strategic_alignment": "Strategic review summary",
+  "brand_risk_assessment": "Risk assessment",
+  "creative_differentiation": "Differentiation analysis",
+  "executive_summary": "Summary of executive verdict",
+  "required_edits": ["Specific required edit"]
+}}"""
+        try:
+            resp = await self.llm.complete(prompt, system_prompt=system_prompt, provider=provider, model=model)
+            data = extract_json_safe(resp)
+            if isinstance(data, dict) and "is_approved" in data:
+                # Hard Governance Gate: LLM can NEVER approve if governance failed
+                llm_approved = bool(data.get("is_approved")) and is_approved
+                v_status = data.get("verdict_status", "APPROVED" if llm_approved else "REJECTED")
+                if not llm_approved:
+                    if data.get("verdict_status") == "REJECTED" or not data.get("is_approved"):
+                        v_status = "REJECTED"
+                    elif ungrounded or compliance_issues:
+                        v_status = "REJECTED"
+                    else:
+                        v_status = "REVIEW_REQUIRED"
+
+                llm_edits = data.get("required_edits", [])
+                if isinstance(llm_edits, list):
+                    for e in llm_edits:
+                        if e not in required_edits:
+                            required_edits.append(str(e))
+
+                return CMOExecutiveVerdict(
+                    campaign_title=campaign_title,
+                    overall_confidence=float(data.get("confidence_score", avg_conf)),
+                    is_approved=llm_approved,
+                    verdict_status=v_status,
+                    strategic_alignment=str(data.get("strategic_alignment", "Aligned")),
+                    brand_risk_assessment=str(data.get("brand_risk_assessment", "Acceptable")),
+                    creative_differentiation=str(data.get("creative_differentiation", "Adequate")),
+                    executive_summary=str(data.get("executive_summary", summary)),
+                    total_slots_planned=total_slots,
+                    approved_slots_count=approved_count if llm_approved else 0,
+                    needs_review_count=total_slots if not llm_approved else needs_review_count,
+                    required_edits=required_edits,
+                    unresolved_risks=ungrounded + compliance_issues,
+                )
+        except Exception as e:
+            logger.debug(f"[Agent 15: CMO] LLM completion skipped ({e}), using deterministic evaluation.")
 
         return CMOExecutiveVerdict(
             campaign_title=campaign_title,
             overall_confidence=avg_conf,
-            is_approved=needs_review_count == 0,
+            is_approved=is_approved,
+            verdict_status=verdict_status,
             executive_summary=summary,
             total_slots_planned=total_slots,
             approved_slots_count=approved_count,
             needs_review_count=needs_review_count,
+            required_edits=required_edits,
+            unresolved_risks=ungrounded + compliance_issues,
         )
 
     # ── Council Aliases for 15-Agent Protocol ────────────────────────────

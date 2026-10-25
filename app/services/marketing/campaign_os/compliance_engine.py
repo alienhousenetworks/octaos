@@ -40,6 +40,8 @@ class ComplianceResult(BaseModel):
     passed: bool
     violations: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
+    missing_disclosures: List[str] = Field(default_factory=list)
+    status: str = "PASS"  # PASS, FAIL, REVIEW_REQUIRED
     cleaned_content: str
 
 
@@ -52,9 +54,11 @@ class ComplianceRulesEngine:
         content: str,
         platform: str = "linkedin",
         pack_id: str | None = None,
+        enforce_blocking_disclosures: bool = True,
     ) -> ComplianceResult:
         violations = []
         warnings = []
+        missing_disclosures = []
         cleaned = content
 
         # 1. Prohibited Guarantee Patterns
@@ -96,11 +100,22 @@ class ComplianceRulesEngine:
             for w in ind_res.warnings:
                 if w not in warnings:
                     warnings.append(w)
+                if "disclosure" in w.lower() or "rera" in w.lower():
+                    missing_disclosures.append(w)
+
+            # P0.5: Enforce blocking disclosures during release evaluation
+            if enforce_blocking_disclosures and missing_disclosures:
+                for disc in missing_disclosures:
+                    v_msg = f"Blocking regulatory disclosure missing: {disc}"
+                    if v_msg not in violations:
+                        violations.append(v_msg)
 
         passed = len(violations) == 0
         return ComplianceResult(
             passed=passed,
             violations=violations,
             warnings=warnings,
+            missing_disclosures=missing_disclosures,
+            status="PASS" if passed else "FAIL",
             cleaned_content=cleaned,
         )

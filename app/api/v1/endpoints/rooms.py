@@ -95,23 +95,28 @@ def _get_room_counts(db: Session, room: SectionRoom) -> Dict[str, int]:
             ).count()
             counts = {"total": total, "active": active}
         elif room.section == "sales":
+            lead_room_filter = (Lead.room_id == room.id)
+            deal_room_filter = (DealRoom.room_id == room.id)
+            if room.slug == "default":
+                lead_room_filter = or_(Lead.room_id == room.id, Lead.room_id.is_(None), Lead.room_id == "sales-default")
+                deal_room_filter = or_(DealRoom.room_id == room.id, DealRoom.room_id.is_(None), DealRoom.room_id == "sales-default")
             leads_total = db.query(Lead).filter(
                 Lead.tenant_id == room.tenant_id,
-                Lead.room_id == room.id,
+                lead_room_filter,
             ).count()
             deals_total = db.query(DealRoom).filter(
                 DealRoom.tenant_id == room.tenant_id,
-                DealRoom.room_id == room.id,
+                deal_room_filter,
             ).count()
             total = leads_total + deals_total
             leads_active = db.query(Lead).filter(
                 Lead.tenant_id == room.tenant_id,
-                Lead.room_id == room.id,
-                Lead.status.in_(["captured", "contacted", "in_discussion", "qualified"]),
+                lead_room_filter,
+                Lead.status.in_(["captured", "contacted", "in_discussion", "qualified", "ready", "contact_partial"]),
             ).count()
             deals_active = db.query(DealRoom).filter(
                 DealRoom.tenant_id == room.tenant_id,
-                DealRoom.room_id == room.id,
+                deal_room_filter,
                 DealRoom.stage.notin_(["won", "lost"]),
             ).count()
             counts = {"total": total, "active": leads_active + deals_active}

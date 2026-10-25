@@ -83,8 +83,15 @@ class DiscoveryService:
                 lead_query = lead_query.filter(Lead.phone == phone_value)
             exists = lead_query.first()
             if not exists:
+                from app.models.rooms import SectionRoom
+                sales_room = self.db.query(SectionRoom).filter(
+                    SectionRoom.tenant_id == self.tenant_id,
+                    SectionRoom.section == "sales",
+                    SectionRoom.slug == "default"
+                ).first()
                 lead = Lead(
                     tenant_id=self.tenant_id,
+                    room_id=sales_room.id if sales_room else None,
                     name=data["name"],
                     email=email_value,
                     phone=phone_value,

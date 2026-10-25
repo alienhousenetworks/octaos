@@ -24,13 +24,25 @@ async def create_lead(
     _: User = Depends(require_permission(Resource.LEADS, Action.CREATE)),
     lead_in: schemas.LeadCreate
 ) -> Any:
-    lead = models.Lead(**lead_in.dict(), tenant_id=tenant_id)
+    lead_data = lead_in.dict()
+    if not lead_data.get("room_id") or lead_data.get("room_id") == "sales-default":
+        from app.models.rooms import SectionRoom
+        default_room = db.query(SectionRoom).filter(
+            SectionRoom.tenant_id == tenant_id,
+            SectionRoom.section == "sales",
+            SectionRoom.slug == "default"
+        ).first()
+        lead_data["room_id"] = default_room.id if default_room else None
+    lead = models.Lead(**lead_data, tenant_id=tenant_id)
     db.add(lead)
     db.commit()
     db.refresh(lead)
     
     # Trigger async scoring
-    score_lead_task.delay(tenant_id, lead.id)
+    try:
+        score_lead_task.delay(tenant_id, lead.id)
+    except Exception:
+        pass
     
     return lead
 
@@ -49,19 +61,38 @@ def read_leads(
     skip: int = 0,
     limit: int = 100
 ) -> Any:
+    from sqlalchemy import or_
+    from app.models.rooms import SectionRoom
+
     query = db.query(models.Lead).filter(models.Lead.tenant_id == tenant_id)
     
     if room_slug:
-        from app.models.rooms import SectionRoom
         r = db.query(SectionRoom).filter(
             SectionRoom.tenant_id == tenant_id,
             SectionRoom.section == "sales",
             SectionRoom.slug == room_slug
         ).first()
         if r:
-            query = query.filter(models.Lead.room_id == r.id)
+            if room_slug == "default":
+                query = query.filter(or_(models.Lead.room_id == r.id, models.Lead.room_id.is_(None), models.Lead.room_id == "sales-default"))
+            else:
+                query = query.filter(models.Lead.room_id == r.id)
     elif room_id:
-        query = query.filter(models.Lead.room_id == room_id)
+        r = db.query(SectionRoom).filter(SectionRoom.id == room_id).first()
+        if r and r.slug == "default":
+            query = query.filter(or_(models.Lead.room_id == room_id, models.Lead.room_id.is_(None), models.Lead.room_id == "sales-default"))
+        elif room_id == "sales-default":
+            default_room = db.query(SectionRoom).filter(
+                SectionRoom.tenant_id == tenant_id,
+                SectionRoom.section == "sales",
+                SectionRoom.slug == "default"
+            ).first()
+            if default_room:
+                query = query.filter(or_(models.Lead.room_id == default_room.id, models.Lead.room_id.is_(None), models.Lead.room_id == "sales-default"))
+            else:
+                query = query.filter(or_(models.Lead.room_id.is_(None), models.Lead.room_id == "sales-default"))
+        else:
+            query = query.filter(models.Lead.room_id == room_id)
     
     if status and status != "all":
         query = query.filter(models.Lead.status == status)
@@ -223,12 +254,21 @@ async def upload_leads(
     room_slug: Optional[str] = Form(None)
 ) -> Any:
     target_room_id = room_id
-    if room_slug and not target_room_id:
+    if (not target_room_id or target_room_id == "sales-default") and room_slug:
         from app.models.rooms import SectionRoom
         r = db.query(SectionRoom).filter(
             SectionRoom.tenant_id == tenant_id,
             SectionRoom.section == "sales",
             SectionRoom.slug == room_slug
+        ).first()
+        if r:
+            target_room_id = r.id
+    if not target_room_id or target_room_id == "sales-default":
+        from app.models.rooms import SectionRoom
+        r = db.query(SectionRoom).filter(
+            SectionRoom.tenant_id == tenant_id,
+            SectionRoom.section == "sales",
+            SectionRoom.slug == "default"
         ).first()
         if r:
             target_room_id = r.id

@@ -14,10 +14,62 @@ from app.models.verticals import ContentPost
 from app.models.agents import ActivityLog
 from app.models.enterprise import ApprovalRequest
 from app.services.knowledge_os.intent_projector import CompanyContextProjectionEngine, IntentType
+from app.services.marketing.campaign_os.contracts import CMOExecutiveVerdict
 from app.services.marketing.campaign_os.roles import CampaignRolesEngine
 from app.services.marketing.compiler.prompt_compiler import MediaPromptCompiler
+from app.services.marketing.verticals.registry import get_marketing_pack
 
 logger = logging.getLogger(__name__)
+
+
+class FinalCopyComposer:
+    """Deterministic final-copy composer merging selected hook, body, CTA, and disclosures."""
+
+    @staticmethod
+    def compose(
+        hook: str,
+        body: str,
+        cta: str,
+        hashtags: List[str],
+        disclosures: Optional[List[str]] = None,
+        platform: str = "linkedin",
+    ) -> str:
+        h = (hook or "").strip()
+        b = (body or "").strip()
+        c = (cta or "").strip()
+
+        # Remove duplicate hook at start of body if already present
+        if h and b.lower().startswith(h.lower()):
+            b = b[len(h):].strip()
+
+        # Remove duplicate CTA at end of body if already present
+        if c and b.lower().endswith(c.lower()):
+            b = b[:-len(c)].strip()
+
+        paragraphs = []
+        if h:
+            paragraphs.append(h)
+        if b:
+            paragraphs.append(b)
+        if c:
+            paragraphs.append(c)
+
+        if disclosures:
+            clean_d = [d.strip() for d in disclosures if d and d.strip()]
+            if clean_d:
+                paragraphs.append(" | ".join(clean_d))
+
+        if hashtags:
+            formatted_tags = []
+            for t in hashtags:
+                t_str = t.strip()
+                if not t_str.startswith("#"):
+                    t_str = f"#{t_str}"
+                formatted_tags.append(t_str)
+            if formatted_tags:
+                paragraphs.append(" ".join(formatted_tags[:5]))
+
+        return "\n\n".join(paragraphs).strip()
 
 
 class CampaignOSOrchestrator:
@@ -228,6 +280,7 @@ class CampaignOSOrchestrator:
         approved_count = 0
         needs_review_count = 0
         all_scorecards = []
+        persisted_slots = []
         total_target = max(1, len(schedule_plan.slots))
         processed_count = 0
 
@@ -276,6 +329,25 @@ class CampaignOSOrchestrator:
                     brand_brief=brand_brief,
                     provider=strat_p,
                     model=strat_m,
+                )
+                if cta_spec and cta_spec.cta_copy:
+                    draft.cta_sentence = cta_spec.cta_copy
+
+                # Compose Final Copy (P0.4) using selected hook, body, CTA, hashtags, and disclosures
+                pack_id = campaign_projection.get("industry_pack_id")
+                applicable_disclosures = []
+                if pack_id:
+                    pack_data = get_marketing_pack(pack_id)
+                    if pack_data and "compliance_guardrails" in pack_data:
+                        applicable_disclosures = pack_data["compliance_guardrails"].get("required_disclosures", [])
+
+                draft.formatted_full_post = FinalCopyComposer.compose(
+                    hook=draft.hook,
+                    body=draft.body_content or draft.formatted_full_post,
+                    cta=draft.cta_sentence,
+                    hashtags=draft.hashtags or [],
+                    disclosures=applicable_disclosures,
+                    platform=platform,
                 )
 
                 # Media Compilation (Agents 11 & 12)
@@ -334,7 +406,7 @@ class CampaignOSOrchestrator:
                     post_draft=draft,
                     approved_evidence=approved_evidence,
                     brand_brief=brand_brief,
-                    pack_id=campaign_projection.get("industry_pack_id"),
+                    pack_id=pack_id,
                     provider=strat_p,
                     model=strat_m,
                 )
@@ -354,64 +426,71 @@ class CampaignOSOrchestrator:
                 except Exception:
                     scheduled_dt = datetime.now(timezone.utc) + timedelta(days=slot.day - 1, hours=slot.slot_index * 4)
 
-                # Persist Post Record with Slot Timestamp & Model Tracking
-                post = ContentPost(
-                    tenant_id=self.tenant_id,
-                    platform=platform,
-                    content=draft.formatted_full_post,
-                    image_prompt=compiled_image_prompt,
-                    video_prompt=compiled_video_prompt,
-                    media_prompt=compiled_image_prompt or compiled_video_prompt,
-                    day=slot.day,
-                    status="draft",
-                    approval_status="approved" if score_card.is_approved else "pending",
-                    scheduled_at=scheduled_dt,
-                    performance_score=score_card.overall_confidence * 100.0,
-                    learning_tags=[day_outline.narrative_focus, cta_spec.action_type, f"slot:{slot.slot_label}"],
-                    used_model=f"{strat_p}/{strat_m}",
-                    fallback_reason=primary_fallback_reason,
-                    cost_usd=0.0,
+                # Idempotent Post Persistence (P0.6): Reuse or insert slot post
+                idempotency_tag = f"idempotency:{idempotency_key}"
+                existing_posts = (
+                    self.db.query(ContentPost)
+                    .filter(
+                        ContentPost.tenant_id == self.tenant_id,
+                        ContentPost.platform == platform,
+                        ContentPost.day == slot.day,
+                    )
+                    .all()
                 )
-                self.db.add(post)
+                post = next(
+                    (p for p in existing_posts if p.learning_tags and idempotency_tag in p.learning_tags),
+                    None,
+                )
+
+                learning_tags = [
+                    day_outline.narrative_focus,
+                    getattr(cta_spec, "action_type", "conversion"),
+                    f"slot:{slot.slot_label}",
+                    idempotency_tag,
+                ]
+
+                if post:
+                    post.content = draft.formatted_full_post
+                    post.image_prompt = compiled_image_prompt
+                    post.video_prompt = compiled_video_prompt
+                    post.media_prompt = compiled_image_prompt or compiled_video_prompt
+                    post.scheduled_at = scheduled_dt
+                    post.performance_score = score_card.overall_confidence * 100.0
+                    post.status = "draft"
+                    post.approval_status = "pending"
+                    post.used_model = f"{strat_p}/{strat_m}"
+                    post.fallback_reason = primary_fallback_reason
+                    post.learning_tags = learning_tags
+                else:
+                    post = ContentPost(
+                        tenant_id=self.tenant_id,
+                        platform=platform,
+                        content=draft.formatted_full_post,
+                        image_prompt=compiled_image_prompt,
+                        video_prompt=compiled_video_prompt,
+                        media_prompt=compiled_image_prompt or compiled_video_prompt,
+                        day=slot.day,
+                        status="draft",
+                        approval_status="pending",
+                        scheduled_at=scheduled_dt,
+                        performance_score=score_card.overall_confidence * 100.0,
+                        learning_tags=learning_tags,
+                        used_model=f"{strat_p}/{strat_m}",
+                        fallback_reason=primary_fallback_reason,
+                        cost_usd=0.0,
+                    )
+                    self.db.add(post)
+
                 self.db.commit()
                 self.db.refresh(post)
 
-                # Escalation if Confidence < 0.85
-                if not score_card.is_approved:
-                    needs_review_count += 1
-                    approval_req = ApprovalRequest(
-                        tenant_id=self.tenant_id,
-                        action_type="public_post",
-                        channel=platform,
-                        agent_name="Campaign OS",
-                        resource_type="post",
-                        resource_id=post.id,
-                        title=f"Review {slot.slot_label}: {draft.hook[:40]}",
-                        payload={
-                            "content": draft.formatted_full_post,
-                            "image_prompt": compiled_image_prompt,
-                            "confidence": score_card.overall_confidence,
-                            "unsupported_claims": score_card.unsupported_claims,
-                            "compliance_issues": score_card.compliance_issues,
-                        },
-                        confidence=score_card.overall_confidence,
-                        status="pending",
-                        policy_reason="; ".join(score_card.unsupported_claims + score_card.compliance_issues) or "Confidence below threshold",
-                    )
-                    self.db.add(approval_req)
-                    self.db.commit()
-                else:
-                    approved_count += 1
-
-                generated_posts.append({
-                    "post_id": post.id,
-                    "day": slot.day,
-                    "slot_label": slot.slot_label,
-                    "scheduled_at": scheduled_dt.isoformat(),
-                    "platform": platform,
-                    "approved": score_card.is_approved,
-                    "confidence": score_card.overall_confidence,
-                    "image_prompt": compiled_image_prompt[:120] if compiled_image_prompt else None,
+                persisted_slots.append({
+                    "post": post,
+                    "slot": slot,
+                    "score_card": score_card,
+                    "draft": draft,
+                    "compiled_image_prompt": compiled_image_prompt,
+                    "scheduled_dt": scheduled_dt,
                 })
 
             except Exception as post_err:
@@ -447,18 +526,95 @@ class CampaignOSOrchestrator:
 
         # ── Stage 4: Chief Marketing Officer (CMO) Council Review (Agent 15) ─
         cmo_verdict = None
-        if brand_anchor:
-            try:
-                cmo_verdict = await self.roles.execute_cmo_orchestrator(
-                    campaign_title=narrative_arc.campaign_title,
-                    total_slots=len(schedule_plan.slots),
-                    scorecards=all_scorecards,
-                    brand_anchor=brand_anchor,
-                    provider=strat_p,
-                    model=strat_m,
+        try:
+            cmo_verdict = await self.roles.execute_cmo_orchestrator(
+                campaign_title=narrative_arc.campaign_title,
+                total_slots=len(schedule_plan.slots),
+                scorecards=all_scorecards,
+                brand_anchor=brand_anchor,
+                provider=strat_p,
+                model=strat_m,
+            )
+        except Exception as cmo_err:
+            logger.error(f"[Agent 15: CMO] Review evaluation failed: {cmo_err}")
+            cmo_verdict = CMOExecutiveVerdict(
+                campaign_title=narrative_arc.campaign_title,
+                total_slots_reviewed=len(schedule_plan.slots),
+                is_approved=False,
+                verdict_status="REVIEW_REQUIRED",
+                confidence_score=0.0,
+                strategic_alignment="Evaluation failed",
+                brand_risk_assessment=f"CMO review could not complete: {cmo_err}",
+                creative_differentiation="Unknown",
+                executive_summary=f"CMO review encountered an error: {cmo_err}. Campaign held for human review.",
+                unresolved_risks=[str(cmo_err)],
+            )
+
+        # ── Stage 5: Executive Gate & State Transitions (P0.2) ───────────
+        cmo_approved = bool(cmo_verdict and cmo_verdict.is_approved)
+
+        for item in persisted_slots:
+            p = item["post"]
+            sc = item["score_card"]
+            sl = item["slot"]
+            dr = item["draft"]
+            img_pr = item["compiled_image_prompt"]
+
+            if cmo_approved and sc.is_approved:
+                p.approval_status = "approved"
+                approved_count += 1
+            else:
+                p.approval_status = "pending"
+                needs_review_count += 1
+
+                reasons = []
+                if sc.unsupported_claims:
+                    reasons.extend(sc.unsupported_claims)
+                if sc.compliance_issues:
+                    reasons.extend(sc.compliance_issues)
+                if not cmo_approved:
+                    reasons.append(f"CMO Verdict: {cmo_verdict.verdict_status if cmo_verdict else 'REJECTED'}")
+                    if cmo_verdict and cmo_verdict.required_edits:
+                        reasons.extend(cmo_verdict.required_edits)
+
+                policy_reason = "; ".join(reasons) or "Campaign or post requires executive review"
+
+                approval_req = ApprovalRequest(
+                    tenant_id=self.tenant_id,
+                    action_type="public_post",
+                    channel=sl.platform,
+                    agent_name="Campaign OS",
+                    resource_type="post",
+                    resource_id=p.id,
+                    title=f"Review {sl.slot_label}: {dr.hook[:40]}",
+                    payload={
+                        "content": dr.formatted_full_post,
+                        "image_prompt": img_pr,
+                        "confidence": sc.overall_confidence,
+                        "unsupported_claims": sc.unsupported_claims,
+                        "compliance_issues": sc.compliance_issues,
+                        "cmo_verdict": cmo_verdict.verdict_status if cmo_verdict else "UNAVAILABLE",
+                        "required_edits": cmo_verdict.required_edits if cmo_verdict else [],
+                    },
+                    confidence=sc.overall_confidence,
+                    status="pending",
+                    policy_reason=policy_reason,
                 )
-            except Exception as cmo_err:
-                logger.debug(f"[Agent 15: CMO] Review bypassed: {cmo_err}")
+                self.db.add(approval_req)
+
+            self.db.add(p)
+            generated_posts.append({
+                "post_id": p.id,
+                "day": sl.day,
+                "slot_label": sl.slot_label,
+                "scheduled_at": item["scheduled_dt"].isoformat(),
+                "platform": sl.platform,
+                "approved": (p.approval_status == "approved"),
+                "confidence": sc.overall_confidence,
+                "image_prompt": img_pr[:120] if img_pr else None,
+            })
+
+        self.db.commit()
 
         failed_count = sum(1 for p in generated_posts if p.get("failed"))
         success_count = len(generated_posts) - failed_count

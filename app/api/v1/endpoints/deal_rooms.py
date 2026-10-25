@@ -65,7 +65,11 @@ def list_deal_rooms(
         if rm:
             room_id = rm.id
     if room_id:
-        q = q.filter(DealRoom.room_id == room_id)
+        if room_slug and room_slug.lower() == "default":
+            from sqlalchemy import or_
+            q = q.filter(or_(DealRoom.room_id == room_id, DealRoom.room_id.is_(None), DealRoom.room_id == "sales-default"))
+        else:
+            q = q.filter(DealRoom.room_id == room_id)
     if stage and stage != "all":
         q = q.filter(DealRoom.stage == stage)
     if search:
