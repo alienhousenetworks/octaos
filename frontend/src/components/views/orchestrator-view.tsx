@@ -26,6 +26,10 @@ import {
   CheckCircle2,
   PanelRightClose,
   PanelRightOpen,
+  Paperclip,
+  FolderOpen,
+  X,
+  FileText,
 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import PageHeader from '@/components/shell/page-header';
@@ -64,6 +68,11 @@ export default function OrchestratorView({
     },
   ]);
   const [orchInput, setOrchInput] = useState('');
+  const [analysisFiles, setAnalysisFiles] = useState<File[]>([]);
+  const [analyzingFiles, setAnalyzingFiles] = useState(false);
+  const [fileInputError, setFileInputError] = useState('');
+  const filePickerRef = useRef<HTMLInputElement>(null);
+  const folderPickerRef = useRef<HTMLInputElement>(null);
   const [prompt, setPrompt] = useState(''); // backwards compatibility
   const [orchInlineKeyValue, setOrchInlineKeyValue] = useState('');
   const [orchModel, setOrchModel] = useState('');
@@ -120,6 +129,45 @@ export default function OrchestratorView({
   useEffect(() => {
     orchChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [orchMessages]);
+
+  const handleAnalyzeFiles = React.useCallback(async () => {
+    if (!analysisFiles.length || analyzingFiles) return;
+    setAnalyzingFiles(true);
+    setFileInputError('');
+    const uploaded = [...analysisFiles];
+    setOrchMessages(prev => [...prev, { id: \`user-files-\${Date.now()}\`, role: 'user', content: \`Analyze \${uploaded.length} uploaded file(s): \${uploaded.map(f => f.name).join(', ')}\`, timestamp: new Date().toISOString() }]);
+    try {
+      const body = new FormData();
+      body.append('title', \`Orchestrator data analysis — \${new Date().toLocaleDateString()}\`);
+      body.append('idempotency_key', crypto.randomUUID());
+      uploaded.forEach(file => body.append('files', file, (file as File & {webkitRelativePath?: string}).webkitRelativePath || file.name));
+      const response = await fetchWithAuth(\`\${API_URL}/data-intelligence/runs\`, { method: 'POST', body });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : \`File analysis failed (HTTP \${response.status}).\`);
+      const run = result.run || {};
+      const reportResponse = await fetchWithAuth(\`\${API_URL}/data-intelligence/runs/\${encodeURIComponent(run.id)}\`);
+      const detail = reportResponse.ok ? await reportResponse.json() : {};
+      const findings = Array.isArray(detail.findings) ? detail.findings : [];
+      const reportText = [
+        \`Data analysis \${run.status || 'created'}.\`,
+        \`Run ID: \${run.id || 'unavailable'}\`,
+        \`Files received: \${run.file_count ?? uploaded.length}; extracted: \${detail.profile?.files_parsed ?? 0}; findings: \${findings.length}.\`,
+        '',
+        ...findings.slice(0, 12).map((finding: any, i: number) => \`\${i + 1}. [\${String(finding.severity || 'info').toUpperCase()}] \${finding.title}\\nObserved: \${finding.observation}\\nWhy it matters: \${finding.why_it_matters}\\nRecommended action: \${finding.recommended_action}\`),
+        '',
+        'These are deterministic extraction and profiling findings, not causal business claims. Review extraction coverage and evidence before acting.',
+      ].join('\\n');
+      setOrchMessages(prev => [...prev, { id: \`assistant-files-\${Date.now()}\`, role: 'assistant', content: reportText, mode: 'data_intelligence', dataAnalysis: { runId: run.id, status: run.status, findings, coverage: detail.report?.coverage }, timestamp: new Date().toISOString() }]);
+      setAnalysisFiles([]);
+      if (filePickerRef.current) filePickerRef.current.value = '';
+      if (folderPickerRef.current) folderPickerRef.current.value = '';
+      notify('File analysis report created');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'File analysis failed.';
+      setFileInputError(message);
+      setOrchMessages(prev => [...prev, { id: \`assistant-files-error-\${Date.now()}\`, role: 'assistant', content: \`I could not analyze the uploaded files. \${message}\`, timestamp: new Date().toISOString() }]);
+    } finally { setAnalyzingFiles(false); }
+  }, [analysisFiles, analyzingFiles, API_URL, fetchWithAuth]);
 
   const handleRunCommand = React.useCallback(async () => {
     const inputText = orchInput.trim() || prompt.trim();
@@ -981,6 +1029,20 @@ export default function OrchestratorView({
 
             {/* Input Area */}
             <div className="px-5 py-3.5 border-t border-border bg-secondary/20 shrink-0">
+              <input ref={filePickerRef} type="file" multiple accept=".csv,.tsv,.json,.jsonl,.ndjson,.txt,.md,.log,.pdf,.docx,.xlsx,.xlsm,.pptx,.zip" className="hidden" onChange={event => { setAnalysisFiles(prev => [...prev, ...Array.from(event.target.files || [])].slice(0, 100)); setFileInputError(''); }} />
+              <input ref={folderPickerRef} type="file" multiple {...({ webkitdirectory: '', directory: '' } as any)} className="hidden" onChange={event => { setAnalysisFiles(prev => [...prev, ...Array.from(event.target.files || [])].slice(0, 100)); setFileInputError(''); }} />
+              {analysisFiles.length > 0 && <div className="mb-3 rounded-lg border border-border bg-background p-3">
+                <div className="mb-2 flex items-center justify-between gap-2"><span className="text-xs font-semibold">{analysisFiles.length} file(s) ready · {(analysisFiles.reduce((sum, file) => sum + file.size, 0) / (1024 * 1024)).toFixed(2)} MB</span><button type="button" onClick={() => { setAnalysisFiles([]); if (filePickerRef.current) filePickerRef.current.value = ''; if (folderPickerRef.current) folderPickerRef.current.value = ''; }} className="text-xs text-muted-foreground hover:text-foreground">Clear all</button></div>
+                <div className="max-h-24 space-y-1 overflow-y-auto">{analysisFiles.map((file, index) => <div key={\`\${file.name}-\${index}\`} className="flex items-center gap-2 text-xs text-muted-foreground"><FileText className="size-3.5 shrink-0"/><span className="min-w-0 flex-1 truncate">{(file as File & {webkitRelativePath?: string}).webkitRelativePath || file.name}</span><span className="shrink-0">{(file.size / 1024).toFixed(0)} KB</span><button type="button" aria-label={\`Remove \${file.name}\`} onClick={() => setAnalysisFiles(prev => prev.filter((_, i) => i !== index))} className="rounded p-0.5 hover:bg-muted"><X className="size-3.5"/></button></div>)}</div>
+                {fileInputError && <p role="alert" className="mt-2 text-xs text-destructive">{fileInputError}</p>}
+                <Button type="button" onClick={() => void handleAnalyzeFiles()} disabled={analyzingFiles || loading || !analysisFiles.length} size="sm" className="mt-3 w-full">{analyzingFiles ? <><Loader2 className="mr-2 size-4 animate-spin"/>Analyzing uploaded files…</> : <><BarChart3 className="mr-2 size-4"/>Analyze files and generate report</>}</Button>
+              </div>}
+              {fileInputError && analysisFiles.length === 0 && <p role="alert" className="mb-2 text-xs text-destructive">{fileInputError}</p>}
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" size="sm" disabled={loading || analyzingFiles} onClick={() => filePickerRef.current?.click()} className="h-8 gap-1.5 text-xs"><Paperclip className="size-3.5"/> Attach files</Button>
+                <Button type="button" variant="outline" size="sm" disabled={loading || analyzingFiles} onClick={() => folderPickerRef.current?.click()} className="h-8 gap-1.5 text-xs"><FolderOpen className="size-3.5"/> Upload folder</Button>
+                <span className="text-[11px] text-muted-foreground">File analysis runs separately from command execution.</span>
+              </div>
               <div className="flex gap-2.5 items-end">
                 <div className="flex-1 relative">
                   <Textarea
