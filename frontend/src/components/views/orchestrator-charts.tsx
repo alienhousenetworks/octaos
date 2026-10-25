@@ -52,6 +52,7 @@ export default function OrchestratorCharts({ charts }: OrchestratorChartsProps) 
 
     if (plotlyLoaded && window.Plotly) {
       const spec = activeChart.spec;
+      const sourceLayout = spec.layout as Record<string, any>;
       const chartPalette = ['#365BD6', '#8B95A7', '#CBD2DE'];
       const normalizedData = spec.data.map((rawTrace: any, index: number) => {
         const color = chartPalette[index % chartPalette.length];
@@ -74,9 +75,9 @@ export default function OrchestratorCharts({ charts }: OrchestratorChartsProps) 
         margin: { l: 40, r: 20, t: 40, b: 40 },
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
-        font: { ...(spec.layout.font || {}), color: '#172033' },
-        xaxis: { ...(spec.layout.xaxis || {}), color: '#667085', gridcolor: '#E2E7EF', linecolor: '#E2E7EF' },
-        yaxis: { ...(spec.layout.yaxis || {}), color: '#667085', gridcolor: '#E2E7EF', linecolor: '#E2E7EF' },
+        font: { ...(sourceLayout.font || {}), color: '#172033' },
+        xaxis: { ...(sourceLayout.xaxis || {}), color: '#667085', gridcolor: '#E2E7EF', linecolor: '#E2E7EF' },
+        yaxis: { ...(sourceLayout.yaxis || {}), color: '#667085', gridcolor: '#E2E7EF', linecolor: '#E2E7EF' },
       };
 
       window.Plotly.newPlot(
