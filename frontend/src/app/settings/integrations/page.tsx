@@ -7,7 +7,7 @@ type Organization = { id: string; name: string; channels: Channel[] };
 type BufferStatus = { connected: boolean; connection_method?: string | null; connected_at?: string | null; scopes?: string };
 
 function apiBase() {
-  const configured = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+  let configured = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
   while (configured.endsWith("/")) configured = configured.slice(0, -1);
   return configured;
 }
