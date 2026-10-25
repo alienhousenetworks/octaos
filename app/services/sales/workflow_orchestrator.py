@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import random
+import uuid
 import re
 from datetime import datetime, timezone, timedelta
 from typing import Any, Callable, Dict, List, Optional
@@ -93,6 +94,7 @@ class WorkflowOrchestrator:
         freshness=None,
         mode: str = "configured_engine",
         prompt_instructions: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
     ) -> dict:
         # Get business profile
         profile = self.db.query(BusinessProfile).filter_by(tenant_id=self.tenant_id).first()
@@ -112,6 +114,45 @@ class WorkflowOrchestrator:
         profile_decision_makers = getattr(profile, "target_decision_makers", None) or []
         profile_extra_context = getattr(profile, "extra_context", None) or ""
 
+        # Durable run creation and atomic status claim prevent a retried API request
+        # with the same idempotency key from dispatching the same campaign twice.
+        from app.models.sales_workflow import SalesWorkflowRun
+        from app.services.sales_os.workflow_ledger import (
+            create_or_get_run, record_step, transition_run, transition_step,
+        )
+        run_key = (idempotency_key or "").strip() or str(uuid.uuid4())
+        existing_run = self.db.query(SalesWorkflowRun).filter_by(
+            tenant_id=self.tenant_id, idempotency_key=run_key
+        ).first()
+        if existing_run:
+            if existing_run.status == "completed":
+                return {**(existing_run.result_payload or {"status": "success"}), "run_id": existing_run.id, "replayed": True}
+            if existing_run.status in {"running", "waiting_reply", "waiting_approval"}:
+                return {"status": existing_run.status, "run_id": existing_run.id, "message": "A workflow with this idempotency key is already active."}
+            if existing_run.status in {"failed", "blocked", "cancelled"}:
+                return {"status": existing_run.status, "run_id": existing_run.id, "message": "This idempotency key already has a terminal outcome; use a new key for a deliberate retry."}
+        workflow_run = create_or_get_run(
+            self.db,
+            tenant_id=self.tenant_id,
+            campaign_id=f"sales-v3:{mode}",
+            idempotency_key=run_key,
+            input_payload={
+                "mode": mode, "count": count, "freshness": freshness,
+                "provider": provider, "model": model,
+                "prompt_instructions_present": bool(prompt_instructions),
+            },
+        )
+        claimed = self.db.query(SalesWorkflowRun).filter_by(
+            tenant_id=self.tenant_id, id=workflow_run.id, status="queued"
+        ).update({"status": "running", "current_stage": "discovery"}, synchronize_session=False)
+        self.db.commit()
+        self.db.expire_all()
+        workflow_run = self.db.query(SalesWorkflowRun).filter_by(
+            tenant_id=self.tenant_id, id=workflow_run.id
+        ).first()
+        if claimed != 1 or workflow_run is None:
+            return {"status": workflow_run.status if workflow_run else "unknown", "run_id": workflow_run.id if workflow_run else None, "message": "Workflow run was not claimed; no work was repeated."}
+
         engine_name = "Prompt-Based Sales Agent" if mode == "prompt_agent" else "Configured Sales Engine"
         log_prefix = f"[{'Prompt Sales Agent' if mode == 'prompt_agent' else 'Configured Sales Engine'}]"
 
@@ -124,6 +165,7 @@ class WorkflowOrchestrator:
             status = dict(p.v3_workflow_status or {})
             status["workflow_type"] = mode
             status["workflow_name"] = engine_name
+            status["run_id"] = workflow_run.id
             status["current_step"] = step_num
             status["current_activity"] = activity_str
             if log_entry:
@@ -140,6 +182,7 @@ class WorkflowOrchestrator:
             status = dict(p.v3_workflow_status or {})
             status["workflow_type"] = mode
             status["workflow_name"] = engine_name
+            status["run_id"] = workflow_run.id
             status["current_step"] = step_num
             status["status"] = final_status
             status["current_activity"] = status_msg
@@ -159,6 +202,42 @@ class WorkflowOrchestrator:
 
             p.v3_workflow_status = status
             self.db.commit()
+
+            stage_by_step = {
+                1: "discovery", 2: "discovery", 3: "account_enrichment",
+                4: "account_enrichment", 5: "contact_verification",
+                6: "qualification", 7: "personalization", 8: "delivery",
+                9: "reply_handling", 10: "meeting_confirmation",
+            }
+            stage = stage_by_step.get(step_num, "crm_reconciliation")
+            ledger_step = record_step(
+                self.db, tenant_id=self.tenant_id, run_id=workflow_run.id,
+                step_key=f"stage-{step_num}", stage=stage,
+                idempotency_key=f"{workflow_run.id}:stage:{step_num}",
+                input_payload={"activity": status_msg},
+            )
+            step_target = "running" if step_status == "executing" else "succeeded" if step_status == "completed" else "failed" if step_status == "failed" else None
+            if step_target and ledger_step.status != step_target:
+                transition_step(
+                    self.db, tenant_id=self.tenant_id, run_id=workflow_run.id,
+                    step_key=f"stage-{step_num}", status=step_target,
+                    result_payload={"message": result_msg},
+                    error_code="workflow_step_failed" if step_target == "failed" else None,
+                    error_detail=result_msg if step_target == "failed" else None,
+                )
+            target_run_status = "running"
+            if final_status == "failed" or step_status == "failed":
+                target_run_status = "failed"
+            elif final_status == "completed":
+                target_run_status = "waiting_reply" if "awaiting an explicit time proposal" in result_msg.lower() else "completed"
+            if workflow_run.status != target_run_status:
+                transition_run(
+                    self.db, tenant_id=self.tenant_id, run_id=workflow_run.id,
+                    status=target_run_status, current_stage=stage,
+                    result_payload={"status": "error", "message": result_msg} if target_run_status == "failed" else None,
+                    failure_code="workflow_step_failed" if target_run_status == "failed" else None,
+                    failure_detail=result_msg if target_run_status == "failed" else None,
+                )
 
         # Step 1: Understand Service & Materialize Sales Context
         update_status(1, "executing", f"Materializing criteria for {engine_name}...", f"Starting Step 1 for {engine_name}...")
@@ -218,7 +297,7 @@ class WorkflowOrchestrator:
                 update_status(1, "completed", f"[{domain_archetype}] {icp}", f"Classified Archetype '{domain_archetype}'. Generated ICP & exclusions: {icp}")
         except Exception as e:
             update_status(1, "failed", str(e), f"Error in Step 1: {str(e)}", "failed")
-            return {"status": "error", "message": str(e)}
+            return {"status": "error", "message": str(e), "run_id": workflow_run.id}
 
         # Step 2: Market Discovery
         update_status(2, "executing", f"Sourcing targets for {engine_name}...", f"Starting Step 2: Intelligent Routing & Sourcing ({engine_name})...")
@@ -664,6 +743,26 @@ Only return JSON, no other text."""
             ).first()
             sales_room_id = sales_room.id if sales_room else None
 
+            # Verify the actual source page before a candidate can pass the final send gate.
+            # Provider snippets and LLM-generated claims alone are not sufficient evidence.
+            from app.services.sales_os.source_verification import fetch_and_verify_source
+            source_verify_semaphore = asyncio.Semaphore(5)
+
+            async def _verify_candidate_source(candidate):
+                source_url = str(candidate.get("evidence_url") or "").strip()
+                source_quote = str(candidate.get("evidence_quote") or "").strip()
+                if not source_url or not source_quote:
+                    candidate["source_verification"] = {
+                        "source_url": source_url, "quote": source_quote, "verified": False,
+                        "reason": "quote_missing_or_source_missing",
+                    }
+                    return
+                async with source_verify_semaphore:
+                    receipt = await fetch_and_verify_source(source_url, source_quote)
+                candidate["source_verification"] = receipt.as_dict()
+
+            await asyncio.gather(*(_verify_candidate_source(candidate) for candidate in qualified_companies))
+
             for c in qualified_companies:
                 email_val = c.get("contact", {}).get("email") or ""
                 phone_val = c.get("contact", {}).get("phone") or ""
@@ -1025,8 +1124,16 @@ Strict Tone & Quality Rules:
                 from app.services.sales.touch_dispatcher import dispatch_sales_touch
                 sales_cred_for_policy = self.db.query(APICredential).filter_by(tenant_id=self.tenant_id, provider="sales").first()
                 policy_settings = (sales_cred_for_policy.settings if sales_cred_for_policy else {}) or {}
+                # Persist the verification receipt before the central dispatcher re-checks it.
+                lead.data = {
+                    **(lead.data if isinstance(getattr(lead, "data", None), dict) else {}),
+                    **_build_lead_data(c),
+                    "source_verification": c.get("source_verification"),
+                }
+                self.db.commit()
+
                 readiness = assess_outreach_readiness(
-                    c,
+                    {**c, "source_verification": c.get("source_verification")},
                     auto_send_enabled=bool(policy_settings.get("sales_ai_auto_send_enabled", False)),
                     permission_state=policy_settings.get("outbound_permission_state"),
                     suppressed=bool(c.get("suppressed") or c.get("do_not_contact")),
@@ -1218,7 +1325,9 @@ Strict Tone & Quality Rules:
                     real_interested_lead.data = data
                     self.db.commit()
                     update_status(10, "completed", f"{real_interested_lead.company} expressed interest; awaiting an explicit time proposal.", "Meeting coordination is waiting for a prospect-confirmed time.", "completed")
-                    return {"status": "success", "meeting_coordination": "awaiting_time"}
+                    waiting_result = {"status": "success", "meeting_coordination": "awaiting_time", "run_id": workflow_run.id}
+                    transition_run(self.db, tenant_id=self.tenant_id, run_id=workflow_run.id, status="waiting_reply", current_stage="meeting_confirmation", result_payload=waiting_result)
+                    return waiting_result
 
                 from app.services.sales.meeting_booking import book_meeting_for_lead
                 booked = book_meeting_for_lead(
@@ -1239,4 +1348,6 @@ Strict Tone & Quality Rules:
             update_status(10, "failed", str(e), f"Error in Step 10: {str(e)}", "failed")
             return {"status": "error", "message": str(e)}
 
-        return {"status": "success"}
+        final_result = {"status": "success", "run_id": workflow_run.id}
+        transition_run(self.db, tenant_id=self.tenant_id, run_id=workflow_run.id, status="completed", current_stage="crm_reconciliation", result_payload=final_result)
+        return final_result

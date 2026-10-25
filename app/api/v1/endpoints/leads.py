@@ -619,6 +619,7 @@ class RunWorkflowRequest(BaseModel):
     review_plan: Optional[bool] = False
     count: Optional[int] = 50
     freshness: Optional[str] = "30_days"
+    idempotency_key: Optional[str] = None
 
 class RunPromptAgentRequest(BaseModel):
     prompt: str
@@ -626,6 +627,7 @@ class RunPromptAgentRequest(BaseModel):
     freshness: Optional[str] = "30_days"
     provider: Optional[str] = "auto"
     model: Optional[str] = None
+    idempotency_key: Optional[str] = None
 
 @router.post("/run-prompt-agent")
 async def run_prompt_agent(
@@ -712,6 +714,7 @@ async def run_prompt_agent(
                 freshness=actual_freshness,
                 mode="prompt_agent",
                 prompt_instructions=prompt_text,
+                idempotency_key=req.idempotency_key,
             )
         except Exception as e:
             lead_logger.error(f"Error in background Prompt Agent execution: {e}", exc_info=True)
@@ -818,6 +821,7 @@ async def run_v3_workflow(
                 count=req.count,
                 freshness=actual_freshness,
                 mode="configured_engine",
+                idempotency_key=req.idempotency_key,
             )
         except Exception as e:
             lead_logger.error(f"Error in background Sales V3 execution: {e}", exc_info=True)

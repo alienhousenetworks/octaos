@@ -77,3 +77,48 @@ def test_source_url_rejects_local_and_non_http_targets():
     assert validate_public_source_url("http://localhost/admin")[0] is False
     assert validate_public_source_url("https://public.example/path", resolver=resolver) == (False, "non_public_address_blocked")
     assert validate_public_source_url("file:///etc/passwd")[0] is False
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_verify_source_checks_actual_response_body(monkeypatch):
+    from app.services.sales_os import source_verification
+
+    def fake_fetch(parsed, host, address, port, target):
+        return 200, {
+            "content-type": "text/html; charset=utf-8",
+            "content-encoding": "identity",
+            "charset": "utf-8",
+        }, b"<html><body><h1>Acme announcement</h1><p>Acme announced a new sales office in Pune.</p><script>fake claim</script></body></html>"
+
+    def resolver(host, port, type):
+        return [(None, None, None, None, ("93.184.216.34", port))]
+
+    monkeypatch.setattr(source_verification, "_fetch_pinned_source", fake_fetch)
+    receipt = await source_verification.fetch_and_verify_source(
+        "https://public.example/news",
+        "Acme announced a new sales office in Pune.",
+        resolver=resolver,
+    )
+    assert receipt.verified is True
+    assert receipt.reason == "exact_quote_match"
+    assert receipt.content_sha256
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_verify_source_does_not_follow_redirects(monkeypatch):
+    from app.services.sales_os import source_verification
+
+    def fake_fetch(parsed, host, address, port, target):
+        return 302, {"content-type": "text/html"}, b""
+
+    def resolver(host, port, type):
+        return [(None, None, None, None, ("93.184.216.34", port))]
+
+    monkeypatch.setattr(source_verification, "_fetch_pinned_source", fake_fetch)
+    receipt = await source_verification.fetch_and_verify_source(
+        "https://public.example/redirect",
+        "claim",
+        resolver=resolver,
+    )
+    assert receipt.verified is False
+    assert receipt.reason == "redirect_not_followed"

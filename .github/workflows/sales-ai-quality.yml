@@ -34,6 +34,10 @@ on:
     paths:
       - "app/services/sales/**"
       - "app/services/sales_os/**"
+      - "app/models/sales_workflow.py"
+      - "app/models/__init__.py"
+      - "tests/test_sales_workflow_ledger.py"
+      - "docs/sales-ai-end-to-end-reliability.md"
       - "app/api/v1/endpoints/leads.py"
       - "tests/test_sales_quality_gates.py"
       - "tests/test_sales_gatekeeper.py"
@@ -81,6 +85,7 @@ jobs:
         run: |
           python -m py_compile \
             app/services/sales/workflow_orchestrator.py \
+            app/services/agents/sales.py \
             app/services/sales/discovery_service.py \
             app/services/sales/touch_dispatcher.py \
             app/services/sales/outbox_service.py \

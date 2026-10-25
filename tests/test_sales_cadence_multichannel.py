@@ -3,6 +3,9 @@ Verifies real delivery logic for Email, WhatsApp, and LinkedIn touches.
 Ensures zero mocked/faked progression.
 """
 import pytest
+import os
+
+os.environ.setdefault("SALES_EVIDENCE_SIGNING_KEY", "test-only-sales-evidence-key")
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timezone
 from sqlalchemy import create_engine
@@ -22,6 +25,18 @@ from app.services.sales.touch_dispatcher import (
 from app.services.sales.outbox_service import SalesOutboxService
 from app.services.sales_os.governance.suppression import SuppressionService
 from app.core.security import encrypt_api_key
+from app.services.sales_os.source_verification import sign_source_receipt
+
+
+def make_source_receipt(url: str, quote: str) -> dict:
+    return sign_source_receipt({
+        "source_url": url,
+        "quote": quote,
+        "verified": True,
+        "reason": "exact_quote_match",
+        "retrieved_at": datetime.now(timezone.utc).isoformat(),
+        "content_sha256": "a" * 64,
+    })
 
 
 @pytest.fixture
@@ -90,6 +105,7 @@ def test_whatsapp_dispatch_unconfigured(db_session):
             "contact_status": "READY",
             "evidence_url": "https://example.com/news/acme",
             "evidence_quote": "Acme Corp announced a new customer support initiative.",
+            "source_verification": make_source_receipt("https://example.com/news/acme", "Acme Corp announced a new customer support initiative."),
             "buying_signal": "Customer support initiative",
             "source_verification": {
                 "source_url": "https://example.com/news/acme",
@@ -155,6 +171,7 @@ def test_dispatcher_blocks_suppressed_email_before_provider_call(db_session):
             "contact_status": "READY",
             "evidence_url": "https://example.com/news/suppressed-co",
             "evidence_quote": "Suppressed Co announced a new service line.",
+            "source_verification": make_source_receipt("https://example.com/news/suppressed-co", "Suppressed Co announced a new service line."),
             "buying_signal": "New service line",
             "source_verification": {
                 "source_url": "https://example.com/news/suppressed-co",
@@ -197,6 +214,7 @@ def test_whatsapp_dispatch_with_mocked_meta_api(db_session):
             "contact_status": "READY",
             "evidence_url": "https://example.com/news/acme",
             "evidence_quote": "Acme Corp announced a new customer support initiative.",
+            "source_verification": make_source_receipt("https://example.com/news/acme", "Acme Corp announced a new customer support initiative."),
             "buying_signal": "Customer support initiative",
             "source_verification": {
                 "source_url": "https://example.com/news/acme",
@@ -292,6 +310,7 @@ def test_outbox_drain_handles_multichannel_without_mocks(db_session):
             "contact_status": "READY",
             "evidence_url": "https://example.com/news/schrute-farms",
             "evidence_quote": "Schrute Farms announced a new agritourism offering.",
+            "source_verification": make_source_receipt("https://example.com/news/schrute-farms", "Schrute Farms announced a new agritourism offering."),
             "buying_signal": "New agritourism offering",
             "source_verification": {
                 "source_url": "https://example.com/news/schrute-farms",

@@ -67,6 +67,7 @@ class SalesAgent(BaseAgent):
         freshness=None,
         mode: str = "configured_engine",
         prompt_instructions: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
     ) -> dict:
         """Delegate V3 autonomous pipeline execution to WorkflowOrchestrator."""
         return await self.orchestrator.run_sales_ai_v3_workflow(
@@ -76,6 +77,7 @@ class SalesAgent(BaseAgent):
             freshness=freshness,
             mode=mode,
             prompt_instructions=prompt_instructions,
+            idempotency_key=idempotency_key,
         )
 
     async def _generate_leads(self, params: dict):
