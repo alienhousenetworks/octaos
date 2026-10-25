@@ -51,6 +51,11 @@ class PolicyCreateRequest(BaseModel):
     requires_acknowledgement: bool = False
 
 
+class EmployeeStatusUpdateRequest(BaseModel):
+    status: str
+    reason: Optional[str] = None
+
+
 @router.get("/employees")
 def list_employees(
     db: Session = Depends(deps.get_db),
@@ -167,6 +172,49 @@ def create_employee(
         "email": emp.email,
         "status": emp.status,
         "message": "Employee created successfully."
+    }
+
+
+@router.patch("/employees/{employee_id}/status")
+def update_employee_status(
+    employee_id: str,
+    payload: EmployeeStatusUpdateRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """Apply an explicit, tenant-scoped employment status transition."""
+    _require_hr_access(current_user, write=True)
+    allowed_statuses = {"onboarding", "active", "probation", "on_leave", "terminated"}
+    new_status = payload.status.strip().lower()
+    if new_status not in allowed_statuses:
+        raise HTTPException(status_code=422, detail="Unsupported employment status.")
+    employee = db.query(EmployeeProfile).filter_by(id=employee_id, tenant_id=tenant_id).with_for_update().first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+    if employee.status == "terminated":
+        raise HTTPException(status_code=409, detail="Terminated employees cannot be reactivated through this endpoint; use a reviewed rehire workflow.")
+    if new_status == employee.status:
+        return {"id": employee.id, "status": employee.status, "changed": False}
+    if new_status == "terminated" and not (payload.reason and payload.reason.strip()):
+        raise HTTPException(status_code=422, detail="A termination reason is required.")
+    try:
+        employee.status = new_status
+        if new_status == "terminated":
+            employee.termination_date = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(employee)
+    except Exception:
+        db.rollback()
+        raise
+    return {
+        "id": employee.id,
+        "employee_number": employee.employee_number,
+        "status": employee.status,
+        "termination_date": employee.termination_date.isoformat() if employee.termination_date else None,
+        "changed": True,
+        "reason_recorded": bool(payload.reason and payload.reason.strip()),
+        "message": "Employment status updated. Termination reason is acknowledged by this API but is not yet stored in a dedicated audit record."
     }
 
 
