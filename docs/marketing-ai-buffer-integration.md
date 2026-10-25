@@ -8,6 +8,8 @@
 - Single-use refresh-token rotation: the newly issued refresh token is persisted immediately.
 - Optional BYOK API-key setup as a fallback, validated against Buffer before the connection is reported as active.
 - Connected organization/channel discovery and platform-to-channel mapping.
+- Campaign Studio platform selection covers all currently documented Buffer GraphQL API publishing services: Instagram, Threads, LinkedIn, X, Facebook, TikTok, Google Business Profile, Mastodon, YouTube, Pinterest, and Bluesky.
+- Backend mapping and publishing boundaries validate requested platform names against the same API-supported set; unsupported services fail closed rather than being presented as publishable.
 - Backend approval checks before a ContentPost can be sent to Buffer.
 - Buffer queue integration in the existing scheduled-post worker for workspaces with a Buffer connection and channel mapping.
 - Image/video assets are attached by public HTTPS URL. Buffer fetches assets from the URL when the post publishes; the URL must remain reachable until then.
@@ -55,6 +57,12 @@ All routes below are mounted under `/api/v1/marketing/connectors/buffer`:
 - `POST /publish/{post_id}` — manually queue a tenant-owned approved post.
 - `DELETE /disconnect` — remove the workspace's Buffer credential.
 
+## Buffer API platform coverage
+
+The current Buffer GraphQL API publishing allowlist is: **Instagram, Threads, LinkedIn, X, Facebook, TikTok, Google Business Profile, Mastodon, YouTube, Pinterest, and Bluesky**. The Campaign Studio campaign channel picker and influencer creative platform selectors use these channel identifiers. The selected channel must still exist in the connected Buffer account and match the requested service.
+
+Buffer's broader product UI supports additional destinations and workflows that are not necessarily available through its API. In particular, **Substack and Start Page must not be represented as API-publishable until Buffer adds programmatic post creation for them**. YouTube publishing format, Instagram Reels/Stories, TikTok, and other platform-specific capabilities remain subject to Buffer's current GraphQL input schema, connected account permissions, and network constraints. A platform being selectable is not a guarantee that every format is supported.
+
 ## Publishing and media boundaries
 
 - The backend rejects unapproved posts, cross-tenant post IDs, unmapped Buffer channels, and channels whose service does not match the post platform.
@@ -85,3 +93,7 @@ The repository already has Campaign OS, brand knowledge, context radar, trend sy
 - Run the existing Campaign OS orchestration regression suite.
 - Apply no database migration for this connector: it reuses the existing tenant-scoped `APICredential` table.
 - Validate with a real Buffer test account and verify scheduled post, image/video reachability, refresh-token rotation, disconnect, tenant isolation, rate limits and ambiguous timeouts.
+
+## Platform source of truth
+
+Check Buffer's live API capability documentation before expanding the allowlist: https://support.buffer.com/en-us/articles/what-is-buffers-api-GtIYIQilz5. The UI allowlist and backend validation should be updated together with tests whenever Buffer adds or changes publishing services. Analytics, comments, and engagement are separate capabilities and are not implied by publishing support.
