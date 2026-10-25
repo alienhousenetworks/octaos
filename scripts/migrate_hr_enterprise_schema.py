@@ -3,9 +3,9 @@
 Run during a maintenance window after taking a database backup:
     python scripts/migrate_hr_enterprise_schema.py
 
-This is deliberately separate from Alembic because this repository's current Alembic
-head must be preserved by the deployment owner. The script only creates the listed
-new HR tables and the partial unique leave-ledger index. It refuses to proceed if
+This guarded rollout script is used for the HR-only additive schema until the deployment
+owner confirms the repository's active Alembic head and adopts an ordered revision. It
+creates the listed new HR tables and the partial unique leave-ledger index. It refuses to proceed if
 existing ledger rows violate the new uniqueness rule.
 """
 from sqlalchemy import create_engine, text
@@ -23,6 +23,7 @@ NEW_TABLES = (
     "hr_compensation_changes",
     "hr_lifecycle_tasks",
     "hr_lifecycle_cases",
+    "hr_labor_rules",
 )
 LEDGER_INDEX = "uq_leave_ledger_reference_once"
 
