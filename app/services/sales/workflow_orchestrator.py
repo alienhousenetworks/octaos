@@ -1037,7 +1037,8 @@ Strict Tone & Quality Rules:
                 self.db.commit()
 
                 readiness = assess_outreach_readiness(
-                    {**c, "source_verification": c.get("source_verification")},                    auto_send_enabled=bool(policy_settings.get("sales_ai_auto_send_enabled", False)),
+                    {**c, "source_verification": c.get("source_verification")},
+                    auto_send_enabled=bool(policy_settings.get("sales_ai_auto_send_enabled", False)),
                     permission_state=policy_settings.get("outbound_permission_state"),
                     suppressed=bool(c.get("suppressed") or c.get("do_not_contact")),
                 )
