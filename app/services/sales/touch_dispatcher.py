@@ -221,6 +221,46 @@ def dispatch_linkedin_touch(
         and apify_cred.settings.get("enable_automated_linkedin_send")
         and linkedin_authorization["ready"]
     )
+    if automated_linkedin_enabled:
+        from app.services.sales_os.quality_gates import assess_outreach_readiness
+
+        lead_data = lead.data if isinstance(getattr(lead, "data", None), dict) else {}
+        contact_data = lead_data.get("contact") if isinstance(lead_data.get("contact"), dict) else {}
+        evidence = lead_data.get("evidence") if isinstance(lead_data.get("evidence"), dict) else {}
+        qualification = lead_data.get("qualification") if isinstance(lead_data.get("qualification"), dict) else {}
+        contact_name = (
+            contact_data.get("name")
+            or lead_data.get("contact_name")
+            or (lead.name if lead.name and lead.name.strip().casefold() != (lead.company or "").strip().casefold() else None)
+        )
+        readiness = assess_outreach_readiness(
+            {
+                "contact_status": lead_data.get("contact_status") or contact_data.get("contact_status") or qualification.get("contact_status"),
+                "evidence_url": lead_data.get("evidence_url") or evidence.get("url") or getattr(lead, "evidence_url", None),
+                "evidence_quote": lead_data.get("evidence_quote") or evidence.get("quote"),
+                "news": lead_data.get("news") or [],
+                "jobs": lead_data.get("jobs") or [],
+                "contact": {
+                    "name": contact_name,
+                    "email": lead.email or lead.company_email or lead.personal_email,
+                    "phone": extract_lead_phone(lead),
+                },
+            },
+            auto_send_enabled=bool(sales_settings.get("sales_ai_auto_send_enabled", False)),
+            permission_state=sales_settings.get("outbound_permission_state"),
+            suppressed=bool(lead_data.get("suppressed") or lead_data.get("do_not_contact")),
+            human_approved=human_approved,
+        )
+        if not readiness["ready"]:
+            return {
+                "sent": False,
+                "channel": "linkedin",
+                "reason": "outbound_authorization_blocked",
+                "message": "Automated LinkedIn dispatch blocked: " + ", ".join(readiness["blockers"]),
+                "blockers": readiness["blockers"],
+                "readiness": readiness,
+                "linkedin_url": linkedin_url,
+            }
     if approval_is_granted and not automated_linkedin_enabled:
         return {
             "sent": False,
