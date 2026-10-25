@@ -45,7 +45,7 @@ def _require_hr_role(user: User, approve: bool = False, permission: Optional[str
 
 
 def _require_self_or_hr(user: User, employee: EmployeeProfile) -> None:
-    if getattr(user, "is_system_admin", False) or getattr(user, "is_superuser", False) or _role(user) in _HR_ROLES:
+    if getattr(user, "is_system_admin", False) or getattr(user, "is_superuser", False) or _has_hr_permission(user, "hr.manage_leave") or _has_hr_permission(user, "hr.manage_employees"):
         return
     if employee.user_id and str(employee.user_id) == str(user.id):
         return
