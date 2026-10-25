@@ -86,6 +86,11 @@ def test_whatsapp_dispatch_unconfigured(db_session):
         email="alex@example.com",
         phone="+1 555 123 4567",
         company="Acme Corp",
+        data={
+            "whatsapp_opt_in": True,
+            "whatsapp_opt_in_source": "test_fixture",
+            "whatsapp_opt_in_at": datetime.now(timezone.utc).isoformat(),
+        },
     )
     db_session.add(lead)
     db_session.commit()
@@ -166,6 +171,11 @@ def test_whatsapp_dispatch_with_mocked_meta_api(db_session):
         email="jane@acme.com",
         phone="+91 98765 43210",
         company="Acme Corp",
+        data={
+            "whatsapp_opt_in": True,
+            "whatsapp_opt_in_source": "test_fixture",
+            "whatsapp_opt_in_at": datetime.now(timezone.utc).isoformat(),
+        },
     )
     # Add Meta APICredential
     cred = APICredential(
@@ -249,7 +259,10 @@ def test_outbox_drain_handles_multichannel_without_mocks(db_session):
         data={
             "contact": {
                 "linkedin_url": "https://www.linkedin.com/in/dwight-schrute",
-            }
+            },
+            "whatsapp_opt_in": True,
+            "whatsapp_opt_in_source": "test_fixture",
+            "whatsapp_opt_in_at": datetime.now(timezone.utc).isoformat(),
         }
     )
     db_session.add(lead)
