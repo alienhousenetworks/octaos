@@ -129,15 +129,7 @@ class CampaignOSOrchestrator:
         execution = self._ledger.start_or_resume(
             "campaign_os",
             idempotency_key,
-            {
-                "topic": topic,
-                "days": params.get("days", 3),
-                "platforms": params.get("platforms", ["linkedin", "instagram"]),
-                "posts_per_day": params.get("posts_per_day", 1),
-                "content_format": params.get("content_format", "social_posts"),
-                "generate_images": params.get("generate_images", True),
-                "generate_videos": params.get("generate_videos", False),
-            },
+            params,
         )
         self.execution_id = execution.id
         if execution.status == "completed" and execution.result_payload:
