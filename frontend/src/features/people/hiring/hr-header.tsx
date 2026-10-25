@@ -14,7 +14,6 @@ import {
   Plus,
   FileSpreadsheet,
   Download,
-  ArrowUpRight,
   TrendingUp,
   Sparkles,
 } from 'lucide-react';
@@ -160,9 +159,7 @@ export default function HRHeader({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Total Talent Pool
             </span>
-            <span className="text-[10px] font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full border border-success/20 flex items-center gap-0.5">
-              <ArrowUpRight size={10} /> Active
-            </span>
+            <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">Candidate records</span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
             <div>
@@ -206,9 +203,7 @@ export default function HRHeader({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               In Interview
             </span>
-            <span className="text-[10px] font-semibold text-warning bg-warning/10 px-2 py-0.5 rounded-full border border-warning/20">
-              Rounds Active
-            </span>
+            <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">Interview records</span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
             <div>
@@ -229,9 +224,7 @@ export default function HRHeader({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Offered &amp; Hired
             </span>
-            <span className="text-[10px] font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full border border-success/20">
-              Closing
-            </span>
+            <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">Offer stage</span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
             <div>
@@ -252,9 +245,7 @@ export default function HRHeader({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Avg ATS Fit
             </span>
-            <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
-              AI Hybrid
-            </span>
+            <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">ATS score</span>
           </div>
           <div className="mt-2 flex items-center justify-between">
             <div>
