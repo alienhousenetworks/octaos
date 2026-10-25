@@ -581,6 +581,11 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                             "location": "Unknown",
                             "source": f"{routing_choice} (Enriched)" if enriched_count else routing_choice,
                             "evidence_url": c.get("evidence_url") or "",
+                            "evidence_quote": c.get("evidence_quote") or "",
+                            "buying_signal": c.get("buying_signal") or "",
+                            "news": c.get("news") or [],
+                            "jobs": c.get("jobs") or [],
+                            "contact_status": "READY" if (has_name and has_contact) else "PARTIAL",
                             "freshness": c.get("freshness") or {},
                             "contact": {
                                 "name": c.get("name", ""),
