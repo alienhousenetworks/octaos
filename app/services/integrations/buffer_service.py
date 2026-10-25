@@ -194,6 +194,45 @@ class BufferService:
             organization["channels"] = channel_data.get("channels") or []
         return account
 
+    async def list_posts(
+        self, *, organization_id: str, channel_ids: list[str], max_pages: int = 5
+    ) -> list[Dict[str, Any]]:
+        """Read recent Buffer queue/delivery states for reconciliation (no write retries)."""
+        if not organization_id or not channel_ids:
+            return []
+        posts: list[Dict[str, Any]] = []
+        cursor = None
+        query = """query OctaOSBufferPosts($first: Int!, $after: String, $input: PostsInput!) {
+          posts(first: $first, after: $after, input: $input) {
+            edges { node { id status dueAt sentAt createdAt channelId externalLink } }
+            pageInfo { hasNextPage endCursor }
+          }
+        }"""
+        for _ in range(max(1, min(max_pages, 5))):
+            variables = {
+                "first": 100,
+                "after": cursor,
+                "input": {
+                    "organizationId": organization_id,
+                    "filter": {
+                        "status": ["scheduled", "sending", "sent", "error"],
+                        "channelIds": channel_ids,
+                    },
+                },
+            }
+            data = await self.graphql(query, variables)
+            result = data.get("posts") or {}
+            posts.extend(
+                edge.get("node", {})
+                for edge in (result.get("edges") or [])
+                if edge.get("node")
+            )
+            page_info = result.get("pageInfo") or {}
+            if not page_info.get("hasNextPage") or not page_info.get("endCursor"):
+                break
+            cursor = page_info["endCursor"]
+        return posts
+
     async def create_post(
         self, *, channel_id: str, text: str, scheduled_at: Optional[datetime] = None,
         image_url: Optional[str] = None, video_url: Optional[str] = None,
