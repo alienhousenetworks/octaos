@@ -660,10 +660,9 @@ Write the complete post caption now. Do not include meta commentary or introduct
 
     async def _sync_analytics(self, params: dict):
         from app.services.marketing.analytics import MarketingAnalyticsService
-        from asgiref.sync import async_to_sync
 
         svc = MarketingAnalyticsService(self.db, self.tenant_id)
-        result = async_to_sync(svc.sync_all)(limit=int(params.get("limit", 50)))
+        result = await svc.sync_all(limit=int(params.get("limit", 50)))
         self.log_activity(
             "Analytics Sync",
             f"Synced insights: {result.get('synced')} ok, {result.get('errors')} errors, "
