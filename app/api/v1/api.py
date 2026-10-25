@@ -11,7 +11,7 @@ from app.api.v1.endpoints import (
     hr_people, hr_workforce, hr_copilot,
     sales_crm, sales_inbox, sales_platform,
     sales_real_estate, sales_inbound_webhooks, field_sales,
-    integrations, rbac, heygen,
+    integrations, rbac, heygen, autonomous_work,
 )
 
 from app.api.v1.orchestrator import router as orchestrator_router
@@ -23,6 +23,7 @@ api_router.include_router(leads.router, prefix="/leads", tags=["leads"])
 api_router.include_router(marketing.router, prefix="/marketing", tags=["marketing"])
 api_router.include_router(llm.router, prefix="/llm", tags=["llm"])
 api_router.include_router(commands.router, prefix="/commands", tags=["commands"])
+api_router.include_router(autonomous_work.router, prefix="/autonomous-work", tags=["autonomous-work"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(support.router, prefix="/support", tags=["support"])
