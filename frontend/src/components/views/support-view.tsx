@@ -76,12 +76,12 @@ export default function SupportView({
 
   // Support Agent Studio States
   const [studioConfig, setStudioConfig] = useState({
-    agent_name: 'Ava',
-    company_name: 'Acme Technologies',
+    agent_name: 'Support assistant',
+    company_name: '',
     agent_avatar: 'bot',
     tone: 'professional_friendly',
-    support_email: 'support@acme.com',
-    email_signature: 'Best regards,\nAva & Support Team',
+    support_email: '',
+    email_signature: 'Best regards,\nSupport Team',
     whatsapp_welcome: 'Hello! Welcome to Support. How can we help you today?',
     handoff_trigger_message: 'Connecting you with our support team specialist...',
     sla_timeout_seconds: 300,
@@ -103,7 +103,7 @@ export default function SupportView({
     live_chat_enabled: true,
     widget_title: 'Customer Support',
     widget_welcome: 'Hi there! How can we assist you today?',
-    widget_color: '#2563eb',
+    widget_color: '#9dff1f',
     reply_mode: 'review_first' as 'review_first' | 'auto_send',
   });
   const [settingsSaving, setSettingsSaving] = useState(false);
@@ -222,7 +222,7 @@ export default function SupportView({
           live_chat_enabled: data.live_chat_enabled ?? true,
           widget_title: data.widget_title || 'Customer Support',
           widget_welcome: data.widget_welcome || 'Hi there! How can we assist you today?',
-          widget_color: data.widget_color || '#2563eb',
+          widget_color: data.widget_color || '#9dff1f',
           reply_mode: data.reply_mode === 'auto_send' ? 'auto_send' : 'review_first',
         });
       }

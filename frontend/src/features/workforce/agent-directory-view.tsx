@@ -34,6 +34,7 @@ export default function AgentDirectoryView({
   const [agents, setAgents] = useState<AgentItem[]>([]);
   const [summary, setSummary] = useState<WorkforceSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState('all');
   const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -45,8 +46,12 @@ export default function AgentDirectoryView({
       if (res.ok) {
         const data = await res.json();
         setAgents(Array.isArray(data) ? data : []);
+        setLoadError(false);
+      } else {
+        setLoadError(true);
       }
     } catch (e) {
+      setLoadError(true);
       console.error('Failed to load agents:', e);
     }
   }, [API_URL, fetchWithAuth, token]);
@@ -149,7 +154,7 @@ export default function AgentDirectoryView({
           </span>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-2xl font-bold tracking-tight text-white">
-              {agents.length.toString().padStart(2, '0')}
+              {agents.length.toLocaleString()}
             </span>
             <span className="text-[10px] text-gray-500">
               {summary ? `${summary.system_agents} sys · ${summary.custom_agents} cust` : 'System + Custom'}
@@ -210,6 +215,18 @@ export default function AgentDirectoryView({
       {loading ? (
         <div className="flex h-64 items-center justify-center rounded-2xl border border-gray-800 bg-gray-950/30">
           <Loader2 className="size-6 animate-spin text-primary" />
+        </div>
+      ) : loadError && agents.length === 0 ? (
+        <div role="alert" className="flex flex-col items-center justify-center rounded-xl border border-warning/25 bg-warning/5 p-10 text-center">
+          <AlertTriangle className="mb-3 size-7 text-warning" />
+          <h3 className="text-sm font-semibold text-foreground">Could not load AI employees</h3>
+          <p className="mt-1 max-w-md text-sm leading-6 text-muted-foreground">The workforce API did not return the directory. Check the connection and retry; no empty result is being assumed.</p>
+          <Button type="button" variant="outline" className="mt-4" onClick={() => {
+            setLoading(true);
+            Promise.all([fetchAgents(), fetchSummary()]).finally(() => setLoading(false));
+          }}>
+            <Activity className="mr-2 size-4" /> Retry connection
+          </Button>
         </div>
       ) : filteredAgents.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-800/80 bg-gray-950/30 p-12 text-center">

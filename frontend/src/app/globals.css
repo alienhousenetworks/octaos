@@ -42,10 +42,6 @@
   --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-destructive: var(--destructive);
-  --color-info: var(--info);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
   --radius-sm: calc(var(--radius) * 0.6);
@@ -59,67 +55,68 @@
 
 :root {
   color-scheme: dark;
+  /* OctaOS / AlienHouse design system — one restrained brand accent */
+  --background: #0b0d0a;
+  --sidebar: #10130e;
+  --card: #151912;
+  --card-foreground: #f1f4ed;
+  --popover: #151912;
+  --popover-foreground: #f1f4ed;
+  --surface-hover: #20251b;
+  --muted: #20251b;
+  --muted-foreground: #a1aa98;
+  --text-tertiary: #778071;
+  --border: #30382a;
+  --input: #20251b;
+  --foreground: #f4f7f0;
 
-  /* ─── Unified surface stack ──────────────────────────────────────────── */
-  --background:    #0D0F12;   /* void-base: true OS floor */
-  --sidebar:       #101318;   /* slightly lifted from floor */
-  --card:          #14171D;   /* elevated work surfaces */
-  --card-foreground: #E5EAF1;
-  --popover:       #14171D;
-  --popover-foreground: #E5EAF1;
-  --surface-hover: #1C2028;   /* hovered rows / raised inputs */
-  --muted:         #1C2028;
-  --muted-foreground: #8A95A3;
-  --text-tertiary: #6B7685;
-  --border:        #282E3A;   /* rule-steel: structural separators */
-  --input:         #1C2028;
+  /* Official brand lime #9dff1f. Keep bright lime for emphasis, not large surfaces. */
+  --primary: #9dff1f;
+  --primary-hover: #8ce814;
+  --primary-foreground: #11170a;
+  --ring: #9dff1f;
 
-  /* ─── Typography ─────────────────────────────────────────────────────── */
-  --foreground: #F3F4F6;
+  --secondary: #20251b;
+  --secondary-foreground: #e8eee0;
+  --accent: #20251b;
+  --accent-foreground: #f4f7f0;
 
-  /* ─── Brand / Accent ─────────────────────────────────────────────────── */
-  --primary:          #4F6BFF;  /* signal-cobalt: single brand accent */
-  --primary-hover:    #3D5AF1;
-  --primary-foreground: #FFFFFF;
-  --ring:             #7089FF;
+  /* Semantic colors remain distinct from brand identity. */
+  --success: #78dba1;
+  --warning: #f2c66d;
+  --destructive: #ff7777;
+  --info: #8fc8ff;
 
-  --secondary:          #1C2028;
-  --secondary-foreground: #E5EAF1;
-  --accent:             #1C2028;
-  --accent-foreground:  #E5EAF1;
+  --chart-1: #9dff1f;
+  --chart-2: #8fc8ff;
+  --chart-3: #78dba1;
+  --chart-4: #f2c66d;
+  --chart-5: #ff7777;
 
-  /* ─── Semantic status ────────────────────────────────────────────────── */
-  --success:     #10B981;  /* phosphor-emerald: healthy / approved */
-  --warning:     #F59E0B;  /* attention / HITL pending */
-  --destructive: #EF4444;  /* critical / intervention required */
-  --info:        #60A5FA;  /* secondary telemetry */
-
-  /* ─── Charts ─────────────────────────────────────────────────────────── */
-  --chart-1: #4F6BFF;
-  --chart-2: #10B981;
-  --chart-3: #60A5FA;
-  --chart-4: #F59E0B;
-  --chart-5: #EF4444;
-
-  /* ─── Shape ──────────────────────────────────────────────────────────── */
-  --radius: 0.5rem;  /* tighter, more professional than the previous 0.75rem */
-
-  /* ─── Sidebar ────────────────────────────────────────────────────────── */
-  --sidebar-foreground:           #8A95A3;
-  --sidebar-primary:              #4F6BFF;
-  --sidebar-primary-foreground:   #FFFFFF;
-  --sidebar-accent:               rgba(79, 107, 255, 0.10);
-  --sidebar-accent-foreground:    #E5EAF1;
-  --sidebar-border:               #282E3A;
-  --sidebar-ring:                 #7089FF;
-  --sidebar-width:                240px;
+  --radius: 0.65rem;
+  --sidebar-foreground: #a1aa98;
+  --sidebar-primary: #9dff1f;
+  --sidebar-primary-foreground: #11170a;
+  --sidebar-accent: rgba(157, 255, 31, 0.10);
+  --sidebar-accent-foreground: #f4f7f0;
+  --sidebar-border: #30382a;
+  --sidebar-ring: #9dff1f;
+  --sidebar-width: 248px;
 }
 
-/* Legacy class names preserved so existing screens don't break visually.
-   They now resolve to the unified surface tokens instead of the old ad-hoc values. */
-.glass-panel,
-.glass-panel-light,
-.hud-card {
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  html { @apply font-sans; }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  ::selection { color: #11170a; background: rgba(157, 255, 31, .72); }
+}
+
+/* Keep legacy component names working while all screens converge on shared tokens. */
+.glass-panel, .glass-panel-light, .hud-card {
   background: var(--card);
   border: 1px solid var(--border);
   box-shadow: none;
@@ -127,46 +124,14 @@
   -webkit-backdrop-filter: none;
   clip-path: none;
 }
-
-/* Kill leftover pseudo-element decorations */
-.hud-card::before,
-.hud-card::after,
-.glitch-text::before,
-.glitch-text::after {
-  content: none;
-}
-
-/* Neon-glow classes neutralised — border stays consistent with design system */
-.neon-glow-violet,
-.neon-glow-emerald,
-.neon-glow-cyan,
-.neon-glow-rose,
-.glow-marketing,
-.glow-sales,
-.glow-support,
-.glow-hr,
-.glow-orchestrator {
+.hud-card::before, .hud-card::after, .glitch-text::before, .glitch-text::after { content: none; }
+.neon-glow-violet, .neon-glow-emerald, .neon-glow-cyan, .neon-glow-rose,
+.glow-marketing, .glow-sales, .glow-support, .glow-hr, .glow-orchestrator {
   box-shadow: none;
   border-color: var(--border);
 }
-
-/* Scanline & ticker artefacts hidden */
-.cyberpunk-scanline,
-.live-ticker-container,
-.live-ticker-text {
-  display: none;
-}
-
-.glitch-text {
-  color: inherit;
-}
-
-/* Sales theme inherits unified dark tokens */
-.sales-white-theme {
-  color-scheme: dark;
-  background-color: var(--background) !important;
-  color: var(--foreground) !important;
-}
+.cyberpunk-scanline, .live-ticker-container, .live-ticker-text { display: none; }
+.glitch-text { color: inherit; }
 
 .sidebar-root {
   width: var(--sidebar-width);
@@ -178,57 +143,38 @@
   height: 100%;
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground antialiased;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-  }
-  html {
-    @apply font-sans;
-  }
-  :focus-visible {
-    outline: 2px solid var(--ring);
-    outline-offset: 2px;
-  }
+/* Gradual compatibility layer for older pages with hard-coded violet/indigo brand utilities. */
+.text-violet-300, .text-violet-400, .text-violet-500,
+.text-indigo-300, .text-indigo-400, .text-indigo-500 { color: var(--primary) !important; }
+.bg-violet-500\/10, .bg-violet-600\/20, .bg-indigo-500\/10, .bg-indigo-600\/20 {
+  background-color: rgba(157, 255, 31, .09) !important;
+}
+.border-violet-500\/20, .border-violet-500\/40, .border-indigo-500\/20, .border-indigo-500\/40 {
+  border-color: rgba(157, 255, 31, .28) !important;
+}
+.accent-violet-500, .accent-indigo-500 { accent-color: var(--primary); }
+.sales-white-theme {
+  color-scheme: dark;
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
+::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, .12);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+::-webkit-scrollbar-track { background: transparent; }
 
-.typing-dot {
-  animation: typingBounce 1.4s ease-in-out infinite;
-}
-.typing-dot:nth-child(2) { animation-delay: 0.16s; }
-.typing-dot:nth-child(3) { animation-delay: 0.32s; }
-
+.typing-dot { animation: typingBounce 1.4s ease-in-out infinite; }
+.typing-dot:nth-child(2) { animation-delay: .16s; }
+.typing-dot:nth-child(3) { animation-delay: .32s; }
 @keyframes typingBounce {
-  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  0%, 80%, 100% { transform: translateY(0); opacity: .4; }
   40% { transform: translateY(-4px); opacity: 1; }
 }
-
 .slider-thumb::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -238,12 +184,122 @@
   background: var(--primary);
   cursor: pointer;
 }
-
-.animate-fade-in-up {
-  animation: fadeInUp 0.18s ease forwards;
-}
-
+.animate-fade-in-up { animation: fadeInUp .18s ease forwards; }
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+/* Product-wide UI polish: shared surfaces, typography, data density and focus. */
+:root {
+  --surface-1: #10130e;
+  --surface-2: #151912;
+  --surface-3: #1b2017;
+  --surface-raised: #1c2118;
+  --border-subtle: #252c21;
+  --border-strong: #3a4431;
+  --page-gutter: clamp(1rem, 2vw, 2rem);
+}
+body { min-height: 100vh; }
+h1, h2, h3, h4 { letter-spacing: -0.025em; text-wrap: balance; }
+h1 { font-weight: 650; }
+p { text-wrap: pretty; }
+button, input, textarea, select { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+a { text-decoration-thickness: from-font; }
+::placeholder { color: #778071 !important; opacity: 1; }
+
+/* Make common Tailwind-based legacy screens feel like one coherent product. */
+[class*="rounded-xl"].border, [class*="rounded-2xl"].border,
+[class*="rounded-lg"].border {
+  border-color: var(--border);
+}
+[class*="bg-white"], [class*="bg-gray-50"], [class*="bg-slate-50"] {
+  background-color: var(--card);
+}
+[class*="text-gray-900"], [class*="text-slate-900"], [class*="text-zinc-900"] {
+  color: var(--foreground);
+}
+[class*="text-gray-500"], [class*="text-slate-500"], [class*="text-zinc-500"] {
+  color: var(--muted-foreground);
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+textarea, select {
+  border-color: var(--border);
+}
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  border-color: var(--primary);
+  outline: 2px solid rgba(157, 255, 31, .16);
+  outline-offset: 1px;
+}
+table { border-collapse: separate; border-spacing: 0; width: 100%; }
+thead th {
+  color: var(--muted-foreground);
+  background: rgba(255,255,255,.018);
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+tbody tr { transition: background-color .15s ease; }
+tbody tr:hover { background: rgba(255,255,255,.025); }
+hr { border-color: var(--border); }
+:where(.bg-primary) { color: var(--primary-foreground); }
+:where(.text-primary) { color: var(--primary); }
+:where(.border-primary) { border-color: var(--primary); }
+:where([role="dialog"], [data-slot="dialog-content"], [data-slot="popover-content"], [data-slot="dropdown-menu-content"]) {
+  border-color: var(--border);
+  box-shadow: 0 20px 60px rgba(0,0,0,.32);
+}
+:where(button, a, input, textarea, select, [role="button"]) {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: 140ms;
+  transition-timing-function: ease-out;
+}
+:where(button:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
+@media (max-width: 767px) {
+  main { scroll-padding-top: 1rem; }
+  table { min-width: 640px; }
+}
+
+
+/* Normalize legacy module palettes without changing their workflows or component logic. */
+:where(.text-white) { color: var(--foreground) !important; }
+:where(.text-gray-300, .text-gray-400, .text-gray-500, .text-gray-600,
+       .text-slate-300, .text-slate-400, .text-slate-500,
+       .text-zinc-300, .text-zinc-400, .text-zinc-500) {
+  color: var(--muted-foreground) !important;
+}
+:where(.border-gray-700, .border-gray-800, .border-gray-900,
+       .border-slate-700, .border-slate-800, .border-zinc-700, .border-zinc-800) {
+  border-color: var(--border) !important;
+}
+:where(.bg-gray-950, .bg-gray-900, .bg-slate-950, .bg-slate-900,
+       .bg-zinc-950, .bg-zinc-900) {
+  background-color: var(--card) !important;
+}
+:where(.bg-gray-950\/50, .bg-gray-950\/30, .bg-gray-900\/80, .bg-gray-900\/60,
+       .bg-gray-900\/50, .bg-gray-900\/40, .bg-slate-950\/50, .bg-slate-900\/50) {
+  background-color: rgba(255,255,255,.025) !important;
+}
+:where(.text-emerald-300, .text-emerald-400, .text-emerald-500,
+       .text-green-300, .text-green-400, .text-green-500) {
+  color: var(--success) !important;
+}
+:where(.bg-emerald-500\/5, .bg-emerald-500\/10, .bg-green-500\/5, .bg-green-500\/10) {
+  background-color: rgba(120,219,161,.09) !important;
+}
+:where(.border-emerald-500\/20, .border-emerald-500\/30, .border-green-500\/20, .border-green-500\/30) {
+  border-color: rgba(120,219,161,.24) !important;
+}
+:where(.shadow-lg, .shadow-xl, .shadow-2xl) { --tw-shadow: 0 0 #0000 !important; box-shadow: none !important; }
