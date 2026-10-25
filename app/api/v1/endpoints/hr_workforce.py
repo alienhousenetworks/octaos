@@ -6,13 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.api import deps
 from app.models.base import User
 from app.models.hr_core import EmployeeProfile
 from app.models.hr_workforce import (
-    LeaveType, LeaveLedgerEntry, LeaveRequest, AttendanceRecord, ShiftRoster, ShiftAssignment
+    LeaveType, LeaveLedgerEntry, LeaveRequest, AttendanceRecord, AttendanceAuditEvent, ShiftRoster, ShiftAssignment
 )
 from app.services.agents.hr.specialists.leave_impact import LeaveImpactSpecialist
 from app.services.agents.hr.approval_bridge import HRApprovalBridge
@@ -55,6 +56,7 @@ class AttendancePunchRequest(BaseModel):
     employee_id: str
     punch_type: str = "clock_in"  # clock_in, clock_out
     work_date: Optional[str] = None
+    timezone: str = "UTC"
 
 
 class RosterOptimizeRequest(BaseModel):
@@ -331,14 +333,28 @@ def punch_attendance(
         raise HTTPException(status_code=404, detail="Employee not found.")
     if not (getattr(current_user, "is_system_admin", False) or getattr(current_user, "is_superuser", False) or _role(current_user) in _HR_ROLES or (employee.user_id and str(employee.user_id) == str(current_user.id))):
         raise HTTPException(status_code=403, detail="You may only record attendance for your own employee record.")
-    today = datetime.now().date()
-    today_dt = datetime(today.year, today.month, today.day)
+    try:
+        employee_tz = ZoneInfo(payload.timezone)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise HTTPException(status_code=422, detail="timezone must be a valid IANA timezone, such as Asia/Kolkata.")
+    now_utc = datetime.now(timezone.utc)
+    local_now = now_utc.astimezone(employee_tz)
+    local_day = local_now.date()
+    local_midnight = datetime.combine(local_day, datetime.min.time(), tzinfo=employee_tz)
+    work_date_utc = local_midnight.astimezone(timezone.utc)
+    if payload.work_date and payload.work_date != local_day.isoformat():
+        raise HTTPException(status_code=422, detail="Punches must use the current local work date; backdated corrections require a separate audited workflow.")
 
     rec = db.query(AttendanceRecord).filter_by(
-        tenant_id=tenant_id, employee_id=payload.employee_id, work_date=today_dt
-    ).first()
+        tenant_id=tenant_id, employee_id=payload.employee_id, work_date=work_date_utc
+    ).with_for_update().first()
 
-    now = datetime.now()
+    now = now_utc
+    before_state = {
+        "clock_in": rec.clock_in.isoformat() if rec and rec.clock_in else None,
+        "clock_out": rec.clock_out.isoformat() if rec and rec.clock_out else None,
+        "status": rec.status if rec else None,
+    }
     if not rec:
         if payload.punch_type == "clock_out":
             raise HTTPException(status_code=409, detail="Cannot clock out before clocking in.")
@@ -357,12 +373,34 @@ def punch_attendance(
             raise HTTPException(status_code=409, detail="Cannot clock out before clocking in.")
         if rec.clock_out:
             raise HTTPException(status_code=409, detail="Already clocked out for this workday.")
-        if now < rec.clock_in:
+        clock_in_utc = rec.clock_in
+        if clock_in_utc.tzinfo is None:
+            clock_in_utc = clock_in_utc.replace(tzinfo=timezone.utc)
+        if now < clock_in_utc:
             raise HTTPException(status_code=409, detail="Clock-out time cannot precede clock-in time.")
         rec.clock_out = now
-        diff = (now - rec.clock_in).total_seconds() / 3600.0
+        diff = (now - clock_in_utc).total_seconds() / 3600.0
         rec.total_hours = round(max(0.0, diff - (rec.break_minutes / 60.0)), 2)
     try:
+        db.flush()
+        db.add(AttendanceAuditEvent(
+            tenant_id=tenant_id,
+            attendance_record_id=rec.id,
+            employee_id=rec.employee_id,
+            actor_user_id=str(current_user.id),
+            event_type=payload.punch_type,
+            occurred_at_utc=now_utc,
+            local_timezone=payload.timezone,
+            local_work_date=local_day.isoformat(),
+            before_state=before_state,
+            after_state={
+                "clock_in": rec.clock_in.isoformat() if rec.clock_in else None,
+                "clock_out": rec.clock_out.isoformat() if rec.clock_out else None,
+                "status": rec.status,
+                "total_hours": rec.total_hours,
+            },
+            source="hr_admin" if _role(current_user) in _HR_ROLES else "self_service",
+        ))
         db.commit()
         db.refresh(rec)
     except Exception:
