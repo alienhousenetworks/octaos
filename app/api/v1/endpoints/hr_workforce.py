@@ -723,7 +723,8 @@ def optimize_roster(
                     week_start = candidate_start.replace(hour=0, minute=0, second=0, microsecond=0)
                     week_start = week_start - timedelta(days=week_start.weekday())
                     week_end = week_start + timedelta(days=7)
-                    weekly_seconds = candidate_hours * 3600
+                    clipped_candidate_start, clipped_candidate_end = max(candidate_start, week_start), min(candidate_end, week_end)
+                    weekly_seconds = max(0.0, (clipped_candidate_end - clipped_candidate_start).total_seconds())
                     for start, end in existing_for_employee:
                         clipped_start, clipped_end = max(start, week_start), min(end, week_end)
                         if clipped_end > clipped_start:
@@ -771,5 +772,8 @@ def optimize_roster(
                                + (["configured_maximum_shift_hours"] if labor_rules and labor_rules.maximum_shift_hours is not None else [])
                                + (["configured_maximum_weekly_hours"] if labor_rules and labor_rules.maximum_weekly_hours is not None else []),
         "labor_rule_jurisdiction": labor_rules.jurisdiction if labor_rules else None,
-        "constraints_not_modeled": ["jurisdiction_specific_statutory_interpretation", "budget_cost", "overnight_shift_week_boundary_policy"],
+        "constraints_not_modeled": ["jurisdiction_specific_statutory_interpretation", "budget_cost", "overnight_shift_week_boundary_policy"]
+                               + (["minimum_rest_hours_not_configured"] if not labor_rules or labor_rules.minimum_rest_hours is None else [])
+                               + (["maximum_shift_hours_not_configured"] if not labor_rules or labor_rules.maximum_shift_hours is None else [])
+                               + (["maximum_weekly_hours_not_configured"] if not labor_rules or labor_rules.maximum_weekly_hours is None else []),
     }
