@@ -480,9 +480,11 @@ export default function CampaignsView({
   const modelsFor = (provider: string, modality: 'text' | 'image' | 'video') => curatedModels.filter((m) => {
     const providerMatches = provider === 'auto' || m.provider?.toLowerCase() === provider.toLowerCase();
     const modelModality = String(m.modality || '').toLowerCase();
-    const modalityMatches = modelModality === modality || modelModality.includes(modality) ||
-      (modality === 'text' && modelModality.includes('language')) ||
-      (modality === 'image' && modelModality.includes('vision'));
+    const modalityMatches = modality === 'text'
+      ? (modelModality === 'text' || modelModality === 'language' || modelModality.includes('text_to_text') || modelModality.includes('language'))
+      : modality === 'image'
+        ? (modelModality === 'image' || modelModality === 'vision' || modelModality.includes('image'))
+        : (modelModality === 'video' || modelModality.includes('video'));
     return providerMatches && modalityMatches;
   });
   const providerOptions = Array.from(new Set([
