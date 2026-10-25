@@ -1017,11 +1017,22 @@ Strict Tone & Quality Rules:
                 email_allowed = bool(c["contact"].get("email"))
                 lead_data_for_consent = lead.data if isinstance(getattr(lead, "data", None), dict) else {}
                 consent_contact = lead_data_for_consent.get("contact") if isinstance(lead_data_for_consent.get("contact"), dict) else {}
-                recipient_whatsapp_opt_in = (
-                    bool(consent_contact.get("whatsapp_opt_in") or lead_data_for_consent.get("whatsapp_opt_in"))
-                    and bool(consent_contact.get("whatsapp_opt_in_source") or lead_data_for_consent.get("whatsapp_opt_in_source"))
-                    and bool(consent_contact.get("whatsapp_opt_in_at") or lead_data_for_consent.get("whatsapp_opt_in_at"))
+                opt_in_value = (
+                    consent_contact.get("whatsapp_opt_in")
+                    if "whatsapp_opt_in" in consent_contact
+                    else lead_data_for_consent.get("whatsapp_opt_in")
                 )
+                opt_in_source = (
+                    consent_contact.get("whatsapp_opt_in_source")
+                    if "whatsapp_opt_in_source" in consent_contact
+                    else lead_data_for_consent.get("whatsapp_opt_in_source")
+                )
+                opt_in_at = (
+                    consent_contact.get("whatsapp_opt_in_at")
+                    if "whatsapp_opt_in_at" in consent_contact
+                    else lead_data_for_consent.get("whatsapp_opt_in_at")
+                )
+                recipient_whatsapp_opt_in = opt_in_value is True and bool(opt_in_source) and bool(opt_in_at)
                 whatsapp_allowed = (
                     bool(c["contact"].get("phone"))
                     and str(policy_settings.get("whatsapp_permission_state") or "").lower() == "granted"
