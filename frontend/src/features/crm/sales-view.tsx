@@ -757,11 +757,19 @@ export default function SalesView({
         method: 'POST',
       });
       if (res.ok) {
-        notify('Sales outreach message generated & sent.');
+        const result = await res.json();
+        if (result.sent === true) {
+          notify('Sales outreach sent successfully.');
+        } else if (result.status === 'draft_ready') {
+          notify('Outreach draft created. Nothing was sent; review it and use the authorized send action when ready.');
+        } else {
+          notify(result.message || 'Outreach was not sent. Review the reported blockers.');
+        }
         fetchLeads();
         fetchData();
       } else {
-        notify('Failed to generate outreach.');
+        const error = await res.json().catch(() => ({}));
+        notify(error.detail || 'Failed to generate outreach draft.');
       }
     } catch (e) {
       console.error(e);
@@ -777,8 +785,17 @@ export default function SalesView({
         method: 'POST',
       });
       if (res.ok) {
-        notify('Smart multi-channel outreach dispatched.');
+        const result = await res.json();
+        if (result.sent === true) {
+          notify('Outreach sent successfully.');
+        } else {
+          const blockers = Array.isArray(result.blockers) ? result.blockers.join(', ') : '';
+          notify(result.send_message || result.message || blockers || 'Outreach was not sent.');
+        }
         fetchLeads();
+      } else {
+        const error = await res.json().catch(() => ({}));
+        notify(error.detail || 'Outreach was not sent.');
       }
     } catch (e) {
       console.error(e);
