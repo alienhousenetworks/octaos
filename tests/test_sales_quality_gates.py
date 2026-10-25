@@ -181,3 +181,12 @@ def test_human_approved_outreach_can_bypass_auto_send_toggle_but_not_permission(
     )
     assert blocked["ready"] is False
     assert "outbound_permission_not_granted" in blocked["blockers"]
+
+
+def test_dossier_builder_preserves_unknown_verification_and_score():
+    from app.services.sales.utils import _build_lead_data
+
+    data = _build_lead_data({"company_name": "Acme", "contact": {}})
+    assert data["contact_status"] == "NEEDS_VERIFICATION"
+    assert data["evidence_tier"] == "UNKNOWN"
+    assert data["qualification_score"] is None
