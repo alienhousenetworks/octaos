@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import List, Dict
 from fastapi import Depends, HTTPException, status
+from sqlalchemy.orm import Session
 from app.api import deps
 from app.models.base import User
 
