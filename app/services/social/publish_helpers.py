@@ -90,6 +90,7 @@ def publish_post_sync(db: Session, post: ContentPost):
                 error=f"Buffer is connected but no Buffer channel is mapped for '{platform_key}'.",
             )
             apply_publish_result(db, post, result, now)
+            post.status = "needs_configuration"
             db.commit()
             return result
 
@@ -124,6 +125,9 @@ def publish_post_sync(db: Session, post: ContentPost):
                 error=f"Buffer publishing failed: {str(exc)[:240]}",
             )
             apply_publish_result(db, post, result, now)
+            # A create mutation timeout can be ambiguous. Stop automatic retries until
+            # the user reconciles Buffer's queue; blind retries can create duplicates.
+            post.status = "publish_uncertain"
             db.commit()
             return result
 
