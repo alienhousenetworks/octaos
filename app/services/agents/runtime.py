@@ -273,30 +273,5 @@ class AgentRuntime:
 
         return cleaned_output, tool_invocations
 
-    def _synthesize_agent_response(self, agent_name: str, input_context: Dict[str, Any], tools: List[str]) -> str:
-        """High-quality simulated output for testing when live external AI provider keys are not yet bound."""
-        if "lead" in str(input_context).lower() or "sales" in agent_name.lower():
-            return (
-                f"### {agent_name} Analysis & Proposal\n"
-                f"Evaluated inbound prospect details. High-intent decision maker detected.\n\n"
-                f"**Score**: 88/100 (Qualified B2B Prospect)\n"
-                f"**Strategic Angle**: Position OctaOS autonomous multi-agent operational efficiencies.\n"
-                f"**Next Action**: Outreach email queued for executive sign-off."
-            )
-        elif "research" in agent_name.lower():
-            query = input_context.get("company") or input_context.get("query") or "Target Organization"
-            return (
-                f"```json\n"
-                f"{{\n"
-                f"  \"tool\": \"web_search\",\n"
-                f"  \"args\": {{\"query\": \"{query} business model and key leadership\"}}\n"
-                f"}}\n"
-                f"```\n"
-                f"Conducted background research on {query}. Market footprint validated."
-            )
-        return (
-            f"{agent_name} completed task successfully. Input processed with high confidence."
-        )
-
 
 agent_runtime = AgentRuntime()
