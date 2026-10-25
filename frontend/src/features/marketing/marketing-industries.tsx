@@ -50,7 +50,7 @@ const GENERAL_PACK: MarketingVerticalPack = {
   },
   visual_creative_tokens: {
     aesthetic: 'Clean, modern, professional digital creative direction',
-    color_palette: ['#365BD6', '#8B95A7', '#CBD2DE'],
+    color_palette: ['#7888D9', '#AAB5C4', '#414C5A'],
   },
   industry_calendar_events: [],
 };
