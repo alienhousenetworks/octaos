@@ -366,6 +366,48 @@ export default function SalesLeadDossier({
                 </div>
               </div>
 
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">WhatsApp recipient consent</h3>
+                    <p className="mt-1 text-[11px] text-slate-500">Record only consent actually received from this recipient. Opt-out creates a WhatsApp suppression.</p>
+                  </div>
+                  <span className={d.whatsapp_opt_in === true ? "rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700" : "rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600"}>
+                    {d.whatsapp_opt_in === true ? "OPTED IN" : "NO OPT-IN"}
+                  </span>
+                </div>
+                <Input
+                  value={whatsappConsentSource}
+                  onChange={(event) => setWhatsappConsentSource(event.target.value)}
+                  placeholder="Consent source, e.g. signed form or inbound request"
+                  disabled={actionLoading}
+                  className="text-xs bg-white border-slate-200 text-slate-900"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={actionLoading || !whatsappConsentSource.trim()}
+                    onClick={() => void onSaveWhatsAppConsent(lead.id, true, whatsappConsentSource.trim())}
+                    className="text-xs"
+                  >
+                    Record opt-in
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={actionLoading}
+                    onClick={() => void onSaveWhatsAppConsent(lead.id, false, whatsappConsentSource.trim() || "recipient_opt_out")}
+                    className="text-xs"
+                  >
+                    Record opt-out
+                  </Button>
+                </div>
+                {d.whatsapp_opt_in_at ? (
+                  <p className="text-[10px] text-slate-500">Last consent-state record: {String(d.whatsapp_opt_in_at)}</p>
+                ) : null}
+              </div>
+
               <div className="pt-2 space-y-2">
                 <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">
                   Prospect-agreed meeting time (your local timezone)
