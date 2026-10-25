@@ -25,6 +25,7 @@ from app.services.credentials import get_decrypted_credential
 from app.services.email.sender import send_email_with_status
 from app.services.sales_os.governance.gatekeeper import PreSendGatekeeper
 from app.services.sales_os.governance.suppression import SuppressionService
+from app.services.sales_os.quality_gates import assess_channel_authorization
 
 logger = logging.getLogger(__name__)
 
@@ -290,6 +291,23 @@ def dispatch_sales_touch(
     Routes touch through real, non-mocked channels and logs provenance.
     """
     ch = (channel or "email").lower().strip()
+
+    # Central authorization is enforced here as well as in the V3 orchestrator,
+    # so cadence/outbox callers cannot bypass the tenant's send policy.
+    if ch in {"email", "whatsapp"}:
+        sales_credential = db.query(APICredential).filter_by(
+            tenant_id=tenant_id, provider="sales"
+        ).first()
+        settings = (sales_credential.settings if sales_credential else {}) or {}
+        authorization = assess_channel_authorization(settings, ch)
+        if not authorization["ready"]:
+            return {
+                "sent": False,
+                "channel": ch,
+                "reason": "outbound_authorization_blocked",
+                "message": "Outbound dispatch blocked: " + ", ".join(authorization["blockers"]),
+                "blockers": authorization["blockers"],
+            }
 
     # The outbox and the legacy cadence schedule both call this dispatcher.
     # Keep the final policy checks here as the last line of defense so direct
