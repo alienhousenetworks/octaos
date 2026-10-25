@@ -84,6 +84,8 @@ class MarketingAgent(BaseAgent):
             return await self._learning_report(params)
         elif action == "create_virtual_influencer":
             return await self._create_virtual_influencer(params)
+        elif action == "marketing_execution_status":
+            return self._marketing_execution_status(params)
         return {"status": "Unknown action", "action": action}
 
     # ------------------------------------------------------------------ #
@@ -446,6 +448,63 @@ class MarketingAgent(BaseAgent):
             },
         }
 
+
+
+    def _marketing_execution_status(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Inspect durable marketing runs, always scoped to the current tenant."""
+        from app.services.marketing.autonomy.execution_ledger import MarketingExecutionLedger
+
+        ledger = MarketingExecutionLedger(self.db, self.tenant_id)
+        execution_id = params.get("execution_id")
+        if execution_id:
+            run = ledger.get(str(execution_id))
+            if not run:
+                return {"status": "not_found", "execution_id": str(execution_id)}
+            steps = ledger.list_steps(run.id)
+            return {
+                "status": "ok",
+                "execution": {
+                    "id": run.id,
+                    "workflow_type": run.workflow_type,
+                    "status": run.status,
+                    "current_stage": run.current_stage,
+                    "attempts": run.attempts,
+                    "error": run.error,
+                    "created_at": run.created_at.isoformat() if run.created_at else None,
+                    "started_at": run.started_at.isoformat() if run.started_at else None,
+                    "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+                    "result_payload": run.result_payload,
+                },
+                "steps": [{
+                    "id": step.id,
+                    "stage_id": step.stage_id,
+                    "status": step.status,
+                    "attempt": step.attempt,
+                    "error": step.error,
+                    "input_payload": step.input_payload,
+                    "output_payload": step.output_payload,
+                    "started_at": step.started_at.isoformat() if step.started_at else None,
+                    "finished_at": step.finished_at.isoformat() if step.finished_at else None,
+                } for step in steps],
+            }
+
+        runs = ledger.list_recent(
+            limit=int(params.get("limit", 25)),
+            status=params.get("status"),
+        )
+        return {
+            "status": "ok",
+            "executions": [{
+                "id": run.id,
+                "workflow_type": run.workflow_type,
+                "status": run.status,
+                "current_stage": run.current_stage,
+                "attempts": run.attempts,
+                "error": run.error,
+                "created_at": run.created_at.isoformat() if run.created_at else None,
+                "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+            } for run in runs],
+        }
 
     async def _create_virtual_influencer(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Create a fictional AI persona and save its launch content as a review-only draft."""
