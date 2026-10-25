@@ -9,8 +9,12 @@ from app.services.agents.hr.risk_classifier import HRRiskClassifier
 from app.services.agents.hr.schemas import RiskTier, AutonomyLevel
 
 
-def user(role="member", **kwargs):
-    return SimpleNamespace(role=role, is_system_admin=False, is_superuser=False, **kwargs)
+def user(role="member", permissions=(), **kwargs):
+    return SimpleNamespace(
+        role=role, is_system_admin=False, is_superuser=False,
+        user_permissions=[SimpleNamespace(codename=code) for code in permissions],
+        groups=[], **kwargs
+    )
 
 
 def test_hr_people_read_denies_regular_member():
@@ -26,7 +30,7 @@ def test_hr_people_write_denies_manager():
 
 
 def test_hr_people_write_allows_hr_admin():
-    _require_hr_access(user("hr_admin"), write=True)
+    _require_hr_access(user("hr_admin", permissions=["hr.manage_employees"]), write=True)
 
 
 def test_workforce_approval_denies_recruiter():
@@ -36,7 +40,7 @@ def test_workforce_approval_denies_recruiter():
 
 
 def test_workforce_approval_allows_hr_manager():
-    _require_hr_role(user("hr_manager"), approve=True)
+    _require_hr_role(user("hr_manager", permissions=["hr.manage_leave"]), approve=True)
 
 
 def test_unknown_agent_action_is_approval_gated():
