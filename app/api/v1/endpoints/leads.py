@@ -7,7 +7,7 @@ import io
 import json
 from app.api import deps
 from app.core.rbac import Action, Resource, require_permission
-from app.models.base import User
+from app.models.base import User, APICredential
 from app.schemas import verticals as schemas
 from app.models import verticals as models
 from app.services.verticals.sales import SalesService
@@ -1096,10 +1096,11 @@ async def send_outreach_smart(
     if not contact_name and lead.name and lead.name.strip().casefold() != (lead.company or "").strip().casefold():
         contact_name = lead.name
     recipient_email = lead.email or lead.company_email or lead.personal_email
+    evidence_payload = data.get("evidence") if isinstance(data.get("evidence"), dict) else {}
     prospect = {
         "contact_status": data.get("contact_status") or contact_data.get("contact_status") or qualification.get("contact_status"),
         "evidence_url": data.get("evidence_url") or getattr(lead, "evidence_url", None),
-        "evidence_quote": data.get("evidence_quote") or data.get("evidence", {}).get("quote") if isinstance(data.get("evidence"), dict) else data.get("evidence_quote"),
+        "evidence_quote": data.get("evidence_quote") or evidence_payload.get("quote"),
         "buying_signal": data.get("buying_signal"),
         "news": data.get("news") or [],
         "jobs": data.get("jobs") or [],
@@ -1109,7 +1110,7 @@ async def send_outreach_smart(
             "phone": lead.phone or lead.mobile_no or lead.company_contact_no,
         },
     }
-    sales_credential = db.query(models.APICredential).filter_by(
+    sales_credential = db.query(APICredential).filter_by(
         tenant_id=tenant_id, provider="sales"
     ).first()
     policy_settings = (sales_credential.settings if sales_credential else {}) or {}
