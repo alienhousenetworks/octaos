@@ -30,6 +30,27 @@ router = APIRouter()
 BUFFER_AUTH_URL = "https://auth.buffer.com/auth"
 BUFFER_SCOPES = "posts:read posts:write account:read offline_access"
 
+# Buffer GraphQL API publishing services. Keep aligned with the Campaign Studio picker.
+# Substack and Start Page can appear in Buffer's product UI but are not currently
+# supported by Buffer's API for programmatic post creation.
+BUFFER_API_PLATFORMS = frozenset({
+    "instagram", "threads", "linkedin", "x", "facebook", "tiktok",
+    "googlebusiness", "mastodon", "youtube", "pinterest", "bluesky",
+})
+
+
+def _normalize_buffer_platform(value: str) -> str:
+    normalized = value.strip().lower().replace("twitter", "x").replace("_", "")
+    if normalized not in BUFFER_API_PLATFORMS:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Unsupported Buffer API publishing platform. Supported platforms: "
+                + ", ".join(sorted(BUFFER_API_PLATFORMS))
+            ),
+        )
+    return normalized
+
 
 def _state_cipher() -> Fernet:
     # Derive a stable Fernet key from the server-only signing secret; no extra secret is exposed.
@@ -230,7 +251,7 @@ async def map_buffer_channel(
     _: User = Depends(require_permission(Resource.INTEGRATIONS, Action.UPDATE)),
 ):
     """Map a platform to a verified Buffer channel for scheduled campaign delivery."""
-    platform = body.platform.strip().lower().replace("twitter", "x")
+    platform = _normalize_buffer_platform(body.platform)
     try:
         account = await BufferService(db, tenant_id).account_and_channels()
     except BufferAPIError as exc:
@@ -291,7 +312,7 @@ async def publish_approved_post(
         selected = next((channel for channel in channels if channel.get("id") == body.channel_id), None)
         if not selected:
             raise HTTPException(status_code=400, detail="Selected channel is not connected to this workspace's Buffer account.")
-        expected = (post.platform or "").lower().replace("twitter", "x")
+        expected = _normalize_buffer_platform(post.platform or "")
         actual = (selected.get("service") or "").lower().replace("twitter", "x")
         if expected and expected not in actual and actual not in expected:
             raise HTTPException(status_code=409, detail="Selected Buffer channel does not match this post's target platform.")
