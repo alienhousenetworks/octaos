@@ -20,7 +20,7 @@ interface SalesRecordWorkspaceProps {
   onSave: (leadId: string, updates: Partial<Lead>) => Promise<void>;
   onUpdateStatus: (leadId: string, status: string) => Promise<void>;
   onGenerateDraft: (leadId: string, instructions: string) => Promise<{ subject: string; body: string } | null>;
-  onBookMeeting: (leadId: string) => Promise<void>;
+  onBookMeeting: (leadId: string, suggestedTime: string) => Promise<void>;
   onOpenDealDesk: () => void;
   onLogNote: (leadId: string, content: string, channel: string, direction: string) => Promise<void>;
   onSendDraft: (leadId: string, subject: string, body: string) => Promise<void>;
@@ -50,6 +50,7 @@ export default function SalesRecordWorkspace({
   const [pane, setPane] = useState<Pane>('record');
   const [tab, setTab] = useState<Tab>('overview');
   const [advice, setAdvice] = useState<CopilotAdvice | null>(null);
+  const [meetingTime, setMeetingTime] = useState('');
 
   const isRealEstate = (activePack?.id === 'real_estate' || advice?.pack?.id === 'real_estate');
 
