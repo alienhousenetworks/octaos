@@ -236,34 +236,34 @@ export default function DashboardView({
 
   // Real Work-Type Stacked Chart Data
   const workTypeCategories: CategoryDef[] = [
-    { key: 'marketing', label: 'Marketing', color: '#7888D9' },
-    { key: 'finance', label: 'Finance', color: '#64B99A' },
-    { key: 'sales', label: 'Sales', color: '#75AFCB' },
-    { key: 'general', label: 'General / Ops', color: '#AAB5C4' },
-    { key: 'support', label: 'Support', color: '#D9AD68' },
+    { key: 'marketing', label: 'Marketing', color: '#365BD6' },
+    { key: 'finance', label: 'Finance', color: '#8B95A7' },
+    { key: 'sales', label: 'Sales', color: '#CBD2DE' },
+    { key: 'general', label: 'General / Ops', color: '#CBD2DE' },
+    { key: 'support', label: 'Support', color: '#8B95A7' },
   ];
 
   const workTypeData: StackedDataPoint[] = currentMetrics?.request_volume_by_worktype || [];
 
   // Token Breakdown Data
   const tokenBreakdownCategories: CategoryDef[] = [
-    { key: 'prompt', label: 'Prompt Tokens', color: '#75AFCB' },
-    { key: 'completion', label: 'Completion Tokens', color: '#7888D9' },
-    { key: 'cached', label: 'Cached / Reasoning', color: '#64B99A' },
+    { key: 'prompt', label: 'Prompt Tokens', color: '#CBD2DE' },
+    { key: 'completion', label: 'Completion Tokens', color: '#365BD6' },
+    { key: 'cached', label: 'Cached / Reasoning', color: '#8B95A7' },
   ];
 
   const tokenBreakdownData: StackedDataPoint[] = currentMetrics?.token_breakdown_series || [];
 
   // Prompt Token Caching Data
   const promptCachingCategories: CategoryDef[] = [
-    { key: 'uncached', label: 'Uncached', color: '#414C5A' },
-    { key: 'cached', label: 'Cached', color: '#64B99A' },
+    { key: 'uncached', label: 'Uncached', color: '#CBD2DE' },
+    { key: 'cached', label: 'Cached', color: '#8B95A7' },
   ];
 
   const promptCachingData: StackedDataPoint[] = currentMetrics?.prompt_caching_series || [];
 
   // Request Volume by Model dynamically derived from active top models
-  const dynamicModelPalette = ['#7888D9', '#64B99A', '#75AFCB', '#D9AD68', '#AAB5C4', '#D9828B'];
+  const dynamicModelPalette = ['#365BD6', '#8B95A7', '#CBD2DE', '#8B95A7', '#CBD2DE', '#8B95A7'];
   const modelCategories: CategoryDef[] =
     currentMetrics?.top_model_names && currentMetrics.top_model_names.length > 0
       ? currentMetrics.top_model_names.map((name: string, idx: number) => ({
@@ -272,9 +272,9 @@ export default function DashboardView({
           color: dynamicModelPalette[idx % dynamicModelPalette.length],
         }))
       : [
-          { key: 'gemini', label: 'Gemini', color: '#10B981' },
-          { key: 'llama', label: 'Llama', color: '#EC4899' },
-          { key: 'claude', label: 'Claude', color: '#38BDF8' },
+          { key: 'gemini', label: 'Gemini', color: '#365BD6' },
+          { key: 'llama', label: 'Llama', color: '#8B95A7' },
+          { key: 'claude', label: 'Claude', color: '#CBD2DE' },
         ];
 
   const modelData: StackedDataPoint[] = currentMetrics?.request_volume_by_model || [];
