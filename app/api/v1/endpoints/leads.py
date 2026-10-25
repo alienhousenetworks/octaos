@@ -16,6 +16,12 @@ from datetime import datetime, timedelta
 
 router = APIRouter()
 
+
+class WhatsAppOptInRequest(BaseModel):
+    opted_in: bool
+    source: str
+    notes: Optional[str] = None
+
 @router.post("/", response_model=schemas.Lead)
 async def create_lead(
     *,
@@ -111,6 +117,70 @@ def update_lead(
     db.commit()
     db.refresh(lead)
     return lead
+
+@router.post("/{lead_id}/whatsapp-opt-in")
+def update_whatsapp_opt_in(
+    lead_id: str,
+    payload: WhatsAppOptInRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    actor: User = Depends(require_permission(Resource.LEADS, Action.UPDATE)),
+) -> Any:
+    lead = db.query(models.Lead).filter(
+        models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    phone = lead.phone or lead.mobile_no or lead.company_contact_no
+    if not phone:
+        raise HTTPException(status_code=422, detail="A recipient phone number is required to record WhatsApp consent.")
+
+    source = (payload.source or "").strip()
+    if not source or source.lower() in {"unknown", "n/a", "not recorded"}:
+        raise HTTPException(status_code=400, detail="Record the actual consent source; do not infer opt-in.")
+
+    from app.services.sales_os.governance.suppression import SuppressionService
+    suppression = SuppressionService(db, tenant_id)
+    lead_data = dict(lead.data or {})
+    now = datetime.utcnow().isoformat() + "Z"
+
+    if payload.opted_in:
+        suppressed = suppression.is_suppressed(phone=phone, channel="whatsapp")
+        if suppressed:
+            raise HTTPException(
+                status_code=409,
+                detail="This recipient is suppressed for WhatsApp. Resolve the suppression through the authorized process before recording new consent.",
+            )
+        lead_data["whatsapp_opt_in"] = True
+        lead_data["whatsapp_opt_in_source"] = source
+        lead_data["whatsapp_opt_in_at"] = now
+        lead_data.pop("whatsapp_opt_out_at", None)
+    else:
+        lead_data["whatsapp_opt_in"] = False
+        lead_data["whatsapp_opt_in_source"] = source
+        lead_data["whatsapp_opt_in_at"] = now
+        lead_data["whatsapp_opt_out_at"] = now
+        suppression.add_suppression(
+            "phone",
+            phone,
+            reason="recipient_whatsapp_opt_out",
+            origin="user",
+            notes=payload.notes or source,
+            channel="whatsapp",
+        )
+
+    lead.data = lead_data
+    db.commit()
+    db.refresh(lead)
+    return {
+        "status": "recorded",
+        "opted_in": bool(payload.opted_in),
+        "lead_id": lead.id,
+        "recorded_at": now,
+        "message": "Recipient consent state recorded; outbound channel and evidence gates still apply.",
+    }
+
 
 @router.post("/{lead_id}/outreach")
 async def generate_outreach(
