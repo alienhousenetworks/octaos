@@ -72,6 +72,8 @@ def create_google_calendar_event(
     event_result = service.events().insert(
         calendarId="primary", body=event, conferenceDataVersion=1
     ).execute()
+    if not event_result.get("id"):
+        raise RuntimeError("Google Calendar did not return an event ID; booking is not confirmed.")
     return event_result.get("hangoutLink"), start_time
 
 
