@@ -92,6 +92,38 @@ def create_task(
     return _task_dict(task)
 
 
+@router.post("/tasks/{task_id}/run", status_code=202)
+def run_task(
+    task_id: str,
+    db: Session = Depends(deps.get_db),
+    user: User = Depends(deps.get_current_user),
+):
+    task = _owned_task(db, task_id, user)
+    if task.status not in {"queued", "blocked", "failed"}:
+        raise HTTPException(status_code=409, detail=f"Task cannot be run from status '{task.status}'.")
+    if task.status in {"blocked", "failed"}:
+        # Requeue only non-terminal recoverable states; keep previous events as history.
+        task.status = "queued"
+        task.blocker = None
+        task.error_code = None
+        task.finished_at = None
+        db.commit()
+    try:
+        from app.services.autonomous_runtime.worker import execute_autonomous_task
+        job = execute_autonomous_task.delay(task.id, user.tenant_id)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="Task was saved, but the worker queue is unavailable. Start Redis/Celery and retry.",
+        ) from exc
+    runtime = AutonomousRuntime(db)
+    runtime.emit(task, "task_dispatched", "Task dispatched to the autonomous-work worker.",
+                 actor_type="user", actor_id=user.id, payload={"job_id": job.id})
+    db.commit()
+    return {"task_id": task.id, "status": task.status, "job_id": job.id, "message": "Task queued; completion is not yet verified."}
+
+
 @router.get("/tasks")
 def list_tasks(
     status: Optional[str] = Query(default=None, max_length=32),
