@@ -81,6 +81,9 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
   const [buffer, setBuffer] = useState<any>(null);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [artifactLoading, setArtifactLoading] = useState(false);
+  const [artifactDetail, setArtifactDetail] = useState<any>(null);
+  const [artifactEditorText, setArtifactEditorText] = useState('');
+  const [artifactVersionSaving, setArtifactVersionSaving] = useState(false);
 
   const loadPosts = useCallback(async () => {
     if (!token) { setLoading(false); return; }
@@ -214,6 +217,42 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
     } catch (e: any) { setNotice(e?.message || 'Could not save artifact.'); }
   }
 
+  async function openArtifactEditor(artifact: Artifact) {
+    try {
+      const res = await fetchWithAuth(`${API_URL}/marketing/artifacts/${artifact.id}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'Could not open artifact.');
+      setArtifactDetail(data);
+      const current = Array.isArray(data.versions) ? data.versions.find((v: any) => v.version === data.current_version) : null;
+      setArtifactEditorText(JSON.stringify(current?.content || {}, null, 2));
+    } catch (e: any) { setNotice(e?.message || 'Could not open artifact.'); }
+  }
+
+  async function saveArtifactVersion() {
+    if (!artifactDetail) return;
+    let parsed: any;
+    try { parsed = JSON.parse(artifactEditorText); }
+    catch { setNotice('Artifact content must be valid JSON before saving.'); return; }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      setNotice('Artifact content must be a JSON object.'); return;
+    }
+    setArtifactVersionSaving(true);
+    try {
+      const current = Array.isArray(artifactDetail.versions) ? artifactDetail.versions.find((v: any) => v.version === artifactDetail.current_version) : null;
+      const res = await fetchWithAuth(`${API_URL}/marketing/artifacts/${artifactDetail.id}/versions`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: parsed, sources: current?.sources || [], expected_version: artifactDetail.current_version })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'Could not save a new artifact version.');
+      setNotice(`Saved immutable version ${data.current_version}; the new version requires review.`);
+      setArtifactDetail(null);
+      setArtifactEditorText('');
+      void loadArtifacts();
+    } catch (e: any) { setNotice(e?.message || 'Could not save artifact version.'); }
+    finally { setArtifactVersionSaving(false); }
+  }
+
   async function reviewArtifact(artifact: Artifact, decision: 'approve' | 'changes_requested') {
     if (!artifact.current_version_hash) { setNotice('Current version hash is unavailable. Refresh the library before reviewing.'); return; }
     try {
@@ -340,8 +379,9 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
       <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-xl font-semibold">Campaign artifacts</h2><p className="mt-1 text-sm text-muted-foreground">Tenant-owned deliverables with immutable versions, content hashes and explicit review state.</p></div><button onClick={() => void loadArtifacts()} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm"><RefreshCw className="size-4" /> Refresh</button></div>
       <div className="grid gap-3 md:grid-cols-2"><button onClick={() => setTab('influencers')} className="rounded-xl border border-border bg-card p-5 text-left hover:bg-muted"><FileText className="size-5 text-primary" /><h3 className="mt-3 font-semibold">Create virtual influencer brief</h3><p className="mt-1 text-sm text-muted-foreground">Generate a disclosed fictional persona, then save its brief as a versioned artifact.</p><span className="mt-4 inline-flex items-center gap-1 text-sm text-primary">Open Influencer Studio <ChevronRight className="size-4" /></span></button><button onClick={() => window.location.assign('/app/campaigns')} className="rounded-xl border border-border bg-card p-5 text-left hover:bg-muted"><Workflow className="size-5 text-primary" /><h3 className="mt-3 font-semibold">Campaign plan and schedule</h3><p className="mt-1 text-sm text-muted-foreground">Open the existing campaign planner and persisted generation workflow.</p><span className="mt-4 inline-flex items-center gap-1 text-sm text-primary">Open campaign planner <ChevronRight className="size-4" /></span></button></div>
       <div className="overflow-hidden rounded-xl border border-border bg-card"><div className="border-b border-border p-4"><h3 className="font-semibold">Saved artifacts</h3><p className="mt-1 text-xs text-muted-foreground">Export currently downloads the selected immutable version as JSON; PDF/DOCX/PPTX renderers are not claimed here.</p></div>
-        {artifactLoading ? <p className="p-5 text-sm text-muted-foreground">Loading saved artifacts…</p> : artifacts.length ? <div className="divide-y divide-border">{artifacts.map(a => <div key={a.id} className="flex flex-wrap items-center gap-3 p-4"><div className="grid size-10 place-items-center rounded-lg border border-border"><FileText className="size-4" /></div><div className="min-w-0 flex-1"><p className="font-medium">{a.title}</p><p className="mt-1 text-xs text-muted-foreground">{a.artifact_type.replaceAll('_',' ')} · Version {a.current_version} · {a.current_version_review_status || a.status}</p></div><div className="flex flex-wrap gap-2">{a.current_version_review_status !== 'approved' && <button onClick={() => void reviewArtifact(a, 'approve')} className="rounded-lg border border-border px-3 py-2 text-sm">Approve v{a.current_version}</button>}<button onClick={() => void reviewArtifact(a, 'changes_requested')} className="rounded-lg border border-border px-3 py-2 text-sm">Request changes</button><button onClick={() => void exportArtifact(a)} className="rounded-lg border border-border px-3 py-2 text-sm">Export JSON</button></div></div>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">No saved artifacts yet. Generate an influencer brief and choose “Save as artifact”.</p>}
+        {artifactLoading ? <p className="p-5 text-sm text-muted-foreground">Loading saved artifacts…</p> : artifacts.length ? <div className="divide-y divide-border">{artifacts.map(a => <div key={a.id} className="flex flex-wrap items-center gap-3 p-4"><div className="grid size-10 place-items-center rounded-lg border border-border"><FileText className="size-4" /></div><div className="min-w-0 flex-1"><p className="font-medium">{a.title}</p><p className="mt-1 text-xs text-muted-foreground">{a.artifact_type.replaceAll('_',' ')} · Version {a.current_version} · {a.current_version_review_status || a.status}</p></div><div className="flex flex-wrap gap-2">{a.current_version_review_status !== 'approved' && <button onClick={() => void reviewArtifact(a, 'approve')} className="rounded-lg border border-border px-3 py-2 text-sm">Approve v{a.current_version}</button>}<button onClick={() => void reviewArtifact(a, 'changes_requested')} className="rounded-lg border border-border px-3 py-2 text-sm">Request changes</button><button onClick={() => void openArtifactEditor(a)} className="rounded-lg border border-border px-3 py-2 text-sm">Edit JSON</button><button onClick={() => void exportArtifact(a)} className="rounded-lg border border-border px-3 py-2 text-sm">Export JSON</button></div></div>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">No saved artifacts yet. Generate an influencer brief and choose “Save as artifact”.</p>}
       </div>
+      {artifactDetail && <section className="space-y-3 rounded-xl border border-border bg-card p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">Edit artifact · {artifactDetail.title}</h3><p className="mt-1 text-xs text-muted-foreground">Editing creates a new immutable version and resets approval. This editor changes structured JSON; it does not claim rich document rendering.</p></div><button onClick={() => { setArtifactDetail(null); setArtifactEditorText(''); }} className="rounded-lg border border-border px-3 py-2 text-sm">Close</button></div><textarea value={artifactEditorText} onChange={e => setArtifactEditorText(e.target.value)} rows={14} spellCheck={false} className="w-full rounded-lg border border-border bg-background p-3 font-mono text-xs leading-5" aria-label="Artifact JSON content" /><button onClick={() => void saveArtifactVersion()} disabled={artifactVersionSaving} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{artifactVersionSaving ? 'Saving version…' : 'Save new version'}</button></section>}
     </section>}
 
     {tab === 'calendar' && <section className="space-y-4"><div><h2 className="text-xl font-semibold">Publishing calendar</h2><p className="mt-1 text-sm text-muted-foreground">A read-only view of scheduled dates stored on campaign posts. Scheduling changes remain in the established campaign planner.</p></div><div className="rounded-xl border border-border bg-card"><div className="divide-y divide-border">{posts.filter(p => p.scheduled_at).sort((a,b) => String(a.scheduled_at).localeCompare(String(b.scheduled_at))).map(post => <div key={post.id} className="flex flex-wrap items-center gap-4 p-4"><div className="min-w-36"><p className="text-sm font-medium">{new Date(post.scheduled_at!).toLocaleDateString()}</p><p className="text-xs text-muted-foreground">{new Date(post.scheduled_at!).toLocaleTimeString()}</p></div><div className="min-w-0 flex-1"><p className="line-clamp-2 text-sm">{post.content || 'Untitled content'}</p><p className="mt-1 text-xs capitalize text-muted-foreground">{post.platform}</p></div><span className="rounded-full border border-border px-2 py-1 text-xs">{statusLabel(post)}</span></div>)}</div>{posts.every(p => !p.scheduled_at) && <p className="p-8 text-center text-sm text-muted-foreground">No scheduled posts are returned by the API.</p>}</div></section>}
