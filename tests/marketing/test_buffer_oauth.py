@@ -72,3 +72,34 @@ def test_buffer_rejects_image_and_video_on_same_post():
             image_url="https://cdn.example.com/image.jpg",
             video_url="https://cdn.example.com/video.mp4",
         ))
+
+
+def test_buffer_status_reconciliation_reads_pages_without_writing():
+    service = BufferService(db=None, tenant_id="tenant-a")
+    calls = []
+
+    async def fake_graphql(query, variables=None):
+        calls.append(variables)
+        if len(calls) == 1:
+            return {
+                "posts": {
+                    "edges": [{"node": {"id": "buffer-post-1", "status": "sent"}}],
+                    "pageInfo": {"hasNextPage": True, "endCursor": "cursor-1"},
+                }
+            }
+        return {
+            "posts": {
+                "edges": [{"node": {"id": "buffer-post-2", "status": "scheduled"}}],
+                "pageInfo": {"hasNextPage": False, "endCursor": None},
+            }
+        }
+
+    service.graphql = fake_graphql
+    posts = asyncio.run(service.list_posts(
+        organization_id="org-1",
+        channel_ids=["channel-1"],
+    ))
+    assert [post["id"] for post in posts] == ["buffer-post-1", "buffer-post-2"]
+    assert len(calls) == 2
+    assert calls[1]["after"] == "cursor-1"
+    assert calls[0]["input"]["filter"]["channelIds"] == ["channel-1"]
