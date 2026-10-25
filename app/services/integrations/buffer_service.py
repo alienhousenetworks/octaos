@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import ipaddress
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
@@ -188,10 +189,21 @@ class BufferService:
                 parsed = urlparse(url)
                 if parsed.scheme != "https" or not parsed.hostname:
                     raise BufferAPIError("Buffer media must use a publicly accessible HTTPS URL.")
+                hostname = parsed.hostname.lower().rstrip(".")
+                if hostname in {"localhost", "localhost.localdomain"} or hostname.endswith(".local"):
+                    raise BufferAPIError("Buffer media URL must not point to a local host.")
+                try:
+                    address = ipaddress.ip_address(hostname)
+                    if not address.is_global:
+                        raise BufferAPIError("Buffer media URL must not point to a private or reserved IP address.")
+                except ValueError:
+                    pass
                 assets.append({kind: {"url": url}})
         if scheduled_at:
             if scheduled_at.tzinfo is None:
                 raise BufferAPIError("scheduled_at must include a timezone.")
+            if scheduled_at <= datetime.now(timezone.utc):
+                raise BufferAPIError("scheduled_at must be in the future; omit it to add the post to the Buffer queue.")
             mode = "customScheduled"
             due_at = scheduled_at.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
             query = """mutation OctaOSCreatePost($input: CreatePostInput!) {
