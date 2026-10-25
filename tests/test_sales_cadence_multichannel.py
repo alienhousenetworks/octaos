@@ -107,12 +107,6 @@ def test_whatsapp_dispatch_unconfigured(db_session):
             "evidence_quote": "Acme Corp announced a new customer support initiative.",
             "source_verification": make_source_receipt("https://example.com/news/acme", "Acme Corp announced a new customer support initiative."),
             "buying_signal": "Customer support initiative",
-            "source_verification": {
-                "source_url": "https://example.com/news/acme",
-                "quote": "Acme Corp announced a new customer support initiative.",
-                "verified": True,
-                "reason": "exact_quote_match",
-            },
             "whatsapp_opt_in": True,
             "whatsapp_opt_in_source": "test_fixture",
             "whatsapp_opt_in_at": datetime.now(timezone.utc).isoformat(),
@@ -216,12 +210,6 @@ def test_whatsapp_dispatch_with_mocked_meta_api(db_session):
             "evidence_quote": "Acme Corp announced a new customer support initiative.",
             "source_verification": make_source_receipt("https://example.com/news/acme", "Acme Corp announced a new customer support initiative."),
             "buying_signal": "Customer support initiative",
-            "source_verification": {
-                "source_url": "https://example.com/news/acme",
-                "quote": "Acme Corp announced a new customer support initiative.",
-                "verified": True,
-                "reason": "exact_quote_match",
-            },
             "whatsapp_opt_in": True,
             "whatsapp_opt_in_source": "test_fixture",
             "whatsapp_opt_in_at": datetime.now(timezone.utc).isoformat(),
@@ -312,12 +300,6 @@ def test_outbox_drain_handles_multichannel_without_mocks(db_session):
             "evidence_quote": "Schrute Farms announced a new agritourism offering.",
             "source_verification": make_source_receipt("https://example.com/news/schrute-farms", "Schrute Farms announced a new agritourism offering."),
             "buying_signal": "New agritourism offering",
-            "source_verification": {
-                "source_url": "https://example.com/news/schrute-farms",
-                "quote": "Schrute Farms announced a new agritourism offering.",
-                "verified": True,
-                "reason": "exact_quote_match",
-            },
             "contact": {
                 "linkedin_url": "https://www.linkedin.com/in/dwight-schrute",
             },
