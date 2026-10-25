@@ -173,7 +173,7 @@
 [class*="bg-gray-950"], [class*="bg-gray-900"], [class*="bg-gray-800"],
 [class*="bg-slate-950"], [class*="bg-slate-900"], [class*="bg-slate-800"],
 [class*="bg-zinc-950"], [class*="bg-zinc-900"], [class*="bg-zinc-800"],
-[class*="bg-black"] { background-color: var(--surface-2) !important; }
+
 [class*="text-gray-"], [class*="text-slate-"], [class*="text-zinc-"] { color: var(--muted-foreground) !important; }
 [class*="border-gray-"], [class*="border-slate-"], [class*="border-zinc-"] { border-color: var(--border) !important; }
 [class*="shadow-"] { --tw-shadow: 0 0 #0000 !important; box-shadow: none !important; }
