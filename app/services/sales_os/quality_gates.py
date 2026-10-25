@@ -25,6 +25,7 @@ def assess_outreach_readiness(
     auto_send_enabled: bool,
     permission_state: str | None,
     suppressed: bool = False,
+    human_approved: bool = False,
 ) -> dict[str, Any]:
     """Return an explainable send decision without attempting delivery."""
     contact = prospect.get("contact") if isinstance(prospect.get("contact"), dict) else {}
@@ -32,7 +33,7 @@ def assess_outreach_readiness(
 
     if suppressed:
         blockers.append("suppressed")
-    if not auto_send_enabled:
+    if not auto_send_enabled and not human_approved:
         blockers.append("automatic_sending_not_enabled")
     if (permission_state or "").strip().lower() != "granted":
         blockers.append("outbound_permission_not_granted")
@@ -85,12 +86,13 @@ def assess_channel_authorization(
     channel: str,
     *,
     recipient_opt_in: bool = False,
+    human_approved: bool = False,
 ) -> dict[str, Any]:
     """Final defense-in-depth gate used by dispatchers and cadence workers."""
     config = settings if isinstance(settings, dict) else {}
     normalized_channel = (channel or "email").strip().lower()
     blockers: list[str] = []
-    if not bool(config.get("sales_ai_auto_send_enabled", False)):
+    if not bool(config.get("sales_ai_auto_send_enabled", False)) and not human_approved:
         blockers.append("automatic_sending_not_enabled")
     if str(config.get("outbound_permission_state") or "").strip().lower() != "granted":
         blockers.append("outbound_permission_not_granted")
