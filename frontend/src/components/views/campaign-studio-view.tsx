@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowUpRight, Bot, CalendarDays, CheckCircle2, ChevronRight, CircleAlert,
+  ArrowUpRight, Bot, CalendarDays, ChevronRight, CircleAlert,
   FileText, Image as ImageIcon, LoaderCircle, Plus, RefreshCw, Search,
   ShieldCheck, Sparkles, Users, Video, Workflow, BarChart3
 } from 'lucide-react';
@@ -74,7 +74,6 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
   const [persona, setPersona] = useState<Persona | null>(null);
   const [personaLoading, setPersonaLoading] = useState(false);
   const [buffer, setBuffer] = useState<any>(null);
-  const [artifacts, setArtifacts] = useState<Array<{id:string; title:string; description:string; type:string}>>([]);
 
   const loadPosts = useCallback(async () => {
     if (!token) { setLoading(false); return; }
@@ -101,7 +100,7 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
   }, [API_URL, fetchWithAuth, tab, token]);
   useEffect(() => {
     if (!token) return;
-    fetchWithAuth(`${API_URL}/integrations/buffer/status`).then(async r => r.ok ? r.json() : null)
+    fetchWithAuth(`${API_URL}/buffer/status`).then(async r => r.ok ? r.json() : null)
       .then(data => { if (data) setBuffer(data); }).catch(() => {});
   }, [API_URL, fetchWithAuth, token]);
 
@@ -149,7 +148,7 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
 
   async function connectBuffer() {
     try {
-      const res = await fetchWithAuth(`${API_URL}/integrations/buffer/connect`);
+      const res = await fetchWithAuth(`${API_URL}/buffer/connect`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.url) throw new Error(data.detail || 'Buffer connection is not configured.');
       window.location.assign(data.url);
@@ -178,7 +177,7 @@ export default function CampaignStudioView({ token, API_URL, fetchWithAuth }: Pr
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Plan campaigns, create content, develop virtual influencers and manage delivery from one workspace. Actions reflect connected services and actual backend state.</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <button onClick={() => { setTab('overview'); }} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted"><Workflow className="size-4" /> Campaign planner</button>
+        <button onClick={() => window.location.assign('/app/campaigns')} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted"><Workflow className="size-4" /> Campaign planner</button>
         <button onClick={connectBuffer} className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">Connect Buffer <ArrowUpRight className="size-4" /></button>
       </div>
     </header>
