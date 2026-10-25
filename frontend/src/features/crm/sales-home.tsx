@@ -6,7 +6,6 @@ import {
   ArrowRight,
   Bot,
   CalendarDays,
-  CheckCircle2,
   CircleDot,
   ClipboardCheck,
   GitFork,
@@ -15,7 +14,6 @@ import {
   Settings2,
   ShieldCheck,
   Users,
-  Workflow,
 } from 'lucide-react';
 import { Lead, SalesSection } from './sales-types';
 import { SHARED_TERMS, VerticalPack } from './sales-platform';
