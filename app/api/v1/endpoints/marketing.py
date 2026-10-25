@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import os
 from asgiref.sync import async_to_sync
 
 from app.api import deps
@@ -715,7 +716,29 @@ async def get_marketing_models(
         }
         for c in custom_models
     ]
-    return {"curated": curated, "custom": custom_list}
+    def env_value(*names: str, default: str = "") -> str:
+        for name in names:
+            value = os.getenv(name, "").strip()
+            if value:
+                return value
+        return default
+
+    # Expose only non-secret routing metadata. Never return provider API keys to the browser.
+    defaults = {
+        "copy": {
+            "provider": env_value("DEFAULT_AI_PROVIDER", "AI_PROVIDER", default="openrouter").lower(),
+            "model": env_value("DEFAULT_AI_MODEL", "OPENROUTER_MODEL", "TEXT_MODEL", default=""),
+        },
+        "image": {
+            "provider": env_value("DEFAULT_IMAGE_PROVIDER", "IMAGE_PROVIDER", default="together").lower(),
+            "model": env_value("DEFAULT_IMAGE_MODEL", "IMAGE_MODEL", default="black-forest-labs/FLUX.1-schnell"),
+        },
+        "video": {
+            "provider": env_value("DEFAULT_VIDEO_PROVIDER", "VIDEO_PROVIDER", default="together").lower(),
+            "model": env_value("DEFAULT_VIDEO_MODEL", "VIDEO_MODEL", default="minimax/video-01"),
+        },
+    }
+    return {"curated": curated, "custom": custom_list, "defaults": defaults}
 
 
 @router.post("/models/validate", response_model=schemas.ModelValidateResponse)
