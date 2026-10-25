@@ -5,7 +5,7 @@ import time
 import pytest
 from fastapi import HTTPException
 
-from app.api.v1.endpoints.buffer_oauth import _decode_state, _encode_state
+from app.api.v1.endpoints.buffer_oauth import _decode_state, _encode_state, _normalize_buffer_platform
 from app.services.integrations.buffer_service import BufferAPIError, BufferService
 
 
@@ -130,3 +130,20 @@ def test_buffer_custom_schedule_preserves_future_utc_time():
     assert result["id"] == "scheduled-1"
     assert seen["variables"]["input"]["mode"] == "customScheduled"
     assert seen["variables"]["input"]["dueAt"].endswith("Z")
+
+
+def test_buffer_api_platform_registry_covers_supported_publishing_services():
+    supported = {
+        "instagram", "threads", "linkedin", "x", "facebook", "tiktok",
+        "googlebusiness", "mastodon", "youtube", "pinterest", "bluesky",
+    }
+    assert {_normalize_buffer_platform(platform) for platform in supported} == supported
+    assert _normalize_buffer_platform("twitter") == "x"
+    assert _normalize_buffer_platform("google_business") == "googlebusiness"
+
+
+def test_buffer_api_rejects_channels_not_supported_for_programmatic_publishing():
+    for platform in ("substack", "startPage", "whatsapp", "reddit", "instagram_personal"):
+        with pytest.raises(HTTPException) as error:
+            _normalize_buffer_platform(platform)
+        assert error.value.status_code == 422
