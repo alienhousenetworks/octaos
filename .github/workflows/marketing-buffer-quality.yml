@@ -44,7 +44,7 @@ jobs:
           pip install -r requirements.txt
       - name: Compile Buffer integration and publishing modules
         run: |
-          python -m compileall -q app/api/v1/endpoints/buffer_oauth.py app/services/integrations/buffer_service.py app/services/marketing/workforce_readiness.py app/services/social/publish_helpers.py app/worker/tasks.py app/api/v1/api.py app/api/v1/endpoints/marketing.py app/core/config.py
+          python -m compileall -q app/api/v1/endpoints/buffer_oauth.py app/services/integrations/buffer_service.py app/services/marketing/workforce_readiness.py app/services/social/publish_helpers.py app/worker/tasks.py app/api/v1/api.py app/api/v1/endpoints/marketing.py app/core/config.py app/core/celery_app.py
       - name: Run Buffer integration tests
         run: pytest -q tests/marketing/test_buffer_oauth.py tests/marketing/test_workforce_readiness.py
       - name: Frontend type check
