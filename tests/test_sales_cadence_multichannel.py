@@ -470,3 +470,40 @@ def test_dispatcher_rejects_cross_tenant_lead_before_provider_call(db_session):
     assert result["sent"] is False
     assert result["reason"] == "tenant_scope_mismatch"
     send.assert_not_called()
+
+
+def test_automated_linkedin_dispatch_requires_sourced_evidence(db_session):
+    authorize_outbound(db_session)
+    db_session.add(APICredential(
+        tenant_id="test_tenant_cadence",
+        provider="apify",
+        encrypted_key=encrypt_api_key("test-apify-token"),
+        settings={"enable_automated_linkedin_send": True},
+    ))
+    lead = Lead(
+        tenant_id="test_tenant_cadence",
+        name="Taylor Example",
+        email="taylor@example.com",
+        company="Example Co",
+        data={
+            "contact": {
+                "linkedin_url": "https://www.linkedin.com/in/taylor-example",
+            },
+        },
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    result = dispatch_sales_touch(
+        db_session,
+        "test_tenant_cadence",
+        lead,
+        channel="linkedin",
+        body="Hi Taylor, I saw a recent update and wanted to connect.",
+        step_number=1,
+    )
+
+    assert result["sent"] is False
+    assert result["reason"] == "outbound_authorization_blocked"
+    assert "source_url_missing_or_invalid" in result["blockers"]
+    assert "need_evidence_missing" in result["blockers"]
