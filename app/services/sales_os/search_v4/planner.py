@@ -117,7 +117,14 @@ def plan_tasks(
             for role in roles:
                 add_coverage(industry, geography, role)
 
-    proposals = []
+    proposals = [
+        _task(
+            spec, "web", provider, "search",
+            " ".join(part for part in (spec.query, geographies[0], roles[0], "looking for") if part),
+            "Baseline explicit-buying-intent query for compatibility and campaign-level discovery.",
+            cost, why, 5,
+        )
+    ]
     for index, (industry, geography, role) in enumerate(coverage):
         subject_parts = [industry, geography, role, spec.query]
         query = " ".join(part for part in subject_parts if part)
