@@ -5,7 +5,7 @@ Defines stable employee identity, organizational structure, policy management, a
 import uuid
 from sqlalchemy import (
     Column, String, Boolean, DateTime, ForeignKey, Integer, Text, JSON,
-    UniqueConstraint, Index
+    UniqueConstraint, Index, CheckConstraint, Numeric
 )
 from sqlalchemy.sql import func
 from app.models.base import Base
@@ -171,8 +171,8 @@ class HRCompensationChange(Base):
     employee_id = Column(String, ForeignKey("hr_employees.id"), nullable=False, index=True)
     requested_by_user_id = Column(String, ForeignKey("users.id"), nullable=False)
     currency = Column(String(3), nullable=False)
-    current_amount = Column(Integer, nullable=True)
-    proposed_amount = Column(Integer, nullable=False)
+    current_amount = Column(Numeric(12, 2), nullable=True)
+    proposed_amount = Column(Numeric(12, 2), nullable=False)
     reason = Column(Text, nullable=False)
     status = Column(String, nullable=False, default="pending_approval")  # pending_approval, approved, rejected, applied
     approver_user_id = Column(String, ForeignKey("users.id"), nullable=True)
