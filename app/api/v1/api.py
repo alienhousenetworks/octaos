@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
     tenants, leads, marketing, llm, commands, dashboard, auth, support, hr,
-    coordination, google, meta_oauth, linkedin_oauth, ceo, system_admin, audit, usage, videos,
+    coordination, google, meta_oauth, linkedin_oauth, ceo, ceo_v5, system_admin, audit, usage, videos,
     enterprise, manager, federated_learning,
     deal_rooms, sales_manager, sales_os, automations, schedules,
     knowledge_connectors, mcp, rooms,
@@ -38,6 +38,7 @@ api_router.include_router(hr_workflow.router, prefix="/hr/workflows", tags=["hr-
 api_router.include_router(candidate_portal.router, prefix="/public/candidate-portal", tags=["candidate-portal"])
 api_router.include_router(coordination.router, prefix="/coordination", tags=["coordination"])
 api_router.include_router(ceo.router, prefix="/ceo", tags=["ceo"])
+api_router.include_router(ceo_v5.router, prefix="/ceo", tags=["ceo-v5"])
 api_router.include_router(google.router, prefix="/google", tags=["google"])
 api_router.include_router(meta_oauth.router, prefix="/meta", tags=["meta-oauth"])
 api_router.include_router(linkedin_oauth.router, prefix="/linkedin", tags=["linkedin-oauth"])
