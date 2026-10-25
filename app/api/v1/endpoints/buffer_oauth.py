@@ -70,7 +70,7 @@ def connect_buffer(
     _: User = Depends(require_permission(Resource.INTEGRATIONS, Action.UPDATE)),
 ):
     """Start Buffer OAuth 2.0 Authorization Code + PKCE flow."""
-    if not settings.BUFFER_CLIENT_ID or not settings.BUFFER_REDIRECT_URI:
+    if not settings.BUFFER_CLIENT_ID or not settings.BUFFER_CLIENT_SECRET or not settings.BUFFER_REDIRECT_URI:
         raise HTTPException(
             status_code=503,
             detail="Buffer one-click connection is not configured. Set BUFFER_CLIENT_ID and BUFFER_REDIRECT_URI.",
@@ -165,7 +165,7 @@ def connect_buffer_api_key(
     body: BufferAPIKeyRequest,
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
-    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.UPDATE)),
+    _: User = Depends(require_permission(Resource.INTEGRATIONS, Action.UPDATE)),
 ):
     """BYOK fallback; key is submitted only to the backend and encrypted at rest."""
     save_buffer_tokens(db, tenant_id, {"access_token": body.api_key, "scope": "api-key"}, auth_type="api_key")
@@ -214,9 +214,25 @@ async def publish_approved_post(
     if post.status == "published" or post.external_post_id:
         raise HTTPException(status_code=409, detail="This post already has a Buffer post ID; reconcile before retrying.")
     try:
-        result = await BufferService(db, tenant_id).create_post(
+        buffer = BufferService(db, tenant_id)
+        account = await buffer.account_and_channels()
+        channels = [
+            channel
+            for organization in account.get("organizations", [])
+            for channel in organization.get("channels", [])
+        ]
+        selected = next((channel for channel in channels if channel.get("id") == body.channel_id), None)
+        if not selected:
+            raise HTTPException(status_code=400, detail="Selected channel is not connected to this workspace's Buffer account.")
+        expected = (post.platform or "").lower().replace("twitter", "x")
+        actual = (selected.get("service") or "").lower().replace("twitter", "x")
+        if expected and expected not in actual and actual not in expected:
+            raise HTTPException(status_code=409, detail="Selected Buffer channel does not match this post's target platform.")
+        result = await buffer.create_post(
             channel_id=body.channel_id, text=post.content or "", scheduled_at=body.scheduled_at
         )
+    except HTTPException:
+        raise
     except BufferAPIError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     post.external_post_id = result["id"]
@@ -241,7 +257,7 @@ async def publish_approved_post(
 def disconnect_buffer_account(
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
-    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.UPDATE)),
+    _: User = Depends(require_permission(Resource.INTEGRATIONS, Action.UPDATE)),
 ):
     disconnected = disconnect_buffer(db, tenant_id)
     return {"connected": False, "disconnected": disconnected}
