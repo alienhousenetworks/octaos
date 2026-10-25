@@ -1,4 +1,4 @@
-"""Marketing Vertical Packs Registry and Preview Switch Engine."""
+"""Industry-neutral Marketing defaults with legacy pack lookup retained for isolated extensions."""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -23,8 +23,8 @@ PACK_ALIASES: Dict[str, str] = {
 
 
 def list_marketing_packs() -> List[Dict[str, Any]]:
-    """Return all registered 18 marketing vertical packs."""
-    return [dict(PACKS[pack_id]) for pack_id in PACK_ORDER]
+    """Do not expose industry packs in the general Marketing experience."""
+    return []
 
 
 def get_marketing_pack(pack_id: Optional[str]) -> Optional[Dict[str, Any]]:
@@ -51,39 +51,29 @@ def default_terminology() -> Dict[str, str]:
     return dict(DEFAULT_TERMINOLOGY)
 
 
-def terminology_for(pack_id: Optional[str]) -> Dict[str, str]:
-    pack = get_marketing_pack(pack_id)
-    if not pack:
-        return default_terminology()
-    return dict(pack.get("terminology", DEFAULT_TERMINOLOGY))
+def terminology_for(pack_id: Optional[str] = None) -> Dict[str, str]:
+    """General campaigns always use neutral terms; legacy pack IDs cannot override them."""
+    return default_terminology()
 
 
-def get_content_pillars(pack_id: Optional[str]) -> List[Dict[str, Any]]:
-    pack = get_marketing_pack(pack_id)
-    if not pack:
-        return []
-    return list(pack.get("content_pillars", []))
+def get_content_pillars(pack_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Content pillars are generated from business context, not a fixed industry catalog."""
+    return []
 
 
-def get_compliance_rules(pack_id: Optional[str]) -> Dict[str, Any]:
-    pack = get_marketing_pack(pack_id)
-    if not pack:
-        return {"prohibited_guarantees": [], "taboo_words": [], "required_disclosures": []}
-    return dict(pack.get("compliance_guardrails", {}))
+def get_compliance_rules(pack_id: Optional[str] = None) -> Dict[str, Any]:
+    """Do not inject industry-specific compliance rules into general campaigns."""
+    return {"prohibited_guarantees": [], "taboo_words": [], "required_disclosures": []}
 
 
-def get_visual_tokens(pack_id: Optional[str]) -> Dict[str, Any]:
-    pack = get_marketing_pack(pack_id)
-    if not pack:
-        return {}
-    return dict(pack.get("visual_creative_tokens", {}))
+def get_visual_tokens(pack_id: Optional[str] = None) -> Dict[str, Any]:
+    """Creative direction should be inferred from brand assets and campaign goals."""
+    return {}
 
 
-def get_calendar_events(pack_id: Optional[str]) -> List[Dict[str, Any]]:
-    pack = get_marketing_pack(pack_id)
-    if not pack:
-        return []
-    return list(pack.get("industry_calendar_events", []))
+def get_calendar_events(pack_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Do not add fixed industry events to a general marketing calendar."""
+    return []
 
 
 def preview_marketing_switch(
