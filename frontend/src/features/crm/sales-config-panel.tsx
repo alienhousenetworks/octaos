@@ -189,6 +189,94 @@ export default function SalesConfigPanel({
         </div>
       </Card>
 
+      {/* Explicit first-touch authorization. All controls default to disabled/unknown. */}
+      <Card className="bg-white border border-amber-200 rounded-2xl p-6 shadow-sm space-y-4">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <ShieldCheck size={16} className="text-amber-600" />
+            Outbound Sending Authorization
+          </h3>
+          <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+            Sending is disabled by default. Enabling it does not bypass evidence, contact, suppression, provider, or channel checks.
+            Only enable sending after your organization has documented the required permission or lawful basis for the target markets.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={salesSettings.sales_ai_auto_send_enabled}
+              disabled={salesSettingsSaving}
+              onChange={(e) => onSaveSalesSettings({
+                ...salesSettings,
+                sales_ai_auto_send_enabled: e.target.checked,
+              })}
+              className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span>
+              <span className="block text-xs font-bold text-slate-800">Allow automatic first-touch sending</span>
+              <span className="block text-[11px] text-slate-500 mt-1">Only dispatch messages that pass all deterministic readiness gates.</span>
+            </span>
+          </label>
+
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={salesSettings.outbound_permission_state === 'granted'}
+              disabled={salesSettingsSaving}
+              onChange={(e) => onSaveSalesSettings({
+                ...salesSettings,
+                outbound_permission_state: e.target.checked ? 'granted' : 'unknown',
+              })}
+              className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span>
+              <span className="block text-xs font-bold text-slate-800">Confirm outbound permission / lawful basis</span>
+              <span className="block text-[11px] text-slate-500 mt-1">I confirm the applicable permission or lawful basis is documented for this tenant and its target markets.</span>
+            </span>
+          </label>
+
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={salesSettings.whatsapp_permission_state === 'granted'}
+              disabled={salesSettingsSaving}
+              onChange={(e) => onSaveSalesSettings({
+                ...salesSettings,
+                whatsapp_permission_state: e.target.checked ? 'granted' : 'unknown',
+              })}
+              className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span>
+              <span className="block text-xs font-bold text-slate-800">Authorize WhatsApp channel</span>
+              <span className="block text-[11px] text-slate-500 mt-1">Requires an authorized WhatsApp Business integration and separate channel permission.</span>
+            </span>
+          </label>
+
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={salesSettings.whatsapp_opt_in}
+              disabled={salesSettingsSaving}
+              onChange={(e) => onSaveSalesSettings({
+                ...salesSettings,
+                whatsapp_opt_in: e.target.checked,
+              })}
+              className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span>
+              <span className="block text-xs font-bold text-slate-800">WhatsApp recipient opt-in is verified</span>
+              <span className="block text-[11px] text-slate-500 mt-1">The system will not use WhatsApp unless both WhatsApp permission and opt-in are enabled.</span>
+            </span>
+          </label>
+        </div>
+        <p className="text-[11px] text-slate-500">
+          These are tenant-level controls, not proof of permission for every individual. Suppression lists and recipient-specific checks still apply.
+          Keep automatic sending off if you use a review-first workflow.
+        </p>
+      </Card>
+
       {/* Business Profile & ICP Editor */}
       <Card className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm space-y-5">
         <div className="flex items-start justify-between">
