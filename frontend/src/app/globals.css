@@ -206,3 +206,22 @@ hr { border-color: var(--border); }
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
 @media (max-width: 767px) { main { scroll-padding-top: 1rem; } table { min-width: 640px; } }
+
+/* Final contrast guardrails for legacy pages that combine a removed palette with white text. */
+[class*="bg-violet-"][class*="text-white"], [class*="bg-indigo-"][class*="text-white"],
+[class*="bg-purple-"][class*="text-white"], [class*="bg-emerald-"][class*="text-white"],
+[class*="bg-green-"][class*="text-white"], [class*="bg-teal-"][class*="text-white"],
+[class*="bg-cyan-"][class*="text-white"], [class*="bg-sky-"][class*="text-white"],
+[class*="bg-blue-"][class*="text-white"], [class*="bg-rose-"][class*="text-white"],
+[class*="bg-red-"][class*="text-white"], [class*="bg-orange-"][class*="text-white"],
+[class*="bg-amber-"][class*="text-white"], [class*="bg-yellow-"][class*="text-white"],
+[class*="bg-pink-"][class*="text-white"], [class*="bg-fuchsia-"][class*="text-white"] {
+  color: var(--foreground) !important;
+}
+[class*="text-gray-900"], [class*="text-gray-800"], [class*="text-slate-900"],
+[class*="text-slate-800"], [class*="text-zinc-900"], [class*="text-zinc-800"] {
+  color: var(--foreground) !important;
+}
+[class*="text-gray-700"], [class*="text-slate-700"], [class*="text-zinc-700"] {
+  color: #475467 !important;
+}
