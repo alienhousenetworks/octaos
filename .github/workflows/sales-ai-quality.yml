@@ -59,7 +59,7 @@ jobs:
 
       - name: Run deterministic Sales AI quality gates
         run: |
-          pytest -q tests/test_sales_quality_gates.py tests/test_sales_gatekeeper.py
+          pytest -q tests/test_sales_quality_gates.py tests/test_sales_gatekeeper.py tests/test_sales_cadence_multichannel.py
 
       - name: Run Search V4 discovery and evidence tests
         run: |
