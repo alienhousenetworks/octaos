@@ -213,3 +213,24 @@ class ShiftDemand(Base):
         CheckConstraint("ends_at > starts_at", name="chk_hr_shift_demand_window"),
         CheckConstraint("required_headcount >= 1", name="chk_hr_shift_demand_headcount"),
     )
+
+
+class HRLaborRule(Base):
+    """Tenant-configured scheduling limits; unset limits are deliberately not inferred."""
+    __tablename__ = "hr_labor_rules"
+
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, unique=True, index=True)
+    jurisdiction = Column(String, nullable=False)
+    minimum_rest_hours = Column(Float, nullable=True)
+    maximum_shift_hours = Column(Float, nullable=True)
+    maximum_weekly_hours = Column(Float, nullable=True)
+    updated_by_user_id = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        CheckConstraint("minimum_rest_hours IS NULL OR (minimum_rest_hours >= 0 AND minimum_rest_hours <= 24)", name="chk_hr_labor_rest_hours"),
+        CheckConstraint("maximum_shift_hours IS NULL OR maximum_shift_hours > 0", name="chk_hr_labor_max_shift"),
+        CheckConstraint("maximum_weekly_hours IS NULL OR maximum_weekly_hours > 0", name="chk_hr_labor_max_weekly"),
+    )
