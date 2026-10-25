@@ -51,7 +51,7 @@ def _require_hr_role(user: User, approve: bool = False, permission: Optional[str
 
 
 def _require_self_or_hr(user: User, employee: EmployeeProfile) -> None:
-    if getattr(user, "is_system_admin", False) or getattr(user, "is_superuser", False) or _has_hr_permission(user, "hr.manage_leave") or _has_hr_permission(user, "hr.manage_employees"):
+    if getattr(user, "is_system_admin", False) or getattr(user, "is_superuser", False) or _has_hr_permission(user, "hr.manage_leave") or _has_hr_permission(user, "hr.manage_employees") or _has_hr_permission(user, "hr.manage_workforce"):
         return
     if employee.user_id and str(employee.user_id) == str(user.id):
         return
@@ -443,6 +443,31 @@ def punch_attendance(
         "clock_out": rec.clock_out.strftime("%H:%M") if rec.clock_out else None,
         "total_hours": rec.total_hours
     }
+
+
+@router.get("/attendance/{employee_id}/audit")
+def list_attendance_audit(
+    employee_id: str,
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
+):
+    employee = db.query(EmployeeProfile).filter_by(id=employee_id, tenant_id=tenant_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+    _require_self_or_hr(current_user, employee)
+    rows = db.query(AttendanceAuditEvent).filter_by(
+        tenant_id=tenant_id, employee_id=employee.id
+    ).order_by(AttendanceAuditEvent.created_at.desc()).limit(limit).all()
+    return [{
+        "id": row.id, "attendance_record_id": row.attendance_record_id,
+        "employee_id": row.employee_id, "actor_user_id": row.actor_user_id,
+        "event_type": row.event_type, "occurred_at_utc": row.occurred_at_utc.isoformat(),
+        "local_timezone": row.local_timezone, "local_work_date": row.local_work_date,
+        "before_state": row.before_state, "after_state": row.after_state, "source": row.source,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    } for row in rows]
 
 
 @router.get("/rosters")
