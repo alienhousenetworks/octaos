@@ -171,8 +171,9 @@ export default function DashboardView({
     open: 0,
     pending_human: 0,
     resolved: Number(currentMetrics?.tickets_resolved || 0),
-    sla_compliance: 100,
-    sla_breach_rate: 0,
+    sla_compliance: null,
+    sla_breach_rate: null,
+    autonomous_deflection_rate: null,
     autonomous_deflection_rate: 0,
     avg_resolution_latency_min: 0,
   };
@@ -650,7 +651,7 @@ export default function DashboardView({
               />
               <KpiMetricCard
                 label="Autonomous Deflection"
-                value={`${ticketData.autonomous_deflection_rate ?? 0}%`}
+                value={typeof ticketData.autonomous_deflection_rate === 'number' ? `${ticketData.autonomous_deflection_rate}%` : '—'}
                 sparklineData={sparklines.requests}
                 deltaPct={null}
                 deltaText="deflection rate"
@@ -659,7 +660,7 @@ export default function DashboardView({
               />
               <KpiMetricCard
                 label="Support SLA Compliance"
-                value={`${ticketData.sla_compliance}%`}
+                value={typeof ticketData.sla_compliance === 'number' ? `${ticketData.sla_compliance}%` : '—'}
                 sparklineData={sparklines.requests}
                 deltaPct={null}
                 deltaText="within agreement"
