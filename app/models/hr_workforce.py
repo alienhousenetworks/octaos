@@ -168,3 +168,36 @@ class AttendanceAuditEvent(Base):
     after_state = Column(JSON, nullable=False)
     source = Column(String, nullable=False, default="self_service")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class EmployeeAvailability(Base):
+    """Employee availability window used by workforce scheduling."""
+    __tablename__ = "hr_employee_availability"
+
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    employee_id = Column(String, ForeignKey("hr_employees.id"), nullable=False, index=True)
+    starts_at = Column(DateTime(timezone=True), nullable=False)
+    ends_at = Column(DateTime(timezone=True), nullable=False)
+    status = Column(String, nullable=False, default="available")  # available, unavailable, leave
+    source = Column(String, nullable=False, default="employee")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ShiftDemand(Base):
+    """Explicit staffing demand; optimizer must not invent required coverage."""
+    __tablename__ = "hr_shift_demands"
+
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    roster_id = Column(String, ForeignKey("hr_shift_rosters.id"), nullable=False, index=True)
+    shift_name = Column(String, nullable=False)
+    starts_at = Column(DateTime(timezone=True), nullable=False)
+    ends_at = Column(DateTime(timezone=True), nullable=False)
+    role_required = Column(String, nullable=True)
+    required_headcount = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "roster_id", "shift_name", "starts_at", "role_required", name="uq_hr_shift_demand_slot"),
+    )
