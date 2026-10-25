@@ -275,8 +275,8 @@ textarea { min-height: 6rem; }
 
 /* Descendant text from formerly dark cards/dialogs must remain readable after surface conversion. */
 :is(div, section, article, [role="dialog"])[class*="bg-[#"] [class~="text-white"],
-:is(div, section, article, [role="dialog"])[class*="bg-gray-"][class*="text-white"] [class~="text-white"],
-:is(div, section, article, [role="dialog"])[class*="bg-slate-"][class*="text-white"] [class~="text-white"],
-:is(div, section, article, [role="dialog"])[class*="bg-zinc-"][class*="text-white"] [class~="text-white"] {
+:is(div, section, article, [role="dialog"])[class*="bg-gray-"] [class~="text-white"],
+:is(div, section, article, [role="dialog"])[class*="bg-slate-"] [class~="text-white"],
+:is(div, section, article, [role="dialog"])[class*="bg-zinc-"] [class~="text-white"] {
   color: var(--foreground) !important;
 }
