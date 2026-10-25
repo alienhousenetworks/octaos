@@ -299,6 +299,10 @@ export default function SalesView({
     buffer_minutes: 15,
     follow_up_cadence_days: 3,
     max_ai_touchpoints: 5,
+    sales_ai_auto_send_enabled: false,
+    outbound_permission_state: 'unknown',
+    whatsapp_permission_state: 'unknown',
+    whatsapp_opt_in: false,
   });
   const [salesSettingsSaving, setSalesSettingsSaving] = useState(false);
   const [packs, setPacks] = useState<VerticalPack[]>([]);
