@@ -132,19 +132,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const nav = (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
+      <div className="flex h-[68px] items-center gap-3 border-b border-sidebar-border px-4">
         <Link href="/app/home" className="flex min-w-0 items-center gap-2">
           {workspace.logoUrl ? (
-            <img src={workspace.logoUrl} alt="OctaOS" className="h-6 w-auto max-w-[120px] object-contain" />
+            <img src={workspace.logoUrl} alt="OctaOS" className="h-7 w-auto max-w-[132px] object-contain" />
           ) : (
             <span className={`truncate text-sm font-semibold ${collapsed ? 'sr-only' : ''}`}>OctaOS</span>
           )}
         </Link>
       </div>
-      <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Primary">
+      <nav className="flex-1 overflow-y-auto px-2.5 py-4" aria-label="Primary">
         {groups.map((group) => (
-          <div key={group.label} className="mb-4">
-            <p className={`px-2 pb-1 text-xs font-medium text-muted-foreground ${collapsed ? 'sr-only' : ''}`}>{group.label}</p>
+          <div key={group.label} className="mb-5">
+            <p className={`px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80 ${collapsed ? 'sr-only' : ''}`}>{group.label}</p>
             {group.items.map((item) => {
               const Icon = item.icon;
               const isActive = isItemActive(item, pathname);
@@ -154,9 +154,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   href={item.href}
                   id={`nav-${item.id}`}
                   title={item.name}
-                  className={`mb-1 flex h-10 items-center gap-2.5 rounded-lg px-3 text-[13px] transition-colors ${isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium border-l-2 border-primary' : 'text-muted-foreground hover:bg-surface-hover hover:text-foreground'}`}
+                  className={`group/nav mb-1 flex h-10 items-center gap-3 rounded-lg border border-transparent px-3 text-[13px] transition-all ${isActive ? 'border-primary/15 bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-[inset_2px_0_0_var(--primary)]' : 'text-muted-foreground hover:border-border/70 hover:bg-surface-hover hover:text-foreground'}`}
                 >
-                  <Icon className="size-4 shrink-0" />
+                  <Icon className={`size-[17px] shrink-0 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground group-hover/nav:text-foreground'}`} />
                   <span className={`truncate ${collapsed ? 'sr-only' : ''}`}>{item.name}</span>
                   {item.id === 'approvals' && approvalCount ? (
                     <span className={`ml-auto rounded-md bg-warning/10 text-warning border border-warning/20 px-1.5 text-xs font-semibold ${collapsed ? 'sr-only' : ''}`}>{approvalCount}</span>
@@ -167,10 +167,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         ))}
       </nav>
-      <div className="hidden border-t border-sidebar-border p-2 md:block">
+      <div className="hidden border-t border-sidebar-border p-3 md:block">
         <button
           type="button"
-          className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-sm text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
+          className="flex h-10 w-full items-center gap-3 rounded-lg border border-transparent px-3 text-[13px] text-muted-foreground transition-colors hover:border-border hover:bg-surface-hover hover:text-foreground"
           onClick={() => {
             const next = !collapsed;
             setCollapsed(next);
@@ -212,7 +212,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </button>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4 md:px-6">
+        <header className="flex h-[68px] shrink-0 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur md:px-7">
           <button
             type="button"
             className="inline-flex size-9 items-center justify-center rounded-md border border-border md:hidden"
@@ -221,7 +221,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           >
             <Menu className="size-4" />
           </button>
-          <div className="min-w-0 text-sm">
+          <div className="min-w-0 text-[13px]">
             <span className="text-muted-foreground">{crumb.section}</span>
             <span className="px-1.5 text-muted-foreground">/</span>
             <span className="font-medium">{crumb.name}</span>
@@ -270,7 +270,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </DropdownMenu>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-7">{children}</main>
+        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8"><div className="mx-auto w-full max-w-[1680px]">{children}</div></main>
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} profile={profile} />
     </div>
