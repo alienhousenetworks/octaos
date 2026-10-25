@@ -60,7 +60,7 @@ def test_outreach_requires_source_and_specific_evidence():
         permission_state="granted",
     )
     assert result["ready"] is False
-    assert "source_url_missing" in result["blockers"]
+    assert "source_url_missing_or_invalid" in result["blockers"]
     assert "need_evidence_missing" in result["blockers"]
 
 
@@ -134,3 +134,14 @@ def test_central_channel_gate_requires_whatsapp_permission_and_opt_in():
         "whatsapp",
     )
     assert allowed["ready"] is True
+
+
+def test_outreach_rejects_non_http_source_reference():
+    prospect = valid_prospect(evidence_url="company website")
+    result = assess_outreach_readiness(
+        prospect,
+        auto_send_enabled=True,
+        permission_state="granted",
+    )
+    assert result["ready"] is False
+    assert "source_url_missing_or_invalid" in result["blockers"]
