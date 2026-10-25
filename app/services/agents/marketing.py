@@ -570,22 +570,30 @@ Write the complete post caption now. Do not include meta commentary or introduct
     def _evaluate_post_confidence(
         self, brief: Any, brand_knowledge: Dict[str, Any]
     ) -> float:
-        """Heuristic confidence evaluation for auto-scheduling safety gate."""
-        score = 0.88  # base confident score for synthesized brief
-
-        # Higher confidence if verified products exist
-        if brand_knowledge.get("products_catalog"):
-            score += 0.04
-
-        # Higher confidence if approved claims exist
-        if brand_knowledge.get("approved_claims"):
-            score += 0.03
-
-        # Slightly lower if hook is very short
-        if len(getattr(brief, "hook", "")) < 20:
-            score -= 0.08
-
-        return min(0.98, max(0.60, score))
+        """Return a conservative readiness heuristic, not a calibrated probability."""
+        # Start low: the existence of generated text is not evidence that it is correct.
+        score = 0.30
+        products = brand_knowledge.get("products_catalog") or []
+        approved_claims = brand_knowledge.get("approved_claims") or []
+        if products:
+            score += 0.15
+        if approved_claims:
+            score += 0.20
+        context_score = getattr(brief, "context_score", None)
+        try:
+            if context_score is not None and float(context_score) >= 0.70:
+                score += 0.10
+        except (TypeError, ValueError):
+            pass
+        if getattr(brief, "source_url", None):
+            score += 0.05
+        if len(getattr(brief, "hook", "")) >= 20:
+            score += 0.05
+        if len(getattr(brief, "narrative_angle", "")) >= 80:
+            score += 0.05
+        if getattr(brief, "generation_status", "generated") != "generated":
+            score -= 0.20
+        return round(min(0.90, max(0.0, score)), 4)
 
     # ------------------------------------------------------------------ #
     # Existing Campaigns, Analytics & Routine API (Maintained for Compat)
