@@ -916,7 +916,7 @@ Strict Tone & Quality Rules:
                     emit_activity(
                         7,
                         f"Personalized outreach drafted for {c['company_name']}...",
-                        f"[OUTREACH] {c['company_name']}: Drafted pitch tailored to '{first_p[:45]}'",
+                        f"[OUTREACH] {c['company_name']}: Draft status={'ready' if outreach_text else 'blocked_no_draft'}; evidence pain={first_p[:45] if first_p != 'no evidenced pain point' else 'not established'}",
                     )
                     return c
 
@@ -944,7 +944,7 @@ Strict Tone & Quality Rules:
                 if exists:
                     lead = exists
                     lead.score = c.get("qualification_score") if c.get("qualification_score") is not None else c.get("scoring", {}).get("total")
-                    lead.status = "ready" if (contact_email or contact_phone) else "contact_partial"
+                    lead.status = "captured" if (contact_email or contact_phone) else "needs_contact_research"
                     lead.priority = "high" if (c.get("qualification_score") or 0) >= 80 else "medium"
                     lead.why = c.get("why_now") or c.get("buying_signal") or c["qualification_reason"]
                     lead.target_context = f"Archetype: {domain_archetype} | Pain points: {', '.join(c.get('pain_points', []))}"
@@ -957,7 +957,7 @@ Strict Tone & Quality Rules:
                         phone=contact_phone or None,
                         company=c["company_name"],
                         source=f"{c['source']}: V3 Workflow",
-                        status="ready" if (contact_email or contact_phone) else "contact_partial",
+                        status="captured" if (contact_email or contact_phone) else "needs_contact_research",
                         score=(int(c["qualification_score"]) if c.get("qualification_score") is not None else (int(c["scoring"]["total"]) if isinstance(c.get("scoring"), dict) and c["scoring"].get("total") is not None else None)),
                         priority="high" if (c.get("qualification_score") or 0) >= 80 else "medium",
                         assigned_to="Sales AI Agent",
@@ -1042,7 +1042,7 @@ Strict Tone & Quality Rules:
 
                 sent_successfully = bool(delivery.get("sent"))
                 channel_used = delivery.get("channel") or "email"
-                channel_schedule[0]["status"] = "sent" if sent_successfully else "failed"
+                channel_schedule[0]["status"] = "sent" if sent_successfully else ("blocked" if delivery.get("reason") == "outreach_readiness_blocked" else "failed")
                 channel_schedule[0]["delivery_reason"] = delivery.get("reason")
                 conv = []
                 if sent_successfully:
@@ -1087,6 +1087,7 @@ Strict Tone & Quality Rules:
                         "draft_subject": subject,
                         "draft_body": body,
                         "sent_actual": False,
+                        "outreach_readiness": readiness,
                     }
 
                 try:
