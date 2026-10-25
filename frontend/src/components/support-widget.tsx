@@ -337,7 +337,7 @@ export default function SupportWidget({
           {/* Header */}
           <div
             style={{
-              background: `linear-gradient(to right, rgb(17 24 39 / 0.95), rgb(17 24 39 / 0.9), ${activeColor}22)`,
+              background: `linear-gradient(to right, #ffffff, #f8f9fc)`,
             }}
             className="p-4 border-b border-white/10 flex items-center justify-between"
           >
