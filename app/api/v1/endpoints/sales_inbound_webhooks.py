@@ -97,8 +97,16 @@ async def ingest_inbound_lead(
     db.add(evidence)
 
     # Persist in shared CRM
+    from app.models.rooms import SectionRoom
+    sales_room = db.query(SectionRoom).filter(
+        SectionRoom.tenant_id == tenant_id,
+        SectionRoom.section == "sales",
+        SectionRoom.slug == "default"
+    ).first()
+
     lead = Lead(
         tenant_id=tenant_id,
+        room_id=sales_room.id if sales_room else None,
         name=normalized.get("name"),
         email=normalized.get("email"),
         phone=normalized.get("phone"),

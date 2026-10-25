@@ -35,6 +35,21 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string 
     color: 'bg-[#333E4C] text-[#C1CAD6] border border-[#414C5A]',
     dot: 'bg-[#AAB5C4]' 
   },
+  captured: {
+    label: 'Captured Lead',
+    color: 'bg-[#2B3945] text-[#75AFCB] border border-[#75AFCB]/20',
+    dot: 'bg-[#75AFCB]',
+  },
+  ready: {
+    label: 'Ready for Outreach',
+    color: 'bg-[#263D38] text-[#64B99A] border border-[#64B99A]/20',
+    dot: 'bg-[#64B99A]',
+  },
+  contact_partial: {
+    label: 'Partial Contact',
+    color: 'bg-[#443A2D] text-[#D9AD68] border border-[#D9AD68]/20',
+    dot: 'bg-[#D9AD68]',
+  },
   inquiry: {
     label: 'New Inquiry',
     color: 'bg-[#2B3945] text-[#75AFCB] border border-[#75AFCB]/20',

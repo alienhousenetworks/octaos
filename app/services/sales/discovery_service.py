@@ -95,8 +95,15 @@ class DiscoveryService:
             if not exists:
                 source_url = data.get("evidence_url") or data.get("source_url") or data.get("url")
                 evidence_quote = data.get("evidence_quote") or data.get("snippet") or data.get("description")
+                from app.models.rooms import SectionRoom
+                sales_room = self.db.query(SectionRoom).filter(
+                    SectionRoom.tenant_id == self.tenant_id,
+                    SectionRoom.section == "sales",
+                    SectionRoom.slug == "default"
+                ).first()
                 lead = Lead(
                     tenant_id=self.tenant_id,
+                    room_id=sales_room.id if sales_room else None,
                     name=display_name,
                     email=email_value,
                     phone=phone_value,

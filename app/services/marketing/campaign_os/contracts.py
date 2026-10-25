@@ -180,6 +180,7 @@ class FactCheckAuditResult(BaseModel):
     all_claims_grounded: bool = True
     unsupported_claims: List[str] = Field(default_factory=list)
     cited_evidence_ids: List[str] = Field(default_factory=list)
+    status: str = "PASS"  # PASS, FAIL, REVIEW_REQUIRED, UNAVAILABLE
 
 
 class ComplianceAuditResult(BaseModel):
@@ -188,6 +189,8 @@ class ComplianceAuditResult(BaseModel):
     violations: List[str] = Field(default_factory=list)
     brand_voice_score: float = Field(..., ge=0.0, le=1.0)
     banned_words_detected: List[str] = Field(default_factory=list)
+    missing_disclosures: List[str] = Field(default_factory=list)
+    status: str = "PASS"  # PASS, FAIL, REVIEW_REQUIRED
 
 
 class CMOExecutiveVerdict(BaseModel):
@@ -195,10 +198,16 @@ class CMOExecutiveVerdict(BaseModel):
     campaign_title: str
     overall_confidence: float = Field(..., ge=0.0, le=1.0)
     is_approved: bool = True
+    verdict_status: str = "APPROVED"  # APPROVED, APPROVED_WITH_EDITS, REJECTED, NEEDS_INPUT
     executive_summary: str = ""
     total_slots_planned: int = 0
     approved_slots_count: int = 0
     needs_review_count: int = 0
+    required_edits: List[str] = Field(default_factory=list)
+    unresolved_risks: List[str] = Field(default_factory=list)
+    strategic_alignment: Optional[str] = None
+    brand_risk_assessment: Optional[str] = None
+    creative_differentiation: Optional[str] = None
 
 
 class CritiqueScoreCard(BaseModel):
@@ -212,6 +221,8 @@ class CritiqueScoreCard(BaseModel):
     overall_confidence: float = Field(..., ge=0.0, le=1.0)
     is_approved: bool = True
     critique_notes: str = ""
+    fact_check: Optional[FactCheckAuditResult] = None
+    compliance: Optional[ComplianceAuditResult] = None
 
     @field_validator("critique_notes", mode="before")
     @classmethod

@@ -615,7 +615,12 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
             async def _qualify_single(i: int, c: dict):
                 async with sem:
                     emit_activity(3, f"Evaluating budget fit for {c['company_name']} ({i+1}/{len(companies)})...")
-                    prompt = f"""Qualify this target company:
+                    if mode == "prompt_agent":
+                        c["purchasing_capacity"] = c.get("purchasing_capacity") or (parsed_icp.price if 'parsed_icp' in locals() and parsed_icp.price else "Budget-Fit")
+                        c["qualified"] = c.get("contact_status") in ("READY", "CONTACT_PARTIAL")
+                        c["qualification_reason"] = c.get("buying_signal") or "Prompt directive criteria matched."
+                    else:
+                        prompt = f"""Qualify this target company:
 Company Name: {c['company_name']}
 Industry: {c['industry']}
 Estimated Revenue: {c['estimated_revenue']}
@@ -630,15 +635,15 @@ Output a JSON object with:
 - qualified: boolean (true if budget, industry and size align with ICP, false otherwise)
 - reason: string (concise, factual explanation grounded in provided data)
 Only return JSON, no other text."""
-                    try:
-                        qual_str = await self.llm.complete(prompt, provider=provider, model=model) if self.llm else "{}"
-                        qual = extract_json(qual_str)
-                    except Exception:
-                        qual = {"capacity": "Unknown", "qualified": False, "reason": "Insufficient evidence to qualify company budget."}
+                        try:
+                            qual_str = await self.llm.complete(prompt, provider=provider, model=model) if self.llm else "{}"
+                            qual = extract_json(qual_str)
+                        except Exception:
+                            qual = {"capacity": "Unknown", "qualified": False, "reason": "Insufficient evidence to qualify company budget."}
 
-                    c["purchasing_capacity"] = qual.get("capacity", "Unknown")
-                    c["qualified"] = bool(qual.get("qualified", False))
-                    c["qualification_reason"] = qual.get("reason", "Qualification evaluated against target budget and ICP parameters.")
+                        c["purchasing_capacity"] = qual.get("capacity", "Unknown")
+                        c["qualified"] = bool(qual.get("qualified", False))
+                        c["qualification_reason"] = qual.get("reason", "Qualification evaluated against target budget and ICP parameters.")
 
                     verdict = "QUALIFIED" if c["qualified"] else "DISQUALIFIED"
                     emit_activity(
@@ -650,6 +655,14 @@ Only return JSON, no other text."""
 
             await asyncio.gather(*(_qualify_single(i, c) for i, c in enumerate(companies)))
             qualified_companies = [c for c in companies if c.get("qualified")]
+
+            from app.models.rooms import SectionRoom
+            sales_room = self.db.query(SectionRoom).filter(
+                SectionRoom.tenant_id == self.tenant_id,
+                SectionRoom.section == "sales",
+                SectionRoom.slug == "default"
+            ).first()
+            sales_room_id = sales_room.id if sales_room else None
 
             for c in qualified_companies:
                 email_val = c.get("contact", {}).get("email") or ""
@@ -665,6 +678,7 @@ Only return JSON, no other text."""
                 if not exists:
                     lead = Lead(
                         tenant_id=self.tenant_id,
+                        room_id=sales_room_id,
                         name=c["contact"]["name"],
                         email=email_val or None,
                         phone=phone_val or None,
@@ -948,6 +962,8 @@ Strict Tone & Quality Rules:
                 exists = lead_query.first()
                 if exists:
                     lead = exists
+                    if not lead.room_id and sales_room_id:
+                        lead.room_id = sales_room_id
                     lead.score = c.get("qualification_score") if c.get("qualification_score") is not None else c.get("scoring", {}).get("total")
                     lead.status = "captured" if (contact_email or contact_phone) else "needs_contact_research"
                     lead.priority = "high" if (c.get("qualification_score") or 0) >= 80 else "medium"
@@ -957,6 +973,7 @@ Strict Tone & Quality Rules:
                 else:
                     lead = Lead(
                         tenant_id=self.tenant_id,
+                        room_id=sales_room_id,
                         name=c["contact"]["name"],
                         email=contact_email or None,
                         phone=contact_phone or None,

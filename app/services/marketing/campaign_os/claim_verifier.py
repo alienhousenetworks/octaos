@@ -20,6 +20,7 @@ class ClaimVerificationResult(BaseModel):
     verified_claims: List[str] = Field(default_factory=list)
     unsupported_claims: List[str] = Field(default_factory=list)
     citation_coverage_score: float = Field(1.0, ge=0.0, le=1.0)
+    status: str = "PASS"  # PASS, FAIL, REVIEW_REQUIRED, UNAVAILABLE
 
 
 class ClaimVerifier:
@@ -42,6 +43,7 @@ class ClaimVerifier:
                 verified_claims=[],
                 unsupported_claims=[],
                 citation_coverage_score=1.0,
+                status="PASS",
             )
 
         # 2. Compile pool of verified facts text
@@ -76,4 +78,5 @@ class ClaimVerifier:
             verified_claims=verified,
             unsupported_claims=unsupported,
             citation_coverage_score=coverage,
+            status="PASS" if all_grounded else "FAIL",
         )
