@@ -2,7 +2,7 @@
 HR Workforce & Compensation API Endpoints.
 Covers Leave Management, Ledger Balances, Time & Attendance, and Shift Rosters.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import List, Dict, Any, Optional
