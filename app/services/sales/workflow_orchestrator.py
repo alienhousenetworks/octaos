@@ -1015,10 +1015,17 @@ Strict Tone & Quality Rules:
                     suppressed=bool(c.get("suppressed") or c.get("do_not_contact")),
                 )
                 email_allowed = bool(c["contact"].get("email"))
+                lead_data_for_consent = lead.data if isinstance(getattr(lead, "data", None), dict) else {}
+                consent_contact = lead_data_for_consent.get("contact") if isinstance(lead_data_for_consent.get("contact"), dict) else {}
+                recipient_whatsapp_opt_in = (
+                    bool(consent_contact.get("whatsapp_opt_in") or lead_data_for_consent.get("whatsapp_opt_in"))
+                    and bool(consent_contact.get("whatsapp_opt_in_source") or lead_data_for_consent.get("whatsapp_opt_in_source"))
+                    and bool(consent_contact.get("whatsapp_opt_in_at") or lead_data_for_consent.get("whatsapp_opt_in_at"))
+                )
                 whatsapp_allowed = (
                     bool(c["contact"].get("phone"))
                     and str(policy_settings.get("whatsapp_permission_state") or "").lower() == "granted"
-                    and bool(policy_settings.get("whatsapp_opt_in"))
+                    and recipient_whatsapp_opt_in
                 )
                 if outreach_body and readiness["ready"] and email_allowed:
                     delivery = dispatch_sales_touch(
