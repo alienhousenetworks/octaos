@@ -9,6 +9,7 @@ from app.api.v1.endpoints.leads import (
     get_sales_settings,
     save_sales_settings,
     schedule_meeting,
+    send_outreach_smart,
     update_whatsapp_opt_in,
     WhatsAppOptInRequest,
 )
@@ -185,3 +186,40 @@ def test_whatsapp_consent_cannot_override_existing_suppression(db_session):
             "sales-settings-tenant",
         )
     assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_smart_outreach_endpoint_cannot_bypass_permission_gate(db_session):
+    lead = Lead(
+        tenant_id="sales-settings-tenant",
+        name="Taylor Example",
+        email="taylor@example.com",
+        company="Example Co",
+        status="qualified",
+        data={
+            "contact_status": "READY",
+            "contact": {"name": "Taylor Example", "title": "VP Sales"},
+            "evidence_url": "https://example.com/news/expansion",
+            "evidence_quote": "Example Co announced a new regional sales team.",
+            "buying_signal": "Regional expansion",
+        },
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    result = await send_outreach_smart(
+        lead_id=lead.id,
+        payload={
+            "subject": "A question about your expansion",
+            "body": "Hi Taylor, I saw your expansion announcement and wanted to ask about your team's plans. Would a short discussion be useful?",
+        },
+        db=db_session,
+        tenant_id="sales-settings-tenant",
+    )
+    db_session.refresh(lead)
+
+    assert result["sent"] is False
+    assert result["status"] == "blocked"
+    assert "outbound_permission_not_granted" in result["blockers"]
+    assert lead.status == "qualified"
+    assert "outreach_sent_at" not in (lead.data or {})
