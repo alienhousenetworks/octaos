@@ -107,7 +107,7 @@ export default function SalesProspectingPanel({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
-                  Autonomous Agent Active · Step {workflowStatus.current_step || 1} of 10
+                  Sales workflow running · Step {workflowStatus.current_step || 1} of 10
                 </span>
                 <span className="text-xs text-slate-500 font-mono">
                   ({workflowStatus.workflow_name || 'Prospecting Run'})
@@ -157,7 +157,7 @@ export default function SalesProspectingPanel({
 
         <div className="flex items-center gap-2 px-3 py-1 text-xs text-slate-500">
           <Shield size={13} className="text-emerald-600" />
-          <span>Universal Deliverability &amp; MX Verification Active</span>
+          <span>Provider and contact readiness depend on configured, verified sources</span>
         </div>
       </div>
 
