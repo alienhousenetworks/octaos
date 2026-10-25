@@ -181,7 +181,7 @@ async def connect_buffer_api_key(
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
                 "https://api.buffer.com",
-                headers={"Authorization": f"Bearer ${body.api_key}", "Content-Type": "application/json"},
+                headers={"Authorization": "Bearer " + body.api_key, "Content-Type": "application/json"},
                 json={"query": "query OctaOSValidateBufferKey { account { id email organizations { id name } } }"},
             )
         if response.status_code >= 400:
