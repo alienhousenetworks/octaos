@@ -354,17 +354,15 @@ export default function HREnterpriseSuite({
       <header className="overflow-hidden rounded-2xl border border-border bg-card">
         <div className="flex flex-col gap-5 px-5 py-6 sm:px-7 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
-            <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
               <Users className="h-4 w-4" /> People &amp; HR
               <span className="h-1 w-1 rounded-full bg-border" />
               <span>Workforce workspace</span>
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              {screen === 'hiring' ? 'Talent acquisition' : screen === 'leave' ? 'Time off & coverage' : screen === 'operations' ? 'People operations' : 'Your people, in one place'}
-            </h1>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-              {screen === 'hiring' ? 'Manage candidates, recruitment workflows, interviews and hiring documents.' : screen === 'leave' ? 'Review leave requests and understand team coverage from returned workforce data.' : screen === 'operations' ? 'Manage employee requests, reviews, lifecycle tasks, attendance and governed decisions.' : 'A connected workspace for your employee directory, hiring pipeline, time off and everyday people operations.'}
-            </p>
+            {screen === 'people' ? <>
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Your people, in one place</h1>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">A connected workspace for your employee directory, hiring pipeline, time off and everyday people operations.</p>
+            </> : <p className="text-sm text-muted-foreground">Navigate between employee records, talent acquisition, time off and workforce operations.</p>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={() => { void loadEmployees(); void loadLeaves(); void loadAnalytics(); }} className="gap-2">
