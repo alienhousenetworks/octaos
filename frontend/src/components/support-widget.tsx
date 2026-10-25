@@ -60,11 +60,11 @@ export default function SupportWidget({
   }>({
     title: 'Customer Support',
     welcome_message: 'Hi there! How can we assist you today?',
-    brand_color: '#365bd6',
+    brand_color: '#7888D9',
     live_chat_available: false,
   });
 
-  const activeColor = brandColor || config.brand_color || '#365bd6';
+  const activeColor = brandColor || config.brand_color || '#7888D9';
   const activeTitle = title || config.title || 'Customer Support';
   const activeWelcome = welcomeMessage || config.welcome_message || 'Hi there! How can we assist you today?';
 
@@ -337,7 +337,7 @@ export default function SupportWidget({
           {/* Header */}
           <div
             style={{
-              background: `linear-gradient(to right, #ffffff, #f8f9fc)`,
+              background: `linear-gradient(to right, #1C222B, #29323E)`,
             }}
             className="p-4 border-b border-white/10 flex items-center justify-between"
           >
