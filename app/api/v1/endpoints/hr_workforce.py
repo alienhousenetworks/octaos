@@ -15,7 +15,7 @@ from app.models.base import User
 from app.models.hr_core import EmployeeProfile
 from app.models.hr_workforce import (
     LeaveType, LeaveLedgerEntry, LeaveRequest, AttendanceRecord, AttendanceAuditEvent, ShiftRoster, ShiftAssignment,
-    EmployeeAvailability, ShiftDemand
+    EmployeeAvailability, ShiftDemand, HRLaborRule
 )
 from app.services.agents.hr.specialists.leave_impact import LeaveImpactSpecialist
 from app.services.agents.hr.approval_bridge import HRApprovalBridge
@@ -71,6 +71,13 @@ class AttendancePunchRequest(BaseModel):
     punch_type: str = "clock_in"  # clock_in, clock_out
     work_date: Optional[str] = None
     timezone: str = "UTC"
+
+
+class LaborRuleUpsertRequest(BaseModel):
+    jurisdiction: str = Field(min_length=2, max_length=120)
+    minimum_rest_hours: Optional[float] = Field(default=None, ge=0, le=24)
+    maximum_shift_hours: Optional[float] = Field(default=None, gt=0, le=24)
+    maximum_weekly_hours: Optional[float] = Field(default=None, gt=0, le=168)
 
 
 class RosterOptimizeRequest(BaseModel):
@@ -579,6 +586,59 @@ def create_shift_demand(
     return {"id": demand.id, "roster_id": demand.roster_id, "required_headcount": demand.required_headcount}
 
 
+@router.put("/labor-rules")
+def upsert_labor_rules(
+    payload: LaborRuleUpsertRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """Set tenant labor limits explicitly; no jurisdictional rule is guessed."""
+    _require_hr_role(current_user, permission="hr.manage_workforce")
+    if payload.minimum_rest_hours is None and payload.maximum_shift_hours is None and payload.maximum_weekly_hours is None:
+        raise HTTPException(status_code=422, detail="Configure at least one labor limit; empty rules are not useful.")
+    row = db.query(HRLaborRule).filter_by(tenant_id=tenant_id).with_for_update().first()
+    if row is None:
+        row = HRLaborRule(tenant_id=tenant_id, updated_by_user_id=str(current_user.id))
+        db.add(row)
+    row.jurisdiction = payload.jurisdiction.strip()
+    row.minimum_rest_hours = payload.minimum_rest_hours
+    row.maximum_shift_hours = payload.maximum_shift_hours
+    row.maximum_weekly_hours = payload.maximum_weekly_hours
+    row.updated_by_user_id = str(current_user.id)
+    try:
+        db.commit()
+        db.refresh(row)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Labor rules changed concurrently; refresh and retry.")
+    return {
+        "tenant_id": row.tenant_id, "jurisdiction": row.jurisdiction,
+        "minimum_rest_hours": row.minimum_rest_hours,
+        "maximum_shift_hours": row.maximum_shift_hours,
+        "maximum_weekly_hours": row.maximum_weekly_hours,
+        "updated_by_user_id": row.updated_by_user_id,
+    }
+
+
+@router.get("/labor-rules")
+def get_labor_rules(
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(deps.get_current_user),
+):
+    _require_hr_role(current_user, permission="hr.manage_workforce")
+    row = db.query(HRLaborRule).filter_by(tenant_id=tenant_id).first()
+    if row is None:
+        return {"configured": False, "message": "No labor limits configured; labor compliance is not evaluated."}
+    return {
+        "configured": True, "tenant_id": row.tenant_id, "jurisdiction": row.jurisdiction,
+        "minimum_rest_hours": row.minimum_rest_hours,
+        "maximum_shift_hours": row.maximum_shift_hours,
+        "maximum_weekly_hours": row.maximum_weekly_hours,
+    }
+
+
 @router.post("/rosters/optimize")
 def optimize_roster(
     payload: RosterOptimizeRequest,
@@ -597,6 +657,7 @@ def optimize_roster(
     if not demands:
         raise HTTPException(status_code=422, detail="Configure explicit staffing demand before optimization; demand is never invented.")
     employees = db.query(EmployeeProfile).filter_by(tenant_id=tenant_id, status="active").all()
+    labor_rules = db.query(HRLaborRule).filter_by(tenant_id=tenant_id).first()
     availability = db.query(EmployeeAvailability).filter_by(tenant_id=tenant_id, status="available").all()
     unavailable = db.query(EmployeeAvailability).filter_by(tenant_id=tenant_id).filter(EmployeeAvailability.status.in_(["unavailable", "leave"])).all()
     availability_by_employee = {}
@@ -638,6 +699,37 @@ def optimize_roster(
                     continue
                 if any(p["employee_id"] == emp.id and overlaps(demand.starts_at, demand.ends_at, p["start_time"], p["end_time"]) for p in planned):
                     continue
+                # Apply only limits explicitly configured by this tenant. All comparisons use UTC.
+                candidate_start, candidate_end = _as_utc(demand.starts_at), _as_utc(demand.ends_at)
+                candidate_hours = (candidate_end - candidate_start).total_seconds() / 3600.0
+                if labor_rules and labor_rules.maximum_shift_hours is not None and candidate_hours > labor_rules.maximum_shift_hours:
+                    continue
+                existing_for_employee = [
+                    ( _as_utc(a.start_time), _as_utc(a.end_time) )
+                    for a in other_assignments if a.employee_id == emp.id
+                ] + [
+                    (_as_utc(p["start_time"]), _as_utc(p["end_time"]))
+                    for p in planned if p["employee_id"] == emp.id
+                ]
+                if labor_rules and labor_rules.minimum_rest_hours is not None:
+                    rest_seconds = labor_rules.minimum_rest_hours * 3600
+                    if any(
+                        0 <= (candidate_start - end).total_seconds() < rest_seconds
+                        or 0 <= (start - candidate_end).total_seconds() < rest_seconds
+                        for start, end in existing_for_employee
+                    ):
+                        continue
+                if labor_rules and labor_rules.maximum_weekly_hours is not None:
+                    week_start = candidate_start.replace(hour=0, minute=0, second=0, microsecond=0)
+                    week_start = week_start - timedelta(days=week_start.weekday())
+                    week_end = week_start + timedelta(days=7)
+                    weekly_seconds = candidate_hours * 3600
+                    for start, end in existing_for_employee:
+                        clipped_start, clipped_end = max(start, week_start), min(end, week_end)
+                        if clipped_end > clipped_start:
+                            weekly_seconds += (clipped_end - clipped_start).total_seconds()
+                    if weekly_seconds / 3600.0 > labor_rules.maximum_weekly_hours:
+                        continue
                 # Prefer employees with fewer already-planned hours in this roster.
                 hours = sum((_as_utc(p["end_time"]) - _as_utc(p["start_time"])).total_seconds() for p in planned if p["employee_id"] == emp.id)
                 candidates.append((hours, emp.id, emp))
@@ -674,6 +766,10 @@ def optimize_roster(
         "assignments_created": assigned_total,
         "constraint_violations": violations,
         "constraints_checked": ["explicit_staffing_demand", "declared_availability", "unavailability_and_leave_windows",
-                                "role_skill_match", "overlapping_assignments_in_other_rosters", "overlapping_assignments_in_this_roster"],
-        "constraints_not_modeled": ["jurisdiction_specific_labor_law", "minimum_rest_period", "maximum_weekly_hours", "budget_cost"],
+                                "role_skill_match", "overlapping_assignments_in_other_rosters", "overlapping_assignments_in_this_roster"]
+                               + (["configured_minimum_rest_period"] if labor_rules and labor_rules.minimum_rest_hours is not None else [])
+                               + (["configured_maximum_shift_hours"] if labor_rules and labor_rules.maximum_shift_hours is not None else [])
+                               + (["configured_maximum_weekly_hours"] if labor_rules and labor_rules.maximum_weekly_hours is not None else []),
+        "labor_rule_jurisdiction": labor_rules.jurisdiction if labor_rules else None,
+        "constraints_not_modeled": ["jurisdiction_specific_statutory_interpretation", "budget_cost", "overnight_shift_week_boundary_policy"],
     }
