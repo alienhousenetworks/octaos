@@ -14,7 +14,6 @@ import {
   Plus,
   FileSpreadsheet,
   Download,
-  ArrowUpRight,
   TrendingUp,
   Sparkles,
 } from 'lucide-react';
@@ -85,7 +84,9 @@ export default function HRHeader({
   // SVG Circular Ring Calculation for Avg Match
   const radius = 18;
   const circumference = 2 * Math.PI * radius;
-  const strokeOffset = circumference - (Math.min(100, Math.max(0, avgMatchScore)) / 100) * circumference;
+  const hasCandidates = candidatesCount > 0;
+  const safeMatchScore = hasCandidates && Number.isFinite(avgMatchScore) ? Math.min(100, Math.max(0, avgMatchScore)) : null;
+  const strokeOffset = circumference - ((safeMatchScore ?? 0) / 100) * circumference;
 
   return (
     <div className="space-y-4">
@@ -158,9 +159,7 @@ export default function HRHeader({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Total Talent Pool
             </span>
-            <span className="text-[10px] font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full border border-success/20 flex items-center gap-0.5">
-              <ArrowUpRight size={10} /> Active
-            </span>
+            <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">Candidate records</span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
             <div>
@@ -182,7 +181,7 @@ export default function HRHeader({
               Screened &amp; Matched
             </span>
             <span className="text-[10px] font-semibold text-info bg-info/10 px-2 py-0.5 rounded-full border border-info/20">
-              {candidatesCount > 0 ? `${Math.round((screenedCount / candidatesCount) * 100)}%` : '0%'}
+              {candidatesCount > 0 ? `${Math.round((screenedCount / candidatesCount) * 100)}%` : '—'}
             </span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
@@ -204,9 +203,7 @@ export default function HRHeader({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               In Interview
             </span>
-            <span className="text-[10px] font-semibold text-warning bg-warning/10 px-2 py-0.5 rounded-full border border-warning/20">
-              Rounds Active
-            </span>
+            <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">Interview records</span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
             <div>
@@ -227,9 +224,7 @@ export default function HRHeader({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Offered &amp; Hired
             </span>
-            <span className="text-[10px] font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full border border-success/20">
-              Closing
-            </span>
+            <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">Offer stage</span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
             <div>
@@ -250,17 +245,15 @@ export default function HRHeader({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Avg ATS Fit
             </span>
-            <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
-              AI Hybrid
-            </span>
+            <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">ATS score</span>
           </div>
           <div className="mt-2 flex items-center justify-between">
             <div>
               <div className="flex items-baseline gap-1">
                 <span className="text-2xl font-bold tracking-tight text-foreground font-mono">
-                  {avgMatchScore}
+                  {safeMatchScore === null ? '—' : Math.round(safeMatchScore)}
                 </span>
-                <span className="text-xs text-muted-foreground font-semibold">%</span>
+                {safeMatchScore !== null && <span className="text-xs text-muted-foreground font-semibold">%</span>}
               </div>
               <p className="text-[11px] text-muted-foreground mt-0.5">Semantic match</p>
             </div>
@@ -291,7 +284,7 @@ export default function HRHeader({
                 />
               </svg>
               <div className="absolute text-[10px] font-bold text-foreground">
-                <Award size={13} className="text-primary" />
+                {safeMatchScore === null ? <span className="text-muted-foreground">—</span> : <Award size={13} className="text-primary" />}
               </div>
             </div>
           </div>
