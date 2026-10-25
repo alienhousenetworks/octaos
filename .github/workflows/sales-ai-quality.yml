@@ -6,6 +6,7 @@ on:
       - "app/services/sales/**"
       - "app/services/sales_os/**"
       - "app/api/v1/endpoints/leads.py"
+      - "app/core/rbac.py"
       - "tests/test_sales_quality_gates.py"
       - "tests/test_sales_gatekeeper.py"
       - "tests/test_sales_cadence_multichannel.py"
@@ -77,7 +78,8 @@ jobs:
             app/services/sales_os/quality_gates.py \
             app/services/sales_os/search_v4/planner.py \
             app/services/sales_os/search_v4/engine.py \
-            app/api/v1/endpoints/leads.py
+            app/api/v1/endpoints/leads.py \
+            app/core/rbac.py
 
       - name: Run deterministic Sales AI quality and dispatcher tests
         run: |
