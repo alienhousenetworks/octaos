@@ -86,6 +86,21 @@ def plan_tasks(
             "The paid web estimate exceeds the remaining budget. Using the existing DuckDuckGo path.",
             0.0,
         )
+    web_options = [(provider, cost, why)]
+    if provider != "duckduckgo":
+        configured_options = []
+        if credentials.get("brave_search") and health.allows("brave"):
+            configured_options.append(("brave", web_cost("brave"), "Configured Brave Search provides an independent web result set."))
+        if credentials.get("tavily") and health.allows("tavily"):
+            configured_options.append(("tavily", web_cost("tavily"), "Configured Tavily provides an independent web result set."))
+        # Use the yield-selected provider first, then diversify later queries only
+        # when another provider is configured and the budget ledger can reserve it.
+        web_options = [next((item for item in configured_options if item[0] == provider), (provider, cost, why))]
+        web_options.extend(item for item in configured_options if item[0] != provider)
+
+    def web_route(index: int) -> tuple[str, float, str]:
+        return web_options[index % len(web_options)]
+
     def unique(values: list[str]) -> list[str]:
         result = []
         for value in values:
@@ -117,23 +132,25 @@ def plan_tasks(
             for role in roles:
                 add_coverage(industry, geography, role)
 
+    base_provider, base_cost, base_reason = web_route(0)
     proposals = [
         _task(
-            spec, "web", provider, "search",
+            spec, "web", base_provider, "search",
             " ".join(part for part in (spec.query, geographies[0], roles[0], "looking for") if part),
             "Baseline explicit-buying-intent query for compatibility and campaign-level discovery.",
-            cost, why, 5,
+            base_cost, base_reason, 5,
         )
     ]
     for index, (industry, geography, role) in enumerate(coverage):
+        route_provider, route_cost, route_reason = web_route(index + 1)
         subject_parts = [industry, geography, role, spec.query]
         query = " ".join(part for part in subject_parts if part)
         query += " companies with relevant business needs vendors RFP"
         proposals.append(
             _task(
-                spec, "web", provider, "search", query,
+                spec, "web", route_provider, "search", query,
                 "Find distinct companies across the campaign's industry, geography, and buyer-role coverage.",
-                cost, why, 10 + index,
+                route_cost, route_reason, 10 + index,
             )
         )
 
