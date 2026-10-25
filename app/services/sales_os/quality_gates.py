@@ -39,6 +39,8 @@ def assess_outreach_readiness(
         blockers.append("contact_identity_unverified")
     if not (str(contact.get("email") or "").strip() or str(contact.get("phone") or "").strip()):
         blockers.append("no_contact_route")
+    if str(prospect.get("contact_status") or "").upper() != "READY":
+        blockers.append("contact_not_qualified_by_discovery")
 
     evidence_url = str(prospect.get("evidence_url") or "").strip()
     evidence_quote = str(prospect.get("evidence_quote") or "").strip()
