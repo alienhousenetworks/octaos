@@ -62,9 +62,13 @@ class AgentRuntime:
                 system_prompt=system_prompt,
                 task_type=agent.department,
             )
-        except Exception as e:
-            # Fallback to simulated response if no external API key is active
-            raw_response = self._synthesize_agent_response(agent.name, input_context, allowed_tools)
+        except Exception as exc:
+            # Production execution must fail visibly rather than fabricate agent output.
+            # Simulation belongs in an explicitly selected test/dry-run harness.
+            raise RuntimeError(
+                f"Agent provider execution failed for agent '{agent_id}' "
+                f"(provider={provider!r}, model={model!r}); no result was generated."
+            ) from exc
 
         # 7. Parse Output and Tool Calls
         parsed_output, tool_invocations = self._parse_agent_output(raw_response, allowed_tools)

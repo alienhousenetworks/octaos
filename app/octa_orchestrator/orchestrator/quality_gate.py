@@ -11,6 +11,14 @@ class QualityGate:
                 "reason": f"Output for {task_id} is too short or empty."
             }
             
+        unavailable_markers = ["[UNAVAILABLE]", "[DATA_UNAVAILABLE]", "[SIMULATION_ONLY]"]
+        for marker in unavailable_markers:
+            if marker in output_content:
+                return {
+                    "passed": False,
+                    "reason": f"Output is not a verified result: {marker}"
+                }
+
         error_keywords = ["Exception:", "Traceback (most recent call last):", "HTTP 500", "Fatal error"]
         for kw in error_keywords:
             if kw in output_content:

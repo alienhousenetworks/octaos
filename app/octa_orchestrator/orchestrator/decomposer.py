@@ -1,6 +1,6 @@
 import json
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import List, Optional
 
 class SubTask(BaseModel):
@@ -14,6 +14,40 @@ class ExecutionPlanDAG(BaseModel):
     goal: str
     tasks: List[SubTask]
     estimated_total_roi: str
+
+    @model_validator(mode="after")
+    def validate_dependency_graph(self):
+        ids = [task.task_id for task in self.tasks]
+        if not ids or len(ids) != len(set(ids)):
+            raise ValueError("Execution plan must contain tasks with unique IDs")
+        known = set(ids)
+        indegree = {task.task_id: 0 for task in self.tasks}
+        children = {task.task_id: [] for task in self.tasks}
+        for task in self.tasks:
+            if not task.description.strip() or not task.assigned_agent.strip():
+                raise ValueError(f"Task {task.task_id} is missing a description or assigned agent")
+            if len(task.dependencies) != len(set(task.dependencies)):
+                raise ValueError(f"Task {task.task_id} contains duplicate dependencies")
+            missing = set(task.dependencies) - known
+            if missing:
+                raise ValueError(f"Task {task.task_id} has unknown dependencies: {sorted(missing)}")
+            if task.task_id in task.dependencies:
+                raise ValueError(f"Task {task.task_id} cannot depend on itself")
+            indegree[task.task_id] = len(task.dependencies)
+            for parent in task.dependencies:
+                children[parent].append(task.task_id)
+        ready = [task_id for task_id, degree in indegree.items() if degree == 0]
+        visited = 0
+        while ready:
+            node = ready.pop()
+            visited += 1
+            for child in children[node]:
+                indegree[child] -= 1
+                if indegree[child] == 0:
+                    ready.append(child)
+        if visited != len(ids):
+            raise ValueError("Execution plan contains a dependency cycle")
+        return self
 
 DECOMPOSER_PROMPT = """
 You are the AI Executive Manager. Break down the user's high-level request into a Directed Acyclic Graph (DAG) of actionable sub-tasks.
@@ -32,7 +66,7 @@ Return ONLY valid JSON matching this schema:
       "roi_priority": 1
     }}
   ],
-  "estimated_total_roi": "High ROI - expected 5x efficiency improvement"
+  "estimated_total_roi": "Not assessed until measured evidence is available"
 }}
 """
 
@@ -57,24 +91,11 @@ class DAGDecomposer:
         try:
             async with httpx.AsyncClient() as client:
                 res = await client.post(self.slm_url, json=payload, headers=headers, timeout=40.0)
-                if res.status_code == 200:
-                    data = res.json()["choices"][0]["message"]["content"]
-                    parsed = json.loads(data)
-                    return ExecutionPlanDAG(**parsed)
-        except Exception:
-            pass
-
-        # Fallback structured DAG
-        return ExecutionPlanDAG(
-            goal=user_goal,
-            tasks=[
-                SubTask(
-                    task_id="task_1",
-                    description=user_goal,
-                    assigned_agent="executive_agent",
-                    dependencies=[],
-                    roi_priority=1
-                )
-            ],
-            estimated_total_roi="Standard verified execution"
-        )
+                if res.status_code != 200:
+                    raise RuntimeError(f"Planner provider returned HTTP {res.status_code}")
+                data = res.json()["choices"][0]["message"]["content"]
+                parsed = json.loads(data)
+                return ExecutionPlanDAG(**parsed)
+        except Exception as exc:
+            # Never replace a failed plan with a generic task labelled as successful.
+            raise RuntimeError("Orchestration planning failed; no execution plan was accepted.") from exc
