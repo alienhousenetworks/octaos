@@ -86,6 +86,44 @@ class ContentPost(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+
+class MarketingExecution(Base):
+    """Durable tenant-scoped run record for resumable marketing workflows."""
+    __tablename__ = "marketing_executions"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    workflow_type = Column(String, nullable=False, index=True)
+    idempotency_key = Column(String, nullable=False)
+    request_hash = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="queued", index=True)
+    current_stage = Column(String, nullable=True)
+    attempts = Column(Integer, nullable=False, default=0)
+    request_payload = Column(JSON, nullable=True)
+    result_payload = Column(JSON, nullable=True)
+    error = Column(Text, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class MarketingExecutionStep(Base):
+    """Append-oriented stage history for debugging and bounded recovery."""
+    __tablename__ = "marketing_execution_steps"
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    execution_id = Column(String, ForeignKey("marketing_executions.id"), nullable=False, index=True)
+    stage_id = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="pending")
+    attempt = Column(Integer, nullable=False, default=1)
+    input_payload = Column(JSON, nullable=True)
+    output_payload = Column(JSON, nullable=True)
+    error = Column(Text, nullable=True)
+    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class TenantModelRegistry(Base):
     """Tenant-specific registry for curated and custom Bring-Your-Own-Model entries."""
     __tablename__ = "tenant_model_registry"
