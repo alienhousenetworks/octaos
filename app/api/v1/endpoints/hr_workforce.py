@@ -4,6 +4,7 @@ Covers Leave Management, Ledger Balances, Time & Attendance, and Shift Rosters.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from datetime import datetime, timedelta, timezone
@@ -35,6 +36,10 @@ def _has_hr_permission(user: User, codename: str) -> bool:
     for group in (getattr(user, "groups", None) or []):
         effective.update(getattr(permission, "codename", "") for permission in (getattr(group, "permissions", None) or []))
     return codename in effective
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
 
 
 def _require_hr_role(user: User, approve: bool = False, permission: Optional[str] = None) -> None:
@@ -505,7 +510,7 @@ def create_shift_demand(
         raise HTTPException(status_code=409, detail="Staffing demand can only be changed on draft rosters.")
     if payload.ends_at <= payload.starts_at:
         raise HTTPException(status_code=422, detail="Shift end must be after shift start.")
-    if payload.starts_at < roster.start_date or payload.ends_at > roster.end_date:
+    if _as_utc(payload.starts_at) < _as_utc(roster.start_date) or _as_utc(payload.ends_at) > _as_utc(roster.end_date):
         raise HTTPException(status_code=422, detail="Demand slot must fit within the roster period.")
     demand = ShiftDemand(tenant_id=tenant_id, roster_id=roster.id, shift_name=payload.shift_name.strip(),
                          starts_at=payload.starts_at, ends_at=payload.ends_at,
@@ -548,11 +553,8 @@ def optimize_roster(
     for window in unavailable:
         unavailable_by_employee.setdefault(window.employee_id, []).append(window)
 
-    def utc(dt):
-        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
-
     def overlaps(a_start, a_end, b_start, b_end):
-        return utc(a_start) < utc(b_end) and utc(b_start) < utc(a_end)
+        return _as_utc(a_start) < _as_utc(b_end) and _as_utc(b_start) < _as_utc(a_end)
 
     # Existing assignments from other rosters are respected; this optimizer never edits published rosters.
     other_assignments = db.query(ShiftAssignment).filter(
@@ -575,7 +577,7 @@ def optimize_roster(
                 if demand.role_required and demand.role_required not in skills:
                     continue
                 windows = availability_by_employee.get(emp.id, [])
-                if not any(utc(w.starts_at) <= utc(demand.starts_at) and utc(w.ends_at) >= utc(demand.ends_at) for w in windows):
+                if not any(_as_utc(w.starts_at) <= _as_utc(demand.starts_at) and _as_utc(w.ends_at) >= _as_utc(demand.ends_at) for w in windows):
                     continue
                 if any(overlaps(demand.starts_at, demand.ends_at, w.starts_at, w.ends_at) for w in unavailable_by_employee.get(emp.id, [])):
                     continue
@@ -584,7 +586,7 @@ def optimize_roster(
                 if any(p["employee_id"] == emp.id and overlaps(demand.starts_at, demand.ends_at, p["start_time"], p["end_time"]) for p in planned):
                     continue
                 # Prefer employees with fewer already-planned hours in this roster.
-                hours = sum((utc(p["end_time"]) - utc(p["start_time"])).total_seconds() for p in planned if p["employee_id"] == emp.id)
+                hours = sum((_as_utc(p["end_time"]) - _as_utc(p["start_time"])).total_seconds() for p in planned if p["employee_id"] == emp.id)
                 candidates.append((hours, emp.id, emp))
             if not candidates:
                 violations.append({"demand_id": demand.id, "shift_name": demand.shift_name, "reason": "no_available_skill_matched_employee"})
