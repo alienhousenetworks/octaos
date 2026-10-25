@@ -331,3 +331,28 @@ def test_approved_linkedin_touch_is_not_reported_sent_without_execution_receipt(
     assert result["sent"] is False
     assert result["requires_action"] is True
     assert result["reason"] == "approved_waiting_for_execution"
+
+
+def test_dispatcher_blocks_email_when_tenant_authorization_is_not_configured(db_session):
+    lead = Lead(
+        tenant_id="test_tenant_cadence",
+        name="Taylor Example",
+        email="taylor@example.com",
+        company="Example Co",
+    )
+    db_session.add(lead)
+    db_session.commit()
+
+    with patch("app.services.sales.touch_dispatcher.send_email_with_status") as send:
+        result = dispatch_sales_touch(
+            db_session,
+            "test_tenant_cadence",
+            lead,
+            channel="email",
+            subject="A relevant question",
+            body="Hello Taylor, would a short discussion about your team's goals be useful?",
+        )
+
+    assert result["sent"] is False
+    assert result["reason"] == "outbound_authorization_blocked"
+    send.assert_not_called()
