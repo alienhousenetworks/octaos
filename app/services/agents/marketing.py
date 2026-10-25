@@ -25,6 +25,7 @@ from app.services.marketing.context_radar.calendar_engine import CalendarEngine
 from app.services.marketing.context_radar.news_radar import NewsRadar
 from app.services.marketing.context_radar.trend_synthesizer import TrendSynthesizer
 from app.services.media.storage import ensure_public_url
+from app.services.marketing.autonomy.decision_engine import compute_schedule_time
 
 logger = logging.getLogger(__name__)
 
@@ -36,33 +37,23 @@ def _prompt_text(value: Any) -> Optional[str]:
     return json.dumps(value, ensure_ascii=False)
 
 
-def _compute_optimal_schedule_time(platform: str, offset_days: int = 0) -> datetime:
+def _compute_optimal_schedule_time(
+    platform: str,
+    offset_days: int = 0,
+    timezone_name: str = "UTC",
+    preferred_hours: Optional[Dict[str, int]] = None,
+) -> datetime:
+    """Return a UTC timestamp for a local-time posting slot.
+
+    Platform hours are fallback heuristics, not a claim about this account's
+    audience. Supply measured account-specific hours through preferred_hours.
     """
-    Compute optimal peak-engagement posting time for the given social platform.
-    LinkedIn: 09:00 UTC (Tuesday - Thursday)
-    Instagram: 12:00 or 18:00 UTC
-    Facebook: 14:00 UTC
-    Twitter / X: 11:00 UTC
-    """
-    now = datetime.now(timezone.utc)
-    base_date = now + timedelta(days=offset_days)
-
-    peak_hours = {
-        "linkedin": 9,
-        "instagram": 18,
-        "facebook": 14,
-        "twitter": 11,
-        "youtube": 15,
-        "tiktok": 19,
-    }
-    target_hour = peak_hours.get(platform.lower(), 12)
-    candidate = base_date.replace(hour=target_hour, minute=0, second=0, microsecond=0)
-
-    # If the time is already in the past today, push to tomorrow same hour
-    if candidate <= now:
-        candidate += timedelta(days=1)
-
-    return candidate
+    return compute_schedule_time(
+        platform,
+        offset_days=offset_days,
+        timezone_name=timezone_name,
+        preferred_hours=preferred_hours,
+    )
 
 
 class MarketingAgent(BaseAgent):
@@ -281,15 +272,13 @@ class MarketingAgent(BaseAgent):
 
                 # 3d. Autonomous Scheduling
                 scheduled_time = (
-                    _compute_optimal_schedule_time(platform, offset_days=idx)
-                    if auto_schedule
+                    _compute_optimal_schedule_time(\n                        platform,\n                        offset_days=idx,\n                        timezone_name=params.get("timezone") or params.get("account_timezone") or "UTC",\n                        preferred_hours=params.get("preferred_posting_hours"),\n                    )\n                    if auto_schedule
                     else None
                 )
 
                 # 3e. Critic & Confidence Evaluation
                 confidence_score = self._evaluate_post_confidence(brief, brand_knowledge)
-                is_approved = confidence_score >= confidence_threshold
-
+                # LLM failure/fallback output must never self-approve for scheduling.\n                is_approved = (\n                    confidence_score >= confidence_threshold\n                    and getattr(brief, "generation_status", "generated") == "generated"\n                )\n
                 # 3f. Persist ContentPost
                 post = ContentPost(
                     tenant_id=self.tenant_id,
