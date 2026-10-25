@@ -1792,6 +1792,14 @@ async def upload_influencer_reference_image(
         raise HTTPException(status_code=400, detail="The reference image is empty.")
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Reference images must be 10 MB or smaller.")
+    # Validate file signatures as well as the multipart MIME type.
+    valid_signature = (
+        (content_type == "image/jpeg" and content.startswith(bytes([255, 216, 255])))
+        or (content_type == "image/png" and content.startswith(bytes([137, 80, 78, 71, 13, 10, 26, 10])))
+        or (content_type == "image/webp" and len(content) >= 12 and content[:4] == b"RIFF" and content[8:12] == b"WEBP")
+    )
+    if not valid_signature:
+        raise HTTPException(status_code=415, detail="The uploaded file does not match its declared image type.")
     from app.services.media.storage import _write_bytes
     url = _write_bytes(content, content_type, prefix=("influencer-" + str(tenant_id)[:48]))
     return {"url": url, "content_type": content_type, "bytes": len(content), "status": "uploaded",
@@ -1890,7 +1898,7 @@ async def generate_influencer_creative(
         )
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Creative generation could not start. Check configured image/video provider readiness.") from exc
-    result = run_record.model_dump()
+    result = run_record.model_dump(mode="json")
     if run_record.status == "failed" and not run_record.primary_asset_url:
         raise HTTPException(status_code=502, detail="Creative provider failed: " + ("; ".join(run_record.limitations) or "No asset was returned."))
     artifact_content = {
