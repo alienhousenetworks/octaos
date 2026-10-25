@@ -352,6 +352,9 @@ class MarketingAgent(BaseAgent):
                     "approval_status": post.approval_status,
                     "scheduled_at": post.scheduled_at.isoformat() if post.scheduled_at else None,
                     "confidence": confidence_score,
+                    "generation_status": getattr(brief, "generation_status", "generated"),
+                    "context_score": getattr(brief, "context_score", None),
+                    "source_url": getattr(brief, "source_url", None),
                 })
 
             except Exception as platform_err:
