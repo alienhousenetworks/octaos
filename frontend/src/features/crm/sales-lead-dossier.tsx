@@ -55,7 +55,7 @@ export default function SalesLeadDossier({
   const [editPhone, setEditPhone] = useState(lead?.phone || '');
   const [editWhy, setEditWhy] = useState(lead?.why || '');
   const [editCapacity, setEditCapacity] = useState(lead?.purchasing_capacity || lead?.how_much || '');
-  const [editScore, setEditScore] = useState(lead?.score || 50);
+  const [editScore, setEditScore] = useState(lead?.score != null ? String(lead.score) : '');
 
   // Outreach draft + follow-up schedule (re-synced when a different lead opens or data changes)
   const [draftSubject, setDraftSubject] = useState(lead?.data?.draft_subject || '');
@@ -89,15 +89,18 @@ export default function SalesLeadDossier({
   };
 
   const handleSaveEdit = async () => {
-    await onSaveLead(lead.id, {
+    const updates: Partial<Lead> = {
       name: editName,
       company: editCompany,
       email: editEmail,
       phone: editPhone,
       why: editWhy,
       how_much: editCapacity,
-      score: Number(editScore),
-    });
+    };
+    if (editScore.trim() !== '' && Number.isFinite(Number(editScore))) {
+      updates.score = Number(editScore);
+    }
+    await onSaveLead(lead.id, updates);
     setActiveTab('overview');
   };
 
@@ -169,7 +172,7 @@ export default function SalesLeadDossier({
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-500">AI Fit Score:</span>
               <span className="px-2.5 py-0.5 rounded-md text-xs font-extrabold bg-emerald-600 text-white shadow-xs flex items-center gap-1">
-                <Sparkles size={12} className="text-emerald-100" /> {lead.score ?? 50}/100
+                <Sparkles size={12} className="text-emerald-100" /> {lead.score != null ? `${lead.score}/100` : 'Not scored'}
               </span>
             </div>
           </div>
@@ -678,7 +681,7 @@ export default function SalesLeadDossier({
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-600 block mb-1">AI Score (0-100)</label>
-                  <Input type="number" value={editScore} onChange={(e) => setEditScore(Number(e.target.value))} className="text-xs bg-white border-slate-200 text-slate-900" />
+                  <Input type="number" value={editScore} onChange={(e) => setEditScore(e.target.value)} className="text-xs bg-white border-slate-200 text-slate-900" placeholder="Not scored" />
                 </div>
               </div>
 
