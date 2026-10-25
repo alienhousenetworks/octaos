@@ -15,6 +15,7 @@ from app.api.v1.endpoints import (
 )
 
 from app.api.v1.orchestrator import router as orchestrator_router
+from app.api.v1.data_intelligence import router as data_intelligence_router
 
 api_router = APIRouter()
 api_router.include_router(rooms.router, prefix="/rooms", tags=["section-rooms"])
@@ -50,6 +51,7 @@ api_router.include_router(enterprise.router, prefix="/enterprise", tags=["enterp
 api_router.include_router(manager.router, prefix="/manager", tags=["manager"])
 api_router.include_router(federated_learning.router, prefix="/learning", tags=["federated-learning"])
 api_router.include_router(orchestrator_router, prefix="/octa", tags=["octa-orchestrator"])
+api_router.include_router(data_intelligence_router, tags=["orchestra-data-intelligence"])
 api_router.include_router(deal_rooms.router, prefix="/deal-rooms", tags=["deal-rooms"])
 api_router.include_router(sales_manager.router, prefix="/sales-manager", tags=["sales-manager"])
 api_router.include_router(sales_os.router, prefix="/sales-os", tags=["sales-os"])
@@ -70,5 +72,4 @@ api_router.include_router(automation_documents.router, prefix="/automation-docum
 api_router.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 api_router.include_router(rbac.router, prefix="/rbac", tags=["rbac"])
 api_router.include_router(heygen.router, prefix="/integrations/heygen", tags=["heygen-integration"])
-
 api_router.include_router(buffer_oauth.router, prefix="/marketing/connectors/buffer", tags=["marketing-buffer"])
