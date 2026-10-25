@@ -1440,3 +1440,109 @@ from app.workers.sales_os.discovery import run_sales_os_discovery_task  # noqa: 
 
 # Register the durable autonomous-work Celery task.
 from app.services.autonomous_runtime import worker as _autonomous_runtime_worker  # noqa: F401
+
+
+@celery_app.task(name="sync_buffer_delivery_status_task")
+def sync_buffer_delivery_status_task():
+    """Reconcile Buffer queue receipts with actual sent/error status without blind writes."""
+    from datetime import datetime, timezone
+    from asgiref.sync import async_to_sync
+    from app.models.base import APICredential
+    from app.models.verticals import ContentPost
+    from app.models.teams import AgentMetric
+    from app.models.agents import ActivityLog
+    from app.services.integrations.buffer_service import BufferService, BufferAPIError
+
+    db = SessionLocal()
+    try:
+        credentials = db.query(APICredential).filter(APICredential.provider == "buffer").all()
+        now = datetime.now(timezone.utc)
+        for credential in credentials:
+            tenant_id = credential.tenant_id
+            channel_map = dict((credential.settings or {}).get("channel_map", {}))
+            mapped_ids = set(channel_map.values())
+            if not mapped_ids:
+                continue
+            try:
+                buffer = BufferService(db, tenant_id)
+                account = async_to_sync(buffer.account_and_channels)()
+                external_posts = {}
+                for organization in account.get("organizations", []):
+                    org_channels = [
+                        channel.get("id")
+                        for channel in organization.get("channels", [])
+                        if channel.get("id") in mapped_ids
+                    ]
+                    if not org_channels:
+                        continue
+                    for external_post in async_to_sync(buffer.list_posts)(
+                        organization_id=organization["id"], channel_ids=org_channels
+                    ):
+                        if external_post.get("id"):
+                            external_posts[external_post["id"]] = external_post
+                if not external_posts:
+                    continue
+
+                local_posts = (
+                    db.query(ContentPost)
+                    .filter(
+                        ContentPost.tenant_id == tenant_id,
+                        ContentPost.external_post_id.in_(list(external_posts.keys())),
+                    )
+                    .all()
+                )
+                for post in local_posts:
+                    external = external_posts.get(post.external_post_id) or {}
+                    status = (external.get("status") or "").lower()
+                    if status == "sent" and post.status != "published":
+                        post.status = "published"
+                        post.approval_status = "published"
+                        sent_at = external.get("sentAt")
+                        try:
+                            post.published_at = datetime.fromisoformat(sent_at.replace("Z", "+00:00")) if sent_at else now
+                        except (TypeError, ValueError):
+                            post.published_at = now
+                        post.fallback_reason = None
+                        metric = (
+                            db.query(AgentMetric)
+                            .filter(
+                                AgentMetric.tenant_id == tenant_id,
+                                AgentMetric.metric_name == "posts_published",
+                            )
+                            .first()
+                        )
+                        if not metric:
+                            metric = AgentMetric(tenant_id=tenant_id, metric_name="posts_published", value=0.0)
+                            db.add(metric)
+                        metric.value += 1.0
+                        db.add(ActivityLog(
+                            tenant_id=tenant_id,
+                            agent_name="Marketing AI",
+                            action="Buffer Delivery Confirmed",
+                            description=f"Buffer confirmed post {post.id} was sent (Buffer post {post.external_post_id}).",
+                            status="success",
+                        ))
+                    elif status == "error" and post.status != "failed":
+                        post.status = "failed"
+                        post.fallback_reason = "Buffer reports a delivery error. Inspect the Buffer post before retrying."
+                        db.add(ActivityLog(
+                            tenant_id=tenant_id,
+                            agent_name="Marketing AI",
+                            action="Buffer Delivery Failed",
+                            description=f"Buffer reports a delivery error for post {post.id} (Buffer post {post.external_post_id}).",
+                            status="failed",
+                        ))
+                    elif status == "sending":
+                        post.status = "publishing"
+                    elif status == "scheduled":
+                        post.status = "scheduled"
+                    db.add(post)
+                db.commit()
+            except BufferAPIError as exc:
+                db.rollback()
+                logger.warning("Buffer status sync unavailable for tenant %s: %s", tenant_id, exc)
+            except Exception:
+                db.rollback()
+                logger.exception("Buffer status sync failed for tenant %s", tenant_id)
+    finally:
+        db.close()
