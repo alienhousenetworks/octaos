@@ -1,6 +1,6 @@
 """Readiness must distinguish configured integrations from live-verified capability."""
 from app.models.base import APICredential
-from app.services.marketing.workforce_readiness import get_marketing_workforce_readiness
+from app.services.marketing.workforce_readiness import get_marketing_workforce_readiness, is_publisher_supported
 
 
 class FakeQuery:
@@ -12,6 +12,9 @@ class FakeQuery:
 
     def all(self):
         return self.rows
+
+    def first(self):
+        return self.rows[0] if self.rows else None
 
 
 class FakeDB:
@@ -46,3 +49,22 @@ def test_buffer_readiness_reports_mapping_without_exposing_token():
     buffer_capability = next(item for item in result["capabilities"] if item["id"] == "buffer_publishing")
     assert buffer_capability["status"] == "configured"
     assert buffer_capability["live_verified"] is False
+
+
+def test_buffer_mapping_controls_campaign_publisher_readiness():
+    row = APICredential(
+        tenant_id="tenant-a",
+        provider="buffer",
+        encrypted_key="encrypted-secret",
+        settings={"channel_map": {"instagram": "channel-1", "x": "channel-2"}},
+    )
+    db = FakeDB([row])
+    assert is_publisher_supported(db, "tenant-a", "instagram") is True
+    assert is_publisher_supported(db, "tenant-a", "twitter") is True
+    assert is_publisher_supported(db, "tenant-a", "linkedin") is False
+
+
+def test_native_publisher_fallback_only_when_buffer_is_not_connected():
+    db = FakeDB()
+    assert is_publisher_supported(db, "tenant-a", "facebook") is True
+    assert is_publisher_supported(db, "tenant-a", "tiktok") is False
