@@ -47,7 +47,24 @@ import TriggerScheduleCard from '@/components/ui/trigger-schedule-card';
 import MarketingIndustries from '@/features/marketing/marketing-industries';
 import RealEstateCampaignDialog from '@/features/marketing/real-estate-campaign-dialog';
 import { MarketingVerticalPack } from '@/features/marketing/marketing-platform';
-import { Building2, ShieldCheck, Layers } from 'lucide-react';
+import VirtualInfluencerStudio from '@/features/marketing/virtual-influencer-studio';
+import {
+  Building2,
+  ShieldCheck,
+  Layers,
+  Bot,
+  Video,
+  Radio,
+  Folder,
+  Play,
+  Flame,
+  ArrowRight,
+  Wand2,
+  Compass,
+  ChevronDown,
+  ChevronRight,
+  RefreshCw,
+} from 'lucide-react';
 
 interface CuratedModelItem {
   provider: string;
@@ -204,7 +221,7 @@ export default function CampaignsView({
   const [roomsLoading, setRoomsLoading] = useState(false);
   const [currentRoomSlug, setCurrentRoomSlug] = useState<string | null>(initialRoomSlug || null);
   const [currentRoom, setCurrentRoom] = useState<SectionRoomData | null>(null);
-  const [isDirectoryView, setIsDirectoryView] = useState(!initialRoomSlug);
+  const [isDirectoryView, setIsDirectoryView] = useState(false);
 
   // State variables relocated here
   const [campaignTopic, setCampaignTopic] = useState('');
@@ -247,7 +264,11 @@ export default function CampaignsView({
   const [postsPerDay, setPostsPerDay] = useState<number>(1);
   const [activeCampaignJob, setActiveCampaignJob] = useState<ActiveCampaignJobState | null>(null);
   const [showConfigWhileGenerating, setShowConfigWhileGenerating] = useState<boolean>(false);
-  const [campaignViewMode, setCampaignViewMode] = useState<'timeline' | 'kanban' | 'analytics' | 'schedule' | 'verticals'>('timeline');
+  const [campaignViewMode, setCampaignViewMode] = useState<'studio' | 'timeline' | 'kanban' | 'influencer' | 'radar' | 'analytics' | 'schedule' | 'verticals'>('studio');
+  const [strategyPreview, setStrategyPreview] = useState<any>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [radarInspirations, setRadarInspirations] = useState<Array<{ title: string; category?: string }>>([]);
+  const [showAdvancedModels, setShowAdvancedModels] = useState(false);
   const [marketingPacks, setMarketingPacks] = useState<MarketingVerticalPack[]>([]);
   const [activeMarketingPack, setActiveMarketingPack] = useState<MarketingVerticalPack | null>(null);
   const [marketingPacksLoading, setMarketingPacksLoading] = useState(false);
@@ -568,12 +589,83 @@ export default function CampaignsView({
       fetchAvailableModels();
       checkActiveCampaignJob();
       fetchMarketingPacks();
+      fetchRadarInspirations();
       const interval = setInterval(() => {
         fetchCampaignPosts(false);
       }, 5000);
       return () => clearInterval(interval);
     }
   }, [token, activeView]);
+
+  const fetchRadarInspirations = async () => {
+    if (!token) return;
+    try {
+      const res = await fetchWithAuth(`${API_URL}/marketing/radar`);
+      if (res.ok) {
+        const data = await res.json();
+        const items: Array<{ title: string; category?: string }> = [];
+        if (Array.isArray(data.upcoming_events)) {
+          data.upcoming_events.slice(0, 4).forEach((ev: any) => {
+            if (ev.title || ev.name) items.push({ title: ev.title || ev.name, category: 'Upcoming Event' });
+          });
+        }
+        if (Array.isArray(data.news_signals)) {
+          data.news_signals.slice(0, 4).forEach((ns: any) => {
+            if (ns.title) items.push({ title: ns.title, category: 'Market Trend' });
+          });
+        }
+        if (items.length > 0) {
+          setRadarInspirations(items);
+        } else {
+          setRadarInspirations([
+            { title: 'AI Virtual Influencer Showcase & UGC Reels', category: 'Creator UGC' },
+            { title: 'Autonomous Multi-Agent Workflow Breakdown', category: 'Tech Narrative' },
+            { title: 'Customer Transformation & Real-world ROI', category: 'Case Study' },
+            { title: 'Quarterly Industry Benchmark & Tactical Playbook', category: 'Industry Report' },
+          ]);
+        }
+      }
+    } catch (e) {
+      setRadarInspirations([
+        { title: 'AI Virtual Influencer Showcase & UGC Reels', category: 'Creator UGC' },
+        { title: 'Autonomous Multi-Agent Workflow Breakdown', category: 'Tech Narrative' },
+        { title: 'Customer Transformation & Real-world ROI', category: 'Case Study' },
+        { title: 'Quarterly Industry Benchmark & Tactical Playbook', category: 'Industry Report' },
+      ]);
+    }
+  };
+
+  const handlePreviewBrief = async () => {
+    if (!campaignTopic.trim()) {
+      notify('Please enter a campaign topic or click an inspiration chip first.');
+      return;
+    }
+    setPreviewLoading(true);
+    try {
+      const params = new URLSearchParams({
+        topic: campaignTopic.trim(),
+        days: String(campaignDays || 7),
+      });
+      if (textProvider && textProvider !== 'auto') params.set('provider', textProvider);
+      if (textModel && textProvider !== 'auto') params.set('model', textModel);
+
+      const res = await fetchWithAuth(`${API_URL}/marketing/campaign/preview-brief?${params.toString()}`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStrategyPreview(data);
+        notify('Strategy blueprint ready for review!');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        notify(err.detail || 'Failed to preview campaign brief.');
+      }
+    } catch (e: any) {
+      notify(`Preview request failed: ${e?.message || 'Network error'}`);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   const fetchRooms = async () => {
     if (!token) return;
@@ -746,15 +838,18 @@ export default function CampaignsView({
           image_model: imageModel,
           video_provider: videoProvider,
           video_model: videoModel,
-          generate_images: generateImages,
-          generate_videos: ENABLE_IN_APP_VIDEO && generateVideos,
+          generate_images: contentFormat === 'virtual_influencer' ? true : generateImages,
+          generate_videos: contentFormat === 'virtual_influencer' ? true : (ENABLE_IN_APP_VIDEO && generateVideos),
           generate_remotion: ENABLE_IN_APP_VIDEO && generateRemotion,
           posts_per_day: postsPerDay,
+          room_slug: currentRoomSlug || undefined,
         })
       });
       const data = await res.json();
       if (res.ok) {
         notify(`${campaignDays}-Day Marketing Campaign launched! Live stage tracking started.`);
+        setStrategyPreview(null);
+        setCampaignViewMode('studio');
         if (data.job_id) {
           setActiveCampaignJob({
             jobId: data.job_id,
@@ -1472,9 +1567,23 @@ export default function CampaignsView({
                 </div>
               )}
               {hasVideo && (
-                <div className="overflow-hidden rounded-lg border border-border">
-                  <video src={post.video_url} controls loop muted className="aspect-video w-full bg-muted object-cover" />
-                  <p className="px-2 py-1 text-xs text-muted-foreground">{post.is_manual_media ? 'Uploaded video' : 'Generated video'}</p>
+                <div className="overflow-hidden rounded-lg border border-border bg-black/90">
+                  <video
+                    src={post.video_url}
+                    controls
+                    playsInline
+                    loop
+                    muted
+                    className="w-full max-h-96 object-contain mx-auto"
+                  />
+                  <div className="flex items-center justify-between px-2.5 py-1 text-xs text-muted-foreground bg-card border-t border-border/50">
+                    <span>{post.is_manual_media ? 'Uploaded video' : 'Generated video loop'}</span>
+                    {(post.content_format === 'virtual_influencer' || (Array.isArray(post.learning_tags) && post.learning_tags.some((t: string) => t.toLowerCase().includes('influencer') || t.toLowerCase().includes('ugc')))) && (
+                      <span className="inline-flex items-center gap-1 rounded bg-purple-500/10 px-1.5 py-0.2 text-[10px] font-semibold text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                        <Bot className="size-3" /> Virtual Influencer Reel
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
               {!hasVideo && hasImage && imageFailed && (
@@ -1571,6 +1680,11 @@ export default function CampaignsView({
     ...(rejectedCount > 0 ? [{ id: 'rejected', label: 'Rejected', value: rejectedCount }] : []),
   ];
   const formats = [
+    {
+      id: 'virtual_influencer',
+      label: 'AI Virtual Influencer',
+      detail: 'Photorealistic persona, 9:16 vertical video reels, candid UGC creator style, FTC disclosure',
+    },
     { id: 'social_posts', label: 'Social posts', detail: 'Short copy for the selected networks' },
     { id: 'blog_articles', label: 'Articles', detail: 'Longer posts for the same schedule' },
     { id: 'video_first', label: 'Video first', detail: 'Scripts and motion ahead of stills' },
@@ -1586,7 +1700,7 @@ export default function CampaignsView({
     setIsBulkScheduleOpen(true);
   };
 
-  if (isDirectoryView || !currentRoom) {
+  if (isDirectoryView) {
     return (
       <RoomFolderExplorer
         section="marketing"
@@ -1601,11 +1715,27 @@ export default function CampaignsView({
     );
   }
 
+  if (!currentRoom && roomsLoading) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const activeRoomData: SectionRoomData = currentRoom || rooms[0] || ({
+    id: 'default-marketing-room',
+    name: 'General Campaigns',
+    slug: 'default',
+    description: 'Active marketing workspace',
+    section: 'marketing',
+  } as SectionRoomData);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300 pb-16">
       <RoomHeader
         sectionTitle="Campaigns & Marketing"
-        activeRoom={currentRoom}
+        activeRoom={activeRoomData}
         allRooms={rooms}
         onSelectRoom={handleSelectRoom}
         onOpenDirectory={() => setIsDirectoryView(true)}
@@ -1686,16 +1816,60 @@ export default function CampaignsView({
         }
       />
 
-      <AutonomousMarketingRadar
-        API_URL={API_URL}
-        fetchWithAuth={fetchWithAuth}
-        onPulseSuccess={() => {
-          fetchCampaignPosts();
-          fetchData();
-        }}
-      />
+      {/* Universal Campaign OS Navigation Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-3">
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-border/80 bg-muted/30 p-1">
+          {[
+            { id: 'studio', label: 'Campaign Studio', icon: Wand2, badge: activeCampaignJob?.status === 'in_progress' ? `${Math.round(activeCampaignJob.progressPct)}%` : undefined },
+            { id: 'influencer', label: 'AI Virtual Influencer', icon: Bot, badge: 'Viral UGC' },
+            { id: 'radar', label: 'Market Radar', icon: Radio },
+            { id: 'timeline', label: 'Feed & Timeline', icon: CalendarRange, badge: campaignPosts.length > 0 ? String(campaignPosts.length) : undefined },
+            { id: 'kanban', label: 'Board', icon: LayoutGrid },
+            { id: 'verticals', label: 'Industry Packs', icon: Layers, badge: activeMarketingPack?.name },
+            { id: 'analytics', label: 'Analytics', icon: TrendingUp },
+            { id: 'schedule', label: 'Triggers & Cadence', icon: Clock },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = campaignViewMode === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setCampaignViewMode(tab.id as any)}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+                  isActive
+                    ? 'bg-background text-foreground shadow-xs border border-border/80 font-semibold'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                <Icon className={`size-3.5 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                <span>{tab.label}</span>
+                {tab.badge && (
+                  <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono ${
+                    isActive ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-      {activeCampaignJob && (activeCampaignJob.status === 'queued' || activeCampaignJob.status === 'in_progress') && !isGeneratorExpanded && (
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsDirectoryView(true)}
+            className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+            title="Browse or organize room folders"
+          >
+            <Folder className="size-3.5" /> Rooms &amp; Folders
+          </Button>
+        </div>
+      </div>
+
+      {activeCampaignJob && (activeCampaignJob.status === 'queued' || activeCampaignJob.status === 'in_progress') && campaignViewMode !== 'studio' && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-blue-500/30 bg-blue-500/10 p-3.5 text-xs shadow-sm">
           <div className="flex items-center gap-2.5">
             <Loader2 className="size-4 animate-spin text-blue-500" />
@@ -1706,90 +1880,78 @@ export default function CampaignsView({
               · Stage: <strong className="text-foreground">{activeCampaignJob.currentStage}</strong> ({Math.round(activeCampaignJob.progressPct)}%)
             </span>
           </div>
-          <Button size="sm" variant="outline" onClick={() => setIsGeneratorExpanded(true)}>
-            View Stages & Logs
+          <Button size="sm" variant="outline" onClick={() => setCampaignViewMode('studio')}>
+            View Live Stages &amp; Logs
           </Button>
         </div>
       )}
 
-      {campaignPosts.length > 0 && (
-        <div className={`grid grid-cols-2 gap-3 ${statusFilters.length > 4 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
-          {statusFilters.map((filter) => (
-            <button
-              key={filter.id}
-              type="button"
-              onClick={() => chooseStatus(filter.id)}
-              className={`rounded-lg border px-3 py-3 text-left ${campaignFilterStatus === filter.id && campaignViewMode !== 'analytics' ? 'border-primary bg-primary/10' : 'border-border bg-card hover:bg-muted/40'}`}
-            >
-              <p className="text-lg font-semibold leading-none">{filter.value}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{filter.label}</p>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {isGeneratorExpanded && activeCampaignJob ? (
-        <section className="space-y-4 rounded-xl border border-border/80 bg-card p-5 shadow-sm">
-          {/* Header */}
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-4">
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                {activeCampaignJob.status === 'in_progress' && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                    <Loader2 className="size-3 animate-spin" />
-                    Generating Campaign Stages
-                  </span>
-                )}
-                {activeCampaignJob.status === 'queued' && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                    <Clock className="size-3 animate-pulse" />
-                    Queued in AI Pipeline
-                  </span>
-                )}
-                {activeCampaignJob.status === 'completed' && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                    <CheckCircle2 className="size-3" />
-                    Campaign Generated Successfully
-                  </span>
-                )}
-                {activeCampaignJob.status === 'failed' && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-0.5 text-xs font-medium text-rose-600 dark:text-rose-400 border border-rose-500/20">
-                    <AlertCircle className="size-3" />
-                    Generation Halted
-                  </span>
-                )}
-                <span className="text-xs text-muted-foreground font-mono">
-                  {Math.round(activeCampaignJob.progressPct)}% Complete
-                </span>
-              </div>
-              <h2 className="text-base font-semibold tracking-tight text-foreground">
-                {activeCampaignJob.topic ? `"${activeCampaignJob.topic}"` : 'Multi-Day Campaign Pipeline'}
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                {activeCampaignJob.days ? `${activeCampaignJob.days} Days Timeline` : 'Full Timeline'} · Stage: <strong className="text-foreground">{activeCampaignJob.currentStage || 'Processing'}</strong>
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowConfigWhileGenerating((v) => !v)}
-              >
-                {showConfigWhileGenerating ? 'Hide Configuration' : 'View Configuration'}
-              </Button>
-              {activeCampaignJob.status === 'completed' && (
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setActiveCampaignJob(null);
-                    setIsGeneratorExpanded(false);
-                    fetchCampaignPosts();
-                  }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
-                >
-                  <Eye className="size-3.5" /> View Campaign Drafts
-                </Button>
-              )}
+      {/* Studio Tab: Active Multi-Agent Pipeline or 3-Step Streamlined Campaign Studio */}
+      {campaignViewMode === 'studio' && (
+        <div className="space-y-6">
+          {activeCampaignJob ? (
+            <section className="space-y-4 rounded-xl border border-border/80 bg-card p-5 shadow-sm">
+              {/* Header */}
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-4">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {activeCampaignJob.status === 'in_progress' && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                        <Loader2 className="size-3 animate-spin" />
+                        Generating Campaign Stages
+                      </span>
+                    )}
+                    {activeCampaignJob.status === 'queued' && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                        <Clock className="size-3 animate-pulse" />
+                        Queued in AI Pipeline
+                      </span>
+                    )}
+                    {activeCampaignJob.status === 'completed' && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <CheckCircle2 className="size-3" />
+                        Campaign Generated Successfully
+                      </span>
+                    )}
+                    {activeCampaignJob.status === 'failed' && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-0.5 text-xs font-medium text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                        <AlertCircle className="size-3" />
+                        Generation Halted
+                      </span>
+                    )}
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {Math.round(activeCampaignJob.progressPct)}% Complete
+                    </span>
+                  </div>
+                  <h2 className="text-base font-semibold tracking-tight text-foreground">
+                    {activeCampaignJob.topic ? `"${activeCampaignJob.topic}"` : 'Multi-Day Campaign Pipeline'}
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    {activeCampaignJob.days ? `${activeCampaignJob.days} Days Timeline` : 'Full Timeline'} · Stage: <strong className="text-foreground">{activeCampaignJob.currentStage || 'Processing'}</strong>
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowConfigWhileGenerating((v) => !v)}
+                  >
+                    {showConfigWhileGenerating ? 'Hide Configuration' : 'View Configuration'}
+                  </Button>
+                  {activeCampaignJob.status === 'completed' && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setActiveCampaignJob(null);
+                        setIsGeneratorExpanded(false);
+                        fetchCampaignPosts();
+                        setCampaignViewMode('timeline');
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                    >
+                      <Eye className="size-3.5" /> View Campaign Drafts
+                    </Button>
+                  )}
               {(activeCampaignJob.status === 'completed' || activeCampaignJob.status === 'failed') && (
                 <Button
                   variant="outline"
@@ -1972,378 +2134,590 @@ export default function CampaignsView({
             </div>
           )}
         </section>
-      ) : isGeneratorExpanded ? (
-        <section className="space-y-4 rounded-lg border border-border bg-card p-4">
-          <div className="flex items-start justify-between gap-3">
+      ) : (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border/60 pb-4">
             <div>
-              <h2 className="text-sm font-semibold">Plan a campaign</h2>
-              <p className="mt-1 text-sm text-muted-foreground">One topic becomes a timeline of posts. Generation continues in the background after you launch.</p>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary border border-primary/20">
+                  <Sparkles className="size-3" />
+                  15-Agent Council Studio
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  <ShieldCheck className="size-3" />
+                  Zero-Hallucination Guard
+                </span>
+              </div>
+              <h2 className="mt-2 text-xl font-bold tracking-tight text-foreground">
+                Campaign OS Studio
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Plan, verify, and launch multi-day narrative campaigns with AI Virtual Influencers, FLUX visuals, and deterministic compliance verification.
+              </p>
             </div>
-            {campaignPosts.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={() => setIsGeneratorExpanded(false)}>Close</Button>
-            )}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCampaignViewMode('influencer')}
+                className="gap-1.5 text-xs border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10"
+              >
+                <Bot className="size-3.5" />
+                Virtual Influencer Studio
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCampaignViewMode('radar')}
+                className="gap-1.5 text-xs border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10"
+              >
+                <Radio className="size-3.5" />
+                Autonomous Radar
+              </Button>
+            </div>
           </div>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <FieldLabel>Topic</FieldLabel>
-                  {activeMarketingPack ? (
-                    <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
-                      <Sparkles className="size-3 text-primary" /> {activeMarketingPack.name}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
-                      <Sparkles className="size-3 text-muted-foreground" /> General Campaign
-                    </span>
-                  )}
-                </div>
-                <Textarea
-                  value={campaignTopic}
-                  onChange={(event) => setCampaignTopic(event.target.value)}
-                  placeholder="What should this campaign say, and for which brand or offer?"
-                  className="min-h-24"
-                  aria-label="Campaign topic"
-                />
-                {activeMarketingPack?.content_pillars && activeMarketingPack.content_pillars.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1 pt-1">
-                    <span className="text-[10px] text-muted-foreground font-medium mr-1">Pillars:</span>
-                    {activeMarketingPack.content_pillars.slice(0, 4).map((pillar) => (
-                      <button
-                        key={pillar.id}
-                        type="button"
-                        onClick={() => setCampaignTopic(`${pillar.label}: ${pillar.description}`)}
-                        className="rounded-full border border-border bg-muted/30 px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary/40 hover:text-foreground transition"
-                      >
-                        {pillar.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+
+          {/* Step 1: Campaign Brief & Market Angle */}
+          <div className="rounded-xl border border-border/80 bg-card p-5 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex size-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                  1
+                </span>
+                <h3 className="text-sm font-semibold text-foreground">
+                  Campaign Brief &amp; Market Radar Angle
+                </h3>
               </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <FieldLabel>Days & Cadence</FieldLabel>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setCampaignDays(30)}
-                        className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${campaignDays === 30 ? 'bg-primary text-primary-foreground border-primary font-medium' : 'border-border text-muted-foreground hover:bg-muted'}`}
-                      >
-                        30 Days (Daily)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCampaignDays(14)}
-                        className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${campaignDays === 14 ? 'bg-primary text-primary-foreground border-primary font-medium' : 'border-border text-muted-foreground hover:bg-muted'}`}
-                      >
-                        14 Days
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCampaignDays(7)}
-                        className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${campaignDays === 7 ? 'bg-primary text-primary-foreground border-primary font-medium' : 'border-border text-muted-foreground hover:bg-muted'}`}
-                      >
-                        7 Days (Weekly)
-                      </button>
-                    </div>
-                  </div>
-                  <Input type="number" min={1} max={30} value={campaignDays} onChange={(event) => setCampaignDays(parseInt(event.target.value, 10) || 0)} aria-label="Campaign days" />
-                  <p className="text-xs text-muted-foreground">Select up to 30 days of continuous narrative campaign content.</p>
-                </div>
-                <div className="space-y-1.5">
-                  <FieldLabel>Networks</FieldLabel>
-                  <div className="flex flex-wrap gap-1">
-                    {['linkedin', 'instagram', 'facebook'].map((platform) => {
-                      const selected = campaignPlatforms.includes(platform);
-                      return (
-                        <button
-                          key={platform}
-                          type="button"
-                          onClick={() => setCampaignPlatforms(selected ? campaignPlatforms.filter((item) => item !== platform) : [...campaignPlatforms, platform])}
-                          className={`rounded-md border px-2.5 py-1 text-xs ${selected ? 'border-primary bg-primary/10 text-foreground' : 'border-border text-muted-foreground'}`}
-                        >
-                          {platformName(platform)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+              <span className="text-xs text-muted-foreground">Narrative Foundation</span>
+            </div>
+
+            {/* Radar / Trending Angles Quick Picks */}
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-medium text-primary flex items-center gap-1.5">
+                  <Flame className="size-3.5 text-amber-500" />
+                  Trending Angles from Autonomous Radar:
+                </span>
+                <button
+                  type="button"
+                  onClick={fetchRadarInspirations}
+                  className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+                >
+                  <RefreshCw className="size-3" /> Refresh Signals
+                </button>
               </div>
-              <div className="space-y-1.5 rounded-lg border border-border/70 bg-muted/20 p-2.5">
-                <div className="flex items-center justify-between">
-                  <FieldLabel>Daily Cadence & Time Slots (15-Agent Council)</FieldLabel>
-                  <span className="text-[11px] font-mono text-muted-foreground">{postsPerDay} slot{postsPerDay > 1 ? 's' : ''}/day ({campaignDays * postsPerDay} posts total)</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-1.5">
+                {(radarInspirations.length > 0 ? radarInspirations : [
+                  { title: 'AI agent workflow automation teardown & founder lessons' },
+                  { title: 'Zero unsupported claims: why empirical verification wins enterprise trust' },
+                  { title: 'Behind the scenes: how autonomous councils scale multi-day marketing' },
+                  { title: 'Product launch: announcing our new multi-model generative studio' },
+                ]).slice(0, 4).map((item, idx) => (
                   <button
+                    key={idx}
                     type="button"
-                    onClick={() => setPostsPerDay(1)}
-                    className={`rounded-lg border px-2.5 py-1.5 text-left transition-colors ${postsPerDay === 1 ? 'border-primary bg-primary/10 text-foreground font-medium' : 'border-border text-muted-foreground hover:bg-muted/40'}`}
+                    onClick={() => setCampaignTopic(item.title)}
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-card/80 px-2.5 py-1 text-xs text-muted-foreground hover:border-primary hover:text-foreground transition-all hover:bg-card"
                   >
-                    <span className="block text-xs font-medium">1 Post / Day</span>
-                    <span className="block text-[10px] text-muted-foreground">Peak window (09:00 UTC)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPostsPerDay(2)}
-                    className={`rounded-lg border px-2.5 py-1.5 text-left transition-colors ${postsPerDay === 2 ? 'border-primary bg-primary/10 text-foreground font-medium' : 'border-border text-muted-foreground hover:bg-muted/40'}`}
-                  >
-                    <span className="block text-xs font-medium">2 Posts / Day</span>
-                    <span className="block text-[10px] text-muted-foreground">Morning (09:00) + Evening (17:00)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPostsPerDay(3)}
-                    className={`rounded-lg border px-2.5 py-1.5 text-left transition-colors ${postsPerDay === 3 ? 'border-primary bg-primary/10 text-foreground font-medium' : 'border-border text-muted-foreground hover:bg-muted/40'}`}
-                  >
-                    <span className="block text-xs font-medium">3 Posts / Day</span>
-                    <span className="block text-[10px] text-muted-foreground">Morning + Midday + Evening</span>
-                  </button>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {formats.map((format) => (
-                  <button
-                    key={format.id}
-                    type="button"
-                    onClick={() => setContentFormat(format.id)}
-                    className={`rounded-lg border px-3 py-2 text-left ${contentFormat === format.id ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted/40'}`}
-                  >
-                    <span className="block text-sm font-medium">{format.label}</span>
-                    <span className="mt-0.5 block text-xs text-muted-foreground">{format.detail}</span>
+                    <Wand2 className="size-3 text-primary" />
+                    <span className="line-clamp-1">{item.title}</span>
                   </button>
                 ))}
               </div>
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <FieldLabel>Style reference</FieldLabel>
-                  {referenceImageUrl && <button type="button" className="text-xs text-muted-foreground" onClick={() => setReferenceImageUrl('')}>Clear</button>}
-                </div>
-                <Input type="url" value={referenceImageUrl} onChange={(event) => setReferenceImageUrl(event.target.value)} placeholder="Optional image URL for a consistent look" aria-label="Style reference URL" />
-                {referenceImageUrl && <img src={referenceImageUrl} alt="" className="h-16 w-24 rounded-md border border-border object-cover" onError={(event) => { (event.target as HTMLImageElement).style.display = 'none'; }} />}
-              </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="space-y-3 rounded-lg border border-border p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="inline-flex items-center gap-1.5 text-sm font-medium"><FileText className="size-4 text-muted-foreground" /> Copy model</p>
-                  {modelsLoading && <span className="text-xs text-muted-foreground">Loading models</span>}
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <FieldLabel>Provider</FieldLabel>
-                    <Select value={textProvider} onValueChange={(value) => {
-                      if (!value) return;
-                      setTextProvider(value);
-                      if (value === 'openrouter') setTextModel('meta-llama/llama-3.3-70b-instruct');
-                      else if (value === 'together') setTextModel('meta-llama/Llama-3.3-70B-Instruct-Turbo');
-                      else if (value === 'groq') setTextModel('llama-3.3-70b-versatile');
-                      else if (value === 'gemini') setTextModel('gemini-2.5-flash');
-                      else if (value === 'openai') setTextModel('gpt-4o');
-                      else if (value === 'anthropic') setTextModel('claude-sonnet-4-6');
-                      else if (value === 'nvidia') setTextModel('meta/llama-3.3-70b-instruct');
-                      else if (value === 'grok') setTextModel('grok-2');
-                      else if (value === 'auto') setTextModel('');
-                    }}>
-                      <SelectTrigger className="w-full" aria-label="Copy provider"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="auto">Auto / Default (.env)</SelectItem>
-                        <SelectItem value="nvidia">NVIDIA NIM</SelectItem>
-                        <SelectItem value="openrouter">OpenRouter</SelectItem>
-                        <SelectItem value="together">Together</SelectItem>
-                        <SelectItem value="groq">Groq</SelectItem>
-                        <SelectItem value="gemini">Gemini</SelectItem>
-                        <SelectItem value="openai">OpenAI</SelectItem>
-                        <SelectItem value="anthropic">Anthropic</SelectItem>
-                        <SelectItem value="grok">Grok</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {textProvider !== 'auto' && (
-                    <div className="space-y-1.5">
-                      <FieldLabel>Model</FieldLabel>
-                      <Input value={textModel} onChange={(event) => setTextModel(event.target.value)} className="font-mono" aria-label="Copy model" />
-                    </div>
-                  )}
-                </div>
-                {textProvider !== 'auto' && (
-                  <ModelPicks
-                    models={curatedModels.filter((model) => model.modality === 'text' && (model.provider === textProvider || textProvider === 'openrouter' && model.provider === 'openrouter'))}
-                    active={textModel}
-                    onPick={setTextModel}
-                  />
-                )}
-                <ValidationNote result={textValidation} onUse={setTextModel} />
-              </div>
-
-              <div className="space-y-3 rounded-lg border border-border p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="inline-flex items-center gap-1.5 text-sm font-medium"><ImageIcon className="size-4 text-muted-foreground" /> Images</p>
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <input type="checkbox" checked={generateImages} onChange={(event) => setGenerateImages(event.target.checked)} />
-                    Generate
-                  </label>
-                </div>
-                {generateImages && (
-                  <>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <FieldLabel>Provider</FieldLabel>
-                        <Select value={imageProvider} onValueChange={(value) => {
-                          if (!value) return;
-                          setImageProvider(value);
-                          if (value === 'together') setImageModel('black-forest-labs/FLUX.1-schnell');
-                          else if (value === 'openrouter') setImageModel('black-forest-labs/flux-1-schnell');
-                          else if (value === 'openai') setImageModel('dall-e-3');
-                          else if (value === 'gemini') setImageModel('imagen-3.0-generate-002');
-                        }}>
-                          <SelectTrigger className="w-full" aria-label="Image provider"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="together">Together</SelectItem>
-                            <SelectItem value="openrouter">OpenRouter</SelectItem>
-                            <SelectItem value="openai">OpenAI</SelectItem>
-                            <SelectItem value="gemini">Gemini</SelectItem>
-                            <SelectItem value="stability">Stability</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <FieldLabel>Model</FieldLabel>
-                        <Input value={imageModel} onChange={(event) => setImageModel(event.target.value)} className="font-mono" aria-label="Image model" />
-                      </div>
-                    </div>
-                    <ModelPicks
-                      models={curatedModels.filter((model) => model.modality === 'image' && (model.provider === imageProvider || imageProvider === 'together' && model.provider === 'together'))}
-                      active={imageModel}
-                      onPick={setImageModel}
-                    />
-                    <ValidationNote result={imageValidation} />
-                  </>
+            {/* Topic Input */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <FieldLabel>What should this campaign communicate?</FieldLabel>
+                {activeMarketingPack && (
+                  <span className="text-[11px] text-primary font-medium flex items-center gap-1">
+                    <Sparkles className="size-3" /> Industry Pack: {activeMarketingPack.name}
+                  </span>
                 )}
               </div>
-
-              {ENABLE_IN_APP_VIDEO && (
-                <div className="space-y-3 rounded-lg border border-border p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="inline-flex items-center gap-1.5 text-sm font-medium"><Film className="size-4 text-muted-foreground" /> Video</p>
-                    <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                      <label className="flex items-center gap-2">
-                        <input type="checkbox" checked={generateVideos} onChange={(event) => setGenerateVideos(event.target.checked)} />
-                        Generate loops
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <input type="checkbox" checked={generateRemotion} onChange={(event) => setGenerateRemotion(event.target.checked)} />
-                        Remotion clips
-                      </label>
-                    </div>
-                  </div>
-                  {generateVideos && (
-                    <>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div className="space-y-1.5">
-                          <FieldLabel>Provider</FieldLabel>
-                          <Select value={videoProvider} onValueChange={(value) => {
-                            if (!value) return;
-                            setVideoProvider(value);
-                            if (value === 'together') setVideoModel('minimax/video-01');
-                            else if (value === 'heygen') setVideoModel('heygen/v3-video-agent');
-                            else if (value === 'openrouter') setVideoModel('runway/gen-3-alpha');
-                            else if (value === 'pika') setVideoModel('pika-core');
-                          }}>
-                            <SelectTrigger className="w-full" aria-label="Video provider"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="together">Together (Cinematic)</SelectItem>
-                              <SelectItem value="heygen">HeyGen (Brand Avatar)</SelectItem>
-                              <SelectItem value="openrouter">OpenRouter</SelectItem>
-                              <SelectItem value="pika">Pika</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <FieldLabel>Model</FieldLabel>
-                          <Input value={videoModel} onChange={(event) => setVideoModel(event.target.value)} className="font-mono" aria-label="Video model" />
-                        </div>
-                      </div>
-                      <ModelPicks
-                        models={curatedModels.filter((model) => model.modality === 'video' && (model.provider === videoProvider || videoProvider === 'together' && model.provider === 'together'))}
-                        active={videoModel}
-                        onPick={setVideoModel}
-                      />
-                      <ValidationNote result={videoValidation} />
-                    </>
-                  )}
+              <Textarea
+                value={campaignTopic}
+                onChange={(e) => setCampaignTopic(e.target.value)}
+                placeholder="E.g. Launching our autonomous CRM agent: highlight 0 manual data entry, instant pipeline routing, and 24/7 client response. Authentic tone with high-contrast reel visuals."
+                className="min-h-24 resize-y text-sm"
+              />
+              {activeMarketingPack?.content_pillars && (
+                <div className="flex flex-wrap items-center gap-1 pt-1">
+                  <span className="text-[10px] text-muted-foreground font-medium mr-1">Suggested Pillars:</span>
+                  {activeMarketingPack.content_pillars.slice(0, 4).map((pillar) => (
+                    <button
+                      key={pillar.id}
+                      type="button"
+                      onClick={() => setCampaignTopic((prev) => prev ? `${prev} · ${pillar.label}: ${pillar.description}` : `${pillar.label}: ${pillar.description}`)}
+                      className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                    >
+                      + {pillar.label}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
-          </div>
-          <div className="flex justify-end gap-2 border-t border-border pt-3">
-            {campaignPosts.length > 0 && <Button variant="outline" onClick={() => setIsGeneratorExpanded(false)}>Cancel</Button>}
-            <Button onClick={handleLaunchCampaign} disabled={loading || !campaignTopic}>
-              {loading ? <Loader2 className="animate-spin" /> : null}
-              {loading ? 'Starting generation' : `Launch ${campaignDays}-day campaign`}
-            </Button>
-          </div>
-        </section>
-      ) : null}
 
-      {campaignPosts.length === 0 && !isGeneratorExpanded && campaignViewMode !== 'verticals' && (
-        <EmptyState
-          title="No campaign posts yet"
-          description="Plan a topic and the networks it should cover. Drafts show up here for review before anything is published."
-          action={<Button onClick={() => setIsGeneratorExpanded(true)}>Plan a campaign</Button>}
-        />
-      )}
-
-      {(campaignPosts.length > 0 || campaignViewMode === 'verticals') && (
-        <section className="space-y-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex rounded-lg border border-border p-0.5">
-              {([
-                ['timeline', 'Timeline', CalendarRange],
-                ['kanban', 'Board', LayoutGrid],
-                ['schedule', 'Cadence & Triggers', Clock],
-                ['analytics', 'Results', TrendingUp],
-                ['verticals', 'Industry Pack', Layers],
-              ] as const).map(([id, label, Icon]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setCampaignViewMode(id)}
-                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs ${campaignViewMode === id ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}
-                >
-                  <Icon className="size-3.5" /> {label}
-                </button>
-              ))}
-            </div>
-            {campaignViewMode !== 'analytics' && (
-              <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                <div className="relative sm:w-64">
-                  <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input value={postQuery} onChange={(event) => setPostQuery(event.target.value)} placeholder="Search post text" aria-label="Search posts" className="px-8" />
-                  {postQuery && (
-                    <button type="button" aria-label="Clear search" className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground" onClick={() => setPostQuery('')}>
-                      <X className="size-4" />
-                    </button>
-                  )}
+            {/* Networks & Timeline Grid */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-1">
+              <div className="space-y-2">
+                <FieldLabel>Target Networks</FieldLabel>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: 'linkedin', label: 'LinkedIn', icon: Share2 },
+                    { id: 'instagram', label: 'Instagram', icon: ImageIcon },
+                    { id: 'facebook', label: 'Facebook', icon: ThumbsUp },
+                  ].map(({ id, label, icon: Icon }) => {
+                    const isSelected = campaignPlatforms.includes(id);
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => {
+                          setCampaignPlatforms(isSelected ? campaignPlatforms.filter((p) => p !== id) : [...campaignPlatforms, id]);
+                        }}
+                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                          isSelected
+                            ? 'border-primary bg-primary/10 text-foreground'
+                            : 'border-border text-muted-foreground hover:bg-muted/40'
+                        }`}
+                      >
+                        <Icon className="size-3.5" />
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {['all', 'linkedin', 'instagram', 'facebook'].map((platform) => (
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <FieldLabel>Campaign Duration</FieldLabel>
+                  <span className="text-xs font-mono text-primary font-semibold">{campaignDays} Days</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {[
+                    { days: 3, label: '3-Day Sprint' },
+                    { days: 7, label: '7-Day Week' },
+                    { days: 14, label: '14-Day Growth' },
+                    { days: 30, label: '30-Day Monthly' },
+                  ].map((preset) => (
                     <button
-                      key={platform}
+                      key={preset.days}
                       type="button"
-                      onClick={() => setCampaignFilterPlatform(platform)}
-                      className={`rounded-md px-2.5 py-1 text-xs ${campaignFilterPlatform === platform ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}
+                      onClick={() => setCampaignDays(preset.days)}
+                      className={`flex-1 rounded-md border py-1 text-xs transition-colors ${
+                        campaignDays === preset.days
+                          ? 'border-primary bg-primary text-primary-foreground font-semibold'
+                          : 'border-border text-muted-foreground hover:bg-muted/40'
+                      }`}
                     >
-                      {platform === 'all' ? 'All networks' : platformName(platform)}
+                      {preset.label}
                     </button>
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Step 2: Creative Format & Multi-Modal Production */}
+          <div className="rounded-xl border border-border/80 bg-card p-5 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex size-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                  2
+                </span>
+                <h3 className="text-sm font-semibold text-foreground">
+                  Creative Format &amp; Multi-Modal Production
+                </h3>
+              </div>
+              <span className="text-xs text-muted-foreground">Format &amp; Media Strategy</span>
+            </div>
+
+            {/* Formats Grid */}
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                {
+                  id: 'virtual_influencer',
+                  title: 'AI Virtual Influencer',
+                  badge: 'Recommended',
+                  badgeColor: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
+                  desc: '9:16 vertical video reels with spoken script, avatar, and FTC synthetic persona compliance.',
+                  icon: Bot,
+                },
+                {
+                  id: 'creator_ugc',
+                  title: 'Creator UGC Style',
+                  badge: 'High Conversion',
+                  badgeColor: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+                  desc: 'Direct-to-camera candid review, walkthrough hook, and organic creator tone.',
+                  icon: Video,
+                },
+                {
+                  id: 'mixed',
+                  title: 'Omnichannel Mix',
+                  badge: 'Balanced',
+                  badgeColor: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+                  desc: 'Balanced alternation of reels, carousels, infographics, and authoritative founder copy.',
+                  icon: Layers,
+                },
+                {
+                  id: 'carousel',
+                  title: 'Carousel & Slides',
+                  badge: 'Educational',
+                  badgeColor: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+                  desc: 'Multi-slide swipeable breakdowns, step-by-step guides, and framework overviews.',
+                  icon: LayoutGrid,
+                },
+                {
+                  id: 'infographic',
+                  title: 'Data Teardowns',
+                  badge: 'B2B Authority',
+                  badgeColor: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20',
+                  desc: 'Visual benchmark stats, architecture blueprints, and empirical comparisons.',
+                  icon: TrendingUp,
+                },
+                {
+                  id: 'video',
+                  title: 'Cinematic Teaser',
+                  badge: 'Brand Video',
+                  badgeColor: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+                  desc: '16:9 cinematic video clips, motion highlights, and product hero visuals.',
+                  icon: Film,
+                },
+              ].map((fmt) => {
+                const isSelected = contentFormat === fmt.id;
+                const Icon = fmt.icon;
+                return (
+                  <button
+                    key={fmt.id}
+                    type="button"
+                    onClick={() => {
+                      setContentFormat(fmt.id);
+                      if (fmt.id === 'virtual_influencer' || fmt.id === 'creator_ugc' || fmt.id === 'video') {
+                        setGenerateVideos(true);
+                        setGenerateImages(true);
+                      }
+                    }}
+                    className={`relative flex flex-col justify-between rounded-xl border p-3.5 text-left transition-all ${
+                      isSelected
+                        ? 'border-primary bg-primary/10 shadow-xs'
+                        : 'border-border/80 bg-card hover:border-primary/40 hover:bg-muted/30'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5 font-semibold text-sm">
+                          <Icon className={`size-4 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                          <span className={isSelected ? 'text-primary' : 'text-foreground'}>{fmt.title}</span>
+                        </div>
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${fmt.badgeColor}`}>
+                          {fmt.badge}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{fmt.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Media switches */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <div className={`flex items-center justify-between rounded-lg border p-3 ${generateImages ? 'border-primary/40 bg-primary/5' : 'border-border bg-muted/20'}`}>
+                <div>
+                  <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <ImageIcon className="size-3.5 text-primary" />
+                    Auto-Generate Visual Creatives (Images)
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">FLUX.1 Schnell photorealistic &amp; branded visuals</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={generateImages}
+                  onChange={(e) => setGenerateImages(e.target.checked)}
+                  className="size-4 rounded accent-primary cursor-pointer"
+                />
+              </div>
+
+              <div className={`flex items-center justify-between rounded-lg border p-3 ${generateVideos ? 'border-purple-500/40 bg-purple-500/5' : 'border-border bg-muted/20'}`}>
+                <div>
+                  <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Video className="size-3.5 text-purple-500" />
+                    Auto-Generate Video Reels (9:16)
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Minimax / HeyGen AI cinematic &amp; avatar video reels</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={generateVideos}
+                  onChange={(e) => setGenerateVideos(e.target.checked)}
+                  className="size-4 rounded accent-purple-600 cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* Collapsible Advanced Model Routing */}
+            <div className="border-t border-border/60 pt-3">
+              <button
+                type="button"
+                onClick={() => setShowAdvancedModels((v) => !v)}
+                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+              >
+                {showAdvancedModels ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+                <Cpu className="size-3.5 text-primary" />
+                Advanced AI Provider &amp; Model Routing (Optional)
+              </button>
+
+              {showAdvancedModels && (
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border border-border bg-muted/20 p-3">
+                  <div className="space-y-1">
+                    <FieldLabel>Copy Model Provider</FieldLabel>
+                    <Select value={textProvider} onValueChange={(v) => { if (v) setTextProvider(v); }}>
+                      <SelectTrigger className="w-full text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">Auto / Default (.env)</SelectItem>
+                        <SelectItem value="openrouter">OpenRouter (Gemini, Claude, GPT-4o)</SelectItem>
+                        <SelectItem value="together">Together AI</SelectItem>
+                        <SelectItem value="gemini">Google Gemini</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <FieldLabel>Image Provider</FieldLabel>
+                    <Select value={imageProvider} onValueChange={(v) => { if (v) setImageProvider(v); }}>
+                      <SelectTrigger className="w-full text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="together">Together AI (FLUX.1 Schnell)</SelectItem>
+                        <SelectItem value="openrouter">OpenRouter FLUX</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <FieldLabel>Video Engine</FieldLabel>
+                    <Select value={videoProvider} onValueChange={(v) => { if (v) setVideoProvider(v); }}>
+                      <SelectTrigger className="w-full text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="together">Together (Minimax Video-01)</SelectItem>
+                        <SelectItem value="heygen">HeyGen (Avatar Voice)</SelectItem>
+                        <SelectItem value="openrouter">OpenRouter Video</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Step 3: Strategy Blueprint Preview & Launch */}
+          <div className="rounded-xl border border-border/80 bg-card p-5 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex size-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                  3
+                </span>
+                <h3 className="text-sm font-semibold text-foreground">
+                  Strategy Blueprint Pre-Flight &amp; Council Launch
+                </h3>
+              </div>
+              <span className="text-xs text-muted-foreground">Pre-Execution Validation</span>
+            </div>
+
+            {/* Action Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3.5">
+              <div className="space-y-0.5">
+                <p className="text-xs font-semibold text-foreground">
+                  15-Agent Autonomous Council Pipeline
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Preview strategy angles or launch generation across all {campaignDays} days.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePreviewBrief}
+                  disabled={previewLoading || !campaignTopic}
+                  className="gap-1.5 text-xs"
+                >
+                  {previewLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Eye className="size-3.5" />}
+                  Preview Strategy Blueprint
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleLaunchCampaign}
+                  disabled={loading || !campaignTopic}
+                  className="gap-1.5 text-xs bg-primary text-primary-foreground font-semibold shadow-xs"
+                >
+                  {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
+                  {loading ? 'Launching Council...' : `Launch ${campaignDays}-Day Campaign`}
+                </Button>
+              </div>
+            </div>
+
+            {/* Blueprint Preview Card (If generated) */}
+            {strategyPreview && (
+              <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3 animate-in fade-in duration-300">
+                <div className="flex items-center justify-between border-b border-primary/20 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="size-4 text-primary" />
+                    <h4 className="text-sm font-bold text-foreground">Campaign Strategy Blueprint</h4>
+                    <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold">
+                      Deterministic Claim Verification Ready
+                    </span>
+                  </div>
+                  <span className="text-xs font-mono text-muted-foreground">
+                    {strategyPreview.format || contentFormat}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="rounded-lg border border-border/60 bg-card p-3 space-y-1">
+                    <span className="font-semibold text-muted-foreground text-[11px] uppercase tracking-wider">Target Audience</span>
+                    <p className="text-foreground">{strategyPreview.target_audience || 'B2B Founders, Tech Leaders, and Growth Operators'}</p>
+                  </div>
+                  <div className="rounded-lg border border-border/60 bg-card p-3 space-y-1">
+                    <span className="font-semibold text-muted-foreground text-[11px] uppercase tracking-wider">Core Narrative Angle</span>
+                    <p className="text-foreground">{strategyPreview.core_angle || campaignTopic}</p>
+                  </div>
+                </div>
+
+                {strategyPreview.content_themes && Array.isArray(strategyPreview.content_themes) && (
+                  <div className="rounded-lg border border-border/60 bg-card p-3 space-y-2">
+                    <span className="font-semibold text-muted-foreground text-[11px] uppercase tracking-wider">Content Pillars &amp; Narrative Arc</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {strategyPreview.content_themes.map((theme: any, idx: number) => (
+                        <div key={idx} className="rounded border border-border/40 bg-muted/30 p-2 text-xs">
+                          <span className="font-semibold text-primary block">Pillar {idx + 1}</span>
+                          <span className="text-muted-foreground text-[11px]">{typeof theme === 'string' ? theme : theme.title || JSON.stringify(theme)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {strategyPreview.sample_hook && (
+                  <div className="rounded-lg border border-border/60 bg-card p-3 space-y-1">
+                    <span className="font-semibold text-muted-foreground text-[11px] uppercase tracking-wider">Sample Hook &amp; Spoken Reel Script</span>
+                    <p className="text-foreground italic text-xs">"{strategyPreview.sample_hook}"</p>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-2">
+                  <Button
+                    type="button"
+                    onClick={handleLaunchCampaign}
+                    disabled={loading}
+                    className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                  >
+                    <CheckCircle2 className="size-4" />
+                    Approve Blueprint &amp; Run 15-Agent Council
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
+        </div>
+      )}
+    </div>
+  )}
+
+      {/* AI Virtual Influencer Studio Tab */}
+      {campaignViewMode === 'influencer' && (
+        <div className="space-y-4">
+          <VirtualInfluencerStudio
+            API_URL={API_URL}
+            fetchWithAuth={fetchWithAuth}
+            activeRoomSlug={currentRoomSlug || 'default'}
+            onPostCreated={() => {
+              fetchCampaignPosts();
+              fetchData();
+            }}
+          />
+        </div>
+      )}
+
+      {/* Autonomous Market Radar Tab */}
+      {campaignViewMode === 'radar' && (
+        <div className="space-y-4">
+          <AutonomousMarketingRadar
+            API_URL={API_URL}
+            fetchWithAuth={fetchWithAuth}
+            onPulseSuccess={() => {
+              fetchCampaignPosts();
+              fetchData();
+            }}
+          />
+        </div>
+      )}
+
+      {/* Feed Timeline and Kanban Board Views */}
+      {(campaignViewMode === 'timeline' || campaignViewMode === 'kanban') && (
+        <section className="space-y-4">
+          {campaignPosts.length > 0 && (
+            <div className={`grid grid-cols-2 gap-3 ${statusFilters.length > 4 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
+              {statusFilters.map((filter) => (
+                <button
+                  key={filter.id}
+                  type="button"
+                  onClick={() => chooseStatus(filter.id)}
+                  className={`rounded-lg border px-3 py-3 text-left ${campaignFilterStatus === filter.id ? 'border-primary bg-primary/10' : 'border-border bg-card hover:bg-muted/40'}`}
+                >
+                  <p className="text-lg font-semibold leading-none">{filter.value}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{filter.label}</p>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold tracking-tight">
+                {campaignViewMode === 'timeline' ? 'Day-by-Day Feed Timeline' : 'Approval &amp; Publishing Board'}
+              </h2>
+              <span className="text-xs text-muted-foreground font-mono">
+                ({timelinePosts.length} post{timelinePosts.length === 1 ? '' : 's'})
+              </span>
+            </div>
+            <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <div className="relative sm:w-64">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input value={postQuery} onChange={(event) => setPostQuery(event.target.value)} placeholder="Search post text" aria-label="Search posts" className="px-8" />
+                {postQuery && (
+                  <button type="button" aria-label="Clear search" className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground" onClick={() => setPostQuery('')}>
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {['all', 'linkedin', 'instagram', 'facebook'].map((platform) => (
+                  <button
+                    key={platform}
+                    type="button"
+                    onClick={() => setCampaignFilterPlatform(platform)}
+                    className={`rounded-md px-2.5 py-1 text-xs ${campaignFilterPlatform === platform ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}
+                  >
+                    {platform === 'all' ? 'All networks' : platformName(platform)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {campaignPosts.length === 0 && (
+            <EmptyState
+              title="No campaign posts yet"
+              description="Your multi-day campaigns generated by the 15-Agent Council and AI Virtual Influencers appear here for review."
+              action={
+                <Button onClick={() => setCampaignViewMode('studio')} className="gap-2">
+                  <Wand2 className="size-4" /> Open Campaign Studio
+                </Button>
+              }
+            />
+          )}
 
           {campaignViewMode === 'timeline' && (
             timelinePosts.length === 0 ? (
@@ -2403,8 +2777,10 @@ export default function CampaignsView({
               )}
             </div>
           )}
+        </section>
+      )}
 
-          {campaignViewMode === 'analytics' && (
+      {campaignViewMode === 'analytics' && (
             <div className="space-y-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -2520,8 +2896,6 @@ export default function CampaignsView({
               />
             </div>
           )}
-        </section>
-      )}
 
       <Dialog open={isMetaModalOpen} onOpenChange={(open) => { if (!open) { setIsMetaModalOpen(false); setPendingPublishPostId(null); setMetaTokenInput(''); } }}>
         <DialogContent className="sm:max-w-lg">
