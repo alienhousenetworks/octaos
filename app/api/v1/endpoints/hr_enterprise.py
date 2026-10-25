@@ -158,7 +158,7 @@ def update_service_request(
     tenant_id: str = Depends(deps.get_current_tenant_id),
     current_user: User = Depends(deps.get_current_user),
 ):
-    _require_permission(db, current_user, "hr.manage_employees")
+    _require_permission(db, current_user, "hr.manage_service_requests")
     row = db.query(HRServiceRequest).filter_by(id=request_id, tenant_id=tenant_id).with_for_update().first()
     if not row:
         raise HTTPException(status_code=404, detail="HR service request not found.")
@@ -185,7 +185,7 @@ def create_performance_review(
     tenant_id: str = Depends(deps.get_current_tenant_id),
     current_user: User = Depends(deps.get_current_user),
 ):
-    _require_permission(db, current_user, "hr.manage_employees")
+    _require_permission(db, current_user, "hr.manage_performance")
     employee = _employee_or_404(db, tenant_id, payload.employee_id)
     review = HRPerformanceReview(
         tenant_id=tenant_id, employee_id=employee.id, reviewer_user_id=current_user.id,
@@ -245,7 +245,7 @@ def update_performance_review(
         row.employee_comments = payload.employee_comments
         row.status = "acknowledged"
     else:
-        _require_permission(db, current_user, "hr.manage_employees")
+        _require_permission(db, current_user, "hr.manage_performance")
         if not is_reviewer and (getattr(current_user, "role", "") or "").lower() not in _ADMIN_ROLES:
             raise HTTPException(status_code=403, detail="Only the assigned reviewer or HR administrator may edit this review.")
         if row.status != "draft":
@@ -268,7 +268,7 @@ def create_compensation_proposal(
     tenant_id: str = Depends(deps.get_current_tenant_id),
     current_user: User = Depends(deps.get_current_user),
 ):
-    _require_permission(db, current_user, "hr.manage_employees")
+    _require_permission(db, current_user, "hr.manage_compensation")
     employee = _employee_or_404(db, tenant_id, payload.employee_id)
     currency = payload.currency.strip().upper()
     if not currency.isalpha():
@@ -296,7 +296,7 @@ def decide_compensation_proposal(
     tenant_id: str = Depends(deps.get_current_tenant_id),
     current_user: User = Depends(deps.get_current_user),
 ):
-    _require_permission(db, current_user, "hr.manage_employees")
+    _require_permission(db, current_user, "hr.manage_compensation")
     proposal = db.query(HRCompensationChange).filter_by(id=proposal_id, tenant_id=tenant_id).with_for_update().first()
     if not proposal:
         raise HTTPException(status_code=404, detail="Compensation proposal not found.")
@@ -322,7 +322,7 @@ def start_lifecycle(
     tenant_id: str = Depends(deps.get_current_tenant_id),
     current_user: User = Depends(deps.get_current_user),
 ):
-    _require_permission(db, current_user, "hr.manage_employees")
+    _require_permission(db, current_user, "hr.manage_lifecycle")
     employee = _employee_or_404(db, tenant_id, payload.employee_id)
     lifecycle = payload.lifecycle.strip().lower()
     if lifecycle not in {"onboarding", "offboarding"}:
@@ -382,7 +382,7 @@ def update_lifecycle_task(
     tenant_id: str = Depends(deps.get_current_tenant_id),
     current_user: User = Depends(deps.get_current_user),
 ):
-    _require_permission(db, current_user, "hr.manage_employees")
+    _require_permission(db, current_user, "hr.manage_lifecycle")
     task = db.query(HRLifecycleTask).filter_by(id=task_id, tenant_id=tenant_id).with_for_update().first()
     if not task:
         raise HTTPException(status_code=404, detail="Lifecycle task not found.")
