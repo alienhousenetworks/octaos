@@ -34,10 +34,10 @@ jobs:
           python -m compileall -q app/services/marketing/autonomy app/services/marketing/context_radar/trend_synthesizer.py app/services/marketing/campaign_os/orchestrator.py app/services/agents/marketing.py app/services/marketing/virtual_influencer.py app/models/verticals.py
       - name: Run focused autonomy tests
         env:
-          DATABASE_URL: sqlite:///./marketing-autonomy-tests.db
+          SQLALCHEMY_DATABASE_URI: sqlite:///./marketing-autonomy-tests.db
         run: |
           pytest -q tests/marketing/test_autonomy_decision_engine.py tests/marketing/test_autonomy_policy.py tests/marketing/test_marketing_execution_ledger.py
       - name: Run Campaign OS regression tests
         env:
-          DATABASE_URL: sqlite:///./marketing-autonomy-tests.db
+          SQLALCHEMY_DATABASE_URI: sqlite:///./marketing-autonomy-tests.db
         run: pytest -q tests/evaluation_harness/test_campaign_15_agents_orchestration.py
