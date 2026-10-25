@@ -39,10 +39,7 @@ def _is_public_ip(value: str) -> bool:
         ip = ipaddress.ip_address(value)
     except ValueError:
         return False
-    return not (
-        ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast
-        or ip.is_reserved or ip.is_unspecified
-    )
+    return ip.is_global
 
 
 def _validate_and_resolve(url: str, resolver: Callable):
