@@ -1645,3 +1645,65 @@ def marketing_workforce_readiness(
     from app.services.marketing.workforce_readiness import get_marketing_workforce_readiness
 
     return get_marketing_workforce_readiness(db, tenant_id)
+
+
+class VirtualInfluencerBriefRequest(BaseModel):
+    company_name: str = Field(min_length=1, max_length=200)
+    industry: str = Field(min_length=1, max_length=200)
+    brand_tone: str = Field(default="Confident, useful and human", max_length=500)
+    audience: str = Field(default="", max_length=1000)
+    platform: str = Field(default="instagram", max_length=80)
+    creative_direction: str = Field(default="", max_length=2000)
+
+
+@router.post("/virtual-influencer/brief")
+async def generate_virtual_influencer_brief(
+    body: VirtualInfluencerBriefRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.CREATE)),
+) -> Any:
+    """Generate a tenant-scoped fictional adult virtual-influencer brief; never publishes it."""
+    from app.services.ai_gateway import ai_gateway
+    from app.services.marketing.virtual_influencer import create_virtual_influencer_brief
+
+    class TenantLLM:
+        async def complete(self, *, prompt: str, system_prompt: str, max_tokens: int = 1400) -> str:
+            return await ai_gateway.executeRequest(
+                db,
+                tenant_id,
+                prompt=prompt,
+                system_prompt=system_prompt,
+                task_type="marketing",
+                complexity="medium",
+                max_tokens=max_tokens,
+            )
+
+    try:
+        projection = {}
+        try:
+            from app.services.knowledge_os.intent_projector import CompanyContextProjectionEngine, IntentType
+            projection = await CompanyContextProjectionEngine(db, tenant_id).get_projection(
+                intent=IntentType.CAMPAIGN_MARKETING
+            )
+        except Exception:
+            # A brief can still be generated from explicitly supplied inputs; do not invent brand facts.
+            projection = {}
+        approved_products = []
+        if isinstance(projection, dict):
+            approved_products = projection.get("approved_products") or projection.get("products") or []
+        result = await create_virtual_influencer_brief(
+            TenantLLM(),
+            company_name=body.company_name,
+            industry=body.industry,
+            brand_tone=body.brand_tone,
+            approved_products=approved_products if isinstance(approved_products, list) else [],
+            audience=body.audience,
+            platform=body.platform,
+            creative_direction=body.creative_direction,
+        )
+        return {**result, "persistence": "not_persisted", "message": "Draft generated; review and export it before use."}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Virtual influencer generation failed. Check tenant AI provider configuration and try again.") from exc
