@@ -92,6 +92,7 @@ class AgentRequest:
     model: str | None = None
     system_prompt: str | None = None
     task_type: str = "general"
+    allowed_providers: Sequence[str] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
