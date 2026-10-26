@@ -36,6 +36,7 @@ class AIGatewayAgentAdapter:
             system_prompt=request.system_prompt,
             task_type=request.task_type,
             usage_callback=capture_usage,
+            allowed_providers=list(request.allowed_providers) or None,
         )
         if not isinstance(output, str):
             raise TypeError("AI gateway returned a non-text result for a text agent request.")
