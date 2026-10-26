@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import hmac
+import hashlib
 from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
@@ -14,6 +15,7 @@ from app.core.config import settings
 from app.services.credentials import get_decrypted_credential, normalize_provider, save_credential
 from app.core.security import encrypt_api_key, decrypt_api_key
 from app.services.integrations.webhook_security import verify_timestamped_hmac
+from app.services.webhook_security import check_and_store_idempotency, payload_sha256
 from app.services.integrations.sendgrid_service import SendGridService
 from app.services.integrations.calendly_service import CalendlyService
 from app.services.integrations.landingi_forms_service import LandingiFormsService
@@ -96,6 +98,49 @@ def _webhook_secret(db: Session, tenant_id: str, provider: str) -> Optional[str]
     normalized = normalize_provider(provider)
     secret, _ = get_decrypted_credential(db, tenant_id, f"{normalized}_webhook")
     return secret
+
+
+def _extract_webhook_event_id(
+    provider: str, payload: Any, request: Request, raw_body: bytes
+) -> str:
+    """Prefer provider event IDs; fall back to a timestamp-bound payload digest."""
+    for header_name in (
+        "X-OctaOS-Event-ID",
+        "X-Webhook-Id",
+        "X-Event-ID",
+        "X-Twilio-EventId",
+    ):
+        value = request.headers.get(header_name)
+        if value:
+            return str(value)[:240]
+
+    candidates = []
+    if isinstance(payload, dict):
+        for key in ("event_id", "sg_event_id", "webhook_id", "uuid", "id"):
+            if payload.get(key):
+                candidates.append(str(payload[key]))
+                break
+        nested = payload.get("payload")
+        if not candidates and isinstance(nested, dict):
+            for key in ("event_id", "uuid", "id"):
+                if nested.get(key):
+                    candidates.append(str(nested[key]))
+                    break
+    elif isinstance(payload, list):
+        for item in payload:
+            if isinstance(item, dict):
+                event_id = item.get("sg_event_id") or item.get("event_id") or item.get("id")
+                if event_id:
+                    candidates.append(str(event_id))
+        if candidates:
+            # Stable for the same provider batch regardless of item order.
+            return hashlib.sha256("|".join(sorted(candidates)).encode("utf-8")).hexdigest()
+
+    if candidates:
+        return candidates[0][:240]
+
+    timestamp = request.headers.get("X-OctaOS-Timestamp", "no-timestamp")
+    return f"{timestamp}:{payload_sha256(raw_body)}"
 
 
 def _require_webhook_signature(
@@ -189,7 +234,17 @@ async def receive_integration_webhook(
         except Exception:
             payload = {}
 
-    logger.info(f"Received inbound webhook from '{prov_lower}' for tenant '{tenant_id}'")
+    event_id = _extract_webhook_event_id(prov_lower, payload, request, raw_body)
+    if not check_and_store_idempotency(
+        db,
+        tenant_id=tenant_id,
+        provider=prov_lower,
+        event_id=event_id,
+        payload_hash=payload_sha256(raw_body),
+    ):
+        return {"status": "duplicate", "provider": prov_lower}
+
+    logger.info("Received authenticated inbound webhook provider=%s tenant=%s", prov_lower, tenant_id)
 
     # Dispatch to appropriate connector service
     if prov_lower == "calendly":
