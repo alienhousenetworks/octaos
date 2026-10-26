@@ -843,8 +843,9 @@ def poll_scheduled_triggers():
     from app.models.schedules import ScheduledTrigger
     from app.models.verticals import BusinessProfile
     from app.models.agents import ActivityLog
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timezone
     import logging
+    from app.services.runtime_governance.triggers import lease_scheduled_trigger, complete_scheduled_trigger
 
     task_logger = logging.getLogger("poll_scheduled_triggers")
     db = SessionLocal()
@@ -862,12 +863,9 @@ def poll_scheduled_triggers():
 
         for trigger in due_triggers:
             task_logger.info(f"Executing scheduled trigger {trigger.id} for {trigger.target_type} (tenant: {trigger.tenant_id})")
-            trigger.last_run_at = now
-            trigger.last_status = "running"
-            trigger.last_error = None
-            # Lease the trigger while the dispatch is in flight so another beat worker
-            # does not pick it up concurrently. Failures below schedule a bounded retry.
-            trigger.next_run_at = now + timedelta(minutes=5)
+            # Lease the trigger while dispatch is in flight so another beat worker
+            # does not pick up the same occurrence concurrently.
+            lease_scheduled_trigger(trigger, now=now, lease_seconds=300)
             db.commit()
 
             try:
@@ -950,20 +948,16 @@ def poll_scheduled_triggers():
                     db.add(log)
                     db.commit()
 
-                trigger.last_status = "success"
-                trigger.last_error = None
-                if (trigger.frequency or "").lower() == "once":
-                    trigger.is_active = False
-                    trigger.next_run_at = None
-                else:
-                    trigger.next_run_at = trigger.calculate_next_run(from_time=datetime.now(timezone.utc))
+                complete_scheduled_trigger(
+                    trigger, now=datetime.now(timezone.utc), succeeded=True
+                )
                 db.commit()
             except Exception as trig_err:
                 task_logger.error(f"Error executing trigger {trigger.id}: {trig_err}")
-                trigger.last_status = "failed"
-                trigger.last_error = str(trig_err)[:300]
                 # Retry quickly rather than silently losing a missed run.
-                trigger.next_run_at = datetime.now(timezone.utc) + timedelta(minutes=1)
+                complete_scheduled_trigger(
+                    trigger, now=datetime.now(timezone.utc), succeeded=False, error=str(trig_err)
+                )
                 db.commit()
 
     except Exception as e:
