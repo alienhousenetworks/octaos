@@ -26,6 +26,9 @@ def verify_timestamped_hmac(
     if not secret or not timestamp or not signature:
         return False
 
+    if not timestamp.isascii() or not timestamp.isdigit():
+        return False
+
     try:
         timestamp_value = int(timestamp)
     except (TypeError, ValueError):
