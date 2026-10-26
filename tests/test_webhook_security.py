@@ -171,3 +171,27 @@ def test_webhook_secret_configuration_encrypts_verification_token_and_never_retu
     }
     assert "signing-secret-long-enough-123" not in repr(result)
     assert "provider-verification-token" not in repr(result)
+
+
+def test_webhook_event_id_prefers_provider_id():
+    request = _FakeRequest({"X-OctaOS-Timestamp": "1761500000"})
+    event_id = integrations._extract_webhook_event_id(
+        "calendly",
+        {"event_id": "event-123", "payload": {}},
+        request,
+        b"{}",
+    )
+    assert event_id == "event-123"
+
+
+def test_webhook_event_id_fallback_is_stable_for_signed_retry_but_not_new_timestamp():
+    body = b'{"same":"payload"}'
+    request_a = _FakeRequest({"X-OctaOS-Timestamp": "1761500000"})
+    request_b = _FakeRequest({"X-OctaOS-Timestamp": "1761500001"})
+
+    event_a = integrations._extract_webhook_event_id("landingi", {}, request_a, body)
+    retry_a = integrations._extract_webhook_event_id("landingi", {}, request_a, body)
+    event_b = integrations._extract_webhook_event_id("landingi", {}, request_b, body)
+
+    assert event_a == retry_a
+    assert event_a != event_b
