@@ -35,7 +35,7 @@
 
 ## Runtime inventory update
 
-A targeted source-tree scan found multiple existing lifecycle/orchestration components. See [RUNTIME_INVENTORY.md](RUNTIME_INVENTORY.md) for the source-linked map and deferred selection decisions. This confirms runtime consolidation must begin with compatibility mapping rather than adding a new engine.
+A targeted source-tree scan found multiple existing lifecycle/orchestration components. See [RUNTIME_INVENTORY.md](RUNTIME_INVENTORY.md) for the source-linked map and deferred selection decisions. [API_WORKER_TEST_MAP.md](API_WORKER_TEST_MAP.md) records the endpoint families, worker entry points and test-suite count. This confirms runtime consolidation must begin with compatibility mapping rather than adding a new engine.
 
 ## Phase 00 remaining work
 
