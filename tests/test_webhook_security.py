@@ -1,6 +1,8 @@
 import hashlib
 import hmac
 import time
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
@@ -106,3 +108,23 @@ def test_production_webhook_ingress_accepts_valid_signed_request(monkeypatch):
         }),
         raw_body=body,
     )
+
+
+def test_webhook_ingress_rejects_inactive_tenant():
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(is_active=False)
+
+    with pytest.raises(HTTPException) as exc:
+        integrations._ensure_webhook_tenant_active(db, "suspended-tenant")
+
+    assert exc.value.status_code == 403
+
+
+def test_webhook_ingress_rejects_unknown_tenant():
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = None
+
+    with pytest.raises(HTTPException) as exc:
+        integrations._ensure_webhook_tenant_active(db, "unknown-tenant")
+
+    assert exc.value.status_code == 404
