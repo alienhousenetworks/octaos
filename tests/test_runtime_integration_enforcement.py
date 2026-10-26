@@ -74,3 +74,32 @@ def test_tool_policy_rejects_tenant_mismatch():
     )
     assert not decision.allowed
     assert decision.reason == "TENANT_MISMATCH"
+
+
+
+def test_tool_definition_approval_cannot_be_bypassed_by_direct_dispatch():
+    async def run():
+        tool = tool_registry.get("email.send")
+        if not tool or not tool.approval_required:
+            pytest.skip("Email tool approval policy is not enabled in this configuration.")
+        with pytest.raises(PermissionError, match="APPROVAL_REQUIRED"):
+            await tool_registry.execute_tool(
+                name="email.send",
+                payload={"to": "person@example.com", "body": "test"},
+                db=object(),
+                tenant_id="tenant-a",
+                context={"request_tenant_id": "tenant-a", "granted_tools": ["email.send"]},
+            )
+    asyncio.run(run())
+
+
+def test_outbound_webhook_requires_high_risk_approval():
+    decision = authorize_tool_call(
+        tenant_id="tenant-a",
+        request_tenant_id="tenant-a",
+        tool_name="webhook_post",
+        granted_tools=["webhook_post"],
+        connection_active=True,
+    )
+    assert not decision.allowed
+    assert decision.approval_required
