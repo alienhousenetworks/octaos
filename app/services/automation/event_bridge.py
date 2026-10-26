@@ -49,6 +49,24 @@ class AutomationEventBridge:
         adapter = get_automation_engine(self.tenant_id, self.db)
 
         for wf in workflows:
+            # Durable receipt lookup makes provider retries safe after a committed dispatch.
+            # Provider webhook handlers should pass their stable delivery/event ID as the key.
+            if idempotency_key:
+                prior = (
+                    self.db.query(AutomationExecution)
+                    .filter_by(tenant_id=self.tenant_id, workflow_id=wf.id)
+                    .order_by(AutomationExecution.created_at.desc())
+                    .limit(200)
+                    .all()
+                )
+                duplicate = next((item for item in prior
+                    if (item.trigger_context or {}).get("idempotency_key") == idempotency_key), None)
+                if duplicate:
+                    results.append({"workflow_id": wf.id, "workflow_name": wf.name,
+                        "execution_id": duplicate.id, "status": duplicate.status,
+                        "deduplicated": True})
+                    continue
+
             start_time = time.time()
             execution = AutomationExecution(
                 tenant_id=self.tenant_id,
@@ -56,7 +74,7 @@ class AutomationEventBridge:
                 trigger_type="octaos_event",
                 trigger_event=event_type,
                 status="running",
-                trigger_context=payload,
+                trigger_context={**payload, **({"idempotency_key": idempotency_key} if idempotency_key else {})},
                 inputs=payload,
                 attempt=1,
                 max_attempts=3,
