@@ -7,6 +7,11 @@ on:
       - "app/services/workflow_governance/**"
       - "app/services/runtime_governance/**"
       - "app/services/autonomous_runtime/**"
+      - "app/services/agents/runtime.py"
+      - "app/services/agents/tools.py"
+      - "app/services/automation/event_bridge.py"
+      - "app/api/v1/endpoints/automations.py"
+      - "app/api/v1/endpoints/autonomous_work.py"
       - "app/core/security.py"
       - "tests/test_agent_runtime_protocol.py"
       - "tests/test_workflow_governance_validator.py"
@@ -14,6 +19,7 @@ on:
       - "tests/test_runtime_triggers.py"
       - "tests/test_portable_packs.py"
       - "tests/test_runtime_entitlements.py"
+      - "tests/test_runtime_integration_enforcement.py"
       - "tests/test_security_passwords.py"
       - ".github/workflows/runtime-governance-tests.yml"
   push:
@@ -67,4 +73,5 @@ jobs:
             tests/test_runtime_triggers.py \
             tests/test_portable_packs.py \
             tests/test_runtime_entitlements.py \
+            tests/test_runtime_integration_enforcement.py \
             tests/test_security_passwords.py \
