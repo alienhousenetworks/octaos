@@ -18,6 +18,7 @@
 | Tenant tests | tests/test_tenant_isolation.py | Covers tenant-scoped analytics data. Request middleware spoofing regression coverage added separately. |
 | Frontend | frontend/package.json | Next.js 16 / React 19 application; baseline build/lint has not yet been run in this audit. |
 | Database migration config | alembic.ini | Alembic configured; migration head, upgrade path and restore procedure still need verification. |
+| Startup schema mutation | app/main.py | Startup iterates over SQLAlchemy metadata to create missing tables and executes multiple ALTER TABLE statements outside a recorded Alembic release. Must be inventoried and moved to reviewed migrations before claiming controlled production releases. |
 
 ## Initial risk register
 
@@ -27,7 +28,9 @@
 | SEC-002 | Insecure default secret/database credentials can be loaded from settings | High | Observed in settings. Add production startup validation and deployment configuration checks. |
 | ARCH-001 | Multiple orchestration/workflow paths may fragment state | High | Router surface is broad; map concrete services and consumers before consolidating. |
 | REL-001 | Runtime recovery and external side-effect idempotency may differ by module | High | Existing runtime tests cover a subset; create capability-by-capability matrix and restart/failure tests. |
-| OBS-001 | Health endpoint may expose raw exception details | Medium | Review endpoint response; return safe reason codes publicly and retain details in logs. |
+| OBS-001 | Health endpoint may expose raw exception details | Medium | Initial patch replaces raw dependency exception text with safe status values and removes the unconditional enterprise_hardened claim; tests added. |
+| DB-001 | Application startup performs schema mutation outside reviewed migrations | High | Observed in app/main.py. Inventory all inline DDL and replace incrementally with Alembic migrations; do not remove existing safeguards until migration parity is proven. |
+| REL-002 | Database connectivity check logs failure but startup continues | High | Observed in startup_db_check. Decide readiness/startup policy explicitly; production should not accept traffic when required database dependencies are unavailable. |
 | QA-001 | Full baseline is not recorded | High | Run backend tests, frontend build/lint, migration checks and CI; record actual outcomes. |
 
 ## Runtime inventory update
