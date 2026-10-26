@@ -862,7 +862,6 @@ def poll_scheduled_triggers():
 
         for trigger in due_triggers:
             task_logger.info(f"Executing scheduled trigger {trigger.id} for {trigger.target_type} (tenant: {trigger.tenant_id})")
-            scheduled_for = trigger.next_run_at or now
             trigger.last_run_at = now
             trigger.last_status = "running"
             trigger.last_error = None
