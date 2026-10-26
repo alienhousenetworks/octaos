@@ -1,0 +1,72 @@
+name: Runtime Governance Regression Tests
+
+on:
+  pull_request:
+    paths:
+      - "app/services/agent_runtime/**"
+      - "app/services/workflow_governance/**"
+      - "app/services/runtime_governance/**"
+      - "app/services/autonomous_runtime/**"
+      - "app/core/security.py"
+      - "app/models/autonomous_work.py"
+      - "tests/test_agent_runtime_protocol.py"
+      - "tests/test_workflow_governance_validator.py"
+      - "tests/test_runtime_governance_policy.py"
+      - "tests/test_runtime_triggers.py"
+      - "tests/test_portable_packs.py"
+      - "tests/test_runtime_entitlements.py"
+      - "tests/test_security_passwords.py"
+      - "tests/test_autonomous_runtime_idempotency.py"
+      - ".github/workflows/runtime-governance-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "app/services/agent_runtime/**"
+      - "app/services/workflow_governance/**"
+      - "app/services/runtime_governance/**"
+      - "app/services/autonomous_runtime/**"
+      - "app/core/security.py"
+      - "app/models/autonomous_work.py"
+      - "tests/test_agent_runtime_protocol.py"
+      - "tests/test_workflow_governance_validator.py"
+      - "tests/test_runtime_governance_policy.py"
+      - "tests/test_runtime_triggers.py"
+      - "tests/test_portable_packs.py"
+      - "tests/test_runtime_entitlements.py"
+      - "tests/test_security_passwords.py"
+      - "tests/test_autonomous_runtime_idempotency.py"
+      - ".github/workflows/runtime-governance-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-governance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install focused test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest SQLAlchemy bcrypt cryptography python-jose pydantic pydantic-settings fastapi
+      - name: Run runtime governance regression tests
+        env:
+          DEV: "true"
+          ENVIRONMENT: "test"
+          SECRET_KEY: "test-only-secret-key-32-characters-minimum"
+          SQLALCHEMY_DATABASE_URI: "sqlite:///./test_runtime_governance.db"
+        run: |
+          pytest -q \
+            tests/test_agent_runtime_protocol.py \
+            tests/test_workflow_governance_validator.py \
+            tests/test_runtime_governance_policy.py \
+            tests/test_runtime_triggers.py \
+            tests/test_portable_packs.py \
+            tests/test_runtime_entitlements.py \
+            tests/test_security_passwords.py \
+            tests/test_autonomous_runtime_idempotency.py
