@@ -60,6 +60,7 @@ jobs:
           ENVIRONMENT: "test"
           SECRET_KEY: "test-only-secret-key-32-characters-minimum"
           SQLALCHEMY_DATABASE_URI: "sqlite:///./test_runtime_governance.db"
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           pytest -q \
             tests/test_agent_runtime_protocol.py \
