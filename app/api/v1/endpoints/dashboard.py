@@ -1244,7 +1244,7 @@ def clone_package_to_flow(
     if not latest_ver:
         raise HTTPException(status_code=400, detail="Package has no registered version to clone.")
 
-    flow_steps = latest_ver.manifest.get("flow", []) if latest_ver.manifest else []
+    flow_steps = legacy_manifest.get("flow", [])
 
     new_flow = FlowDefinition(
         tenant_id=tenant_id,
@@ -1299,7 +1299,8 @@ def install_workflow(
     if not pack and request.package_id:
         seed_system_packages(db)
         pack = db.query(PackageDefinition).filter(
-            (PackageDefinition.id == request.package_id) | (PackageDefinition.slug == request.package_id.replace("pkg_", ""))
+            ((PackageDefinition.tenant_id == tenant_id) | (PackageDefinition.tenant_id.is_(None))),
+            ((PackageDefinition.id == request.package_id) | (PackageDefinition.slug == request.package_id.replace("pkg_", ""))),
         ).first()
 
     if not pack:
