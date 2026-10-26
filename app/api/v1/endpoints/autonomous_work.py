@@ -13,6 +13,7 @@ from app.api import deps
 from app.core.rbac import Action, Resource, require_permission
 from app.models.base import User
 from app.models.autonomous_work import AutonomousApproval, AutonomousTask, AutonomousTaskEvent
+from app.models.flow_engine import ExecutionEvent
 from app.services.autonomous_runtime import AutonomousRuntime, RuntimePolicyError
 from app.services.agent_runtime.protocol import sanitize_public_text
 
@@ -198,6 +199,56 @@ def _public_event_value(value: Any, depth: int = 0) -> Any:
     if isinstance(value, (int, float, bool)) or value is None:
         return value
     return sanitize_public_text(str(value), 500)
+
+
+@router.get("/agent-runs/{run_id}/events/stream")
+async def stream_agent_run_events(
+    run_id: str,
+    request: Request,
+    timeout_seconds: int = Query(default=30, ge=1, le=60),
+    db: Session = Depends(deps.get_db),
+    user: User = Depends(deps.get_current_user),
+):
+    """Stream normalized agent-runtime events scoped to the authenticated tenant."""
+    if not run_id or len(run_id) > 200:
+        raise HTTPException(status_code=400, detail="Invalid run ID.")
+
+    async def event_generator():
+        seen: set[str] = set()
+        deadline = asyncio.get_running_loop().time() + timeout_seconds
+        terminal_types = {"run.completed", "run.failed", "run.cancelled", "approval.required"}
+        while asyncio.get_running_loop().time() < deadline:
+            if await request.is_disconnected():
+                break
+            events = db.query(ExecutionEvent).filter(
+                ExecutionEvent.tenant_id == user.tenant_id,
+                ExecutionEvent.flow_run_id == run_id,
+            ).order_by(ExecutionEvent.created_at.asc()).limit(500).all()
+            terminal_seen = False
+            for event in events:
+                if event.id in seen:
+                    continue
+                seen.add(event.id)
+                payload = _public_event_value(event.payload or {})
+                event_type = str(event.event_type)
+                message = {
+                    "id": event.id,
+                    "run_id": run_id,
+                    "event_type": event_type,
+                    "payload": payload,
+                    "created_at": event.created_at.isoformat() if event.created_at else None,
+                }
+                yield f"id: {event.id}\\nevent: agent.event\\ndata: {json.dumps(message, separators=(',', ':'))}\\n\\n"
+                if event_type in terminal_types:
+                    terminal_seen = True
+            if terminal_seen:
+                break
+            yield ": keep-alive\\n\\n"
+            await asyncio.sleep(1)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no",
+    })
 
 
 @router.get("/tasks/{task_id}/events/stream")
