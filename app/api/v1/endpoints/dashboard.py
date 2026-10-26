@@ -26,6 +26,7 @@ from app.models.flow_engine import (
 )
 from app.services.agents.runtime import agent_runtime
 from app.services.agents.tools import tool_registry
+from app.services.runtime_governance.portable_packs import prepare_pack_install, PackValidationError
 from app.services.agents.flow_engine import flow_engine
 from app.services.agents.seeder import (
     seed_system_agents,
@@ -1304,11 +1305,49 @@ def install_workflow(
     if not latest_ver:
         raise HTTPException(status_code=400, detail="Package has no registered version.")
 
+    # 1a. Validate legacy marketplace manifests through the portable-pack boundary.
+    legacy_manifest = latest_ver.manifest if isinstance(latest_ver.manifest, dict) else {}
+    flow_steps = legacy_manifest.get("flow", [])
+    portable_manifest = {
+        "schema_version": 1,
+        "name": pack.name,
+        "version": latest_ver.version,
+        "description": pack.desc or "",
+        "agents": legacy_manifest.get("agents", []),
+        "workflows": legacy_manifest.get("workflows") or [{"name": f"{pack.name} Flow", "steps": flow_steps}],
+        "required_tools": latest_ver.required_tools or [],
+        "tests": legacy_manifest.get("tests", []),
+    }
+    try:
+        prepare_pack_install(portable_manifest)
+        # Config must never be a back door for exporting/importing plaintext credentials.
+        prepare_pack_install({**portable_manifest, "config": request.config or {}})
+    except (PackValidationError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=f"Package rejected by portable-pack policy: {exc}") from exc
+
+    registered_tools = {item["name"] for item in tool_registry.list_tools()}
+    missing_tools = sorted(set(latest_ver.required_tools or []) - registered_tools)
+    if missing_tools:
+        raise HTTPException(status_code=422, detail={
+            "message": "Package requires tools unavailable in this OctaOS deployment.",
+            "missing_tools": missing_tools,
+        })
+
+    # Installs are inert until an administrator reviews the imported workflow and reauthorizes connectors.
+    safe_install_config = {
+        **(request.config or {}),
+        "connections_enabled": False,
+        "schedules_enabled": False,
+        "require_connection_reauthorization": True,
+        "require_workflow_validation": True,
+        "require_admin_review": True,
+    }
+
     # 2. Transactional resource creation
     # Create or update legacy InstalledApp for backward compatibility
     legacy_app = db.query(InstalledApp).filter_by(tenant_id=tenant_id, app_name=pack.name).first()
     if not legacy_app:
-        legacy_app = InstalledApp(tenant_id=tenant_id, app_name=pack.name, config=request.config or {})
+        legacy_app = InstalledApp(tenant_id=tenant_id, app_name=pack.name, config=safe_install_config)
         db.add(legacy_app)
 
     # 3. Create dedicated FlowDefinition and FlowVersion in target section!
@@ -1328,8 +1367,9 @@ def install_workflow(
         flow_id=flow.id,
         version=1,
         definition=flow_steps,
-        trigger_type="event" if pack.section == "sales" else "manual",
-        trigger_config={"event": "lead.created"} if pack.section == "sales" else {},
+        trigger_type="manual",
+        trigger_config={"imported_from_package": pack.id, "source_version": latest_ver.version,
+                        "activation_requires_admin_review": True},
     )
     db.add(flow_ver)
 
@@ -1338,8 +1378,8 @@ def install_workflow(
         tenant_id=tenant_id,
         package_id=pack.id,
         package_version_id=latest_ver.id,
-        status="active",
-        config=request.config or {},
+        status="paused",
+        config=safe_install_config,
         created_resource_ids={"flow_id": flow.id},
     )
     db.add(inst)
@@ -1350,7 +1390,11 @@ def install_workflow(
         "flow_id": flow.id,
         "package_name": pack.name,
         "section": pack.section,
-        "message": f"'{pack.name}' installed and configured for section '{pack.section}'.",
+        "status": "paused",
+        "requires_admin_review": True,
+        "connections_enabled": False,
+        "schedules_enabled": False,
+        "message": f"'{pack.name}' installed in a safe paused state for section '{pack.section}'. Review the workflow and reauthorize connectors before activation.",
     }
 
 
