@@ -45,10 +45,18 @@ def dispatch_trigger_task(
     """
     received_at = datetime.now(timezone.utc).isoformat()
     safe_payload = dict(payload or {})
-    # Never accept caller-provided secret material into durable task context.
-    forbidden = {"api_key", "access_token", "refresh_token", "password", "secret", "client_secret"}
-    if any(str(key).lower() in forbidden for key in safe_payload):
-        raise ValueError("Trigger payload contains a forbidden secret field.")
+    # Recursively reject secrets so nested webhook objects cannot bypass the guard.
+    forbidden = {"api_key", "access_token", "refresh_token", "password", "secret", "client_secret", "authorization", "cookie", "private_key"}
+    def reject_secret_fields(value: Any) -> None:
+        if isinstance(value, Mapping):
+            for key, child in value.items():
+                if str(key).lower().replace("-", "_") in forbidden:
+                    raise ValueError("Trigger payload contains a forbidden secret field.")
+                reject_secret_fields(child)
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                reject_secret_fields(child)
+    reject_secret_fields(safe_payload)
     runtime = AutonomousRuntime(db)
     return runtime.create_task(
         tenant_id=tenant_id,
