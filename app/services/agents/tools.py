@@ -107,6 +107,8 @@ class ToolRegistry:
         # Every dispatch requires server-created authorization context. Frontend visibility
         # and the model's requested tool name are not authorization controls.
         policy_context = context or {}
+        if tool.approval_required and policy_context.get("approval_status") != "approved":
+            raise PermissionError("APPROVAL_REQUIRED")
         granted_tools = policy_context.get("granted_tools")
         request_tenant_id = policy_context.get("request_tenant_id")
         if not isinstance(granted_tools, (list, tuple, set)) or not request_tenant_id:
