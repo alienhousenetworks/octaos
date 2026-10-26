@@ -6,12 +6,6 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
-from sqlalchemy.orm import Session
-
-from app.models.autonomous_work import AutonomousTask
-from app.services.autonomous_runtime.engine import AutonomousRuntime
-
-
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,180}$")
 
 
@@ -24,7 +18,7 @@ def trigger_idempotency_key(trigger_id: str, delivery_id: str) -> str:
 
 
 def dispatch_trigger_task(
-    db: Session,
+    db: Any,
     *,
     tenant_id: str,
     created_by_id: str,
@@ -43,6 +37,11 @@ def dispatch_trigger_task(
     This creates a queued task only. A separate worker/dispatcher performs execution
     after tenant policy, connector status and approval requirements are evaluated.
     """
+    # Keep identifier helpers importable without importing the application's full
+    # model registry; dispatch loads DB-bound dependencies only when invoked.
+    from app.models.autonomous_work import AutonomousTask
+    from app.services.autonomous_runtime.engine import AutonomousRuntime
+
     received_at = datetime.now(timezone.utc).isoformat()
     safe_payload = dict(payload or {})
     # Recursively reject secrets so nested webhook objects cannot bypass the guard.
