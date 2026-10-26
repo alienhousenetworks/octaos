@@ -17,7 +17,7 @@ _ALLOWED_TRANSITIONS = {
     "waiting": {"waiting", "running", "failed"},
     # Failed workflows may be explicitly resumed by checkpointing them to running.
     "failed": {"failed", "running"},
-    "completed": {"completed"},
+    "completed": set(),
 }
 
 
@@ -95,6 +95,8 @@ class DurableWorkflowService:
     ) -> WorkflowCheckpoint:
         if status not in _ALLOWED_TRANSITIONS:
             raise ValueError(f"Unsupported workflow status: {status}")
+        if step_index < 0:
+            raise ValueError("Checkpoint step_index cannot be negative")
         cp = (
             self.db.query(WorkflowCheckpoint)
             .filter(
@@ -181,7 +183,7 @@ class DeadLetterService:
         job = q.first()
         if not job:
             raise ValueError("DLQ job not found")
-        if job.status not in {"failed", "replaying"}:
+        if job.status != "failed":
             raise ValueError(f"DLQ job cannot be replayed from status: {job.status}")
         job.status = "replaying"
         job.attempts = (job.attempts or 0) + 1
@@ -214,7 +216,7 @@ class DeadLetterService:
         job = q.first()
         if not job:
             raise ValueError("DLQ job not found")
-        if job.status not in {"failed", "replaying"}:
+        if job.status != "failed":
             raise ValueError(f"DLQ job cannot be discarded from status: {job.status}")
         job.status = "discarded"
         job.resolved_at = datetime.now(timezone.utc)
