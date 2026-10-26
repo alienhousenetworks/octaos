@@ -843,7 +843,7 @@ def poll_scheduled_triggers():
     from app.models.schedules import ScheduledTrigger
     from app.models.verticals import BusinessProfile
     from app.models.agents import ActivityLog
-    from datetime import datetime, timezone
+    from datetime import datetime, timezone, timedelta
     import logging
 
     task_logger = logging.getLogger("poll_scheduled_triggers")
@@ -856,15 +856,19 @@ def poll_scheduled_triggers():
                 ScheduledTrigger.is_active == True,
                 ScheduledTrigger.next_run_at <= now,
             )
+            .with_for_update(skip_locked=True)
             .all()
         )
 
         for trigger in due_triggers:
             task_logger.info(f"Executing scheduled trigger {trigger.id} for {trigger.target_type} (tenant: {trigger.tenant_id})")
-            
+            scheduled_for = trigger.next_run_at or now
             trigger.last_run_at = now
             trigger.last_status = "running"
-            trigger.next_run_at = trigger.calculate_next_run(from_time=now)
+            trigger.last_error = None
+            # Lease the trigger while the dispatch is in flight so another beat worker
+            # does not pick it up concurrently. Failures below schedule a bounded retry.
+            trigger.next_run_at = now + timedelta(minutes=5)
             db.commit()
 
             try:
@@ -948,11 +952,19 @@ def poll_scheduled_triggers():
                     db.commit()
 
                 trigger.last_status = "success"
+                trigger.last_error = None
+                if (trigger.frequency or "").lower() == "once":
+                    trigger.is_active = False
+                    trigger.next_run_at = None
+                else:
+                    trigger.next_run_at = trigger.calculate_next_run(from_time=datetime.now(timezone.utc))
                 db.commit()
             except Exception as trig_err:
                 task_logger.error(f"Error executing trigger {trigger.id}: {trig_err}")
                 trigger.last_status = "failed"
                 trigger.last_error = str(trig_err)[:300]
+                # Retry quickly rather than silently losing a missed run.
+                trigger.next_run_at = datetime.now(timezone.utc) + timedelta(minutes=1)
                 db.commit()
 
     except Exception as e:
