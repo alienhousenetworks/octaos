@@ -5,12 +5,14 @@ import logging
 import hmac
 from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api import deps
-from app.models.base import Tenant
+from app.models.base import Tenant, User
 from app.core.config import settings
-from app.services.credentials import get_decrypted_credential, normalize_provider
+from app.services.credentials import get_decrypted_credential, normalize_provider, save_credential
+from app.core.security import encrypt_api_key, decrypt_api_key
 from app.services.integrations.webhook_security import verify_timestamped_hmac
 from app.services.integrations.sendgrid_service import SendGridService
 from app.services.integrations.calendly_service import CalendlyService
@@ -35,6 +37,57 @@ def _ensure_webhook_tenant_active(db: Session, tenant_id: str) -> None:
         raise HTTPException(status_code=404, detail="Webhook endpoint not found.")
     if not tenant.is_active:
         raise HTTPException(status_code=403, detail="Tenant is inactive.")
+
+
+def _webhook_verification_token(db: Session, tenant_id: str, provider: str) -> Optional[str]:
+    normalized = normalize_provider(provider)
+    _, credential_settings = get_decrypted_credential(
+        db, tenant_id, f"{normalized}_webhook"
+    )
+    encrypted_token = credential_settings.get("verification_token_encrypted")
+    if encrypted_token:
+        return decrypt_api_key(str(encrypted_token))
+    return _webhook_secret(db, tenant_id, normalized)
+
+
+class WebhookSecurityConfig(BaseModel):
+    signing_secret: str = Field(min_length=24, max_length=512)
+    verification_token: Optional[str] = Field(default=None, min_length=8, max_length=512)
+
+
+@router.put("/webhooks/{provider}/security")
+def configure_webhook_security(
+    provider: str,
+    config: WebhookSecurityConfig,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """Provision a tenant-scoped webhook signing secret without returning it."""
+    if not (
+        current_user.is_system_admin
+        or current_user.role in {"admin", "organization_admin"}
+    ):
+        raise HTTPException(status_code=403, detail="Only tenant administrators can configure webhook security.")
+
+    normalized = normalize_provider(provider)
+    settings_payload = None
+    if config.verification_token:
+        settings_payload = {
+            "verification_token_encrypted": encrypt_api_key(config.verification_token)
+        }
+
+    save_credential(
+        db,
+        tenant_id=current_user.tenant_id,
+        provider=f"{normalized}_webhook",
+        key=config.signing_secret,
+        settings=settings_payload,
+    )
+    return {
+        "provider": normalized,
+        "configured": True,
+        "verification_token_configured": bool(config.verification_token),
+    }
 
 
 def _webhook_secret(db: Session, tenant_id: str, provider: str) -> Optional[str]:
@@ -87,6 +140,7 @@ async def verify_webhook_challenge(
     hub_challenge = params.get("hub.challenge") or params.get("challenge")
     if hub_challenge:
         secret = _webhook_secret(db, tenant_id, provider)
+        expected_verify_token = _webhook_verification_token(db, tenant_id, provider)
         verify_token = params.get("hub.verify_token") or params.get("verify_token")
         if not secret:
             if not _is_local_development():
@@ -94,7 +148,7 @@ async def verify_webhook_challenge(
                     status_code=503,
                     detail="Webhook challenge verification is not configured.",
                 )
-        elif not verify_token or not hmac.compare_digest(secret, verify_token):
+        elif not verify_token or not expected_verify_token or not hmac.compare_digest(expected_verify_token, verify_token):
             raise HTTPException(status_code=403, detail="Invalid webhook verification token.")
         return Response(content=str(hub_challenge), media_type="text/plain")
 
