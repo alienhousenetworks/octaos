@@ -82,7 +82,7 @@ def validate_workflow(definition: Mapping[str, Any], *, max_nodes: int = 200) ->
             issues.append(WorkflowIssue("DUPLICATE_NODE_ID", f"Duplicate node id '{node_id}'.", node_id))
             continue
         node_by_id[node_id] = node
-        if node_type not in ALLOWED_NODE_TYPES:
+        if not isinstance(node_type, str) or node_type not in ALLOWED_NODE_TYPES:
             issues.append(WorkflowIssue("UNKNOWN_NODE_TYPE", f"Unsupported node type '{node_type}'.", node_id))
             continue
         config = node.get("config", {})
@@ -105,7 +105,7 @@ def validate_workflow(definition: Mapping[str, Any], *, max_nodes: int = 200) ->
             issues.append(WorkflowIssue("INVALID_EDGE", f"Edge at index {index} must be an object."))
             continue
         source, target = edge.get("source"), edge.get("target")
-        if source not in node_by_id or target not in node_by_id:
+        if not isinstance(source, str) or not isinstance(target, str) or source not in node_by_id or target not in node_by_id:
             issues.append(WorkflowIssue("DANGLING_EDGE", f"Edge at index {index} references a missing node."))
             continue
         pair = (str(source), str(target))
