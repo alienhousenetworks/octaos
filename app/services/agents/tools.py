@@ -4,6 +4,7 @@ import urllib.parse
 from typing import Dict, Any, List, Optional
 import httpx
 from sqlalchemy.orm import Session
+from app.services.runtime_governance.tool_policy import authorize_tool_call
 
 
 class ToolDefinition:
@@ -103,6 +104,23 @@ class ToolRegistry:
         tool = self.get(name)
         if not tool:
             raise ValueError(f"Tool '{name}' is not registered.")
+        # Every dispatch requires server-created authorization context. Frontend visibility
+        # and the model's requested tool name are not authorization controls.
+        policy_context = context or {}
+        granted_tools = policy_context.get("granted_tools")
+        request_tenant_id = policy_context.get("request_tenant_id")
+        if not isinstance(granted_tools, (list, tuple, set)) or not request_tenant_id:
+            raise PermissionError("TOOL_POLICY_CONTEXT_REQUIRED")
+        decision = authorize_tool_call(
+            tenant_id=tenant_id,
+            request_tenant_id=str(request_tenant_id),
+            tool_name=name,
+            granted_tools=granted_tools,
+            connection_active=bool(policy_context.get("connection_active", True)),
+            approval_status=policy_context.get("approval_status"),
+        )
+        if not decision.allowed:
+            raise PermissionError(decision.reason)
 
         # Dispatch based on tool name
         if name == "web_search":
