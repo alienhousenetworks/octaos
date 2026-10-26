@@ -189,7 +189,7 @@ class AgentRuntime:
 
         normalized_outcome = AgentOutcome(
             status="awaiting_approval" if pending_approval else "completed",
-            output=parsed_output or None,
+            output=parsed_output or (json.dumps(executed_tools, default=str) if executed_tools else None),
             evidence=(), provider=provider or "unknown", model=model or "unknown",
             input_tokens=input_tokens, output_tokens=output_tokens, cost=cost_usd,
         )
