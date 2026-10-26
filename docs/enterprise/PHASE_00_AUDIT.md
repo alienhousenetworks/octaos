@@ -30,6 +30,10 @@
 | OBS-001 | Health endpoint may expose raw exception details | Medium | Review endpoint response; return safe reason codes publicly and retain details in logs. |
 | QA-001 | Full baseline is not recorded | High | Run backend tests, frontend build/lint, migration checks and CI; record actual outcomes. |
 
+## Runtime inventory update
+
+A targeted source-tree scan found multiple existing lifecycle/orchestration components. See [RUNTIME_INVENTORY.md](RUNTIME_INVENTORY.md) for the source-linked map and deferred selection decisions. This confirms runtime consolidation must begin with compatibility mapping rather than adding a new engine.
+
 ## Phase 00 remaining work
 
 - [ ] Enumerate all API routes and map endpoint -> service -> model -> external side effect.
