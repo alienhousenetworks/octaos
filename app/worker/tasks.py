@@ -845,6 +845,7 @@ def poll_scheduled_triggers():
     from app.models.agents import ActivityLog
     from datetime import datetime, timezone
     import logging
+    from app.services.runtime_governance.triggers import lease_scheduled_trigger, complete_scheduled_trigger
 
     task_logger = logging.getLogger("poll_scheduled_triggers")
     db = SessionLocal()
@@ -856,15 +857,15 @@ def poll_scheduled_triggers():
                 ScheduledTrigger.is_active == True,
                 ScheduledTrigger.next_run_at <= now,
             )
+            .with_for_update(skip_locked=True)
             .all()
         )
 
         for trigger in due_triggers:
             task_logger.info(f"Executing scheduled trigger {trigger.id} for {trigger.target_type} (tenant: {trigger.tenant_id})")
-            
-            trigger.last_run_at = now
-            trigger.last_status = "running"
-            trigger.next_run_at = trigger.calculate_next_run(from_time=now)
+            # Lease the trigger while dispatch is in flight so another beat worker
+            # does not pick up the same occurrence concurrently.
+            lease_scheduled_trigger(trigger, now=now, lease_seconds=300)
             db.commit()
 
             try:
@@ -947,12 +948,16 @@ def poll_scheduled_triggers():
                     db.add(log)
                     db.commit()
 
-                trigger.last_status = "success"
+                complete_scheduled_trigger(
+                    trigger, now=datetime.now(timezone.utc), succeeded=True
+                )
                 db.commit()
             except Exception as trig_err:
                 task_logger.error(f"Error executing trigger {trigger.id}: {trig_err}")
-                trigger.last_status = "failed"
-                trigger.last_error = str(trig_err)[:300]
+                # Retry quickly rather than silently losing a missed run.
+                complete_scheduled_trigger(
+                    trigger, now=datetime.now(timezone.utc), succeeded=False, error=str(trig_err)
+                )
                 db.commit()
 
     except Exception as e:

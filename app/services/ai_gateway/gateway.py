@@ -303,6 +303,8 @@ class AIProviderGateway:
         realtime: bool = False,
         complexity: str = "medium",
         bulk: bool = False,
+        usage_callback=None,
+        allowed_providers: Optional[List[str]] = None,
         **kwargs
     ) -> str:
         """
@@ -310,6 +312,11 @@ class AIProviderGateway:
         Handles: Dynamic Routing, Multi-Provider Failover, Cost tracking, and DB logging.
         """
         configured = self._get_configured_providers(db, tenant_id)
+        allowed_provider_set = {str(item).lower().strip() for item in (allowed_providers or []) if str(item).strip()}
+        if allowed_provider_set:
+            configured = [item for item in configured if str(item).lower().strip() in allowed_provider_set]
+            if provider and provider.lower().strip() not in {"auto", "none", "default"} and provider.lower().strip() not in allowed_provider_set:
+                raise PermissionError("Requested provider is not enabled for this tenant plan.")
         if not configured:
             req_prov = provider or "anthropic"
             raise ValueError(f"No API key configured for provider '{req_prov}'. Please configure your API key under Platform Setup -> API Settings.")
@@ -317,6 +324,8 @@ class AIProviderGateway:
         # 1. Routing Decision
         if not provider or (isinstance(provider, str) and provider.lower() in ("auto", "none", "default")) or not model:
             provider, model = self.selectProvider(configured, complexity, realtime, bulk)
+        if allowed_provider_set and (provider or "").lower().strip() not in allowed_provider_set:
+            raise PermissionError("Resolved provider is not enabled for this tenant plan.")
             
         # Keep track of tried providers and their errors for failover chain
         tried_providers = []
@@ -451,6 +460,17 @@ class AIProviderGateway:
                     failover_from=failover_from
                 )
                 self._record_usage_safe(db, usage)
+                if callable(usage_callback):
+                    try:
+                        usage_callback({
+                            "provider": current_provider, "model": current_model,
+                            "input_tokens": input_tokens, "output_tokens": output_tokens,
+                            "cost_usd": float(cost_calc["cost"]), "latency_seconds": float(latency),
+                            "status": "success" if not failover_from else "failover",
+                            "cache_hit": False,
+                        })
+                    except Exception:
+                        logger.exception("Agent usage callback failed; provider usage remains in the gateway ledger.")
                 
                 # Record metrics
                 metrics_registry.record_ai_call(

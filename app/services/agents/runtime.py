@@ -1,5 +1,6 @@
 import json
 import time
+import uuid
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 
@@ -11,8 +12,10 @@ from app.models.flow_engine import (
     FlowApprovalRequest,
 )
 from app.models.agents import KnowledgeDocument
-from app.services.ai_gateway import ai_gateway
 from app.services.agents.tools import tool_registry
+from app.services.agent_runtime.protocol import AgentEvent, AgentEventType, AgentOutcome, AgentRequest
+from app.services.agent_runtime.gateway_adapter import AIGatewayAgentAdapter
+from app.services.subscription_service import SubscriptionService
 
 
 class AgentRuntime:
@@ -30,14 +33,40 @@ class AgentRuntime:
         dry_run: bool = False,
     ) -> Dict[str, Any]:
         start_time = time.time()
+        event_run_id = flow_run_id or f"adhoc:{uuid.uuid4()}"
 
         # 1. Resolve Agent & AgentVersion
         agent, agent_ver = self._resolve_agent(db, tenant_id, agent_id, agent_version_id)
         if not agent or not agent_ver:
             raise ValueError(f"Unable to resolve agent '{agent_id}' or its version.")
 
+        # 1a. Enforce persisted plan policy before any provider call.
+        subscription = SubscriptionService(db)
+        entitlement_snapshot = subscription.entitlements(tenant_id)
+        subscription_status = str(entitlement_snapshot.get("status") or "").lower()
+        if subscription_status not in {"active", "trial", "trialing", "grace_period"}:
+            raise PermissionError(f"Subscription status '{subscription_status or 'unknown'}' does not permit agent execution.")
+        admission = subscription.check_action_allowed(tenant_id, cost_usd=0.0)
+        if not admission.get("allowed", False):
+            raise PermissionError(admission.get("reason") or "Subscription quota denied this execution.")
+        agent_key = (agent.slug or agent.department or "").lower().replace(" ", "_")
+        department_key = (agent.department or "").lower().replace(" ", "_")
+        if not (subscription.agent_allowed(tenant_id, agent_key) or subscription.agent_allowed(tenant_id, department_key)):
+            raise PermissionError("This agent is not included in the tenant's active subscription.")
+
+        started_event = AgentEvent(tenant_id=tenant_id, run_id=event_run_id,
+            event_type=AgentEventType.RUN_STARTED, message=f"Agent {agent.name} started.",
+            agent_id=agent.id, sequence=1)
+        db.add(ExecutionEvent(tenant_id=tenant_id, flow_run_id=event_run_id,
+            step_run_id=step_run_id, event_type=started_event.event_type.value,
+            payload=started_event.to_public_dict()))
+        db.commit()
+
         # 2. Resolve Model and Fallbacks
         provider = agent_ver.provider
+        allowed_providers = (entitlement_snapshot.get("feature_flags") or {}).get("allowed_providers")
+        if allowed_providers and provider not in allowed_providers:
+            raise PermissionError("Requested provider is not enabled for the tenant's subscription.")
         model = agent_ver.model
         temperature = agent_ver.temperature or 0.7
 
@@ -53,15 +82,26 @@ class AgentRuntime:
 
         # 6. Execute Model via AI Gateway
         try:
-            raw_response = await ai_gateway.executeRequest(
-                db=db,
+            provider_outcome = await AIGatewayAgentAdapter(db, tenant_id).execute(AgentRequest(
                 tenant_id=tenant_id,
-                prompt=user_prompt,
+                run_id=event_run_id,
+                agent_id=agent.id,
+                goal=user_prompt,
+                context=input_context,
+                allowed_tools=allowed_tools,
+                max_output_tokens=agent_ver.max_tokens or 4096,
                 provider=provider,
                 model=model,
                 system_prompt=system_prompt,
                 task_type=agent.department,
-            )
+                allowed_providers=tuple((entitlement_snapshot.get("feature_flags") or {}).get("allowed_providers") or ()),
+            ))
+            if provider_outcome.status != "completed" or not provider_outcome.output:
+                raise RuntimeError("Provider adapter returned no completed output.")
+            raw_response = provider_outcome.output
+            # Usage callbacks identify the provider that actually succeeded after failover.
+            provider = provider_outcome.provider
+            model = provider_outcome.model
         except Exception as exc:
             # Production execution must fail visibly rather than fabricate agent output.
             # Simulation belongs in an explicitly selected test/dry-run harness.
@@ -118,8 +158,11 @@ class AgentRuntime:
                         tenant_id=tenant_id,
                         context={
                             "agent_id": agent.id,
-                            "flow_run_id": flow_run_id,
+                            "agent_version_id": agent_ver.id,
+                            "flow_run_id": event_run_id,
                             "department": agent.department,
+                            "granted_tools": allowed_tools,
+                            "request_tenant_id": tenant_id,
                         },
                     )
                     executed_tools.append({"tool": tool_name, "args": tool_args, "result": tool_result})
@@ -127,10 +170,10 @@ class AgentRuntime:
                     executed_tools.append({"tool": tool_name, "args": tool_args, "error": str(tool_err)})
 
         duration_ms = int((time.time() - start_time) * 1000)
-        # Approximate tokens and cost calculation
-        input_tokens = len(system_prompt + user_prompt) // 4
-        output_tokens = len(raw_response) // 4
-        cost_usd = round((input_tokens * 0.000003) + (output_tokens * 0.000015), 6)
+        # Use provider-reported usage from the gateway ledger; never fabricate token or cost metrics.
+        input_tokens = provider_outcome.input_tokens
+        output_tokens = provider_outcome.output_tokens
+        cost_usd = float(provider_outcome.cost) if provider_outcome.cost is not None else 0.0
 
         # 9. Record Usage & Telemetry Event
         usage_event = UsageEvent(
@@ -147,13 +190,46 @@ class AgentRuntime:
             latency_ms=duration_ms,
             task_type=agent.department,
         )
+        existing_step_usage = None
+        if flow_run_id:
+            existing_step_usage = db.query(UsageEvent.id).filter(
+                UsageEvent.tenant_id == tenant_id,
+                UsageEvent.flow_run_id == flow_run_id,
+                UsageEvent.step_run_id == step_run_id,
+                UsageEvent.agent_version_id == agent_ver.id,
+            ).first()
         db.add(usage_event)
+        db.flush()
+        # Reconcile every provider call's actual cost, while counting only one action
+        # per logical flow step (retries still consume budget even when action count dedupes).
+        subscription.record_action(
+            tenant_id, cost_usd=cost_usd, count=0 if existing_step_usage else 1
+        )
+
+        normalized_outcome = AgentOutcome(
+            status="awaiting_approval" if pending_approval else "completed",
+            output=parsed_output or (json.dumps(executed_tools, default=str) if executed_tools else None),
+            evidence=(), provider=provider or "unknown", model=model or "unknown",
+            input_tokens=input_tokens, output_tokens=output_tokens, cost=cost_usd,
+        )
+        final_event_type = AgentEventType.APPROVAL_REQUIRED if pending_approval else AgentEventType.RUN_COMPLETED
+        final_event = AgentEvent(tenant_id=tenant_id, run_id=event_run_id,
+            event_type=final_event_type,
+            message=(f"Agent {agent.name} is waiting for approval." if pending_approval else f"Agent {agent.name} completed."),
+            agent_id=agent.id, sequence=2,
+            payload={"status": normalized_outcome.status, "provider": provider, "model": model,
+                     "input_tokens": input_tokens, "output_tokens": output_tokens, "cost_usd": cost_usd,
+                     "tool_count": len(executed_tools), "pending_approval_id": pending_approval})
+        db.add(ExecutionEvent(tenant_id=tenant_id, flow_run_id=event_run_id,
+            step_run_id=step_run_id, event_type=final_event.event_type.value,
+            payload=final_event.to_public_dict()))
         db.commit()
 
         status = "waiting_approval" if pending_approval else "succeeded"
 
         return {
             "agent_id": agent.id,
+            "execution_id": event_run_id,
             "agent_name": agent.name,
             "version": agent_ver.version,
             "status": status,

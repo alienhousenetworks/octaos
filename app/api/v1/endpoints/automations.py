@@ -233,6 +233,14 @@ async def create_automation(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid AutomationIR structure: {e}")
 
+    graph = convert_legacy_ir_to_graph(ir.model_dump())
+    graph_validation = GraphValidator.validate(graph)
+    if not graph_validation.is_valid:
+        raise HTTPException(status_code=422, detail={
+            "message": "Automation rejected by graph validation.",
+            "errors": graph_validation.errors,
+        })
+
     slug = request.slug or ir.slug or request.name.lower().replace(" ", "_")
     adapter = get_automation_engine(tenant_id, db)
 
@@ -256,8 +264,11 @@ async def create_automation(
         trigger_type=ir.trigger.type,
         trigger_event=ir.trigger.event,
         definition_ir=ir.model_dump(),
+        graph_json=graph.model_dump(),
+        graph_hash=graph.calculate_hash(),
         compiled_schema=compiled,
         current_version=1,
+        published_version=1 if request.activate_now and not ir.requires_approval else None,
         is_ai_generated=bool(request.ai_prompt),
         ai_prompt=request.ai_prompt,
         requires_approval=ir.requires_approval,
@@ -272,6 +283,8 @@ async def create_automation(
         workflow_id=wf.id,
         version=1,
         definition_ir=ir.model_dump(),
+        graph_json=graph.model_dump(),
+        graph_hash=graph.calculate_hash(),
         compiled_schema=compiled,
         change_reason="Initial creation",
         created_by=current_user.email,
@@ -384,15 +397,30 @@ async def manual_run(
     wf = db.query(AutomationWorkflow).filter_by(id=workflow_id, tenant_id=tenant_id).first()
     if not wf:
         raise HTTPException(status_code=404, detail="Workflow not found")
+    if wf.status != "active" or not wf.published_version:
+        raise HTTPException(status_code=409, detail="Only a published workflow can execute. Validate and publish a version first.")
+    published_snapshot = db.query(AutomationWorkflowVersion).filter_by(
+        workflow_id=wf.id, version=wf.published_version
+    ).first()
+    if not published_snapshot:
+        raise HTTPException(status_code=409, detail="Published workflow snapshot is missing; execution is blocked.")
+    if published_snapshot.graph_json:
+        published_graph = AutomationGraph.model_validate(published_snapshot.graph_json)
+        published_validation = GraphValidator.validate(published_graph)
+        if not published_validation.is_valid:
+            raise HTTPException(status_code=409, detail="Published workflow snapshot failed validation; execution is blocked.")
 
     adapter = get_automation_engine(tenant_id, db)
     payload = request.payload or {"test": True, "source": "OctaOS Manual Console"}
+    if isinstance(payload, dict):
+        payload = {**payload, "_octaos_workflow_version": wf.published_version}
 
     execution = AutomationExecution(
         tenant_id=tenant_id,
         workflow_id=wf.id,
         trigger_type="manual",
         status="running",
+        trigger_context={"workflow_version": wf.published_version, "workflow_hash": published_snapshot.graph_hash},
         inputs=payload,
     )
     db.add(execution)
@@ -540,6 +568,11 @@ async def save_workflow_graph(
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     validation = GraphValidator.validate(graph_payload)
+    if not validation.is_valid:
+        raise HTTPException(
+            status_code=422,
+            detail={"message": "Workflow draft rejected by graph validation.", "errors": validation.errors},
+        )
     graph_dict = graph_payload.model_dump()
     graph_hash = graph_payload.calculate_hash()
 
@@ -629,6 +662,14 @@ async def publish_workflow_graph(
             status_code=400,
             detail=f"Cannot publish workflow with validation errors: {', '.join(validation.errors)}",
         )
+
+    published_snapshot = db.query(AutomationWorkflowVersion).filter_by(
+        workflow_id=wf.id, version=wf.current_version
+    ).first()
+    if not published_snapshot:
+        raise HTTPException(status_code=409, detail="Current workflow version snapshot is missing; refusing to publish an unversioned graph.")
+    if published_snapshot.graph_hash and published_snapshot.graph_hash != graph.calculate_hash():
+        raise HTTPException(status_code=409, detail="Workflow version hash does not match the draft graph; save a new validated version before publishing.")
 
     wf.published_version = wf.current_version
     wf.status = "active"

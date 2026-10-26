@@ -3,10 +3,38 @@ from __future__ import annotations
 
 import hashlib
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Mapping
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,180}$")
+
+
+def lease_scheduled_trigger(trigger: Any, *, now: datetime, lease_seconds: int = 300) -> None:
+    """Persist a short lease before enqueue so concurrent pollers skip the same occurrence."""
+    if lease_seconds < 1:
+        raise ValueError("Schedule lease must be positive.")
+    trigger.last_run_at = now
+    trigger.last_status = "running"
+    trigger.last_error = None
+    trigger.next_run_at = now + timedelta(seconds=lease_seconds)
+
+
+def complete_scheduled_trigger(
+    trigger: Any, *, now: datetime, succeeded: bool, error: str | None = None
+) -> None:
+    """Finalize a scheduled occurrence or schedule a bounded retry after failure."""
+    if succeeded:
+        trigger.last_status = "success"
+        trigger.last_error = None
+        if (trigger.frequency or "").lower() == "once":
+            trigger.is_active = False
+            trigger.next_run_at = None
+        else:
+            trigger.next_run_at = trigger.calculate_next_run(from_time=now)
+        return
+    trigger.last_status = "failed"
+    trigger.last_error = str(error or "Scheduled dispatch failed.")[:300]
+    trigger.next_run_at = now + timedelta(minutes=1)
 
 
 def trigger_idempotency_key(trigger_id: str, delivery_id: str) -> str:

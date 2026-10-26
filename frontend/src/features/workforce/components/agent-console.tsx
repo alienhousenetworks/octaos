@@ -35,6 +35,7 @@ export default function AgentConsole({ agent, API_URL, fetchWithAuth }: AgentCon
   const [executionId, setExecutionId] = useState<string | null>(null);
   const [durationMs, setDurationMs] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [liveEvents, setLiveEvents] = useState<string[]>([]);
 
   const handleExecute = async () => {
     if (!prompt.trim() || loading) return;
@@ -43,6 +44,7 @@ export default function AgentConsole({ agent, API_URL, fetchWithAuth }: AgentCon
     setLifecycle('running');
     setResponse(null);
     setToolCalls([]);
+    setLiveEvents([]);
     setErrorMsg(null);
     const startTime = performance.now();
 
@@ -63,8 +65,43 @@ export default function AgentConsole({ agent, API_URL, fetchWithAuth }: AgentCon
         const data = await res.json();
         setResponse(data.output || data.response || 'Task executed successfully.');
         setToolCalls(data.tool_calls || []);
-        setExecutionId(data.execution_id || `run_${Date.now().toString(36)}`);
+        const runId = data.execution_id || `run_${Date.now().toString(36)}`;
+        setExecutionId(runId);
         setLifecycle('completed');
+
+        // Stream the same normalized, redacted events persisted by AgentRuntime.
+        if (data.execution_id) {
+          try {
+            const streamRes = await fetchWithAuth(
+              `${API_URL}/autonomous-work/agent-runs/${encodeURIComponent(data.execution_id)}/events/stream?timeout_seconds=15`,
+            );
+            if (streamRes.ok && streamRes.body) {
+              const reader = streamRes.body.getReader();
+              const decoder = new TextDecoder();
+              let buffer = '';
+              while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const blocks = buffer.split('\n\n');
+                buffer = blocks.pop() || '';
+                for (const block of blocks) {
+                  const dataLine = block.split('\n').find((line) => line.startsWith('data: '));
+                  if (!dataLine) continue;
+                  try {
+                    const event = JSON.parse(dataLine.slice(6));
+                    const message = event.payload?.message || event.event_type || 'Runtime event';
+                    setLiveEvents((previous) => [...previous, String(message)].slice(-20));
+                  } catch {
+                    // Ignore malformed event frames; the completed HTTP result remains available.
+                  }
+                }
+              }
+            }
+          } catch {
+            setLiveEvents((previous) => [...previous, 'Live event stream unavailable; response is still available.']);
+          }
+        }
       } else {
         const err = await res.json().catch(() => ({}));
         setErrorMsg(err.detail || 'Execution failed or rejected by agent policy.');
@@ -202,13 +239,29 @@ export default function AgentConsole({ agent, API_URL, fetchWithAuth }: AgentCon
               )}
             </div>
             <span className="rounded bg-gray-900 px-2 py-0.5 text-[10px] font-mono text-gray-400">
-              Verified Response
+              Runtime Response
             </span>
           </div>
 
           <div className="whitespace-pre-wrap rounded-xl border border-gray-800/60 bg-gray-900/60 p-4 font-mono text-xs leading-relaxed text-gray-200 max-h-[350px] overflow-y-auto">
             {response}
           </div>
+
+          {liveEvents.length > 0 && (
+            <div className="space-y-2 border-t border-gray-800/80 pt-4">
+              <h5 className="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
+                <Clock className="size-3.5 text-primary" />
+                Live Runtime Events
+              </h5>
+              <ol className="space-y-1.5">
+                {liveEvents.map((event, idx) => (
+                  <li key={`${idx}-${event}`} className="rounded-lg border border-gray-800 bg-gray-900/40 px-3 py-2 text-xs text-gray-300">
+                    {event}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
           {/* Inspected Tool Calls */}
           {toolCalls && toolCalls.length > 0 && (

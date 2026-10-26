@@ -10,7 +10,7 @@ from typing import Iterable
 
 HIGH_RISK_ACTION_PREFIXES = (
     "email.send", "email.delete", "crm.delete", "payment.", "billing.",
-    "post.publish", "contract.sign", "user.delete", "browser.submit",
+    "post.publish", "contract.sign", "user.delete", "browser.submit", "webhook_post",
 )
 
 
