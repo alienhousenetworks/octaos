@@ -7,7 +7,6 @@ on:
       - "app/core/config.py"
       - "app/main.py"
       - "app/api/v2/api.py"
-      - "app/services/durable_workflows.py app/models/workforce_events.py app/services/workforce_event_service.py app/api/v1/endpoints/workforce_events.py app/api/v1/api.py"
       - "tests/test_durable_workflow_tenant_safety.py"
       - "app/models/workforce_events.py"
       - "app/services/workforce_event_service.py"
