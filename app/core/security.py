@@ -4,10 +4,7 @@ import secrets
 import hashlib
 import logging
 import base64
-try:
-    import bcrypt
-except ImportError:
-    bcrypt = None
+import bcrypt  # Required dependency: never fall back to fast, unsalted password hashes.
 from jose import jwt
 from cryptography.fernet import Fernet
 
@@ -88,18 +85,30 @@ def create_token_pair(
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    if bcrypt is not None:
-        try:
-            return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
-        except ValueError:
-            return False
-    return hashlib.sha256(plain_password.encode("utf-8")).hexdigest() == hashed_password
+    """Verify a bcrypt password hash; fail closed for malformed/legacy hashes.
+
+    Passwords must never be checked using a fast general-purpose digest such as
+    SHA-256. Legacy SHA-256 password records require a controlled password-reset
+    or re-enrollment flow; they are deliberately not accepted here.
+    """
+    if not isinstance(plain_password, str) or not isinstance(hashed_password, str):
+        return False
+    if not hashed_password.startswith(("$2a$", "$2b$", "$2y$")):
+        return False
+    try:
+        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+    except (ValueError, TypeError, UnicodeError):
+        return False
 
 
 def get_password_hash(password: str) -> str:
-    if bcrypt is not None:
-        return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    """Create a bcrypt password hash or fail closed if bcrypt is unavailable."""
+    if not isinstance(password, str) or not password:
+        raise ValueError("Password must be a non-empty string.")
+    password_bytes = password.encode("utf-8")
+    if len(password_bytes) > 72:
+        raise ValueError("Password exceeds bcrypt's 72-byte limit; choose a shorter password.")
+    return bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode("utf-8")
 
 
 
