@@ -1,7 +1,12 @@
 import hashlib
 import hmac
+import time
+
+import pytest
+from fastapi import HTTPException
 
 from app.services.integrations.webhook_security import verify_timestamped_hmac
+from app.api.v1.endpoints import integrations
 
 
 def _signature(secret, timestamp, body):
@@ -58,4 +63,46 @@ def test_timestamped_webhook_signature_fails_closed_when_missing():
         signature=None,
         body=b"{}",
         now=1761500000,
+    )
+
+
+class _FakeRequest:
+    def __init__(self, headers):
+        self.headers = headers
+
+
+def test_production_webhook_ingress_fails_closed_without_secret(monkeypatch):
+    monkeypatch.setattr(integrations.settings, "DEV", False)
+    monkeypatch.setattr(integrations.settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(integrations, "_webhook_secret", lambda db, tenant_id, provider: None)
+
+    with pytest.raises(HTTPException) as exc:
+        integrations._require_webhook_signature(
+            db=object(),
+            tenant_id="tenant-1",
+            provider="calendly",
+            request=_FakeRequest({}),
+            raw_body=b"{}",
+        )
+
+    assert exc.value.status_code == 503
+
+
+def test_production_webhook_ingress_accepts_valid_signed_request(monkeypatch):
+    secret = "per-tenant-secret"
+    timestamp = str(int(time.time()))
+    body = b'{"event":"invitee.created"}'
+    monkeypatch.setattr(integrations.settings, "DEV", False)
+    monkeypatch.setattr(integrations.settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(integrations, "_webhook_secret", lambda db, tenant_id, provider: secret)
+
+    integrations._require_webhook_signature(
+        db=object(),
+        tenant_id="tenant-1",
+        provider="calendly",
+        request=_FakeRequest({
+            "X-OctaOS-Timestamp": timestamp,
+            "X-OctaOS-Signature": _signature(secret, timestamp, body),
+        }),
+        raw_body=body,
     )
