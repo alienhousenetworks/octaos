@@ -262,9 +262,10 @@ export default function AgentCreateWizard({
                   className="w-full h-9 rounded-xl border border-gray-800 bg-gray-900/80 px-3 text-xs text-white"
                 >
                   <option value="openrouter">OpenRouter (Preferred)</option>
-                  <option value="anthropic">Anthropic Direct</option>
+                  <option value="grok">Grok (xAI) Direct</option>
                   <option value="openai">OpenAI Direct</option>
-                  <option value="google">Google Gemini</option>
+                  <option value="anthropic">Anthropic Direct</option>
+                  <option value="gemini">Google Gemini</option>
                 </select>
               </div>
 
@@ -277,6 +278,25 @@ export default function AgentCreateWizard({
                   className="rounded-xl border-gray-800 bg-gray-900/80 text-xs text-white font-mono"
                 />
               </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3">
+              <div>
+                <p className="text-xs font-semibold text-white">Start with a conversational assistant preset</p>
+                <p className="mt-1 text-[11px] text-gray-400">Adds a direct, curious, candid persona. You can edit every instruction before saving.</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" className="border-primary/30 text-xs" onClick={() => {
+                setName((current) => current || 'Grok-style Assistant');
+                setDepartment('general');
+                setRole('Conversational AI Assistant');
+                setDescription('A candid, curious, conversational assistant for research, reasoning, brainstorming, and everyday work.');
+                setProvider('grok');
+                setModel('grok-3');
+                setSystemPrompt('You are a sharp, curious, candid AI assistant. Be conversational, useful, and intellectually honest. Answer directly; explain your reasoning at a high level without revealing private internal reasoning. Ask a clarifying question when the request is ambiguous. Separate verified facts from uncertainty, never invent sources or claim actions you did not perform, and use only tools explicitly granted to you. Before any consequential external action, explain what will happen and follow OctaOS approval policies. Match the user’s tone without being rude. Prefer concise answers, with more detail when the task warrants it.');
+                setSelectedTools(['web_search', 'knowledge.search']);
+              }}>
+                <Sparkles className="mr-1.5 size-3.5" /> Use Grok-style preset
+              </Button>
             </div>
 
             <div className="space-y-1.5">
