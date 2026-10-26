@@ -1,8 +1,11 @@
 """API for durable autonomous tasks, events, and approval requests."""
+import asyncio
+import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -11,6 +14,7 @@ from app.core.rbac import Action, Resource, require_permission
 from app.models.base import User
 from app.models.autonomous_work import AutonomousApproval, AutonomousTask, AutonomousTaskEvent
 from app.services.autonomous_runtime import AutonomousRuntime, RuntimePolicyError
+from app.services.agent_runtime.protocol import sanitize_public_text
 
 router = APIRouter()
 
@@ -174,6 +178,72 @@ def list_task_events(
         "payload": event.payload or {},
         "created_at": event.created_at,
     } for event in events]}
+
+
+_SENSITIVE_EVENT_KEYS = {"api_key", "access_token", "refresh_token", "password", "secret", "client_secret", "authorization", "cookie", "private_key", "system_prompt", "chain_of_thought", "private_reasoning"}
+
+
+def _public_event_value(value: Any, depth: int = 0) -> Any:
+    """Bound and redact persisted event payloads before exposing them to the browser."""
+    if depth > 5:
+        return "[TRUNCATED]"
+    if isinstance(value, dict):
+        return {str(key): _public_event_value(child, depth + 1)
+                for key, child in list(value.items())[:100]
+                if str(key).lower().replace("-", "_") not in _SENSITIVE_EVENT_KEYS}
+    if isinstance(value, (list, tuple)):
+        return [_public_event_value(item, depth + 1) for item in value[:100]]
+    if isinstance(value, str):
+        return sanitize_public_text(value, 1000)
+    if isinstance(value, (int, float, bool)) or value is None:
+        return value
+    return sanitize_public_text(str(value), 500)
+
+
+@router.get("/tasks/{task_id}/events/stream")
+async def stream_task_events(
+    task_id: str,
+    request: Request,
+    timeout_seconds: int = Query(default=30, ge=1, le=60),
+    db: Session = Depends(deps.get_db),
+    user: User = Depends(deps.get_current_user),
+):
+    """Replay persisted task events and stream new sanitized events over SSE."""
+    _owned_task(db, task_id, user)
+
+    async def event_generator():
+        seen: set[str] = set()
+        deadline = asyncio.get_running_loop().time() + timeout_seconds
+        while asyncio.get_running_loop().time() < deadline:
+            if await request.is_disconnected():
+                break
+            current = _owned_task(db, task_id, user)
+            events = db.query(AutonomousTaskEvent).filter(
+                AutonomousTaskEvent.task_id == current.id,
+                AutonomousTaskEvent.tenant_id == user.tenant_id,
+            ).order_by(AutonomousTaskEvent.created_at.asc()).limit(500).all()
+            for event in events:
+                if event.id in seen:
+                    continue
+                seen.add(event.id)
+                message = {
+                    "id": event.id,
+                    "task_id": current.id,
+                    "event_type": event.event_type,
+                    "message": sanitize_public_text(event.message, 1500),
+                    "actor_type": event.actor_type,
+                    "payload": _public_event_value(event.payload or {}),
+                    "created_at": event.created_at.isoformat() if event.created_at else None,
+                }
+                yield f"id: {event.id}\nevent: task.event\ndata: {json.dumps(message, separators=(',', ':'))}\n\n"
+            if current.status in {"completed", "failed", "cancelled"} and events:
+                break
+            yield ": keep-alive\n\n"
+            await asyncio.sleep(1)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no",
+    })
 
 
 @router.post("/tasks/{task_id}/cancel")
