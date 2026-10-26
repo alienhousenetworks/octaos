@@ -128,3 +128,46 @@ def test_webhook_ingress_rejects_unknown_tenant():
         integrations._ensure_webhook_tenant_active(db, "unknown-tenant")
 
     assert exc.value.status_code == 404
+
+
+def test_webhook_secret_configuration_is_admin_only():
+    user = SimpleNamespace(tenant_id="tenant-1", role="member", is_system_admin=False)
+
+    with pytest.raises(HTTPException) as exc:
+        integrations.configure_webhook_security(
+            provider="calendly",
+            config=integrations.WebhookSecurityConfig(signing_secret="x" * 32),
+            db=object(),
+            current_user=user,
+        )
+
+    assert exc.value.status_code == 403
+
+
+def test_webhook_secret_configuration_encrypts_verification_token_and_never_returns_secrets(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(integrations, "save_credential", lambda db, **kwargs: captured.update(kwargs))
+    monkeypatch.setattr(integrations, "encrypt_api_key", lambda value: "encrypted:" + value)
+    user = SimpleNamespace(tenant_id="tenant-1", role="admin", is_system_admin=False)
+
+    result = integrations.configure_webhook_security(
+        provider="googleforms",
+        config=integrations.WebhookSecurityConfig(
+            signing_secret="signing-secret-long-enough-123",
+            verification_token="provider-verification-token",
+        ),
+        db=object(),
+        current_user=user,
+    )
+
+    assert captured["tenant_id"] == "tenant-1"
+    assert captured["provider"] == "google_forms_webhook"
+    assert captured["key"] == "signing-secret-long-enough-123"
+    assert captured["settings"]["verification_token_encrypted"] == "encrypted:provider-verification-token"
+    assert result == {
+        "provider": "google_forms",
+        "configured": True,
+        "verification_token_configured": True,
+    }
+    assert "signing-secret-long-enough-123" not in repr(result)
+    assert "provider-verification-token" not in repr(result)
