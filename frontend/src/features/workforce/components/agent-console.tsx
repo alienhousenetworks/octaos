@@ -83,10 +83,10 @@ export default function AgentConsole({ agent, API_URL, fetchWithAuth }: AgentCon
                 const { value, done } = await reader.read();
                 if (done) break;
                 buffer += decoder.decode(value, { stream: true });
-                const blocks = buffer.split('\\n\\n');
+                const blocks = buffer.split('\n\n');
                 buffer = blocks.pop() || '';
                 for (const block of blocks) {
-                  const dataLine = block.split('\\n').find((line) => line.startsWith('data: '));
+                  const dataLine = block.split('\n').find((line) => line.startsWith('data: '));
                   if (!dataLine) continue;
                   try {
                     const event = JSON.parse(dataLine.slice(6));
