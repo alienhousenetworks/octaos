@@ -20,6 +20,7 @@ on:
       - "tests/test_portable_packs.py"
       - "tests/test_runtime_entitlements.py"
       - "tests/test_runtime_integration_enforcement.py"
+      - "tests/test_automation_event_bridge_integration.py"
       - "tests/test_security_passwords.py"
       - ".github/workflows/runtime-governance-tests.yml"
   push:
@@ -75,4 +76,5 @@ jobs:
             tests/test_portable_packs.py \
             tests/test_runtime_entitlements.py \
             tests/test_runtime_integration_enforcement.py \
+            tests/test_automation_event_bridge_integration.py \
             tests/test_security_passwords.py \
