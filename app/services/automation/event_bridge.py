@@ -49,14 +49,13 @@ class AutomationEventBridge:
         adapter = get_automation_engine(self.tenant_id, self.db)
 
         for wf in workflows:
-            # Durable receipt lookup makes provider retries safe after a committed dispatch.
-            # Provider webhook handlers should pass their stable delivery/event ID as the key.
+            # Persisted dedupe handles sequential provider retries. A unique receipt table
+            # is still required to close the concurrent first-delivery race.
             if idempotency_key:
                 prior = (
                     self.db.query(AutomationExecution)
                     .filter_by(tenant_id=self.tenant_id, workflow_id=wf.id)
                     .order_by(AutomationExecution.created_at.desc())
-                    .limit(200)
                     .all()
                 )
                 duplicate = next((item for item in prior
