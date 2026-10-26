@@ -217,6 +217,7 @@ class AgentRuntime:
 
         return {
             "agent_id": agent.id,
+            "execution_id": event_run_id,
             "agent_name": agent.name,
             "version": agent_ver.version,
             "status": status,
