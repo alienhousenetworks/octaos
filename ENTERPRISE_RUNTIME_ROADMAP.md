@@ -43,40 +43,42 @@ Reviewed selected source files on the default branch, including `app/main.py`, `
 **Gate:** worker-kill/restart recovers acknowledged work; concurrent duplicate submissions cannot create duplicate protected side effects; task and event state remain consistent.
 
 ### Phase 3 — common agent harness
-- [ ] Normalize provider adapters and runtime events; stream sanitized progress to the UI.
-- [ ] Add agent profiles/versions, context and artifact references, delegation, usage/cost limits, and cancellation.
-- [ ] Never expose private chain-of-thought; show actionable progress, tool calls, outcomes, and evidence.
-**Gate:** two providers pass the same contract tests; failure, timeout, cancellation, and verification are represented consistently.
+- [x] Add provider-neutral request/outcome/event contracts and sanitized public event serialization.
+- [x] Add conservative acceptance verification requiring evidence by default.
+- [ ] Wire provider adapters and the UI/SSE stream to this contract; add profiles, delegation, budgets, and cancellation.
+**Gate:** two live providers pass the same contract tests; failure, timeout, cancellation, and verification are represented consistently. Current work adds the contract, not proof of live provider integration.
 
 ### Phase 4 — versioned visual workflow engine
-- [ ] Define versioned node/edge schemas and typed input/output contracts.
-- [ ] Support validation, test runs, branching, retries/timeouts, error paths, parallel work, subflows, publish/rollback.
-- [ ] Pin each execution to an immutable workflow version.
-**Gate:** deterministic fixtures, invalid-graph rejection, and reproducible historical runs pass.
+- [x] Add a side-effect-free graph validator for node types, required config, graph shape, cycles, dangling/duplicate edges, and embedded secrets.
+- [ ] Integrate validation into every workflow save/publish/run path and enforce typed input/output contracts.
+- [ ] Add test runs, branching, retries/timeouts, error paths, parallel work, subflows, publish/rollback, and immutable run-version pinning.
+**Gate:** deterministic fixtures, invalid-graph rejection, and reproducible historical runs pass. Validation helper integration remains pending.
 
 ### Phase 5 — permissions, connectors, and computer-use boundary
-- [ ] Enforce authorization on the server for every tool call, independent of frontend visibility.
-- [ ] Add tenant-scoped OAuth connections, token refresh/revocation, webhook signature verification, and connector health.
-- [ ] Isolate browser/computer tasks and require approvals for high-risk external side effects.
-- [ ] Expose narrow, permissioned MCP tools with tenant identity and audit context.
-**Gate:** direct API/tool invocation cannot bypass policy; revoked access stops new actions; approval is checked at execution time.
+- [x] Add reusable server-side tool authorization checks for tenant match, active connection, explicit tool grants, and high-risk approval.
+- [x] Add timestamped HMAC-SHA256 webhook signature verification with constant-time comparison.
+- [ ] Integrate these helpers with the relevant non-MCP tool/connector execution paths; test credential revocation and webhook provider-specific signatures.
+- [ ] Complete browser/computer isolation and approval enforcement for every high-risk side effect.
+- [ ] Continue using the existing governed MCP dispatcher and verify all actions/approval states with integration tests.
+**Gate:** direct API/tool invocation cannot bypass policy; revoked access stops new actions; approval is checked at execution time. Helpers are not a substitute for end-to-end integration tests.
 
 ### Phase 6 — reliable schedules and event triggers
-- [ ] Persist trigger receipts, deduplicate webhook/event deliveries, checkpoint long runs, and define overlap policies.
-- [ ] Add dead-letter inspection, replay safety, pause/resume, missed-run handling, and observability.
-**Gate:** duplicate, delayed, missing, and out-of-order triggers have documented tested behavior.
+- [x] Add trigger-to-task dispatch with stable, bounded idempotency keys backed by the existing tenant/idempotency database uniqueness constraint.
+- [ ] Wire schedule/webhook entry points to the dispatcher; add trigger receipts independent of task retention, checkpoints, overlap policies, dead-letter inspection, pause/resume, missed-run handling, and replay controls.
+**Gate:** duplicate, delayed, missing, and out-of-order triggers have documented tested behavior. The helper creates a queued task; it does not itself run or acknowledge provider-specific triggers.
 
 ### Phase 7 — portable teams and industry packs
-- [ ] Package agent/team definitions, workflow versions, prompt templates, tool requirements, and tests.
-- [ ] Exclude secrets, tenant data, conversations, and run history from exports.
-- [ ] Preview and validate imports; default external connections off and schedules paused.
-**Gate:** a pack can be installed into a second tenant without data leakage or accidental external actions.
+- [x] Add portable pack manifest creation/validation with semantic versions and recursive rejection of secret-like and tenant-specific fields.
+- [x] Add install-preview defaults with external connections disabled, schedules paused, reauthorization, validation, and admin review required.
+- [ ] Integrate with the existing package/installation APIs, validate all workflow definitions on import, and implement rollback/compatibility checks.
+**Gate:** a pack can be installed into a second tenant without data leakage or accidental external actions. The current helper is not yet wired into marketplace APIs.
 
 ### Phase 8 — SaaS operations and pilot
-- [ ] Enforce plan entitlements, quotas, usage metering, and cost reconciliation server-side.
+- [x] Add reusable server-side plan entitlement, provider allowlist, concurrency, task quota, and monthly budget admission checks.
+- [ ] Load entitlements from the persisted subscription/tenant plan and call the guard at every execution entry point; add durable usage idempotency and reconciliation.
 - [ ] Add traces, actionable alerts, tenant-level operational views, backup/restore and upgrade drills.
 - [ ] Pilot one Sales and one Marketing workflow with real connectors, human approvals, and independently verified outcomes.
-**Gate:** agreed reliability, security, cost, and product outcome thresholds are met in a production-like environment.
+**Gate:** agreed reliability, security, cost, and product outcome thresholds are met in a production-like environment. Admission primitives alone do not constitute billing integration.
 
 ## Shared test matrix
 
@@ -100,3 +102,13 @@ Use the shared runtime for Sales AI, Marketing Campaign OS, HR, Support, and Rea
 ## Delivery reporting format
 
 For each phase report: changed files/PR, tests run and results, unresolved risks, acceptance-gate status, and the next phase to start. Never report an unrun test as passing or a planned capability as implemented.
+
+## Additional implementation artifacts on the working branch
+
+- `app/services/agent_runtime/protocol.py`: normalized request/outcome/event contract and sanitized public event serialization.
+- `app/services/workflow_governance/validator.py`: static workflow graph validation.
+- `app/services/runtime_governance/tool_policy.py`: server-side tool policy and timestamped webhook HMAC verification.
+- `app/services/runtime_governance/triggers.py`: stable trigger delivery keys and idempotent queued-task creation.
+- `app/services/runtime_governance/portable_packs.py`: tenant-safe portable pack manifests and safe install preview.
+- `app/services/runtime_governance/entitlements.py`: plan/provider/quota/budget admission primitives.
+- Regression tests were added for these utilities. They have not been run in a checked-out environment in this session, and the end-to-end integration gates above remain open.
