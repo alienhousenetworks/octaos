@@ -34,7 +34,7 @@ interface AgentCreateWizardProps {
   onOpenChange: (open: boolean) => void;
   API_URL: string;
   fetchWithAuth: (url: string, options?: any) => Promise<Response>;
-  onAgentCreated: () => void;
+  onAgentCreated: (agentId?: string) => void;
 }
 
 const AUTONOMY_LEVELS: { id: AutonomyLevel; title: string; desc: string }[] = [
@@ -109,8 +109,9 @@ export default function AgentCreateWizard({
       });
 
       if (res.ok) {
-        notify(`Custom Agent "${name}" created and published successfully.`);
-        onAgentCreated();
+        const created = await res.json().catch(() => ({}));
+        notify(`Custom Agent "${name}" created successfully. Opening its chat…`);
+        onAgentCreated(typeof created.id === 'string' ? created.id : undefined);
         onOpenChange(false);
         // Reset
         setStep(1);
