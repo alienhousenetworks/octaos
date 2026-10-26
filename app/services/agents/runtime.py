@@ -12,9 +12,9 @@ from app.models.flow_engine import (
     FlowApprovalRequest,
 )
 from app.models.agents import KnowledgeDocument
-from app.services.ai_gateway import ai_gateway
 from app.services.agents.tools import tool_registry
-from app.services.agent_runtime.protocol import AgentEvent, AgentEventType, AgentOutcome
+from app.services.agent_runtime.protocol import AgentEvent, AgentEventType, AgentOutcome, AgentRequest
+from app.services.agent_runtime.gateway_adapter import AIGatewayAgentAdapter
 from app.services.subscription_service import SubscriptionService
 
 
@@ -75,15 +75,22 @@ class AgentRuntime:
 
         # 6. Execute Model via AI Gateway
         try:
-            raw_response = await ai_gateway.executeRequest(
-                db=db,
+            provider_outcome = await AIGatewayAgentAdapter(db, tenant_id).execute(AgentRequest(
                 tenant_id=tenant_id,
-                prompt=user_prompt,
+                run_id=event_run_id,
+                agent_id=agent.id,
+                goal=user_prompt,
+                context=input_context,
+                allowed_tools=allowed_tools,
+                max_output_tokens=agent_ver.max_tokens or 4096,
                 provider=provider,
                 model=model,
                 system_prompt=system_prompt,
                 task_type=agent.department,
-            )
+            ))
+            if provider_outcome.status != "completed" or not provider_outcome.output:
+                raise RuntimeError("Provider adapter returned no completed output.")
+            raw_response = provider_outcome.output
         except Exception as exc:
             # Production execution must fail visibly rather than fabricate agent output.
             # Simulation belongs in an explicitly selected test/dry-run harness.
