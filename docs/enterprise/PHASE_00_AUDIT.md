@@ -26,8 +26,8 @@
 |---|---|---|---|
 | SEC-001 | Client-supplied tenant headers could establish request tenant context | Critical | Observed in original middleware. Patch removes header-derived context; add route-level integration tests and audit background jobs. |
 | SEC-002 | Insecure default secret/database credentials can be loaded from settings | High | Observed in settings. Production/staging validation and startup guard added; confirm actual deployment environment values before rollout. |
-| SEC-003 | Universal integration webhook route accepts unauthenticated POST payloads and dispatches provider actions | Critical | Observed in app/api/v1/endpoints/integrations.py: receive_integration_webhook accepts tenant_id from the URL, has no user dependency or signature check, and directly calls provider services. Add provider-native signature verification or a per-tenant secret with replay protection before production use. |
-| SEC-004 | Generic webhook challenge endpoint echoes challenge values without provider verification | High | Observed in app/api/v1/endpoints/integrations.py: verify_webhook_challenge. Audit provider requirements and require challenge-token verification where applicable. |
+| SEC-003 | Universal integration webhook route accepts unauthenticated POST payloads and dispatches provider actions | Critical | Initial patch now requires timestamped HMAC using an encrypted provider-specific credential in production; requests without a configured secret fail closed. Native-provider compatibility, event-level deduplication/replay protection, and a secure secret-provisioning UX still require verification before rollout. |
+| SEC-004 | Generic webhook challenge endpoint echoes challenge values without provider verification | High | Initial patch requires a configured per-provider webhook secret and matching verification token in production before echoing a challenge. Confirm each provider's native challenge contract before rollout. |
 | ARCH-001 | Multiple orchestration/workflow paths may fragment state | High | Router surface is broad; map concrete services and consumers before consolidating. |
 | REL-001 | Runtime recovery and external side-effect idempotency may differ by module | High | Existing runtime tests cover a subset; create capability-by-capability matrix and restart/failure tests. |
 | OBS-001 | Health endpoint may expose raw exception details | Medium | Initial patch replaces raw dependency exception text with safe status values and removes the unconditional enterprise_hardened claim; tests added. |
@@ -45,7 +45,10 @@ A targeted source-tree scan found multiple existing lifecycle/orchestration comp
 - [ ] Identify all runtime/orchestrator/automation engines and usage counts.
 - [ ] Inventory Celery task registrations, scheduling and retry configuration.
 - [ ] Map all OAuth and API connectors, scopes, token storage and webhook validation.
-- [ ] Secure the generic integration webhook ingress with provider-specific signature checks or tenant-scoped secret verification and replay protection; add tests for forged and replayed requests.
+- [x] Add timestamped HMAC verification and fail-closed behavior for the generic integration webhook ingress; add unit tests for valid, altered, stale and missing signatures.
+- [ ] Add durable event-level replay/idempotency receipts and provider-native signature adapters.
+- [ ] Add secure UI/API provisioning and rotation for encrypted per-provider webhook signing secrets.
+- [ ] Validate challenge and signature compatibility with each real provider test account.
 - [ ] Audit tenant isolation in every model/query path, background job and file/vector access path.
 - [ ] Capture backend test results and failures.
 - [ ] Capture frontend build/lint results and failures.
