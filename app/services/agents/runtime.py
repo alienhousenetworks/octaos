@@ -99,6 +99,9 @@ class AgentRuntime:
             if provider_outcome.status != "completed" or not provider_outcome.output:
                 raise RuntimeError("Provider adapter returned no completed output.")
             raw_response = provider_outcome.output
+            # Usage callbacks identify the provider that actually succeeded after failover.
+            provider = provider_outcome.provider
+            model = provider_outcome.model
         except Exception as exc:
             # Production execution must fail visibly rather than fabricate agent output.
             # Simulation belongs in an explicitly selected test/dry-run harness.
