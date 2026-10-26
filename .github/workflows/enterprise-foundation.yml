@@ -38,7 +38,7 @@ jobs:
       - name: Install focused test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest fastapi httpx sqlalchemy pydantic pydantic-settings python-jose redis celery
+          python -m pip install pytest fastapi httpx sqlalchemy pydantic pydantic-settings python-jose redis celery bcrypt cryptography
       - name: Compile changed Python modules
         run: |
           python -m compileall -q app/core/middleware.py app/core/config.py app/main.py app/api/v2/api.py
@@ -47,4 +47,7 @@ jobs:
           pytest -q \
             tests/test_tenant_middleware_context.py \
             tests/test_production_config.py \
-            tests/test_health_response_sanitization.py
+            tests/test_health_response_sanitization.py \\
+            tests/test_security_passwords.py \\
+            tests/test_agent_runtime_protocol.py \\
+            tests/test_autonomous_runtime_idempotency.py
