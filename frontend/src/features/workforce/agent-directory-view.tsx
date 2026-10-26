@@ -254,9 +254,10 @@ export default function AgentDirectoryView({
         onOpenChange={setIsWizardOpen}
         API_URL={API_URL}
         fetchWithAuth={fetchWithAuth}
-        onAgentCreated={() => {
-          fetchAgents();
-          fetchSummary();
+        onAgentCreated={(agentId) => {
+          void fetchAgents();
+          void fetchSummary();
+          if (agentId && onSelectAgent) onSelectAgent(`${agentId}?tab=console`);
         }}
       />
     </div>
