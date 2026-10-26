@@ -1310,6 +1310,18 @@ def install_workflow(
     if not latest_ver:
         raise HTTPException(status_code=400, detail="Package has no registered version.")
 
+    existing_install = db.query(Installation).filter_by(tenant_id=tenant_id, package_id=pack.id).first()
+    if existing_install and existing_install.status in {"active", "paused"}:
+        resource_ids = existing_install.created_resource_ids or {}
+        return {
+            "installation_id": existing_install.id,
+            "flow_id": resource_ids.get("flow_id"),
+            "package_name": pack.name,
+            "status": existing_install.status,
+            "already_installed": True,
+            "message": "This package already has an installation for the current tenant; no duplicate resources were created.",
+        }
+
     # 1a. Validate legacy marketplace manifests through the portable-pack boundary.
     legacy_manifest = latest_ver.manifest if isinstance(latest_ver.manifest, dict) else {}
     flow_steps = legacy_manifest.get("flow", [])
