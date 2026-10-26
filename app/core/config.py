@@ -195,7 +195,7 @@ class Settings(BaseSettings):
         }:
             problems.append("database URL must use a non-default password")
 
-        if (self.CORS_ORIGINS or "").strip() == "*":
+        if "*" in [origin.strip() for origin in (self.CORS_ORIGINS or "").split(",")]:
             problems.append("CORS_ORIGINS must not be wildcard in production/staging")
 
         if problems:
