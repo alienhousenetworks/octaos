@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.models.base import Tenant
 from app.core.config import settings
 from app.services.credentials import get_decrypted_credential, normalize_provider
 from app.services.integrations.webhook_security import verify_timestamped_hmac
@@ -26,6 +27,14 @@ def _is_local_development() -> bool:
     return bool(settings.DEV) and (settings.ENVIRONMENT or "").strip().lower() in {
         "development", "dev", "local", "test"
     }
+
+
+def _ensure_webhook_tenant_active(db: Session, tenant_id: str) -> None:
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Webhook endpoint not found.")
+    if not tenant.is_active:
+        raise HTTPException(status_code=403, detail="Tenant is inactive.")
 
 
 def _webhook_secret(db: Session, tenant_id: str, provider: str) -> Optional[str]:
@@ -73,6 +82,7 @@ async def verify_webhook_challenge(
     """
     Handles challenge verification for Meta, WhatsApp, Calendly, and Webhook providers.
     """
+    _ensure_webhook_tenant_active(db, tenant_id)
     params = dict(request.query_params)
     hub_challenge = params.get("hub.challenge") or params.get("challenge")
     if hub_challenge:
@@ -104,6 +114,7 @@ async def receive_integration_webhook(
     Universal Inbound Webhook Listener.
     Dispatches events from SendGrid, Calendly, Google Forms, Landingi, Zapier, Workato, Twilio, Formstack.
     """
+    _ensure_webhook_tenant_active(db, tenant_id)
     prov_lower = normalize_provider(provider)
     raw_body = await request.body()
     _require_webhook_signature(db, tenant_id, prov_lower, request, raw_body)
