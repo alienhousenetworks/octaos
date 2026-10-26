@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional
 
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.models.autonomous_work import AutonomousTask, AutonomousTaskEvent
 
@@ -138,7 +139,21 @@ class AutonomousRuntime:
             idempotency_key=idempotency_key,
         )
         self.db.add(task)
-        self.db.flush()
+        try:
+            self.db.flush()
+        except IntegrityError:
+            # Concurrent requests can both pass the initial lookup. The unique
+            # (tenant_id, idempotency_key) index is the final arbiter; on conflict,
+            # roll back this transaction and return the already-persisted task.
+            self.db.rollback()
+            if idempotency_key:
+                existing = self.db.query(AutonomousTask).filter(
+                    AutonomousTask.tenant_id == tenant_id,
+                    AutonomousTask.idempotency_key == idempotency_key,
+                ).first()
+                if existing:
+                    return existing
+            raise
         self.emit(task, "task_created", "Task accepted and persisted; execution has not yet been verified.",
                   actor_type="user", actor_id=created_by_id,
                   payload={"autonomy_level": autonomy_level, "risk_level": risk_level})
