@@ -47,7 +47,7 @@ jobs:
           pytest -q \
             tests/test_tenant_middleware_context.py \
             tests/test_production_config.py \
-            tests/test_health_response_sanitization.py \\
-            tests/test_security_passwords.py \\
-            tests/test_agent_runtime_protocol.py \\
+            tests/test_health_response_sanitization.py \
+            tests/test_security_passwords.py \
+            tests/test_agent_runtime_protocol.py \
             tests/test_autonomous_runtime_idempotency.py
