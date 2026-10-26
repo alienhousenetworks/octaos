@@ -9,7 +9,7 @@ on:
       - "app/services/autonomous_runtime/**"
       - "app/services/agents/runtime.py"
       - "app/services/agents/tools.py"
-      - "app/services/automation/event_bridge.py"
+      - "app/services/automation/event_bridge.py app/worker/tasks.py"
       - "app/api/v1/endpoints/automations.py"
       - "app/api/v1/endpoints/autonomous_work.py"
       - "app/core/security.py"
