@@ -48,3 +48,13 @@ def test_dangling_edges_and_duplicate_node_ids_are_rejected():
     codes = {issue.code for issue in validate_workflow(graph).issues}
     assert "DUPLICATE_NODE_ID" in codes
     assert "DANGLING_EDGE" in codes
+
+
+def test_malformed_node_type_and_edge_endpoints_return_issues_not_exceptions():
+    graph = valid_graph()
+    graph["nodes"][1]["type"] = ["tool"]
+    graph["edges"][0]["source"] = ["start"]
+    result = validate_workflow(graph)
+    assert not result.valid
+    assert "UNKNOWN_NODE_TYPE" in {issue.code for issue in result.issues}
+    assert "DANGLING_EDGE" in {issue.code for issue in result.issues}
