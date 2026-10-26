@@ -38,7 +38,8 @@ Reviewed selected source files on the default branch, including `app/main.py`, `
 - [ ] Trace all task entry points and consolidate them behind one lifecycle/policy boundary.
 - [ ] Add durable leases, heartbeat/expiry, bounded retries, cancellation, checkpoints, and worker recovery.
 - [ ] Persist task state and audit events transactionally; use an outbox for publishing events after commit.
-- [ ] Enforce idempotency at the database boundary and reconcile uncertain external side effects.
+- [x] Handle concurrent idempotency-key conflicts by returning the existing tenant-scoped task (regression test added; CI execution still pending).
+- [ ] Reconcile uncertain external side effects.
 **Gate:** worker-kill/restart recovers acknowledged work; concurrent duplicate submissions cannot create duplicate protected side effects; task and event state remain consistent.
 
 ### Phase 3 — common agent harness
