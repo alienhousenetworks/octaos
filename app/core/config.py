@@ -166,6 +166,43 @@ class Settings(BaseSettings):
             return ["http://localhost:3000"]
         return [o.strip() for o in raw.split(",") if o.strip()]
 
+    def validate_production_configuration(self) -> None:
+        """Fail closed when production/staging is configured with unsafe defaults."""
+        environment = (self.ENVIRONMENT or "").strip().lower()
+        if environment not in {"production", "prod", "staging"}:
+            return
+
+        problems = []
+        if self.DEV:
+            problems.append("DEV must be false in production/staging")
+        if (
+            not self.SECRET_KEY
+            or len(self.SECRET_KEY) < 32
+            or self.SECRET_KEY == "dev-only-insecure-secret-key-change-me"
+            or self.SECRET_KEY.lower() in {"secret", "changeme", "change_me"}
+        ):
+            problems.append("SECRET_KEY must be a unique random value of at least 32 characters")
+
+        from urllib.parse import urlsplit
+        database_url = self.SQLALCHEMY_DATABASE_URI or ""
+        try:
+            parsed = urlsplit(database_url)
+            database_password = parsed.password
+        except ValueError:
+            database_password = None
+        if not database_password or database_password.lower() in {
+            "password", "postgres", "changeme", "change_me", "secret"
+        }:
+            problems.append("database URL must use a non-default password")
+
+        if (self.CORS_ORIGINS or "").strip() == "*":
+            problems.append("CORS_ORIGINS must not be wildcard in production/staging")
+
+        if problems:
+            raise RuntimeError(
+                "Unsafe OctaOS production configuration: " + "; ".join(problems)
+            )
+
     def __init__(self, **values: Any):
         super().__init__(**values)
         if self.EMAIL_HOST is not None:
