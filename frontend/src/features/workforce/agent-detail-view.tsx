@@ -256,7 +256,7 @@ export default function AgentDetailView({
         {[
           { id: 'overview', label: 'Overview', icon: CheckCircle2 },
           { id: 'operations', label: 'Operations', icon: Layers },
-          { id: 'console', label: 'Test Console', icon: Terminal },
+          { id: 'console', label: 'Chat', icon: Terminal },
           { id: 'configuration', label: 'Configuration', icon: Settings },
           { id: 'permissions', label: 'Permissions', icon: Shield },
           { id: 'activity', label: 'Activity', icon: Clock },
@@ -344,7 +344,7 @@ export default function AgentDetailView({
               </div>
             ) : activityLogs.length === 0 ? (
               <div className="rounded-xl border border-gray-800 bg-gray-950/30 p-6 text-center text-xs text-gray-500">
-                No recent activity recorded for {agent.name}. Launch a task from the Test Console to generate execution logs.
+                No recent activity recorded for {agent.name}. Open Chat and send a message to generate execution logs.
               </div>
             ) : (
               <div className="space-y-2">
