@@ -26,7 +26,7 @@ from app.models.flow_engine import (
 )
 from app.services.agents.runtime import agent_runtime
 from app.services.agents.tools import tool_registry
-from app.services.runtime_governance.portable_packs import prepare_pack_install, PackValidationError
+from app.services.runtime_governance.portable_packs import build_portable_pack, prepare_pack_install, PackValidationError
 from app.services.agents.flow_engine import flow_engine
 from app.services.agents.seeder import (
     seed_system_agents,
@@ -1312,17 +1312,16 @@ def install_workflow(
     # 1a. Validate legacy marketplace manifests through the portable-pack boundary.
     legacy_manifest = latest_ver.manifest if isinstance(latest_ver.manifest, dict) else {}
     flow_steps = legacy_manifest.get("flow", [])
-    portable_manifest = {
-        "schema_version": 1,
-        "name": pack.name,
-        "version": latest_ver.version,
-        "description": pack.desc or "",
-        "agents": legacy_manifest.get("agents", []),
-        "workflows": legacy_manifest.get("workflows") or [{"name": f"{pack.name} Flow", "steps": flow_steps}],
-        "required_tools": latest_ver.required_tools or [],
-        "tests": legacy_manifest.get("tests", []),
-    }
     try:
+        portable_manifest = build_portable_pack(
+            name=pack.name,
+            version=latest_ver.version,
+            description=pack.desc or "",
+            agents=legacy_manifest.get("agents", []),
+            workflows=legacy_manifest.get("workflows") or [{"name": f"{pack.name} Flow", "steps": flow_steps}],
+            required_tools=latest_ver.required_tools or [],
+            tests=legacy_manifest.get("tests", []),
+        )
         prepare_pack_install(portable_manifest)
         # Config must never be a back door for exporting/importing plaintext credentials.
         prepare_pack_install({**portable_manifest, "config": request.config or {}})
