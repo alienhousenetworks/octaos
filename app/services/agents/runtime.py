@@ -94,6 +94,7 @@ class AgentRuntime:
                 model=model,
                 system_prompt=system_prompt,
                 task_type=agent.department,
+                allowed_providers=tuple((entitlement_snapshot.get("feature_flags") or {}).get("allowed_providers") or ()),
             ))
             if provider_outcome.status != "completed" or not provider_outcome.output:
                 raise RuntimeError("Provider adapter returned no completed output.")
