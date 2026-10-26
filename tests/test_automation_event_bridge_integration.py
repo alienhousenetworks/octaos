@@ -6,8 +6,6 @@ from sqlalchemy.pool import StaticPool
 
 from app.models.base import Base, Tenant
 from app.models.automations import AutomationExecution, AutomationWorkflow
-from app.services import automation as automation_package
-from app.services import automation
 from app.services.automation import event_bridge as bridge_module
 from app.services.automation.event_bridge import AutomationEventBridge
 
