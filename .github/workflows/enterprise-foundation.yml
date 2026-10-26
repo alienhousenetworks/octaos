@@ -1,5 +1,5 @@
 name: Enterprise Foundation Security Tests
-# Covers tenant isolation, production configuration, webhook ingress and credential provisioning.
+# Covers tenant isolation, production configuration, webhook ingress, credential provisioning and replay-key regression tests.
 
 on:
   pull_request:
