@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.core.config import settings
 from app.services.credentials import get_decrypted_credential, normalize_provider
 from app.services.integrations.webhook_security import verify_timestamped_hmac
 from app.services.integrations.sendgrid_service import SendGridService
