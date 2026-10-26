@@ -8,9 +8,9 @@ from app.services.agent_runtime.protocol import AgentOutcome, AgentRequest
 class AIGatewayAgentAdapter:
     """Provider-neutral adapter around the existing tenant-aware AI gateway.
 
-    The gateway may fail over internally and currently returns text only. Therefore
-    the adapter reports the requested provider/model as routing intent, not verified
-    actual-provider telemetry; actual usage must come from the gateway's usage ledger.
+    The gateway still returns text, but its usage callback supplies the provider/model
+    that actually succeeded plus measured tokens and cost. If no usage callback is emitted,
+    provider/model fall back to routing intent and token/cost metrics remain unavailable.
     """
 
     provider_name = "octaos-ai-gateway"
