@@ -38,11 +38,11 @@ def authorize_tool_call(
     grants = set(granted_tools)
     if tool_name not in grants and "*" not in grants:
         return ToolAuthorization(False, "TOOL_NOT_GRANTED")
+    if approval_status == "rejected":
+        return ToolAuthorization(False, "APPROVAL_REJECTED")
     high_risk = any(tool_name == prefix or tool_name.startswith(prefix) for prefix in HIGH_RISK_ACTION_PREFIXES)
     if high_risk and approval_status != "approved":
         return ToolAuthorization(False, "APPROVAL_REQUIRED", approval_required=True)
-    if approval_status == "rejected":
-        return ToolAuthorization(False, "APPROVAL_REJECTED")
     return ToolAuthorization(True, "AUTHORIZED")
 
 
@@ -61,6 +61,8 @@ def verify_hmac_webhook(
     signature alone does not provide delivery idempotency.
     """
     if not secret or not timestamp or not signature or not isinstance(raw_body, bytes):
+        return False
+    if not timestamp.isascii() or not timestamp.isdecimal():
         return False
     try:
         sent_at = int(timestamp)
