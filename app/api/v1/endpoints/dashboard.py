@@ -1244,7 +1244,7 @@ def clone_package_to_flow(
     if not latest_ver:
         raise HTTPException(status_code=400, detail="Package has no registered version to clone.")
 
-    flow_steps = legacy_manifest.get("flow", [])
+    flow_steps = latest_ver.manifest.get("flow", []) if latest_ver.manifest else []
 
     new_flow = FlowDefinition(
         tenant_id=tenant_id,
@@ -1369,7 +1369,7 @@ def install_workflow(
         legacy_app.config = safe_install_config
 
     # 3. Create dedicated FlowDefinition and FlowVersion in target section!
-    flow_steps = latest_ver.manifest.get("flow", []) if latest_ver.manifest else []
+    flow_steps = legacy_manifest.get("flow", [])
     flow = FlowDefinition(
         tenant_id=tenant_id,
         name=f"{pack.name} Flow",
