@@ -47,6 +47,9 @@ async def unhandled_exception(request: Request, exc: Exception):
 
 @app.on_event("startup")
 def startup_db_check():
+    # Refuse to boot a production/staging app with unsafe default configuration.
+    settings.validate_production_configuration()
+
     from app.db.session import engine
     from sqlalchemy import text
     try:
