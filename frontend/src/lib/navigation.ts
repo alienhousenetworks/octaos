@@ -81,7 +81,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'AI workforce',
     items: [
-      { id: 'agents', name: 'AI employees', href: '/app/agents', icon: Bot, section: 'teams', keywords: 'workforce agents directory cockpit' },
+      { id: 'agents', name: 'Agent Studio', href: '/app/agents', icon: Bot, section: 'teams', keywords: 'create custom agent chat assistant grok model instructions workforce directory cockpit' },
       { id: 'orchestrator', name: 'Activity & runs', href: '/app/orchestrator', icon: Activity, section: 'orchestrator', keywords: 'orchestrator running tasks' },
       { id: 'automations', name: 'Workflow builder', href: '/app/automations', icon: GitFork, section: 'automations', keywords: 'automations workflows triggers' },
       { id: 'teams', name: 'Teams', href: '/app/teams', icon: Users, section: 'teams' },

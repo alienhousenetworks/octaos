@@ -128,10 +128,10 @@ export default function AgentDirectoryView({
         <div>
           <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2.5">
             <Bot className="size-6 text-primary" />
-            AI Workforce
+            Agent Studio
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Discover, govern, and operate your autonomous enterprise agents.
+            Create custom AI agents, configure their instructions and model, then open each agent to chat and test it.
           </p>
         </div>
 
@@ -141,7 +141,7 @@ export default function AgentDirectoryView({
           className="rounded-xl px-4 text-xs font-semibold shadow-md shadow-primary/10"
         >
           <Plus className="mr-1.5 size-3.5" />
-          Create Custom Agent
+          Create Agent
         </Button>
       </div>
 
@@ -254,9 +254,10 @@ export default function AgentDirectoryView({
         onOpenChange={setIsWizardOpen}
         API_URL={API_URL}
         fetchWithAuth={fetchWithAuth}
-        onAgentCreated={() => {
-          fetchAgents();
-          fetchSummary();
+        onAgentCreated={(agentId) => {
+          void fetchAgents();
+          void fetchSummary();
+          if (agentId && onSelectAgent) onSelectAgent(`${agentId}?tab=console`);
         }}
       />
     </div>
