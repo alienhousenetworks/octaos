@@ -42,6 +42,10 @@ class AgentRuntime:
 
         # 1a. Enforce persisted plan policy before any provider call.
         subscription = SubscriptionService(db)
+        entitlement_snapshot = subscription.entitlements(tenant_id)
+        subscription_status = str(entitlement_snapshot.get("status") or "").lower()
+        if subscription_status not in {"active", "trial", "trialing", "grace_period"}:
+            raise PermissionError(f"Subscription status '{subscription_status or 'unknown'}' does not permit agent execution.")
         admission = subscription.check_action_allowed(tenant_id, cost_usd=0.0)
         if not admission.get("allowed", False):
             raise PermissionError(admission.get("reason") or "Subscription quota denied this execution.")
@@ -60,6 +64,9 @@ class AgentRuntime:
 
         # 2. Resolve Model and Fallbacks
         provider = agent_ver.provider
+        allowed_providers = (entitlement_snapshot.get("feature_flags") or {}).get("allowed_providers")
+        if allowed_providers and provider not in allowed_providers:
+            raise PermissionError("Requested provider is not enabled for the tenant's subscription.")
         model = agent_ver.model
         temperature = agent_ver.temperature or 0.7
 
