@@ -1,7 +1,6 @@
 """Authenticated API for the persistent workforce event stream."""
 from __future__ import annotations
 
-import re
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
