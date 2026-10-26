@@ -112,3 +112,26 @@ For each phase report: changed files/PR, tests run and results, unresolved risks
 - `app/services/runtime_governance/portable_packs.py`: tenant-safe portable pack manifests and safe install preview.
 - `app/services/runtime_governance/entitlements.py`: plan/provider/quota/budget admission primitives.
 - Regression tests were added for these utilities. They have not been run in a checked-out environment in this session, and the end-to-end integration gates above remain open.
+
+
+## Integration pass — 2026-10-26
+
+This pass wires the earlier Phases 3–8 primitives into selected existing execution paths. It is not a production-readiness declaration.
+
+- **Agent harness / UI events:** the existing AI gateway is adapted to the common AgentRequest / AgentOutcome contract. Provider-reported usage is carried through a callback; normalized, redacted run events are persisted in ExecutionEvent. The Agent Console consumes the tenant-scoped SSE endpoint at /api/v1/autonomous-work/agent-runs/{run_id}/events/stream.
+- **Workflow versions:** new automation creation validates and snapshots the graph; graph draft saves reject invalid graphs; publish checks the immutable version snapshot; manual runs require a validated published snapshot and record its version/hash in execution metadata.
+- **Tool boundary:** the ToolRegistry rejects calls without server-created grant context, tenant identity, or explicit tool grant. High-risk policy is evaluated at dispatch time. MCP continues to use its existing governed dispatcher.
+- **Schedules / recovery:** the scheduled-trigger poller leases due rows under FOR UPDATE SKIP LOCKED, retries failed dispatches, and deactivates successful one-time schedules. This reduces concurrent overlap and missed-run loss; a crash after external enqueue can still cause duplicate delivery until a durable outbox/receipt with downstream idempotency is introduced.
+- **Portable packages:** marketplace installation runs the legacy manifest through the portable-pack validator, rejects missing required tools and secret-like configuration, scopes package lookup to platform-wide or same-tenant packages, and creates new installs paused with schedules/connections disabled and admin review required.
+- **Subscription / usage:** agent execution checks subscription status, agent entitlement, action quota and optional provider allowlist. The provider allowlist is passed into the gateway so failover cannot silently escape it. The runtime uses provider-reported token/cost values when available and updates existing subscription usage counters. Invoice reconciliation, concurrency reservation across workers, and exact preflight cost reservation remain separate gates.
+- **Regression tests:** focused tests cover contract redaction, direct tool-dispatch authorization, tenant mismatch, high-risk approval, and the existing governance helper tests. GitHub Actions is the source of truth for this branch's current test status.
+
+### Remaining acceptance gates
+
+1. Run full backend/frontend suites against the supported dependency lock and production-like PostgreSQL/Redis configuration.
+2. Add migration-backed durable trigger receipts/outbox with provider event IDs, replay controls, and downstream idempotency for enqueue-crash recovery.
+3. Prove tenant isolation using two real tenants across agents, tool connections, event streams, packages, workflow versions, and usage reports.
+4. Exercise worker kill/restart, stale schedule leases, dead-letter replay, and duplicate webhook delivery.
+5. Validate package rollback/compatibility and activation approvals in the real marketplace UI.
+6. Reconcile gateway ProviderUsage, UsageEvent, subscription counters, and provider invoices with idempotent ledger adjustments.
+7. Run provider smoke tests with real credentials in a controlled staging tenant; no live provider credentials are used by the focused CI suite.
