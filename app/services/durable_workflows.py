@@ -190,7 +190,7 @@ class DeadLetterService:
         try:
             from app.core.celery_app import celery_app
 
-            result = celery_app.send_task(job.task_name, args=job.args or [], kwargs=job.kwargs or [])
+            result = celery_app.send_task(job.task_name, args=job.args or [], kwargs=job.kwargs or {})
             # Queue acceptance is not task completion. Keep the record replaying
             # until a worker/reconciler can confirm the actual outcome.
             self.db.commit()
