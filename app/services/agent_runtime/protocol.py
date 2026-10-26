@@ -88,6 +88,10 @@ class AgentRequest:
     allowed_tools: Sequence[str] = field(default_factory=tuple)
     max_output_tokens: int = 4096
     budget_limit: float | None = None
+    provider: str | None = None
+    model: str | None = None
+    system_prompt: str | None = None
+    task_type: str = "general"
 
 
 @dataclass(frozen=True)
@@ -118,7 +122,7 @@ class AgentProviderAdapter(Protocol):
 
     provider_name: str
 
-    def execute(self, request: AgentRequest) -> AgentOutcome:
+    async def execute(self, request: AgentRequest) -> AgentOutcome:
         """Execute a request within supplied limits and return a normalized outcome."""
         ...
 
