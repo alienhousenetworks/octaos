@@ -166,10 +166,10 @@ class AgentRuntime:
                     executed_tools.append({"tool": tool_name, "args": tool_args, "error": str(tool_err)})
 
         duration_ms = int((time.time() - start_time) * 1000)
-        # Approximate tokens and cost calculation
-        input_tokens = len(system_prompt + user_prompt) // 4
-        output_tokens = len(raw_response) // 4
-        cost_usd = round((input_tokens * 0.000003) + (output_tokens * 0.000015), 6)
+        # Use provider-reported usage from the gateway ledger; never fabricate token or cost metrics.
+        input_tokens = provider_outcome.input_tokens
+        output_tokens = provider_outcome.output_tokens
+        cost_usd = float(provider_outcome.cost) if provider_outcome.cost is not None else 0.0
 
         # 9. Record Usage & Telemetry Event
         usage_event = UsageEvent(
