@@ -57,9 +57,14 @@ def startup_db_check():
             conn.execute(text("SELECT 1"))
         print("Database connection check successful.")
     except Exception as e:
+        logging.getLogger("uvicorn.error").exception("Database startup check failed")
+        if (settings.ENVIRONMENT or "").strip().lower() in {"production", "prod", "staging"}:
+            raise RuntimeError(
+                "Required database is unavailable; refusing to start in production/staging."
+            ) from e
         print(f"Error checking database connection: {e}")
 
-    # Seed subscription plans (non-fatal)
+    # Seed subscription plans (non-fatal in development; schema/migration work is tracked separately).
     try:
         from app.db.session import SessionLocal
         from app.services.subscription_service import SubscriptionService
