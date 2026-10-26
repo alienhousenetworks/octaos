@@ -25,7 +25,9 @@
 | ID | Risk | Severity | Evidence / next action |
 |---|---|---|---|
 | SEC-001 | Client-supplied tenant headers could establish request tenant context | Critical | Observed in original middleware. Patch removes header-derived context; add route-level integration tests and audit background jobs. |
-| SEC-002 | Insecure default secret/database credentials can be loaded from settings | High | Observed in settings. Add production startup validation and deployment configuration checks. |
+| SEC-002 | Insecure default secret/database credentials can be loaded from settings | High | Observed in settings. Production/staging validation and startup guard added; confirm actual deployment environment values before rollout. |
+| SEC-003 | Universal integration webhook route accepts unauthenticated POST payloads and dispatches provider actions | Critical | Observed in app/api/v1/endpoints/integrations.py: receive_integration_webhook accepts tenant_id from the URL, has no user dependency or signature check, and directly calls provider services. Add provider-native signature verification or a per-tenant secret with replay protection before production use. |
+| SEC-004 | Generic webhook challenge endpoint echoes challenge values without provider verification | High | Observed in app/api/v1/endpoints/integrations.py: verify_webhook_challenge. Audit provider requirements and require challenge-token verification where applicable. |
 | ARCH-001 | Multiple orchestration/workflow paths may fragment state | High | Router surface is broad; map concrete services and consumers before consolidating. |
 | REL-001 | Runtime recovery and external side-effect idempotency may differ by module | High | Existing runtime tests cover a subset; create capability-by-capability matrix and restart/failure tests. |
 | OBS-001 | Health endpoint may expose raw exception details | Medium | Initial patch replaces raw dependency exception text with safe status values and removes the unconditional enterprise_hardened claim; tests added. |
@@ -43,6 +45,7 @@ A targeted source-tree scan found multiple existing lifecycle/orchestration comp
 - [ ] Identify all runtime/orchestrator/automation engines and usage counts.
 - [ ] Inventory Celery task registrations, scheduling and retry configuration.
 - [ ] Map all OAuth and API connectors, scopes, token storage and webhook validation.
+- [ ] Secure the generic integration webhook ingress with provider-specific signature checks or tenant-scoped secret verification and replay protection; add tests for forged and replayed requests.
 - [ ] Audit tenant isolation in every model/query path, background job and file/vector access path.
 - [ ] Capture backend test results and failures.
 - [ ] Capture frontend build/lint results and failures.
