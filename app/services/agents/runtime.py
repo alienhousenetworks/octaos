@@ -200,10 +200,11 @@ class AgentRuntime:
             ).first()
         db.add(usage_event)
         db.flush()
-        if not existing_step_usage:
-            subscription.record_action(tenant_id, cost_usd=cost_usd, count=1)
-        else:
-            db.commit()
+        # Reconcile every provider call's actual cost, while counting only one action
+        # per logical flow step (retries still consume budget even when action count dedupes).
+        subscription.record_action(
+            tenant_id, cost_usd=cost_usd, count=0 if existing_step_usage else 1
+        )
 
         normalized_outcome = AgentOutcome(
             status="awaiting_approval" if pending_approval else "completed",
