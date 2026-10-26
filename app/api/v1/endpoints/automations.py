@@ -233,6 +233,14 @@ async def create_automation(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid AutomationIR structure: {e}")
 
+    graph = convert_legacy_ir_to_graph(ir.model_dump())
+    graph_validation = GraphValidator.validate(graph)
+    if not graph_validation.is_valid:
+        raise HTTPException(status_code=422, detail={
+            "message": "Automation rejected by graph validation.",
+            "errors": graph_validation.errors,
+        })
+
     slug = request.slug or ir.slug or request.name.lower().replace(" ", "_")
     adapter = get_automation_engine(tenant_id, db)
 
@@ -256,8 +264,11 @@ async def create_automation(
         trigger_type=ir.trigger.type,
         trigger_event=ir.trigger.event,
         definition_ir=ir.model_dump(),
+        graph_json=graph.model_dump(),
+        graph_hash=graph.calculate_hash(),
         compiled_schema=compiled,
         current_version=1,
+        published_version=1 if request.activate_now and not ir.requires_approval else None,
         is_ai_generated=bool(request.ai_prompt),
         ai_prompt=request.ai_prompt,
         requires_approval=ir.requires_approval,
@@ -272,6 +283,8 @@ async def create_automation(
         workflow_id=wf.id,
         version=1,
         definition_ir=ir.model_dump(),
+        graph_json=graph.model_dump(),
+        graph_hash=graph.calculate_hash(),
         compiled_schema=compiled,
         change_reason="Initial creation",
         created_by=current_user.email,
