@@ -1287,11 +1287,15 @@ def install_workflow(
     pack = None
     if request.package_id:
         pack = db.query(PackageDefinition).filter(
-            (PackageDefinition.id == request.package_id) | (PackageDefinition.slug == request.package_id.replace("pkg_", ""))
+            ((PackageDefinition.tenant_id == tenant_id) | (PackageDefinition.tenant_id.is_(None))),
+            ((PackageDefinition.id == request.package_id) | (PackageDefinition.slug == request.package_id.replace("pkg_", ""))),
         ).first()
     if not pack and request.app_name:
         seed_system_packages(db)
-        pack = db.query(PackageDefinition).filter_by(name=request.app_name).first()
+        pack = db.query(PackageDefinition).filter(
+            PackageDefinition.name == request.app_name,
+            ((PackageDefinition.tenant_id == tenant_id) | (PackageDefinition.tenant_id.is_(None))),
+        ).first()
     if not pack and request.package_id:
         seed_system_packages(db)
         pack = db.query(PackageDefinition).filter(
@@ -1349,6 +1353,8 @@ def install_workflow(
     if not legacy_app:
         legacy_app = InstalledApp(tenant_id=tenant_id, app_name=pack.name, config=safe_install_config)
         db.add(legacy_app)
+    else:
+        legacy_app.config = safe_install_config
 
     # 3. Create dedicated FlowDefinition and FlowVersion in target section!
     flow_steps = latest_ver.manifest.get("flow", []) if latest_ver.manifest else []
@@ -1358,6 +1364,7 @@ def install_workflow(
         slug=f"{pack.slug}_flow_{uuid.uuid4().hex[:6]}",
         section=pack.section,
         description=f"Automated agentic flow provisioned from {pack.name}.",
+        is_active=False,
         package_id=pack.id,
     )
     db.add(flow)
