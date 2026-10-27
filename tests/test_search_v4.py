@@ -635,10 +635,11 @@ def test_research_api_persists_before_enqueuing_background_work(monkeypatch):
         monkeypatch.setattr(research_api, "_require_durable_search_store", lambda db: SqlSearchStore(db))
         from app.worker.tasks import run_research_search_task
         queued = {}
-        def fake_delay(*args, **kwargs):
+        def fake_apply_async(*, args, task_id):
             queued["args"] = args
-            return SimpleNamespace(id="celery-task-1")
-        monkeypatch.setattr(run_research_search_task, "delay", fake_delay)
+            queued["task_id"] = task_id
+            return SimpleNamespace(id=task_id)
+        monkeypatch.setattr(run_research_search_task, "apply_async", fake_apply_async)
 
         request = research_api.ResearchSearchRequest(query="Find ERP market evidence")
         response = asyncio.run(
@@ -653,8 +654,8 @@ def test_research_api_persists_before_enqueuing_background_work(monkeypatch):
         assert row is not None
         assert row.status == "queued"
         assert row.payload["spec"]["query"] == "Find ERP market evidence"
-        assert row.payload["queue_task_id"] == "celery-task-1"
-        assert queued["args"][0:3] == ("tenant-queue", response["job_id"], "Find ERP market evidence")
+        assert row.payload["queue_task_id"] == queued["task_id"]
+        assert queued["args"][0:3] == ["tenant-queue", response["job_id"], "Find ERP market evidence"]
     finally:
         session.close()
         engine.dispose()
