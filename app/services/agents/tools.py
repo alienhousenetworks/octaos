@@ -4,7 +4,7 @@ import urllib.parse
 from typing import Dict, Any, List, Optional
 import httpx
 from sqlalchemy.orm import Session
-from app.services.runtime_governance.tool_policy import authorize_tool_call
+from app.services.runtime_governance.tool_policy import action_fingerprint, authorize_tool_call
 
 
 class ToolDefinition:
@@ -113,13 +113,50 @@ class ToolRegistry:
         request_tenant_id = policy_context.get("request_tenant_id")
         if not isinstance(granted_tools, (list, tuple, set)) or not request_tenant_id:
             raise PermissionError("TOOL_POLICY_CONTEXT_REQUIRED")
+        approval_status = policy_context.get("approval_status")
+        action_binding = None
+        approved_action_binding = None
+        if name and any(
+            name == prefix or name.startswith(prefix)
+            for prefix in (
+                "email.send", "email.delete", "crm.delete", "payment.", "billing.",
+                "post.publish", "contract.sign", "user.delete", "browser.submit", "webhook_post",
+            )
+        ):
+            # Fingerprint the exact proposed side effect on the server. The approval
+            # fingerprint must come from a persisted, server-validated approval record;
+            # never accept a client-supplied boolean as authorization.
+            target = str(
+                payload.get("target")
+                or payload.get("recipient")
+                or payload.get("recipient_email")
+                or payload.get("email")
+                or payload.get("url")
+                or payload.get("account_id")
+                or ""
+            )
+            action_binding = action_fingerprint(
+                tenant_id=tenant_id,
+                run_id=str(policy_context.get("run_id") or ""),
+                bot_id=str(policy_context.get("bot_id") or policy_context.get("agent_id") or ""),
+                tool_name=name,
+                target=target,
+                payload=payload,
+                policy_version=str(policy_context.get("policy_version") or "current"),
+            )
+            approved_action_binding = policy_context.get("approved_action_binding")
+
         decision = authorize_tool_call(
             tenant_id=tenant_id,
             request_tenant_id=str(request_tenant_id),
             tool_name=name,
             granted_tools=granted_tools,
             connection_active=bool(policy_context.get("connection_active", True)),
-            approval_status=policy_context.get("approval_status"),
+            approval_status=approval_status,
+            action_binding=action_binding,
+            approved_action_binding=(
+                str(approved_action_binding) if approved_action_binding else None
+            ),
         )
         if not decision.allowed:
             raise PermissionError(decision.reason)
