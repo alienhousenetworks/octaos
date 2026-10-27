@@ -6,7 +6,7 @@ from app.services.sales_os.search_v4.connectors.base import ConnectorResult, Hit
 from app.services.sales_os.search_v4.connectors.extract import contact_from_text, page_text, title_of
 from app.services.sales_os.search_v4.contracts import SearchTask
 from app.services.sales_os.search_v4.urls import host_of, is_company_site
-from app.services.web_ingestion.firecrawl_client import validate_target_url
+from app.services.sales_os.search_v4.connectors.safe_fetch import safe_get
 
 _HEADERS = {"User-Agent": "OctaOS-Sales/1.0 (search-v4)", "Accept": "application/json"}
 
@@ -91,8 +91,11 @@ class WebSearchConnector:
                 enriched.append(hit)
                 continue
             try:
-                safe = validate_target_url(hit.url)
-                response = await client.get(safe, headers={"User-Agent": _HEADERS["User-Agent"], "Accept": "text/html"}, follow_redirects=True)
+                response = await safe_get(
+                    client,
+                    hit.url,
+                    headers={"User-Agent": _HEADERS["User-Agent"], "Accept": "text/html"},
+                )
             except Exception:
                 enriched.append(hit)
                 continue
@@ -104,16 +107,16 @@ class WebSearchConnector:
             name, email = contact_from_text(text, hit.url)
             # A company homepage often links the actual inbox from a contact
             # page. Fetch only a small, bounded set of conventional paths; do
-            # not crawl arbitrary links or cross the target origin.
+            # not crawl arbitrary links. Each request and redirect is revalidated.
             if not email:
                 from urllib.parse import urljoin
 
                 for path in ("/contact", "/contact-us", "/about", "/about-us", "/team"):
                     try:
-                        contact_response = await client.get(
+                        contact_response = await safe_get(
+                            client,
                             urljoin(hit.url, path),
                             headers={"User-Agent": _HEADERS["User-Agent"], "Accept": "text/html"},
-                            follow_redirects=True,
                         )
                     except Exception:
                         continue
