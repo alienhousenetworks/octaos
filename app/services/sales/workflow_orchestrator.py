@@ -316,7 +316,16 @@ class WorkflowOrchestrator:
                         pass
 
             if mode == "prompt_agent":
-                query = f"{parsed_icp.service} {parsed_icp.geography}"
+                known_services = {
+                    "Website Development",
+                    "Mobile App Development",
+                    "Web Design",
+                    "SEO & Growth Marketing",
+                }
+                if parsed_icp.service in known_services:
+                    query = f"{parsed_icp.service} {parsed_icp.geography}".strip()
+                else:
+                    query = (prompt_instructions or parsed_icp.service or parsed_icp.intent or "").strip()[:240]
             else:
                 query = profile_target_industries[0] if profile_target_industries else "target clients"
 

@@ -199,7 +199,7 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
                   setProvider(val);
                   if (val === 'openrouter') setModel('meta-llama/llama-3.3-70b-instruct');
                   else if (val === 'together') setModel('meta-llama/Llama-3.3-70B-Instruct-Turbo');
-                  else if (val === 'groq') setModel('llama-3.3-70b-versatile');
+                  else if (val === 'groq') setModel('openai/gpt-oss-120b');
                   else if (val === 'gemini') setModel('gemini-2.5-flash');
                   else if (val === 'openai') setModel('gpt-4o');
                   else if (val === 'anthropic') setModel('claude-sonnet-4-6');
@@ -253,7 +253,7 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
                       )}
                       {provider === 'groq' && (
                         <>
-                          <SelectItem value="llama-3.3-70b-versatile">Llama 3.3 70B</SelectItem>
+                          <SelectItem value="openai/gpt-oss-120b">GPT OSS 120B</SelectItem>
                           <SelectItem value="llama-3.1-8b-instant">Llama 3.1 8B</SelectItem>
                         </>
                       )}

@@ -25,7 +25,7 @@ interface SalesProspectingPanelProps {
   promptFreshness: string;
   setPromptFreshness: (val: string) => void;
   promptRunning: boolean;
-  onRunPromptAgent: () => Promise<void>;
+  onRunPromptAgent: (prompt?: string) => Promise<void>;
   onRunConfiguredEngine: () => Promise<void>;
   onSwitchToStepper: () => void;
   selectedProvider: string;
@@ -292,7 +292,7 @@ export default function SalesProspectingPanel({
                   } else if (val === 'gemini') {
                     setSelectedModel?.('gemini-2.5-flash');
                   } else if (val === 'groq') {
-                    setSelectedModel?.('llama-3.3-70b-versatile');
+                    setSelectedModel?.('openai/gpt-oss-120b');
                   } else {
                     setSelectedModel?.('');
                   }
@@ -305,7 +305,7 @@ export default function SalesProspectingPanel({
                 <option value="openai">OpenAI (GPT-4o / Mini)</option>
                 <option value="anthropic">Anthropic (Claude 3.5 Sonnet)</option>
                 <option value="gemini">Google Gemini 2.0</option>
-                <option value="groq">Groq Llama 3 70B (High Speed)</option>
+                <option value="groq">Groq (GPT OSS 120B)</option>
                 <option value="together">Together AI (Llama 3.3 70B)</option>
               </select>
             </div>
@@ -319,7 +319,10 @@ export default function SalesProspectingPanel({
             </div>
 
             <Button
-              onClick={onRunPromptAgent}
+              onClick={(event) => {
+                const field = event.currentTarget.closest('.rounded-2xl')?.querySelector('textarea');
+                void onRunPromptAgent(field?.value || promptDirective);
+              }}
               disabled={promptRunning || !promptDirective.trim()}
               className="w-full sm:w-auto h-11 px-8 bg-primary hover:opacity-90 text-primary-foreground font-bold text-sm rounded-xl shadow-sm disabled:opacity-50 transition-all flex items-center justify-center gap-2"
             >

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { AgentItem, ExecutionTraceItem } from '@/lib/agent-types';
 import { notify } from '@/lib/notify';
+import { createId } from '@/lib/id';
 
 interface AgentConsoleProps {
   agent: AgentItem;
@@ -48,6 +49,7 @@ export default function AgentConsole({ agent, API_URL, fetchWithAuth }: AgentCon
   const [dryRun, setDryRun] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const sendingRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -74,11 +76,12 @@ export default function AgentConsole({ agent, API_URL, fetchWithAuth }: AgentCon
   }, [messages, storageKey]);
 
   const sendMessage = async (messageOverride?: string) => {
-    const userText = (messageOverride ?? prompt).trim();
-    if (!userText || loading) return;
+    const userText = (messageOverride ?? inputRef.current?.value ?? prompt).trim();
+    if (!userText || loading || sendingRef.current) return;
+    sendingRef.current = true;
 
     const userMessage: ChatMessage = {
-      id: crypto.randomUUID(), role: 'user', content: userText, createdAt: new Date().toISOString(),
+      id: createId(), role: 'user', content: userText, createdAt: new Date().toISOString(),
     };
     const priorMessages = messages.slice(-8);
     setMessages((current) => [...current, userMessage]);
@@ -105,7 +108,7 @@ export default function AgentConsole({ agent, API_URL, fetchWithAuth }: AgentCon
         const error = await res.json().catch(() => ({}));
         const detail = typeof error.detail === 'string' ? error.detail : 'The runtime rejected this request. Check provider setup, permissions, and subscription access.';
         setMessages((current) => [...current, {
-          id: crypto.randomUUID(), role: 'assistant', content: detail,
+          id: createId(), role: 'assistant', content: detail,
           createdAt: new Date().toISOString(), status: 'error',
         }]);
         return;
@@ -116,16 +119,17 @@ export default function AgentConsole({ agent, API_URL, fetchWithAuth }: AgentCon
       setExecutionId(data.execution_id ?? null);
       setToolCalls(Array.isArray(data.tool_calls) ? data.tool_calls : []);
       setMessages((current) => [...current, {
-        id: crypto.randomUUID(), role: 'assistant', content: answer,
+        id: createId(), role: 'assistant', content: answer,
         createdAt: new Date().toISOString(), status: 'success',
       }]);
     } catch (error: any) {
       setMessages((current) => [...current, {
-        id: crypto.randomUUID(), role: 'assistant',
+        id: createId(), role: 'assistant',
         content: error?.message || 'Could not reach the OctaOS API. Check the backend connection and try again.',
         createdAt: new Date().toISOString(), status: 'error',
       }]);
     } finally {
+      sendingRef.current = false;
       setLoading(false);
       window.setTimeout(() => inputRef.current?.focus(), 0);
     }
@@ -207,7 +211,7 @@ export default function AgentConsole({ agent, API_URL, fetchWithAuth }: AgentCon
       )}
 
       <div className="border-t border-gray-800 bg-gray-950 p-3 sm:p-5">
-        <form onSubmit={(e) => { e.preventDefault(); void sendMessage(); }} className="mx-auto max-w-4xl">
+        <form onSubmit={(e) => { e.preventDefault(); void sendMessage(e.currentTarget.querySelector('textarea')?.value); }} className="mx-auto max-w-4xl">
           <div className="rounded-2xl border border-gray-700 bg-gray-900/90 p-2 transition focus-within:border-primary/50">
             <Textarea ref={inputRef} value={prompt} onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendMessage(); } }}
@@ -215,7 +219,7 @@ export default function AgentConsole({ agent, API_URL, fetchWithAuth }: AgentCon
               disabled={loading} rows={2} className="min-h-[56px] resize-y border-0 bg-transparent text-sm text-white shadow-none focus-visible:ring-0" />
             <div className="flex items-center justify-between gap-3 px-1 pb-1">
               <p className="text-[10px] text-gray-500">Uses configured provider and permissions. High-risk actions may require approval.</p>
-              <Button type="submit" size="sm" disabled={loading || !prompt.trim()} className="shrink-0 rounded-xl px-4">
+              <Button type="submit" size="sm" disabled={loading || !prompt.trim()} onClick={(event) => { event.preventDefault(); void sendMessage(event.currentTarget.closest('form')?.querySelector('textarea')?.value); }} className="shrink-0 rounded-xl px-4">
                 {loading ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Send className="mr-1.5 size-4" />}
                 Send
               </Button>

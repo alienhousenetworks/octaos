@@ -618,6 +618,83 @@ def get_dashboard_metrics(
 # 2. CUSTOM AGENT STUDIO & AGENTS API
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _tenant_agent_matches(db: Session, tenant_id: str, agent_id: str) -> List[AgentDefinition]:
+    """System agents and this tenant's copy, matched by id or slug."""
+    return db.query(AgentDefinition).filter(
+        ((AgentDefinition.tenant_id == tenant_id) | (AgentDefinition.tenant_id == None)),
+        ((AgentDefinition.id == agent_id) | (AgentDefinition.slug == agent_id)),
+    ).all()
+
+
+def _prefer_tenant_agent(matches: List[AgentDefinition], tenant_id: str) -> Optional[AgentDefinition]:
+    owned = [agent for agent in matches if agent.tenant_id == tenant_id]
+    return owned[0] if owned else (matches[0] if matches else None)
+
+
+def _resolve_agent_for_tenant(db: Session, tenant_id: str, agent_id: str) -> Optional[AgentDefinition]:
+    """Resolve an agent id or slug, preferring this tenant's override of a system agent."""
+    chosen = _prefer_tenant_agent(_tenant_agent_matches(db, tenant_id, agent_id), tenant_id)
+    if chosen and chosen.tenant_id is None:
+        override = db.query(AgentDefinition).filter_by(tenant_id=tenant_id, slug=chosen.slug).first()
+        if override:
+            return override
+    return chosen
+
+
+def _ensure_tenant_agent_override(
+    db: Session,
+    tenant_id: str,
+    source: AgentDefinition,
+    request: AgentUpdateRequest,
+) -> AgentDefinition:
+    """Copy a shared system agent into a tenant-owned row before changing it.
+
+    AgentVersion rows hang off the shared agent. Writing a new version there
+    would change every tenant. The override keeps the same slug so chat and
+    configuration resolve to this tenant's instructions.
+    """
+    if source.tenant_id == tenant_id:
+        if request.name:
+            source.name = request.name
+        if request.department:
+            source.department = request.department
+        if request.role:
+            source.role = request.role
+        if request.description is not None:
+            source.description = request.description
+        if request.avatar_icon:
+            source.avatar_icon = request.avatar_icon
+        return source
+
+    override = db.query(AgentDefinition).filter_by(tenant_id=tenant_id, slug=source.slug).first()
+    if override:
+        if request.name:
+            override.name = request.name
+        if request.department:
+            override.department = request.department
+        if request.role:
+            override.role = request.role
+        if request.description is not None:
+            override.description = request.description
+        if request.avatar_icon:
+            override.avatar_icon = request.avatar_icon
+        return override
+
+    override = AgentDefinition(
+        tenant_id=tenant_id,
+        name=request.name or source.name,
+        slug=source.slug,
+        department=request.department or source.department,
+        role=request.role or source.role,
+        description=request.description if request.description is not None else source.description,
+        avatar_icon=request.avatar_icon or source.avatar_icon,
+        is_system=False,
+    )
+    db.add(override)
+    db.flush()
+    return override
+
+
 @router.get("/agents")
 def list_agents(
     db: Session = Depends(deps.get_db),
@@ -633,6 +710,13 @@ def list_agents(
         query = query.filter(AgentDefinition.department == department)
 
     agents = query.order_by(AgentDefinition.is_system.desc(), AgentDefinition.created_at.desc()).all()
+    # A tenant override shares a system slug. Show the override, not both.
+    chosen: Dict[str, AgentDefinition] = {}
+    for agent in agents:
+        current = chosen.get(agent.slug)
+        if current is None or (agent.tenant_id == tenant_id and current.tenant_id is None):
+            chosen[agent.slug] = agent
+    agents = [agent for agent in agents if chosen.get(agent.slug) is agent]
 
     result = []
     for a in agents:
@@ -724,10 +808,7 @@ def get_single_agent(
     tenant_id: str = Depends(deps.get_current_tenant_id),
 ) -> Any:
     seed_system_agents(db)
-    agent = db.query(AgentDefinition).filter(
-        ((AgentDefinition.tenant_id == tenant_id) | (AgentDefinition.tenant_id == None)),
-        ((AgentDefinition.id == agent_id) | (AgentDefinition.slug == agent_id))
-    ).first()
+    agent = _resolve_agent_for_tenant(db, tenant_id, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found.")
 
@@ -769,10 +850,7 @@ def get_agent_activity(
     tenant_id: str = Depends(deps.get_current_tenant_id),
     limit: int = 50,
 ) -> Any:
-    agent = db.query(AgentDefinition).filter(
-        ((AgentDefinition.tenant_id == tenant_id) | (AgentDefinition.tenant_id == None)),
-        ((AgentDefinition.id == agent_id) | (AgentDefinition.slug == agent_id))
-    ).first()
+    agent = _resolve_agent_for_tenant(db, tenant_id, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found.")
 
@@ -834,33 +912,32 @@ def update_custom_agent(
     _: User = Depends(require_permission(Resource.SETTINGS, Action.UPDATE)),
     request: AgentUpdateRequest
 ) -> Any:
-    agent = db.query(AgentDefinition).filter_by(id=agent_id, tenant_id=tenant_id).first()
-    if not agent:
-        raise HTTPException(status_code=404, detail="Custom agent not found or cannot be modified.")
+    source = _resolve_agent_for_tenant(db, tenant_id, agent_id)
+    if source is None:
+        # The configuration screen addresses system agents by slug.
+        source = db.query(AgentDefinition).filter(
+            AgentDefinition.tenant_id == None,
+            (AgentDefinition.id == agent_id) | (AgentDefinition.slug == agent_id),
+        ).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Agent not found.")
 
-    if request.name:
-        agent.name = request.name
-    if request.department:
-        agent.department = request.department
-    if request.role:
-        agent.role = request.role
-    if request.description is not None:
-        agent.description = request.description
-    if request.avatar_icon:
-        agent.avatar_icon = request.avatar_icon
+    base_ver = db.query(AgentVersion).filter_by(agent_id=source.id).order_by(AgentVersion.version.desc()).first()
+    agent = _ensure_tenant_agent_override(db, tenant_id, source, request)
 
-    # Immutable versioning: create a new AgentVersion on config change
-    latest_ver = db.query(AgentVersion).filter_by(agent_id=agent.id).order_by(AgentVersion.version.desc()).first()
-    new_version_num = (latest_ver.version + 1) if latest_ver else 1
+    # Immutable versioning: create a new AgentVersion on the tenant-owned agent.
+    owned_latest = db.query(AgentVersion).filter_by(agent_id=agent.id).order_by(AgentVersion.version.desc()).first()
+    fallback = owned_latest or base_ver
+    new_version_num = (owned_latest.version + 1) if owned_latest else 1
 
     new_ver = AgentVersion(
         agent_id=agent.id,
         version=new_version_num,
-        system_prompt=request.system_prompt or (latest_ver.system_prompt if latest_ver else ""),
-        provider=request.provider or (latest_ver.provider if latest_ver else "anthropic"),
-        model=request.model or (latest_ver.model if latest_ver else "claude-sonnet-4-6"),
-        temperature=request.temperature if request.temperature is not None else (latest_ver.temperature if latest_ver else 0.7),
-        tool_grants=request.tools if request.tools is not None else (latest_ver.tool_grants if latest_ver else []),
+        system_prompt=request.system_prompt if request.system_prompt is not None else (fallback.system_prompt if fallback else ""),
+        provider=request.provider or (fallback.provider if fallback else "openrouter"),
+        model=request.model or (fallback.model if fallback else "meta-llama/llama-3.3-70b-instruct"),
+        temperature=request.temperature if request.temperature is not None else (fallback.temperature if fallback else 0.7),
+        tool_grants=request.tools if request.tools is not None else (fallback.tool_grants if fallback else []),
     )
     db.add(new_ver)
     db.commit()

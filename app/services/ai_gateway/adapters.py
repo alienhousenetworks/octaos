@@ -697,6 +697,29 @@ class GrokAdapter(BaseProviderAdapter):
             }
 
 
+# Groq shut down these ids for developer-tier keys on 2026-08-16.
+GROQ_CHAT_MODEL = "openai/gpt-oss-120b"
+GROQ_FAST_MODEL = "openai/gpt-oss-20b"
+_RETIRED_GROQ_MODELS = {
+    "llama-3.3-70b-versatile": GROQ_CHAT_MODEL,
+    "llama-3.1-8b-instant": GROQ_FAST_MODEL,
+    "llama-3.1-70b-versatile": GROQ_CHAT_MODEL,
+}
+
+
+def resolve_groq_model(model: Optional[str]) -> str:
+    """Map a retired Groq model id onto a model the API still serves."""
+    clean = (model or "").strip()
+    if not clean:
+        return GROQ_CHAT_MODEL
+    mapped = _RETIRED_GROQ_MODELS.get(clean.lower())
+    if mapped:
+        return mapped
+    if clean.lower().startswith("groq/"):
+        return resolve_groq_model(clean.split("/", 1)[1])
+    return clean
+
+
 class GroqAdapter(BaseProviderAdapter):
     async def execute_request(self, prompt: str, model: str, system_prompt: str = None, **kwargs) -> Dict[str, Any]:
         messages = []
@@ -705,7 +728,7 @@ class GroqAdapter(BaseProviderAdapter):
         messages.append({"role": "user", "content": prompt})
 
         payload = {
-            "model": model,
+            "model": resolve_groq_model(model),
             "messages": messages,
             **kwargs
         }

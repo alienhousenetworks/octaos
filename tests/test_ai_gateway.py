@@ -26,9 +26,10 @@ def test_dynamic_routing_realtime():
         realtime=True,
         bulk=False
     )
-    # Groq has low benchmark latencies in our registry
+    # Groq has low benchmark latencies in our registry.
+    # The retired Llama ids now resolve to the current Groq chat models.
     assert provider == "groq"
-    assert "llama" in model
+    assert "gpt-oss" in model or "llama" in model
 
 def test_dynamic_routing_bulk():
     # Bulk should route to cheapest batch-enabled provider

@@ -862,7 +862,7 @@ export default function TeamsView({
                       setAgentFormProvider(val);
                       if (val === 'openrouter') setAgentFormModel('meta-llama/llama-3.3-70b-instruct');
                       else if (val === 'together') setAgentFormModel('meta-llama/Llama-3.3-70B-Instruct-Turbo');
-                      else if (val === 'groq') setAgentFormModel('llama-3.3-70b-versatile');
+                      else if (val === 'groq') setAgentFormModel('openai/gpt-oss-120b');
                       else if (val === 'anthropic') setAgentFormModel('claude-sonnet-4-6');
                       else if (val === 'openai') setAgentFormModel('gpt-4o');
                       else if (val === 'gemini') setAgentFormModel('gemini-2.5-flash');
@@ -899,7 +899,7 @@ export default function TeamsView({
                     <SelectItem value="meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B (Default)</SelectItem>
                     <SelectItem value="meta/llama-3.3-70b-instruct">meta/llama-3.3-70b-instruct (NVIDIA NIM)</SelectItem>
                     <SelectItem value="meta-llama/Llama-3.3-70B-Instruct-Turbo">Llama 3.3 70B Turbo</SelectItem>
-                    <SelectItem value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile</SelectItem>
+                    <SelectItem value="openai/gpt-oss-120b">GPT OSS 120B</SelectItem>
                     <SelectItem value="claude-sonnet-4-6">Claude 3.5 Sonnet</SelectItem>
                     <SelectItem value="claude-haiku-4-5-20251001">Claude 3.5 Haiku</SelectItem>
                     <SelectItem value="gpt-4o">GPT-4o</SelectItem>

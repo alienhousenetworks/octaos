@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createId } from "@/lib/id";
 import { Activity, ArrowDownToLine, CheckCircle2, Clock3, FileArchive, FileText, LoaderCircle, RefreshCw, UploadCloud, XCircle } from "lucide-react";
 
 type Run = { id: string; title: string; status: string; file_count: number; total_bytes: number; created_at?: string | null; completed_at?: string | null; finding_count: number };
@@ -58,7 +59,7 @@ export default function DataIntelligencePage() {
     setLoading(true); setError(""); setNotice(""); setSelected(null);
     const body = new FormData();
     body.append("title", title);
-    body.append("idempotency_key", crypto.randomUUID());
+    body.append("idempotency_key", createId());
     files.forEach(file => body.append("files", file, file.name));
     try {
       const res = await fetch(`${API}/data-intelligence/runs`, { method: "POST", headers: authHeaders(), body });

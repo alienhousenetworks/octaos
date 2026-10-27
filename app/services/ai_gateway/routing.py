@@ -327,7 +327,7 @@ MODEL_REGISTRY = {
     # Groq
     "groq/llama-3.3-70b-versatile": {
         "provider": "groq",
-        "model": "llama-3.3-70b-versatile",
+        "model": "openai/gpt-oss-120b",
         "complexity": "high",
         "latency": 0.25,
         "input_cost_1m": 0.59,
@@ -337,7 +337,7 @@ MODEL_REGISTRY = {
     },
     "groq/llama-3.1-8b-instant": {
         "provider": "groq",
-        "model": "llama-3.1-8b-instant",
+        "model": "openai/gpt-oss-20b",
         "complexity": "low",
         "latency": 0.15,
         "input_cost_1m": 0.05,

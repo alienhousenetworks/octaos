@@ -350,7 +350,8 @@ class AIProviderGateway:
             elif prov_lower in ("together", "togetherapi"):
                 return "meta-llama/Llama-3.3-70B-Instruct-Turbo"
             elif prov_lower == "groq":
-                return "llama-3.3-70b-versatile"
+                from app.services.ai_gateway.adapters import resolve_groq_model
+                return resolve_groq_model(original_model)
             elif prov_lower in ("nvidia", "nim", "nvidia_nim"):
                 from app.services.ai_gateway.adapters import resolve_nvidia_model
                 return resolve_nvidia_model(getattr(settings, "DEFAULT_AI_MODEL", None))
@@ -550,7 +551,8 @@ class AIProviderGateway:
                 elif p in ("together", "togetherapi"):
                     return "together", "meta-llama/Llama-3.3-70B-Instruct-Turbo"
                 elif p == "groq":
-                    return "groq", "llama-3.3-70b-versatile"
+                    from app.services.ai_gateway.adapters import GROQ_CHAT_MODEL
+                    return "groq", GROQ_CHAT_MODEL
                 elif p in ("nvidia", "nim", "nvidia_nim"):
                     from app.services.ai_gateway.adapters import resolve_nvidia_model
                     return "nvidia", resolve_nvidia_model(getattr(settings, "DEFAULT_AI_MODEL", None))
