@@ -281,13 +281,15 @@ class ToolRegistry:
         if not to_email or not body:
             raise ValueError("Missing 'to' or 'body' in email.send payload.")
 
-        success = send_email(db, tenant_id, to_email, subject, body)
+        delivery = send_email(db, tenant_id, to_email, subject, body)
+        sent = bool(delivery.get("sent")) if isinstance(delivery, dict) else bool(delivery)
         return {
-            "sent": success,
+            "sent": sent,
+            "delivery": delivery if isinstance(delivery, dict) else {"result": str(delivery)},
             "to": to_email,
             "subject": subject,
             "preview": body[:120],
-            "message": "Email dispatched successfully" if success else "Email delivery queued/simulated.",
+            "message": "Email provider confirmed delivery request." if sent else "Email was not sent; provider configuration or delivery failed.",
         }
 
     async def _exec_webhook_post(self, payload: Dict[str, Any]) -> Dict[str, Any]:
