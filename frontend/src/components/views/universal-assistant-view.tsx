@@ -345,6 +345,7 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
           }}>New conversation</Button>
         </div>
       </div>
+      )}
 
       {workspaceKind === 'general' && (
       <div className="mb-4 rounded-2xl border border-white/[0.09] bg-[#131714] p-4">
@@ -383,7 +384,8 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
         {!agentsLoading && !agentsError && agents.length === 0 && <p className="mt-2 text-xs text-white/40">No agents were returned by the registry. Create or configure agents in Agent Studio.</p>}
         {!agentsLoading && agents.length > 0 && visibleAgents.length === 0 && <p className="mt-2 text-xs text-white/40">No AIs match that filter.</p>}
         {selectedAgent && <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/[0.08] pt-3 text-xs text-white/55"><span className="rounded-md bg-[#7de56b]/10 px-2 py-1 text-[#a4f196]">{selectedAgent.lifecycle_state || 'registered'}</span><span>{selectedAgent.provider || 'Provider not set'} / {selectedAgent.model || 'Model not set'}</span><span>·</span><span>{selectedAgent.tools?.length || 0} configured tools</span><span>·</span><span>{selectedAgent.version ? 'v' + selectedAgent.version : 'Version not reported'}</span></div>}
-           )}
+      </div>
+      )}
       )}
 
       {workspaceKind !== 'general' && (
