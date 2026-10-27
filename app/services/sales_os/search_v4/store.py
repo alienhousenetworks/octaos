@@ -1,4 +1,4 @@
-"""Job memory. SQL persistence is used when the search tables exist."""
+"""Durable search job storage and explicit in-memory test storage."""
 from datetime import datetime, timezone
 from typing import Any
 
@@ -6,6 +6,8 @@ from app.services.sales_os.search_v4.registry import ProviderStats
 
 
 class MemorySearchStore:
+    """Process-local store for isolated tests and explicitly non-durable use only."""
+
     def __init__(self):
         self.jobs: dict[tuple[str, str], dict[str, Any]] = {}
         self.cache: dict[tuple[str, str], dict[str, Any]] = {}
@@ -26,11 +28,10 @@ class MemorySearchStore:
         self.cache[(tenant_id, idempotency_key)] = payload
 
     def month_spend_inr(self, tenant_id: str, now: datetime) -> float:
-        total = 0.0
-        for owner, moment, amount in self.spend:
-            if owner == tenant_id and moment.year == now.year and moment.month == now.month:
-                total += amount
-        return total
+        return sum(
+            amount for owner, moment, amount in self.spend
+            if owner == tenant_id and moment.year == now.year and moment.month == now.month
+        )
 
     def add_spend(self, tenant_id: str, amount: float, now: datetime) -> None:
         if amount:
@@ -45,7 +46,9 @@ class MemorySearchStore:
 
 
 class SqlSearchStore:
-    """Tenant-filtered rows in search_v4_* tables. Falls back when the tables are absent."""
+    """Tenant-filtered persistence. All three required search tables must exist."""
+
+    REQUIRED_TABLES = ("search_v4_jobs", "search_v4_tasks", "search_v4_ledger")
 
     def __init__(self, db):
         self.db = db
@@ -53,8 +56,8 @@ class SqlSearchStore:
     def available(self) -> bool:
         from sqlalchemy import inspect
 
-        bind = self.db.get_bind()
-        return inspect(bind).has_table("search_v4_jobs")
+        inspector = inspect(self.db.get_bind())
+        return all(inspector.has_table(table) for table in self.REQUIRED_TABLES)
 
     def save_job(self, tenant_id: str, job_id: str, payload: dict[str, Any]) -> None:
         from app.models.search_v4 import SearchV4Job
@@ -72,9 +75,7 @@ class SqlSearchStore:
         from app.models.search_v4 import SearchV4Job
 
         row = self.db.query(SearchV4Job).filter_by(id=job_id, tenant_id=tenant_id).first()
-        if row is None:
-            return None
-        return row.payload
+        return None if row is None else row.payload
 
     def get_cached(self, tenant_id: str, idempotency_key: str) -> dict[str, Any] | None:
         from app.models.search_v4 import SearchV4TaskRow
@@ -134,16 +135,17 @@ class SqlSearchStore:
         return ProviderStats()
 
     def record_yield(self, provider: str, qualified: int) -> None:
+        # Cross-run provider learning is intentionally not inferred from transient state.
         del provider, qualified
 
 
 def store_for_session(db) -> MemorySearchStore | SqlSearchStore:
     if db is None:
         return MemorySearchStore()
-    try:
-        candidate = SqlSearchStore(db)
-        if candidate.available():
-            return candidate
-    except Exception:
-        return MemorySearchStore()
-    return MemorySearchStore()
+    candidate = SqlSearchStore(db)
+    if not candidate.available():
+        raise RuntimeError(
+            "Search V4 durable storage is unavailable; apply migrations for "
+            "search_v4_jobs, search_v4_tasks, and search_v4_ledger."
+        )
+    return candidate
