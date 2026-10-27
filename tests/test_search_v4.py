@@ -659,3 +659,32 @@ def test_research_api_persists_before_enqueuing_background_work(monkeypatch):
     finally:
         session.close()
         engine.dispose()
+
+
+def test_public_search_fetch_rejects_redirects_to_private_addresses(monkeypatch):
+    import asyncio
+    import socket
+    from app.services.sales_os.search_v4.connectors import safe_fetch
+
+    class RedirectResponse:
+        status_code = 302
+        headers = {"location": "http://127.0.0.1/admin"}
+
+    class FakeClient:
+        def __init__(self):
+            self.calls = []
+        async def get(self, url, *, headers, follow_redirects):
+            self.calls.append(url)
+            assert follow_redirects is False
+            return RedirectResponse()
+
+    def fake_getaddrinfo(hostname, port, type):
+        address = "93.184.216.34" if hostname == "example.com" else "127.0.0.1"
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (address, port or 443))]
+
+    monkeypatch.setattr(safe_fetch, "validate_target_url", lambda url: url)
+    monkeypatch.setattr(safe_fetch.socket, "getaddrinfo", fake_getaddrinfo)
+    client = FakeClient()
+    with pytest.raises(ValueError, match="non-public"):
+        asyncio.run(safe_fetch.safe_get(client, "https://example.com/", headers={"Accept": "text/html"}))
+    assert client.calls == ["https://example.com/"]
