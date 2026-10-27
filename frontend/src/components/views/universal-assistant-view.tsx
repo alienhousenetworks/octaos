@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useWorkspace } from '@/lib/workspace';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Bot, ArrowUp, Loader2, AlertCircle, CheckCircle2, Search, Settings2 } from 'lucide-react';
+import { Bot, ArrowUp, Loader2, AlertCircle, CheckCircle2, Search, Settings2, Sparkles } from 'lucide-react';
 import { createId } from '@/lib/id';
 import { AgentItem } from '@/lib/agent-types';
 import { SECTION_AGENT_SLUG, knowledgeDepartmentForScope } from '@/lib/interface-mode';
@@ -315,6 +315,7 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
 
   return (
     <div className={'mx-auto flex min-h-full w-full flex-col ' + (workspaceKind === 'general' ? 'max-w-5xl' : 'max-w-none')}>
+      {workspaceKind === 'general' && (
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#7de56b]/20 bg-[#7de56b]/10 px-3 py-1 text-xs font-medium text-[#9af18b]">
@@ -338,13 +339,14 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
           }}>New conversation</Button>
         </div>
       </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-white/[0.09] bg-[#131714] p-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#7de56b]/10 text-[#9af18b]"><Bot className="size-4" /></div>
           <div className="min-w-0"><p className="text-xs font-medium text-white/85">Working with</p><p className="truncate text-[11px] text-white/45">{selectedAgent ? selectedAgent.name + ' · ' + (selectedAgent.department || 'General') : 'OctaOS general assistant · orchestrator'}</p></div>
         </div>
-        <select aria-label="Choose AI agent" value={selectedAgentId} onChange={(event) => chooseAgent(event.target.value)} disabled={agentsLoading} className="h-10 min-w-[190px] max-w-full rounded-xl border border-white/10 bg-[#0d100e] px-3 text-xs text-white outline-none focus:border-[#7de56b]/50">
+        <select aria-label="Select AI agent" value={selectedAgentId} onChange={(event) => chooseAgent(event.target.value)} disabled={agentsLoading} className="h-10 min-w-[190px] max-w-full rounded-xl border border-white/10 bg-[#0d100e] px-3 text-xs text-white outline-none focus:border-[#7de56b]/50">
           <option value="">General assistant</option>
           {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}{agent.is_system ? ' · Built-in' : ' · Custom'}{agent.department ? ' — ' + agent.department : ''}</option>)}
         </select>
@@ -355,13 +357,34 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
       </div>
 
       {workspaceKind !== 'general' && (
-        <details className="mb-4 rounded-2xl border border-white/[0.09] bg-[#101311] p-3">
-          <summary className="cursor-pointer text-xs font-medium text-white/70">Open {selectedAgent?.name || title || 'department'} workspace tools</summary>
-          <div className="pt-3"><AgentWorkspaceBody kind={workspaceKind} agent={selectedAgent} /></div>
-        </details>
+        <div className="mb-4">
+          <AgentWorkspaceBody kind={workspaceKind} agent={selectedAgent} onQuickAction={(prompt) => {
+            draftRef.current = prompt;
+            setInput(prompt);
+            inputRef.current?.focus();
+          }} />
+        </div>
       )}
 
-            {Conversation()}
+      {workspaceKind !== 'general' ? (
+        <section className="mb-4 overflow-hidden rounded-2xl border border-white/[0.09] bg-[#101311]" data-testid="agent-message-dock">
+          <div className="flex items-center gap-2 border-b border-white/[0.08] px-4 py-3 text-sm font-semibold md:px-5"><Bot className="size-4 text-[#9af18b]" /> {selectedAgent?.name || title || 'Workspace'} copilot</div>
+          <div className="p-3 md:p-4">{Conversation()}</div>
+        </section>
+      ) : (
+        <>
+          <section className="mb-4 rounded-2xl border border-[#7de56b]/15 bg-gradient-to-br from-[#7de56b]/[0.07] via-[#121714] to-[#121714] p-4 md:p-5" data-testid="orchestration-hub">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div><div className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="size-4 text-[#9af18b]" /> Autonomous orchestration</div><p className="mt-1 max-w-2xl text-xs leading-5 text-white/50">Describe an outcome. OctaOS will use the available orchestrator and configured agents; inspect the execution response to see what actually ran.</p></div>
+              <Link href="/app/agents" className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/70 hover:bg-white/[0.05]">Delegate roster ↗</Link>
+            </div>
+            <div className="mt-4 grid gap-2 md:grid-cols-3">
+              {['Research and compare options', 'Plan cross-department work', 'Review risks before execution'].map((item) => <button key={item} type="button" onClick={() => { draftRef.current = item + '. Build a step-by-step plan, identify the responsible agents, state dependencies and approvals, and distinguish proposed steps from executed work.'; setInput(draftRef.current); inputRef.current?.focus(); }} className="flex items-center justify-between gap-2 rounded-xl border border-white/[0.08] bg-black/20 px-3 py-3 text-left text-xs text-white/75 hover:bg-white/[0.04]">{item}<Sparkles className="size-3.5 shrink-0 text-[#9af18b]" /></button>)}
+            </div>
+          </section>
+          {Conversation()}
+        </>
+      )}
 
       <div className="mt-4">
         <ClassicKnowledgeShelf knowledge={workspace.knowledge} department={knowledgeDepartment} />
