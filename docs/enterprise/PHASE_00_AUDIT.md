@@ -25,7 +25,9 @@
 | ID | Risk | Severity | Evidence / next action |
 |---|---|---|---|
 | SEC-001 | Client-supplied tenant headers could establish request tenant context | Critical | Observed in original middleware. Patch removes header-derived context; add route-level integration tests and audit background jobs. |
-| SEC-002 | Insecure default secret/database credentials can be loaded from settings | High | Observed in settings. Add production startup validation and deployment configuration checks. |
+| SEC-002 | Insecure default secret/database credentials can be loaded from settings | High | Observed in settings. Production/staging validation and startup guard added; confirm actual deployment environment values before rollout. |
+| SEC-003 | Universal integration webhook route accepts unauthenticated POST payloads and dispatches provider actions | Critical | Initial patch requires timestamped HMAC using an encrypted provider-specific credential in production; requests without a configured secret fail closed. A tenant-admin provisioning API now stores signing secrets through the existing encrypted credential service, and inactive/unknown tenants are rejected. Native-provider compatibility and durable processing/retry semantics still require verification before rollout. Generic ingress now records an event ID in the existing WebhookEvent idempotency store after signature validation, but receipts are written before dispatch and do not yet distinguish processing, succeeded, or uncertain outcomes. |
+| SEC-004 | Generic webhook challenge endpoint echoes challenge values without provider verification | High | Patch requires a configured per-provider webhook secret and matching verification token in production before echoing a challenge. A tenant-admin API supports a separately encrypted verification token. Confirm each provider's native challenge contract before rollout. |
 | ARCH-001 | Multiple orchestration/workflow paths may fragment state | High | Router surface is broad; map concrete services and consumers before consolidating. |
 | REL-001 | Runtime recovery and external side-effect idempotency may differ by module | High | Existing runtime tests cover a subset; create capability-by-capability matrix and restart/failure tests. |
 | OBS-001 | Health endpoint may expose raw exception details | Medium | Initial patch replaces raw dependency exception text with safe status values and removes the unconditional enterprise_hardened claim; tests added. |
@@ -43,6 +45,13 @@ A targeted source-tree scan found multiple existing lifecycle/orchestration comp
 - [ ] Identify all runtime/orchestrator/automation engines and usage counts.
 - [ ] Inventory Celery task registrations, scheduling and retry configuration.
 - [ ] Map all OAuth and API connectors, scopes, token storage and webhook validation.
+- [x] Add timestamped HMAC verification and fail-closed behavior for the generic integration webhook ingress; add unit tests for valid, altered, stale and missing signatures.
+- [x] Reuse the existing tenant/provider/event WebhookEvent uniqueness store for authenticated generic ingress and add stable fallback event keys.
+- [ ] Add durable processing/succeeded/uncertain states with safe retry/reconciliation; current receipt is committed before dispatch.
+- [ ] Add provider-native signature adapters.
+- [x] Add tenant-admin API provisioning/rotation for encrypted per-provider webhook signing secrets and optional encrypted verification tokens.
+- [ ] Add a user-facing integrations UI for secret setup and provider-native signing instructions.
+- [ ] Validate challenge and signature compatibility with each real provider test account.
 - [ ] Audit tenant isolation in every model/query path, background job and file/vector access path.
 - [ ] Capture backend test results and failures.
 - [ ] Capture frontend build/lint results and failures.

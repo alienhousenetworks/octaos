@@ -1,4 +1,5 @@
 name: Enterprise Foundation Security Tests
+# Covers tenant isolation, production configuration, webhook ingress, credential provisioning and replay-key regression tests.
 
 on:
   pull_request:
@@ -7,9 +8,12 @@ on:
       - "app/core/config.py"
       - "app/main.py"
       - "app/api/v2/api.py"
+      - "app/api/v1/endpoints/integrations.py"
+      - "app/services/integrations/webhook_security.py"
       - "tests/test_tenant_middleware_context.py"
       - "tests/test_production_config.py"
       - "tests/test_health_response_sanitization.py"
+      - "tests/test_webhook_security.py"
       - ".github/workflows/enterprise-foundation.yml"
 
 permissions:
@@ -41,13 +45,14 @@ jobs:
           python -m pip install -r requirements.txt
       - name: Compile changed Python modules
         run: |
-          python -m compileall -q app/core/middleware.py app/core/config.py app/main.py app/api/v2/api.py
+          python -m compileall -q app/core/middleware.py app/core/config.py app/main.py app/api/v2/api.py app/api/v1/endpoints/integrations.py app/services/integrations/webhook_security.py
       - name: Run enterprise foundation regression tests
         run: |
           pytest -q \
             tests/test_tenant_middleware_context.py \
             tests/test_production_config.py \
             tests/test_health_response_sanitization.py \
+            tests/test_webhook_security.py \
             tests/test_security_passwords.py \
             tests/test_agent_runtime_protocol.py \
             tests/test_autonomous_runtime_idempotency.py
