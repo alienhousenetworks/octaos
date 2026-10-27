@@ -44,10 +44,10 @@ function formatResult(value: any): string {
   return JSON.stringify(value, null, 2);
 }
 
-export default function UniversalAssistantView() {
+export default function UniversalAssistantView({ scope = 'general', title }: { scope?: string; title?: string }) {
   const workspace = useWorkspace();
   const tenantKey = String(workspace.tenantId || 'default');
-  const storageKey = 'octaos-universal-assistant-messages:' + tenantKey;
+  const storageKey = 'octaos-universal-assistant-messages:' + tenantKey + ':' + scope;
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [loadedTenant, setLoadedTenant] = useState<string | null>(null);
   const [input, setInput] = useState('');
@@ -155,7 +155,7 @@ export default function UniversalAssistantView() {
           <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
             <Bot className="size-3.5" /> OctaOS AI Workforce
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">What would you like to get done?</h1>
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{title ? `${title} chat` : 'What would you like to get done?'}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
             Work with your specialist bots through one conversation. OctaOS can plan work, use available company context and coordinate supported capabilities. External actions remain subject to permissions and approval.
           </p>

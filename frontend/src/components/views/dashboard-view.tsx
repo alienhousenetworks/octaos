@@ -40,6 +40,7 @@ import LeaderboardCard, { LeaderboardItem } from '@/components/analytics/leaderb
 import ReliabilityGauge from '@/components/analytics/reliability-gauge';
 import RoiPanel from '@/components/analytics/roi-panel';
 import AgentDirectoryView from '@/features/workforce/agent-directory-view';
+import { useInterfaceMode } from '@/lib/interface-mode';
 
 interface DashboardViewProps {
   metrics: any;
@@ -78,7 +79,8 @@ export default function DashboardView({
   fetchWithAuth,
   token,
 }: DashboardViewProps) {
-  const [homeView, setHomeView] = useState<'workforce' | 'analytics'>('workforce');
+  const { mode, setMode } = useInterfaceMode();
+  const homeView = mode === 'classic' ? 'analytics' : 'workforce';
   const [selectedDept, setSelectedDept] = useState<DepartmentTab>('executive');
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodTab>('7d');
   const [hideRevenue, setHideRevenue] = useState(false);
@@ -295,7 +297,7 @@ export default function DashboardView({
         <div className="flex items-center gap-1.5 rounded-xl border border-border bg-card/60 p-1 text-xs backdrop-blur-md">
           <button
             type="button"
-            onClick={() => setHomeView('workforce')}
+            onClick={() => setMode('bot')}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 font-semibold transition-all ${
               homeView === 'workforce'
                 ? 'bg-primary text-primary-foreground shadow-sm'
@@ -307,7 +309,7 @@ export default function DashboardView({
           </button>
           <button
             type="button"
-            onClick={() => setHomeView('analytics')}
+            onClick={() => setMode('classic')}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 font-semibold transition-all ${
               homeView === 'analytics'
                 ? 'bg-primary text-primary-foreground shadow-sm'

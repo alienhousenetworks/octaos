@@ -24,6 +24,7 @@ import {
 import CommandPalette from '@/components/shell/command-palette';
 import WorkforceActivity from '@/components/shell/workforce-activity';
 import { LoadingState } from '@/components/shell/states';
+import { useInterfaceMode } from '@/lib/interface-mode';
 import { crumbForPath, isItemActive, visibleGroups } from '@/lib/navigation';
 import { saveSession } from '@/lib/auth-session';
 import { notify } from '@/lib/notify';
@@ -39,7 +40,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [approvalCount, setApprovalCount] = useState<number | null>(null);
   const [orgs, setOrgs] = useState<any[]>([]);
   const [switching, setSwitching] = useState<string | null>(null);
-  const [interfaceMode, setInterfaceMode] = useState<'bot' | 'classic'>('bot');
+  const { mode: interfaceMode, setMode } = useInterfaceMode();
 
   useEffect(() => {
     if (!workspace.ready) return;
@@ -47,10 +48,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [workspace.ready, workspace.token, router]);
 
   useEffect(() => {
-    // Interface mode is a user preference, not a property of the current route.
-    // Keep it stable while navigating between Overview, agent cockpit, and other pages.
-    const savedMode = localStorage.getItem('octaos-interface-mode');
-    setInterfaceMode(savedMode === 'classic' ? 'classic' : 'bot');
     const stored = localStorage.getItem('octaos-sidebar-collapsed');
     setCollapsed(stored === '1');
   }, [pathname]);
@@ -248,13 +245,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 size="sm"
                 variant={interfaceMode === 'bot' ? 'default' : 'outline'}
                 aria-pressed={interfaceMode === 'bot'}
-                onClick={() => {
-                  setInterfaceMode('bot');
-                  localStorage.setItem('octaos-interface-mode', 'bot');
-                  window.location.assign('/app/assistant');
-                }}
+                onClick={() => setMode('bot')}
                 className="h-8 gap-1.5 px-2.5"
-                title="Use the bot-first AI workspace"
+                title="Show the AI chat on this page"
               >
                 <Sparkles className="size-3.5" />
                 <span className="hidden sm:inline">AI Workspace</span>
@@ -265,13 +258,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 size="sm"
                 variant={interfaceMode === 'classic' ? 'default' : 'ghost'}
                 aria-pressed={interfaceMode === 'classic'}
-                onClick={() => {
-                  setInterfaceMode('classic');
-                  localStorage.setItem('octaos-interface-mode', 'classic');
-                  window.location.assign('/app/home');
-                }}
+                onClick={() => setMode('classic')}
                 className="h-8 gap-1.5 px-2.5"
-                title="Use the classic dashboard"
+                title="Show the classic layout on this page"
               >
                 <LayoutDashboard className="size-3.5" />
                 <span className="hidden sm:inline">Classic</span>

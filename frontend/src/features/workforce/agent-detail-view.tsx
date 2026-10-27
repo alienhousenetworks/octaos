@@ -28,6 +28,7 @@ import {
 import { AgentItem, ActivityLogItem } from '@/lib/agent-types';
 import AgentOperations from './components/agent-operations';
 import AgentConsole from './components/agent-console';
+import { useInterfaceMode } from '@/lib/interface-mode';
 import AgentToolGrants from './components/agent-tool-grants';
 import { notify } from '@/lib/notify';
 
@@ -48,9 +49,23 @@ export default function AgentDetailView({
 }: AgentDetailViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { mode, ready } = useInterfaceMode();
   const initialTab = (searchParams.get('tab') as CockpitTab) || 'overview';
+  const appliedMode = React.useRef<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<CockpitTab>(initialTab);
+
+  React.useEffect(() => {
+    if (!ready) return;
+    if (appliedMode.current === null) {
+      appliedMode.current = mode;
+      if (!searchParams.get('tab')) setActiveTab(mode === 'bot' ? 'console' : 'overview');
+      return;
+    }
+    if (appliedMode.current === mode) return;
+    appliedMode.current = mode;
+    setActiveTab(mode === 'bot' ? 'console' : 'overview');
+  }, [mode, ready, searchParams]);
   const [agent, setAgent] = useState<AgentItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [activityLogs, setActivityLogs] = useState<ActivityLogItem[]>([]);
