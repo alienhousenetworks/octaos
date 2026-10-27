@@ -1,7 +1,11 @@
 import hashlib
 import hmac
 
-from app.services.runtime_governance.tool_policy import authorize_tool_call, verify_hmac_webhook
+from app.services.runtime_governance.tool_policy import (
+    action_fingerprint,
+    authorize_tool_call,
+    verify_hmac_webhook,
+)
 
 
 def test_tool_policy_rejects_cross_tenant_calls_even_with_grant():
@@ -24,12 +28,62 @@ def test_tool_policy_requires_explicit_grant_and_active_connection():
     ).reason == "CONNECTION_INACTIVE"
 
 
-def test_high_risk_tool_requires_approval():
-    kwargs = dict(tenant_id="t", request_tenant_id="t", tool_name="email.send",
-                  granted_tools=["email.send"], connection_active=True)
+def test_high_risk_tool_requires_approval_bound_to_exact_action():
+    kwargs = dict(
+        tenant_id="t", request_tenant_id="t", tool_name="email.send",
+        granted_tools=["email.send"], connection_active=True,
+    )
     result = authorize_tool_call(**kwargs)
     assert not result.allowed and result.approval_required
-    assert authorize_tool_call(**kwargs, approval_status="approved").allowed
+    assert result.reason == "APPROVAL_REQUIRED"
+
+    # A generic "approved" flag is not sufficient.
+    result = authorize_tool_call(**kwargs, approval_status="approved")
+    assert not result.allowed
+    assert result.reason == "APPROVAL_BINDING_REQUIRED"
+
+    binding = action_fingerprint(
+        tenant_id="t", run_id="run-1", bot_id="lead-bot",
+        tool_name="email.send", target="prospect@example.com",
+        payload={"subject": "Hello", "body": "Draft A"}, policy_version="v3",
+    )
+    assert authorize_tool_call(
+        **kwargs, approval_status="approved",
+        action_binding=binding, approved_action_binding=binding,
+    ).allowed
+
+    modified = action_fingerprint(
+        tenant_id="t", run_id="run-1", bot_id="lead-bot",
+        tool_name="email.send", target="different@example.com",
+        payload={"subject": "Hello", "body": "Draft A"}, policy_version="v3",
+    )
+    result = authorize_tool_call(
+        **kwargs, approval_status="approved",
+        action_binding=modified, approved_action_binding=binding,
+    )
+    assert not result.allowed
+    assert result.reason == "APPROVAL_BINDING_MISMATCH"
+
+
+def test_action_fingerprint_binds_tenant_run_bot_target_payload_and_policy():
+    common = dict(
+        tenant_id="t", run_id="r", bot_id="b", tool_name="post.publish",
+        target="account-1", payload={"text": "Approved copy"}, policy_version="p1",
+    )
+    original = action_fingerprint(**common)
+    assert original == action_fingerprint(**common)
+    assert original != action_fingerprint(**{**common, "payload": {"text": "Changed copy"}})
+    assert original != action_fingerprint(**{**common, "run_id": "other-run"})
+    assert original != action_fingerprint(**{**common, "policy_version": "p2"})
+
+
+def test_rejected_high_risk_action_never_executes():
+    result = authorize_tool_call(
+        tenant_id="t", request_tenant_id="t", tool_name="post.publish",
+        granted_tools=["post.publish"], connection_active=True, approval_status="rejected",
+    )
+    assert not result.allowed
+    assert result.reason == "APPROVAL_REJECTED"
 
 
 def test_webhook_hmac_validates_signature_and_timestamp():
