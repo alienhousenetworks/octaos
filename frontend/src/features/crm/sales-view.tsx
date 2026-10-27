@@ -26,7 +26,6 @@ import SalesIndustries from './sales-industries';
 import SalesWorkforce, { WorkforceMap } from './sales-workforce';
 import SalesCampaigns from './sales-campaigns';
 import SalesRecordWorkspace from './sales-record-workspace';
-import SalesFieldSalesView from './sales-field-sales-view';
 import { SHARED_TERMS, VerticalPack } from './sales-platform';
 import { CreateLeadModal, UploadLeadsModal } from './sales-modals';
 import RoomFolderExplorer from '@/components/rooms/room-folder-explorer';
@@ -1306,14 +1305,6 @@ export default function SalesView({
         />
       )}
 
-      {/* ── TAB: FIELD SALES & SMART VISIT SCHEDULING ── */}
-      {activeSalesTab === 'field_sales' && (
-        <SalesFieldSalesView
-          token={token}
-          API_URL={API_URL}
-          fetchWithAuth={fetchWithAuth}
-        />
-      )}
 
       {/* ── TAB 5: DEAL ROOMS ── */}
       {activeSalesTab === 'deal_rooms' && (
