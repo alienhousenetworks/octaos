@@ -158,6 +158,24 @@ export default function ResearchWorkspacePage() {
   const claimCount = result?.counts?.claims ?? result?.claims?.length ?? 0;
   const availableProviderCount = useMemo(() => providers.filter((provider) => provider.configured).length, [providers]);
 
+  const waitForJob = async (jobId: string) => {
+    let latest: ResearchResult | null = null;
+    for (let attempt = 0; attempt < 45; attempt += 1) {
+      const response = await workspace.fetchWithAuth(workspace.apiUrl + '/research/jobs/' + encodeURIComponent(jobId));
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const detail = typeof body.detail === 'string' ? body.detail : 'Research status could not be loaded (' + response.status + ').';
+        throw new Error(detail);
+      }
+      latest = body as ResearchResult;
+      setResult(latest);
+      const state = (latest.status || '').toLowerCase();
+      if (!['queued', 'running'].includes(state)) return latest;
+      await new Promise((resolve) => window.setTimeout(resolve, 1500));
+    }
+    return latest;
+  };
+
   const openJob = async (jobId: string) => {
     setError('');
     setLoading(true);
@@ -191,9 +209,7 @@ export default function ResearchWorkspacePage() {
         const detail = typeof body.detail === 'string' ? body.detail : 'Research job could not be resumed (' + response.status + ').';
         throw new Error(detail);
       }
-      const detailResponse = await workspace.fetchWithAuth(workspace.apiUrl + '/research/jobs/' + encodeURIComponent(jobId));
-      if (detailResponse.ok) setResult(await detailResponse.json() as ResearchResult);
-      else setResult(body as ResearchResult);
+      await waitForJob(jobId);
       await loadWorkspaceData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Research job could not be resumed.');
@@ -235,16 +251,8 @@ export default function ResearchWorkspacePage() {
         throw new Error(detail);
       }
       const jobId = String(body.job_id || '');
-      if (jobId) {
-        const detailResponse = await workspace.fetchWithAuth(workspace.apiUrl + '/research/jobs/' + encodeURIComponent(jobId));
-        if (detailResponse.ok) {
-          setResult(await detailResponse.json() as ResearchResult);
-        } else {
-          setResult(body as ResearchResult);
-        }
-      } else {
-        setResult(body as ResearchResult);
-      }
+      if (jobId) await waitForJob(jobId);
+      else setResult(body as ResearchResult);
       await loadWorkspaceData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Research could not be completed.');
