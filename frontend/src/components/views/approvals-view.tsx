@@ -664,7 +664,7 @@ export default function ApprovalsView({
                         </p>
                         <Textarea
                           value={bindingDrafts[item.id] ?? JSON.stringify(item.action_binding ?? {
-                            run_id: String(item.resource_id || ''),
+                            run_id: '',
                             bot_id: '',
                             tool_name: item.action_type,
                             target: '',
