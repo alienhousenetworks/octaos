@@ -11,6 +11,7 @@ import ClassicKnowledgeShelf from '@/components/shell/classic-knowledge-shelf';
 import {
   Bot, ChevronDown, FileText, Globe2, LayoutDashboard, Menu,
   MessageSquare, Plus, Search, Settings2, ShieldCheck, Sparkles, Workflow, X,
+  Clock3, ListTodo, PanelRight, PanelRightClose, SlidersHorizontal, CheckCircle2,
 } from 'lucide-react';
 
 const LINKS = [
@@ -128,7 +129,10 @@ export default function AIWorkspaceShell({ children, accountLabel }: { children:
   const pageChat = sectionAssistant(pathname);
   const isKnowledge = pathname === '/app/knowledge' || pathname.startsWith('/app/knowledge/');
   const isChat = pathname === '/app/assistant' || pageChat !== null;
-  const [contextOpen, setContextOpen] = useState(true);
+  const [contextOpen, setContextOpen] = useState(false);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [rightPanelTab, setRightPanelTab] = useState<'chats' | 'tasks' | 'configure'>('chats');
+  const [recentChats, setRecentChats] = useState<Array<{ key: string; title: string; thread: string; updatedAt: number }>>([]);
   const [navOpen, setNavOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [agents, setAgents] = useState<AgentItem[]>([]);
@@ -163,6 +167,36 @@ export default function AIWorkspaceShell({ children, accountLabel }: { children:
       .finally(() => { if (active) setAgentsLoading(false); });
     return () => { active = false; };
   }, [workspace.token, workspace.apiUrl, workspace.fetchWithAuth]);
+
+  useEffect(() => {
+    // Conversations are currently persisted by the assistant in tenant-scoped localStorage.
+    // Read only the current tenant's keys; never surface another tenant's local history.
+    try {
+      const prefix = 'octaos-universal-assistant-messages:' + String(workspace.tenantId || 'default') + ':';
+      const rows: Array<{ key: string; title: string; thread: string; updatedAt: number }> = [];
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (!key || !key.startsWith(prefix)) continue;
+        try {
+          const messages = JSON.parse(localStorage.getItem(key) || '[]');
+          if (!Array.isArray(messages)) continue;
+          const firstUser = messages.find((message: any) => message?.role === 'user' && typeof message.content === 'string' && message.content.trim());
+          if (!firstUser) continue;
+          const latest = messages[messages.length - 1];
+          rows.push({
+            key,
+            title: String(firstUser.content).replace(/\\s+/g, ' ').slice(0, 68),
+            thread: key.slice(prefix.length),
+            updatedAt: Date.parse(latest?.createdAt || firstUser.createdAt || '') || 0,
+          });
+        } catch { /* Ignore malformed local history entries. */ }
+      }
+      rows.sort((a, b) => b.updatedAt - a.updatedAt);
+      setRecentChats(rows.slice(0, 30));
+    } catch {
+      setRecentChats([]);
+    }
+  }, [pathname, workspace.tenantId]);
 
   const navProps = {
     pathname,
@@ -202,7 +236,8 @@ export default function AIWorkspaceShell({ children, accountLabel }: { children:
               <button type="button" aria-pressed="false" onClick={() => setMode('classic')} className="h-8 rounded-md px-2.5 text-xs text-white/70 hover:text-white" title="Show the classic layout on this page">Classic</button>
             </div>
             <span className="hidden items-center gap-1.5 rounded-full border border-white/[0.08] px-2.5 py-1 text-[10px] text-white/50 sm:inline-flex"><span className="size-1.5 rounded-full bg-[#82e96e]" /> Workspace ready</span>
-            <button type="button" onClick={() => setContextOpen(!contextOpen)} className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-white/70 hover:bg-white/[0.05]" aria-expanded={contextOpen}><Settings2 className="size-4" /><span className="hidden sm:inline">Context</span><ChevronDown className={'size-3 transition ' + (contextOpen ? 'rotate-180' : '')} /></button>
+            <button type="button" onClick={() => { setRightPanelTab('chats'); setRightPanelOpen((open) => !open); }} className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-white/75 hover:bg-white/[0.05]" aria-expanded={rightPanelOpen} aria-label={rightPanelOpen ? 'Hide history and tasks' : 'Show history and tasks'}>{rightPanelOpen ? <PanelRightClose className="size-4" /> : <PanelRight className="size-4" />}<span className="hidden sm:inline">History & tasks</span></button>
+            <button type="button" onClick={() => { setRightPanelTab('configure'); setRightPanelOpen(true); }} className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-white/75 hover:bg-white/[0.05]" aria-expanded={rightPanelOpen && rightPanelTab === 'configure'}><SlidersHorizontal className="size-4" /><span className="hidden sm:inline">Configure</span></button>
           </div>
         </header>
         <div className="flex min-h-0 flex-1">
@@ -219,35 +254,55 @@ export default function AIWorkspaceShell({ children, accountLabel }: { children:
               {children}
             </div>
           </main>
-          {contextOpen && (
-            <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-white/[0.08] bg-[#101311] px-4 py-5 max-xl:w-[260px] max-lg:hidden">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Context & tools</h2>
-                <button type="button" aria-label="Close context panel" onClick={() => setContextOpen(false)} className="rounded-md p-1 text-white/40 hover:bg-white/[0.06] hover:text-white"><X className="size-4" /></button>
-              </div>
-              <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] p-3">
-                <div className="mb-2 flex items-center gap-2 text-xs font-medium"><Sparkles className="size-4 text-[#8be977]" /> {pageChat?.title || crumb.name}</div>
-                <p className="text-[11px] leading-5 text-white/45">{agents.length} registered {agents.length === 1 ? 'AI is' : 'AIs are'} available in this workspace. Actions still follow organization permissions.</p>
-              </div>
-              {!isKnowledge && !isChat && (
-                <div className="mt-4">
-                  <ClassicKnowledgeShelf knowledge={workspace.knowledge} department="all" limit={5} />
+          {rightPanelOpen && (
+            <aside aria-label="History, tasks and configuration" className="fixed inset-y-0 right-0 z-40 flex w-[340px] max-w-[92vw] shrink-0 flex-col border-l border-white/[0.08] bg-[#101311] shadow-2xl lg:static lg:z-auto lg:w-[310px] lg:max-w-none lg:shadow-none">
+              <div className="flex h-[68px] shrink-0 items-center justify-between border-b border-white/[0.08] px-4">
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold">{rightPanelTab === 'configure' ? 'Workspace configuration' : rightPanelTab === 'tasks' ? 'Tasks & activity' : 'Recent conversations'}</h2>
+                  <p className="mt-1 text-[11px] text-white/40">{rightPanelTab === 'configure' ? 'Optional settings' : rightPanelTab === 'tasks' ? 'From your workspace activity' : 'Continue where you left off'}</p>
                 </div>
-              )}
-              {isChat && (
-                <p className="mt-4 text-xs leading-5 text-white/50">This chat uses the same classic Knowledge library. The documents are listed on the page, filtered to this section when it has a department.</p>
-              )}
-              {isKnowledge && (
-                <p className="mt-4 text-xs leading-5 text-white/50">This page is the classic Knowledge library. Every AI section uses these same documents.</p>
-              )}
-              <div className="mb-2 mt-6 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35">Work tools</div>
-              <div className="space-y-1">
-                {LINKS.slice(0, 6).map(({ href, label, icon: Icon }) => (
-                  <Link key={href} href={href} className="flex items-center gap-3 rounded-lg px-2.5 py-2 text-xs text-white/65 transition hover:bg-white/[0.05] hover:text-white"><Icon className="size-4 text-[#8be977]" /><span className="flex-1">{label}</span></Link>
-                ))}
+                <button type="button" aria-label="Hide right panel" onClick={() => setRightPanelOpen(false)} className="rounded-lg p-2 text-white/50 hover:bg-white/[0.06] hover:text-white"><X className="size-4" /></button>
               </div>
-              <Link href="/app/approvals" className="mt-4 flex items-start gap-3 rounded-xl border border-white/[0.08] p-3 hover:bg-white/[0.035]"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-[#8be977]" /><span><span className="block text-xs font-medium">Approvals</span><span className="mt-1 block text-[11px] leading-4 text-white/40">Review actions that require authorization.</span></span></Link>
-              <Link href="/app/settings/integrations" className="mt-4 inline-flex text-xs text-[#a3f194] hover:underline">Manage integrations →</Link>
+              <div className="grid grid-cols-3 gap-1 border-b border-white/[0.08] p-2">
+                <button type="button" onClick={() => setRightPanelTab('chats')} className={'flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] ' + (rightPanelTab === 'chats' ? 'bg-white/[0.09] text-white' : 'text-white/45 hover:bg-white/[0.04]')}><MessageSquare className="size-3.5" /> Chats</button>
+                <button type="button" onClick={() => setRightPanelTab('tasks')} className={'flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] ' + (rightPanelTab === 'tasks' ? 'bg-white/[0.09] text-white' : 'text-white/45 hover:bg-white/[0.04]')}><ListTodo className="size-3.5" /> Tasks</button>
+                <button type="button" onClick={() => setRightPanelTab('configure')} className={'flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] ' + (rightPanelTab === 'configure' ? 'bg-white/[0.09] text-white' : 'text-white/45 hover:bg-white/[0.04]')}><Settings2 className="size-3.5" /> Configure</button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                {rightPanelTab === 'chats' && (
+                  <div className="space-y-1">
+                    <Link href="/app/assistant" className="mb-3 flex items-center gap-2 rounded-xl border border-[#78e565]/25 bg-[#78e565]/[0.07] px-3 py-2.5 text-xs font-medium text-[#a3f194]"><Plus className="size-4" /> Start a new conversation</Link>
+                    {recentChats.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-white/10 px-3 py-8 text-center"><MessageSquare className="mx-auto mb-2 size-5 text-white/30" /><p className="text-xs text-white/65">No saved conversations yet</p><p className="mt-1 text-[11px] text-white/35">Your conversations will appear here after you send a message.</p></div>
+                    ) : recentChats.map((chat) => (
+                      <Link key={chat.key} href={chat.thread === 'orchestrator' ? '/app/assistant?agent=orchestrator' : '/app/assistant?agent=' + encodeURIComponent(chat.thread)} className="group block rounded-xl px-3 py-3 hover:bg-white/[0.055]">
+                        <span className="flex items-start gap-2"><MessageSquare className="mt-0.5 size-4 shrink-0 text-white/35" /><span className="min-w-0 flex-1"><span className="block break-words text-xs leading-5 text-white/80 group-hover:text-white">{chat.title}</span><span className="mt-1 block text-[10px] text-white/35">{chat.updatedAt ? new Date(chat.updatedAt).toLocaleString() : 'Saved conversation'}</span></span></span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+                {rightPanelTab === 'tasks' && (
+                  <div className="space-y-3">
+                    <Link href="/app/automations" className="flex items-center justify-between rounded-xl border border-white/[0.09] px-3 py-3 hover:bg-white/[0.04]"><span className="flex items-center gap-2 text-xs text-white/75"><Workflow className="size-4 text-[#8be977]" /> Workflows</span><span className="text-[10px] text-white/35">Open</span></Link>
+                    <Link href="/app/approvals" className="flex items-center justify-between rounded-xl border border-white/[0.09] px-3 py-3 hover:bg-white/[0.04]"><span className="flex items-center gap-2 text-xs text-white/75"><ShieldCheck className="size-4 text-[#8be977]" /> Pending approvals</span><span className="text-[10px] text-white/35">Review</span></Link>
+                    <div className="px-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35">Recent workspace activity</div>
+                    {workspace.timeline.length === 0 ? <div className="rounded-xl border border-dashed border-white/10 px-3 py-6 text-center"><Clock3 className="mx-auto mb-2 size-5 text-white/30" /><p className="text-xs text-white/60">No recent activity returned</p><p className="mt-1 text-[11px] text-white/35">Activity appears here when the connected workspace feed has events.</p></div> : workspace.timeline.slice(0, 12).map((item: any, index: number) => <div key={item.id || item.event_id || index} className="rounded-xl border border-white/[0.07] px-3 py-3"><div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 size-4 shrink-0 text-white/35" /><div className="min-w-0"><p className="break-words text-xs text-white/75">{item.title || item.message || item.action || item.event_type || 'Workspace event'}</p><p className="mt-1 text-[10px] text-white/35">{item.created_at || item.timestamp || item.status || 'Activity record'}</p></div></div></div>)}
+                  </div>
+                )}
+                {rightPanelTab === 'configure' && (
+                  <div className="space-y-2">
+                    <p className="mb-3 text-xs leading-5 text-white/45">Keep the conversation clean. Open a setting only when you need it.</p>
+                    {[
+                      { title: 'AI agents', description: 'Instructions, role and agent versions', href: '/app/agents', icon: Bot },
+                      { title: 'Models & providers', description: 'Connected AI providers and models', href: '/app/settings/integrations', icon: Sparkles },
+                      { title: 'Tools & integrations', description: 'Connections available to your workspace', href: '/app/settings/integrations', icon: Globe2 },
+                      { title: 'Knowledge & context', description: 'Shared company knowledge and sources', href: '/app/knowledge', icon: FileText },
+                      { title: 'Permissions & approvals', description: 'Review governed actions and access', href: '/app/approvals', icon: ShieldCheck },
+                    ].map(({ title, description, href, icon: Icon }) => <Link key={title} href={href} className="flex items-start gap-3 rounded-xl border border-white/[0.08] p-3 transition hover:bg-white/[0.04]"><Icon className="mt-0.5 size-4 shrink-0 text-[#8be977]" /><span><span className="block text-xs font-medium text-white/85">{title}</span><span className="mt-1 block text-[11px] leading-4 text-white/40">{description}</span></span></Link>)}
+                    <div className="mt-4 rounded-xl bg-white/[0.035] p-3"><p className="text-xs font-medium text-white/75">Current workspace</p><p className="mt-1 text-[11px] leading-5 text-white/40">{agents.length} registered AI agents. Changes to agent instructions, tools and permissions are managed in Agent Studio and the connected settings pages.</p></div>
+                  </div>
+                )}
+              </div>
             </aside>
           )}
         </div>
