@@ -107,7 +107,7 @@ class ToolRegistry:
         # Every dispatch requires server-created authorization context. Frontend visibility
         # and the model's requested tool name are not authorization controls.
         policy_context = context or {}
-        if tool.approval_required and policy_context.get("approval_status") != "approved":
+        if tool.approval_required and not policy_context.get("approval_id"):
             raise PermissionError("APPROVAL_REQUIRED")
         granted_tools = policy_context.get("granted_tools")
         request_tenant_id = policy_context.get("request_tenant_id")
@@ -142,9 +142,37 @@ class ToolRegistry:
                 tool_name=name,
                 target=target,
                 payload=payload,
-                policy_version=str(policy_context.get("policy_version") or "current"),
+                policy_version=str(policy_context.get("policy_version") or "1"),
             )
-            approved_action_binding = policy_context.get("approved_action_binding")
+            # Resolve the approval from the database. Never trust an approval status or
+            # fingerprint supplied by a caller/UI context.
+            approval_id = policy_context.get("approval_id")
+            approved_action_binding = None
+            persisted_status = None
+            if approval_id:
+                from app.models.enterprise import ApprovalRequest
+                approval = db.query(ApprovalRequest).filter(
+                    ApprovalRequest.id == str(approval_id),
+                    ApprovalRequest.tenant_id == tenant_id,
+                ).with_for_update().first()
+                if approval:
+                    persisted_status = approval.status
+                    stored = approval.action_binding or {}
+                    # An approval is valid only for the same run, bot, tool, target,
+                    # payload and policy version. Legacy approvals without bindings fail closed.
+                    same_action = (
+                        approval.status == "approved"
+                        and approval.action_fingerprint
+                        and stored.get("run_id") == str(policy_context.get("run_id") or "")
+                        and stored.get("bot_id") == str(policy_context.get("bot_id") or policy_context.get("agent_id") or "")
+                        and stored.get("tool_name") == name
+                        and stored.get("target") == target
+                        and stored.get("payload") == payload
+                        and stored.get("policy_version") == str(policy_context.get("policy_version") or "1")
+                    )
+                    if same_action:
+                        approved_action_binding = approval.action_fingerprint
+            approval_status = persisted_status
 
         decision = authorize_tool_call(
             tenant_id=tenant_id,
@@ -253,13 +281,15 @@ class ToolRegistry:
         if not to_email or not body:
             raise ValueError("Missing 'to' or 'body' in email.send payload.")
 
-        success = send_email(db, tenant_id, to_email, subject, body)
+        delivery = send_email(db, tenant_id, to_email, subject, body)
+        sent = bool(delivery.get("sent")) if isinstance(delivery, dict) else bool(delivery)
         return {
-            "sent": success,
+            "sent": sent,
+            "delivery": delivery if isinstance(delivery, dict) else {"result": str(delivery)},
             "to": to_email,
             "subject": subject,
             "preview": body[:120],
-            "message": "Email dispatched successfully" if success else "Email delivery queued/simulated.",
+            "message": "Email provider confirmed delivery request." if sent else "Email was not sent; provider configuration or delivery failed.",
         }
 
     async def _exec_webhook_post(self, payload: Dict[str, Any]) -> Dict[str, Any]:

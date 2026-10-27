@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.enterprise import ApprovalRequest, TenantPolicy
 from app.services.audit_service import AuditService
+from app.services.runtime_governance.tool_policy import action_fingerprint
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,7 @@ class PolicyEngine:
         resource_type: Optional[str] = None,
         resource_id: Optional[str] = None,
         requested_by: Optional[str] = None,
+        action_binding: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Returns decision:
@@ -122,6 +124,36 @@ class PolicyEngine:
                 "approval_id": None,
             }
 
+        binding = None
+        binding_fingerprint = None
+        policy_version = "1"
+        if action_binding:
+            required_binding_fields = {"run_id", "bot_id", "tool_name", "target", "payload"}
+            if not required_binding_fields.issubset(action_binding):
+                return self._block("Invalid action binding: run_id, bot_id, tool_name, target, and payload are required.")
+            if any(not str(action_binding.get(key) or "").strip() for key in ("run_id", "bot_id", "tool_name", "target")):
+                return self._block("Invalid action binding: run_id, bot_id, tool_name, and target must be non-empty.")
+            if not isinstance(action_binding.get("payload"), dict):
+                return self._block("Invalid action binding payload.")
+            policy_version = str(action_binding.get("policy_version") or "1")
+            binding = {
+                "run_id": str(action_binding["run_id"]),
+                "bot_id": str(action_binding["bot_id"]),
+                "tool_name": str(action_binding["tool_name"]),
+                "target": str(action_binding["target"]),
+                "payload": action_binding["payload"],
+                "policy_version": policy_version,
+            }
+            binding_fingerprint = action_fingerprint(
+                tenant_id=self.tenant_id,
+                run_id=binding["run_id"],
+                bot_id=binding["bot_id"],
+                tool_name=binding["tool_name"],
+                target=binding["target"],
+                payload=binding["payload"],
+                policy_version=policy_version,
+            )
+
         approval = ApprovalRequest(
             tenant_id=self.tenant_id,
             action_type=action_type,
@@ -134,6 +166,9 @@ class PolicyEngine:
             confidence=confidence,
             status="pending",
             policy_reason=reason if needs_approval else "Always requires approval",
+            action_fingerprint=binding_fingerprint,
+            action_binding=binding,
+            policy_version=policy_version if binding else None,
             requested_by=requested_by,
             expires_at=datetime.now(timezone.utc) + timedelta(hours=48),
         )
@@ -183,8 +218,15 @@ class PolicyEngine:
             raise ValueError("Approval not found")
         if approval.status != "pending":
             raise ValueError(f"Approval already {approval.status}")
+        binding_tool = str((approval.action_binding or {}).get("tool_name") or approval.action_type)
+        from app.services.runtime_governance.tool_policy import HIGH_RISK_ACTION_PREFIXES
+        legacy_high_risk_types = {"first_touch_email", "public_post", "price_quote", "refund", "linkedin_dm"}
+        if approve and (binding_tool in legacy_high_risk_types or any(binding_tool == prefix or binding_tool.startswith(prefix) for prefix in HIGH_RISK_ACTION_PREFIXES)):
+            if not approval.action_fingerprint or not approval.action_binding:
+                raise ValueError("High-risk approval requires a persisted exact action binding; edit/recreate the approval with one.")
 
         approval.status = "approved" if approve else "rejected"
+        # Fingerprints are immutable after review; any edit must create a new approval.
         approval.reviewed_by = reviewer_id
         approval.review_note = note
         approval.reviewed_at = datetime.now(timezone.utc)

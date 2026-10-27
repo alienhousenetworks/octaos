@@ -56,6 +56,14 @@ class EvaluateAction(BaseModel):
     payload: Dict[str, Any] = Field(default_factory=dict)
     resource_type: Optional[str] = None
     resource_id: Optional[str] = None
+    # Server persists this exact proposed action with its approval.
+    action_binding: Optional[Dict[str, Any]] = None
+
+
+class ApprovalEdit(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=240)
+    payload: Optional[Dict[str, Any]] = None
+    action_binding: Optional[Dict[str, Any]] = None
 
 
 class PlanChange(BaseModel):
@@ -228,10 +236,81 @@ def list_approvals(
             "reviewed_at": a.reviewed_at.isoformat() if a.reviewed_at else None,
             "reviewed_by": a.reviewed_by,
             "review_note": a.review_note,
+            "action_fingerprint": a.action_fingerprint,
+            "action_binding": a.action_binding,
+            "execution_status": a.execution_status,
+            "execution_error": a.execution_error,
         }
         for a in items
     ]
 
+
+
+@router.put("/approvals/{approval_id}")
+def edit_approval(
+    approval_id: str,
+    body: ApprovalEdit,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    user: User = Depends(deps.get_current_user),
+):
+    """Edit only a pending approval. Editing the action invalidates the old binding."""
+    if (user.role or "").lower() in ["read_only", "viewer"]:
+        raise HTTPException(403, "Read-only users cannot edit approvals")
+    from app.models.enterprise import ApprovalRequest
+    from app.services.runtime_governance.tool_policy import action_fingerprint
+    approval = db.query(ApprovalRequest).filter(
+        ApprovalRequest.id == approval_id,
+        ApprovalRequest.tenant_id == tenant_id,
+    ).with_for_update().first()
+    if not approval:
+        raise HTTPException(404, "Approval not found")
+    if approval.status != "pending":
+        raise HTTPException(409, "Only pending approvals can be edited")
+    updates = body.dict(exclude_unset=True)
+    if "title" in updates and updates["title"] is not None:
+        approval.title = updates["title"]
+    if "payload" in updates and updates["payload"] is not None:
+        approval.payload = updates["payload"]
+        # Payload edits cannot inherit a prior approval. Require a new exact binding.
+        if "action_binding" not in updates:
+            approval.action_binding = None
+            approval.action_fingerprint = None
+            approval.policy_version = None
+            approval.status = "pending"
+            approval.reviewed_by = None
+            approval.reviewed_at = None
+            approval.review_note = None
+    if "action_binding" in updates:
+        binding = updates["action_binding"]
+        if binding is None:
+            approval.action_binding = None
+            approval.action_fingerprint = None
+            approval.policy_version = None
+        else:
+            required = {"run_id", "bot_id", "tool_name", "target", "payload"}
+            if not required.issubset(binding) or not isinstance(binding.get("payload"), dict) or any(not str(binding.get(key) or "").strip() for key in ("run_id", "bot_id", "tool_name", "target")):
+                raise HTTPException(422, "action_binding requires non-empty run_id, bot_id, tool_name, target, and object payload")
+            version = str(binding.get("policy_version") or "1")
+            canonical = {
+                "run_id": str(binding["run_id"]), "bot_id": str(binding["bot_id"]),
+                "tool_name": str(binding["tool_name"]), "target": str(binding["target"]),
+                "payload": binding["payload"], "policy_version": version,
+            }
+            approval.action_binding = canonical
+            approval.policy_version = version
+            approval.action_fingerprint = action_fingerprint(
+                tenant_id=tenant_id, run_id=canonical["run_id"], bot_id=canonical["bot_id"],
+                tool_name=canonical["tool_name"], target=canonical["target"],
+                payload=canonical["payload"], policy_version=version,
+            )
+        approval.status = "pending"
+        approval.reviewed_by = None
+        approval.reviewed_at = None
+        approval.review_note = None
+    db.commit()
+    db.refresh(approval)
+    return {"id": approval.id, "status": approval.status, "action_fingerprint": approval.action_fingerprint}
 
 @router.post("/approvals/{approval_id}/review")
 def review_approval(
@@ -249,11 +328,28 @@ def review_approval(
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
+    execution_job_id = None
+    if body.approve and a.resource_type == "agent_tool" and a.action_binding:
+        a.execution_status = "queued"
+        a.execution_error = None
+        db.commit()
+        try:
+            from app.worker.tasks import execute_approved_tool
+            job = execute_approved_tool.delay(a.id, tenant_id)
+            execution_job_id = job.id
+        except Exception as exc:
+            a.execution_status = "failed"
+            a.execution_error = "WORKER_QUEUE_UNAVAILABLE"
+            db.commit()
+            raise HTTPException(503, "Approval was recorded, but execution could not be queued. The action has not been verified.") from exc
     return {
         "id": a.id,
         "status": a.status,
+        "execution_status": a.execution_status,
+        "execution_job_id": execution_job_id,
         "reviewed_at": a.reviewed_at.isoformat() if a.reviewed_at else None,
         "review_note": a.review_note,
+        "message": "Approval recorded; execution is queued and is not yet verified." if execution_job_id else "Approval decision recorded.",
     }
 
 
