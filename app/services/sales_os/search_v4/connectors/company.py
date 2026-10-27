@@ -5,7 +5,7 @@ from app.services.sales_os.search_v4.connectors.base import ConnectorResult, Hit
 from app.services.sales_os.search_v4.connectors.extract import contact_from_text, page_text, title_of
 from app.services.sales_os.search_v4.contracts import SearchTask
 from app.services.sales_os.search_v4.urls import host_of, is_company_site
-from app.services.web_ingestion.firecrawl_client import validate_target_url
+from app.services.sales_os.search_v4.connectors.safe_fetch import safe_get
 
 _HEADERS = {"User-Agent": "OctaOS-Sales/1.0 (search-v4)", "Accept": "text/html"}
 
@@ -17,8 +17,7 @@ class CompanyPageConnector:
         if not is_company_site(task.query):
             return ConnectorResult(status="empty", reason="The URL is a board or social host, so it was not fetched as a company page.")
         try:
-            safe = validate_target_url(task.query)
-            response = await client.get(safe, headers=_HEADERS, follow_redirects=True)
+            response = await safe_get(client, task.query, headers=_HEADERS)
         except httpx.TimeoutException:
             return ConnectorResult(status="failed", failure_class="transient", reason="The company page timed out.")
         except ValueError as exc:
