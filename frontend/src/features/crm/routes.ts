@@ -15,7 +15,6 @@ export const SALES_PATHS: Record<SalesSection, string> = {
   analytics: '/app/sales/revenue',
   config: '/app/sales/configuration',
   configured_engine: '/app/sales/configuration',
-  industries: '/app/sales/industries',
   campaigns: '/app/sales/campaigns',
 };
 
@@ -36,7 +35,6 @@ export function salesSectionFromPath(pathname: string): SalesSection {
   if (pathname.startsWith('/app/sales/configured-engine')) return 'configured_engine';
   if (pathname.startsWith('/app/sales/configuration')) return 'config';
   if (pathname.startsWith('/app/sales/pipeline')) return 'pipeline';
-  if (pathname.startsWith('/app/sales/industries')) return 'industries';
   if (pathname.startsWith('/app/sales/campaigns')) return 'campaigns';
   if (pathname.startsWith('/app/sales/rooms/')) return 'pipeline';
   if (pathname === '/app/sales' || pathname === '/app/sales/') return 'home';
