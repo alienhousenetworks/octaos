@@ -576,3 +576,33 @@ def test_search_storage_does_not_fall_back_to_process_memory_for_database_sessio
     finally:
         session.close()
         engine.dispose()
+
+
+def test_research_job_lookup_is_scoped_to_the_authenticated_tenant():
+    from types import SimpleNamespace
+    from fastapi import HTTPException
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.api.v1.endpoints.research import get_research_job
+    from app.models.base import Base, Tenant
+    from app.models.search_v4 import SearchV4Job
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine)()
+    try:
+        session.add(Tenant(id="tenant-a", name="Tenant A"))
+        session.commit()
+        session.add(SearchV4Job(
+            id="job-owned-by-a",
+            tenant_id="tenant-a",
+            status="succeeded",
+            payload={"job_id": "job-owned-by-a", "status": "succeeded", "spec": {"query": "private research"}},
+        ))
+        session.commit()
+        with pytest.raises(HTTPException) as error:
+            get_research_job("job-owned-by-a", db=session, user=SimpleNamespace(tenant_id="tenant-b"))
+        assert error.value.status_code == 404
+    finally:
+        session.close()
+        engine.dispose()
