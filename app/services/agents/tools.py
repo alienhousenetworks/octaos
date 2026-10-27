@@ -142,7 +142,7 @@ class ToolRegistry:
                 tool_name=name,
                 target=target,
                 payload=payload,
-                policy_version=str(policy_context.get("policy_version") or "current"),
+                policy_version=str(policy_context.get("policy_version") or "1"),
             )
             # Resolve the approval from the database. Never trust an approval status or
             # fingerprint supplied by a caller/UI context.
