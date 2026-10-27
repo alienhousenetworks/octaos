@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response
 from sqlalchemy.orm import Session
 from typing import List, Any, Optional, Dict
 from pydantic import BaseModel, Field
@@ -1750,6 +1750,183 @@ async def generate_virtual_influencer_brief(
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Virtual influencer generation failed. Check tenant AI provider configuration and try again.") from exc
 
+
+
+
+class InfluencerCreativePlanRequest(BaseModel):
+    company_name: str = Field(min_length=1, max_length=200)
+    industry: str = Field(min_length=1, max_length=200)
+    campaign_goal: str = Field(min_length=1, max_length=1200)
+    audience: str = Field(default="", max_length=1000)
+    platform: str = Field(default="instagram", max_length=80)
+    format: str = Field(default="reel", pattern="^(reel|short_video|story|feed_post|carousel|linkedin_video)$")
+    duration_seconds: int = Field(default=30, ge=5, le=180)
+    script_input: str = Field(default="", max_length=12000)
+    profile_id: Optional[str] = Field(default=None, max_length=100)
+    product_context: str = Field(default="", max_length=3000)
+
+
+class InfluencerCreativeGenerateRequest(BaseModel):
+    prompt: str = Field(min_length=5, max_length=6000)
+    deliverable: str = Field(default="image", pattern="^(image|video)$")
+    platform: str = Field(default="instagram", max_length=80)
+    reference_assets: List[str] = Field(default_factory=list, max_length=8)
+    profile_id: Optional[str] = Field(default=None, max_length=100)
+    campaign_goal: str = Field(default="", max_length=1200)
+    aspect_ratio: str = Field(default="9:16", max_length=20)
+
+
+@router.post("/virtual-influencer/reference-image")
+async def upload_influencer_reference_image(
+    file: UploadFile = File(...),
+    rights_confirmed: bool = Form(...),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.CREATE)),
+) -> Dict[str, Any]:
+    """Store an image reference only after the caller confirms usage rights."""
+    if not rights_confirmed:
+        raise HTTPException(status_code=400, detail="Confirm permission to use this character image before uploading.")
+    allowed = {"image/jpeg", "image/png", "image/webp"}
+    content_type = (file.content_type or "").lower().split(";")[0].strip()
+    if content_type not in allowed:
+        raise HTTPException(status_code=415, detail="Use a JPG, PNG or WebP reference image.")
+    content = await file.read(10 * 1024 * 1024 + 1)
+    if not content:
+        raise HTTPException(status_code=400, detail="The reference image is empty.")
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Reference images must be 10 MB or smaller.")
+    # Validate file signatures as well as the multipart MIME type.
+    valid_signature = (
+        (content_type == "image/jpeg" and content.startswith(bytes([255, 216, 255])))
+        or (content_type == "image/png" and content.startswith(bytes([137, 80, 78, 71, 13, 10, 26, 10])))
+        or (content_type == "image/webp" and len(content) >= 12 and content[:4] == b"RIFF" and content[8:12] == b"WEBP")
+    )
+    if not valid_signature:
+        raise HTTPException(status_code=415, detail="The uploaded file does not match its declared image type.")
+    from app.services.media.storage import _write_bytes
+    url = _write_bytes(content, content_type, prefix=("influencer-" + str(tenant_id)[:48]))
+    return {"url": url, "content_type": content_type, "bytes": len(content), "status": "uploaded",
+            "rights_confirmation_required": True}
+
+
+@router.post("/virtual-influencer/creative-plan")
+async def create_influencer_creative_plan(
+    body: InfluencerCreativePlanRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.CREATE)),
+) -> Dict[str, Any]:
+    """Create a brand-grounded script and storyboard; source facts are not invented."""
+    from app.services.ai_gateway import ai_gateway
+    profile = None
+    if body.profile_id:
+        profile = db.query(models.VirtualInfluencerProfile).filter(
+            models.VirtualInfluencerProfile.id == body.profile_id,
+            models.VirtualInfluencerProfile.tenant_id == tenant_id,
+        ).first()
+        if not profile:
+            raise HTTPException(status_code=404, detail="Virtual influencer profile not found in this workspace.")
+        if profile.status in ("rejected", "draft_requires_review", "changes_requested"):
+            raise HTTPException(status_code=409, detail="Review the influencer profile before creating production assets.")
+    persona = (profile.brief if profile else {}) or {}
+    brief = {
+        "company": body.company_name, "industry": body.industry, "goal": body.campaign_goal,
+        "audience": body.audience, "platform": body.platform, "format": body.format,
+        "duration_seconds": body.duration_seconds, "product_context": body.product_context,
+        "influencer": persona,
+        "user_script_or_direction": body.script_input,
+    }
+    system_prompt = (
+        "You are an evidence-conscious short-form influencer creative director. Return valid JSON only. "
+        "Use only supplied product claims; mark missing proof as [VERIFY CLAIM] rather than inventing numbers, "
+        "testimonials, customer results, certifications, or product capabilities. The character is fictional "
+        "and adult. Include a clear synthetic-influencer disclosure in the caption or on-screen disclosure. "
+        "Return keys: concept, hook, script (array of {time, visual, dialogue, on_screen_text, audio}), "
+        "storyboard (array of {scene, start_seconds, end_seconds, shot, action, dialogue, overlay, asset_prompt}), "
+        "caption, cta, hashtags (array), production_notes, claims_to_verify (array), disclosure."
+    )
+    prompt = "Create a production-ready influencer creative plan from this JSON brief. Treat user-supplied script as the source to preserve when present; edit only for clarity and platform fit.\n" + json.dumps(brief, ensure_ascii=False)
+    try:
+        raw = await ai_gateway.executeRequest(
+            db, tenant_id, prompt=prompt, system_prompt=system_prompt,
+            task_type="marketing", complexity="medium", max_tokens=3000,
+        )
+        text_result = str(raw).strip()
+        if text_result.startswith("```"):
+            text_result = text_result.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        plan = json.loads(text_result)
+        if not isinstance(plan, dict) or not isinstance(plan.get("storyboard"), list):
+            raise ValueError("The creative plan response did not match the required schema.")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Creative plan generation failed. Check the tenant text-model configuration and try again.") from exc
+    plan["status"] = "draft_requires_review"
+    plan["generation_mode"] = "tenant_ai_gateway_response"
+    plan["brand_inputs"] = {"company": body.company_name, "industry": body.industry, "goal": body.campaign_goal}
+    return plan
+
+
+@router.post("/virtual-influencer/generate-creative")
+async def generate_influencer_creative(
+    body: InfluencerCreativeGenerateRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    current_user: User = Depends(require_permission(Resource.CAMPAIGNS, Action.CREATE)),
+) -> Dict[str, Any]:
+    """Run the configured Visual Creative Director and persist the result as a reviewable artifact."""
+    profile = None
+    if body.profile_id:
+        profile = db.query(models.VirtualInfluencerProfile).filter(
+            models.VirtualInfluencerProfile.id == body.profile_id,
+            models.VirtualInfluencerProfile.tenant_id == tenant_id,
+        ).first()
+        if not profile:
+            raise HTTPException(status_code=404, detail="Virtual influencer profile not found in this workspace.")
+        if profile.status != "approved_for_content_review":
+            raise HTTPException(status_code=409, detail="Approve the influencer persona before generating production creative.")
+    from app.services.marketing.visual_creative.orchestrator import VisualCreativeOrchestrator
+    references = list(dict.fromkeys(body.reference_assets))
+    persona = (profile.brief if profile else {}) or {}
+    visual_prompt = body.prompt
+    if persona:
+        visual_prompt += "\nCharacter identity consistency: " + str(persona.get("visual_prompt") or persona.get("persona") or persona.get("name") or "")
+    visual_prompt += "\nCampaign goal: " + body.campaign_goal
+    visual_prompt += "\nCreate original synthetic content. Do not imply a real person endorsed the product. Include appropriate AI/synthetic influencer disclosure in associated caption."
+    try:
+        run_record = await VisualCreativeOrchestrator(db, tenant_id).execute(
+            raw_prompt=visual_prompt, deliverable=body.deliverable, platform=body.platform,
+            reference_assets=references, brand_tokens={"aspect_ratio": body.aspect_ratio},
+            inspect_quality=True, max_revisions=2,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Creative generation could not start. Check configured image/video provider readiness.") from exc
+    result = run_record.model_dump(mode="json")
+    if run_record.status == "failed" and not run_record.primary_asset_url:
+        raise HTTPException(status_code=502, detail="Creative provider failed: " + ("; ".join(run_record.limitations) or "No asset was returned."))
+    artifact_content = {
+        "kind": "ai_influencer_creative", "deliverable": body.deliverable,
+        "prompt": visual_prompt, "reference_assets": references,
+        "asset_url": run_record.primary_asset_url, "generation_status": run_record.status,
+        "provider_result": result, "review_status": "draft_requires_review",
+        "synthetic_disclosure_required": True,
+    }
+    artifact_id = __import__("uuid").uuid4().__str__()
+    artifact = models.CampaignArtifact(
+        id=artifact_id, tenant_id=tenant_id, title=("Influencer " + body.deliverable.title() + " — " + (profile.name if profile else "Creative")),
+        artifact_type="ai_influencer_" + body.deliverable, status="draft", current_version=1,
+        created_by=getattr(current_user, "id", None),
+    )
+    sources = [{"type": "generation_request", "label": "Visual Creative Director request"}, {"type": "reference_asset", "count": len(references)}]
+    version = models.CampaignArtifactVersion(
+        tenant_id=tenant_id, artifact_id=artifact_id, version=1, content=artifact_content,
+        sources=sources, content_hash=_campaign_artifact_hash(artifact_content, sources),
+        review_status="draft", created_by=getattr(current_user, "id", None),
+    )
+    db.add(artifact); db.add(version); db.commit(); db.refresh(artifact); db.refresh(version)
+    return {"status": run_record.status, "asset_url": run_record.primary_asset_url,
+            "artifact": _campaign_artifact_payload(artifact, version), "creative": result,
+            "message": "Creative result saved as a draft. Review it before publishing."}
 
 
 def _campaign_artifact_hash(content: Dict[str, Any], sources: List[Dict[str, Any]]) -> str:
