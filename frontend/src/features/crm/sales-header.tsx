@@ -4,7 +4,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Users, TrendingUp, Target, Download, Plus, Upload, Sparkles,
-  Building2, Cpu, Mail, Radar,
+  Cpu, Mail, Radar,
 } from 'lucide-react';
 import { SalesSection, fmtCurrency } from './sales-types';
 
@@ -44,14 +44,13 @@ export default function SalesHeader({
     { id: 'campaigns', label: 'Campaigns', hint: 'Cadence, inbox, and the existing workflow canvas.', icon: <Mail size={14} /> },
     { id: 'agent_center', label: 'AI Workforce', hint: 'The 24 sales agents and the control plane.', icon: <Cpu size={14} />, badge: isExecuting ? 'Running' : undefined },
     { id: 'analytics', label: 'Analytics', hint: 'Pipeline amounts stored on records, and what closed.', icon: <Target size={14} /> },
-    { id: 'industries', label: 'Industries', hint: 'Eighteen packs on one CRM.', icon: <Building2 size={14} /> },
   ];
   const moduleFor = (section: SalesSection): SalesSection => {
     if (section === 'prompt_agent' || section === 'configured_engine') return 'prospecting';
     if (['accounts', 'inbox', 'deal_desk', 'deal_rooms'].includes(section)) return 'pipeline';
     if (section === 'stepper') return 'agent_center';
     if (section === 'intelligence') return 'analytics';
-    if (section === 'config') return 'industries';
+    if (section === 'config') return 'home';
     return section;
   };
   const shownId = moduleFor(activeTab);
