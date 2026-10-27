@@ -58,6 +58,7 @@ def read_workforce_events(
     limit: int = Query(default=100, ge=1, le=200),
     event_type: Optional[str] = Query(default=None, max_length=120),
     run_id: Optional[str] = Query(default=None, max_length=200),
+    latest: bool = Query(default=False),
     db: Session = Depends(deps.get_db),
     user: User = Depends(deps.get_current_active_user),
 ):
@@ -68,6 +69,7 @@ def read_workforce_events(
             limit=limit,
             event_type=event_type,
             run_id=run_id,
+            latest=latest,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid event cursor") from exc

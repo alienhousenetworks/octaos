@@ -44,6 +44,7 @@ jobs:
           src/components/analytics/kpi-metric-card.tsx
           src/components/analytics/sparkline.tsx
           src/components/shell/app-shell.tsx
+          src/components/shell/workforce-activity.tsx
           src/components/support-widget.tsx
           src/components/ui/badge.tsx
           src/components/views/dashboard-view.tsx
