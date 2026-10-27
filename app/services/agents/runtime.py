@@ -87,8 +87,15 @@ class AgentRuntime:
         # 3. Resolve Tool Grants
         allowed_tools = agent_ver.tool_grants or []
 
-        # 4. Resolve Knowledge Context (Truth RAG)
-        knowledge_context = self._retrieve_knowledge(db, tenant_id, agent_ver.knowledge_access or [agent.department])
+        # 4. Resolve Knowledge Context (Truth RAG). A company question must see
+        # the crawled website, which is stored under General rather than the
+        # specialist's own department.
+        knowledge_context = self._retrieve_knowledge(
+            db,
+            tenant_id,
+            agent_ver.knowledge_access or [agent.department],
+            query=str(input_context.get("prompt") or input_context.get("goal") or input_context.get("message") or ""),
+        )
 
         # 5. Construct Delimited Execution Prompt (Prompt Injection Guard)
         system_prompt = self._build_system_prompt(agent, agent_ver, knowledge_context, allowed_tools)
@@ -323,11 +330,34 @@ class AgentRuntime:
 
         return agent, ver
 
-    def _retrieve_knowledge(self, db: Session, tenant_id: str, departments: List[str]) -> str:
+    def _retrieve_knowledge(
+        self,
+        db: Session,
+        tenant_id: str,
+        departments: List[str],
+        query: str = "",
+    ) -> str:
+        question = (query or "").strip()
+        if question:
+            from app.services.rag.hybrid_engine import HybridRAGEngine, query_requests_company_knowledge
+
+            engine = HybridRAGEngine(db, tenant_id)
+            hits = engine.retrieve(question, department="general", top_k=5)
+            source_urls = [hit.get("source_url") or "" for hit in hits]
+            if hits and query_requests_company_knowledge(question, source_urls):
+                lines = ["\n[VERIFIED ORGANIZATIONAL KNOWLEDGE]"]
+                lines.append(
+                    "Answer company questions from these crawled pages and cite the source URL. "
+                    "Do not say the knowledge base has no information when a page answers the question."
+                )
+                for hit in hits:
+                    lines.append(f"- {hit.get('citation')}: {(hit.get('content') or '')[:1200]}")
+                return "\n".join(lines)
+
         docs = db.query(KnowledgeDocument).filter(
             KnowledgeDocument.tenant_id == tenant_id,
             KnowledgeDocument.is_active == True,
-            KnowledgeDocument.department.in_(departments),
+            KnowledgeDocument.department.in_(departments or ["General"]),
         ).limit(5).all()
 
         if not docs:

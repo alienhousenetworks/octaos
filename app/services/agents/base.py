@@ -43,7 +43,7 @@ class BaseAgent:
 
         # 2. Targeted semantic retrieval for the specific task
         rag_engine = HybridRAGEngine(self.db, self.tenant_id)
-        rag_hits = rag_engine.retrieve(task_type, department=department or self.department, top_k=4)
+        rag_hits = rag_engine.retrieve(task_type, department=department or self.department, top_k=5)
 
         # Augment with Global Rules from Memory Layer
         global_rules = self.memory.get_global_rules(category=department or self.department)
@@ -59,7 +59,12 @@ class BaseAgent:
             context += f"- [{doc.doc_type}]: {doc.content}\n"
 
         if rag_hits:
-            context += "\nRelevant Knowledge Base Extracts:\n"
+            context += (
+                "\nRelevant Knowledge Base Extracts:\n"
+                "These extracts are stored company knowledge, including crawled website pages. "
+                "Answer company questions from them and cite the source URL. "
+                "Do not say the knowledge base has no information when an extract answers the question.\n"
+            )
             for h in rag_hits:
                 context += f"- {h['citation']}: {h['content']}\n"
             

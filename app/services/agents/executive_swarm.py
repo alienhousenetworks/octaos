@@ -205,16 +205,38 @@ class ExecutiveSwarmCoordinator:
         synth_summary = "Compiled executive briefing grounded in SQL metrics."
         synth_status = "success"
 
-        # Query company knowledge documents for this tenant
+        # A company question uses the crawled site. Other briefings keep the
+        # short document sample so a pipeline report is not rewritten from a career page.
         company_knowledge = ""
         try:
             from app.models.agents import KnowledgeDocument
-            k_docs = self.db.query(KnowledgeDocument).filter(
+            from app.services.rag.hybrid_engine import HybridRAGEngine, query_requests_company_knowledge
+
+            active_docs = self.db.query(KnowledgeDocument).filter(
                 KnowledgeDocument.tenant_id == self.tenant_id,
                 KnowledgeDocument.is_active == True,
-            ).limit(10).all()
-            if k_docs:
-                company_knowledge = "\n".join([f"- [{d.department} {d.doc_type}]: {d.content[:300]}" for d in k_docs])
+            )
+            source_urls = [
+                row[0]
+                for row in self.db.query(KnowledgeDocument.source_url).filter(
+                    KnowledgeDocument.tenant_id == self.tenant_id,
+                    KnowledgeDocument.is_active == True,
+                    KnowledgeDocument.source_url.isnot(None),
+                ).limit(80).all()
+                if row[0]
+            ]
+            if query_requests_company_knowledge(prompt, source_urls):
+                hits = HybridRAGEngine(self.db, self.tenant_id).retrieve(prompt, department="general", top_k=5)
+                if hits:
+                    company_knowledge = "\n".join(
+                        f"- {hit.get('citation')}: {(hit.get('content') or '')[:1200]}" for hit in hits
+                    )
+            if not company_knowledge:
+                k_docs = active_docs.limit(10).all()
+                if k_docs:
+                    company_knowledge = "\n".join(
+                        [f"- [{d.department} {d.doc_type}]: {d.content[:300]}" for d in k_docs]
+                    )
         except Exception as ke:
             logger.debug(f"Could not load knowledge docs for executive report: {ke}")
 

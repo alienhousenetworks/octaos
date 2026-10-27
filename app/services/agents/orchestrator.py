@@ -79,6 +79,28 @@ def _current_request_text(prompt: str) -> str:
     match = re.search(r"current user request:\s*(.*)\Z", prompt or "", re.IGNORECASE | re.DOTALL)
     return match.group(1).strip() if match else (prompt or "")
 
+
+def knowledge_query_for_turn(prompt: str, messages: Optional[List[Dict[str, Any]]] = None) -> str:
+    """Build the company-knowledge search from this turn and earlier user turns.
+
+    The retrieval query used to be the literal task name "orchestrator", so a
+    question such as "what is AlienHouse Networks" never met the crawled site.
+    A follow-up that only says the website was crawled still needs the company
+    name from the previous user turn.
+    """
+    parts: List[str] = []
+    for message in messages or []:
+        if str(message.get("role") or "").lower() != "user":
+            continue
+        content = str(message.get("content") or "").strip()
+        if not content or "I'm OctaOS. Choose a specialist" in content:
+            continue
+        parts.append(content)
+    current = (prompt or "").strip()
+    if current and current not in parts:
+        parts.append(current)
+    return "\n".join(parts)[-4000:]
+
 class OrchestratorAgent(BaseAgent):
     def __init__(self, db, tenant_id):
         super().__init__(db, tenant_id, "Orchestrator AI")
@@ -179,8 +201,12 @@ class OrchestratorAgent(BaseAgent):
         except Exception:
             operational_stats = "Live Database Counts: 0 Candidate(s)/Resume(s) on file; 0 Lead(s) in CRM."
 
-        # Inject company-dedicated knowledge base context (directives, brand rules, RAG)
-        company_knowledge = self.get_knowledge_context("orchestrator", "General")
+        # Search the tenant library with the user's question. The task label
+        # "orchestrator" matches none of the crawled website pages.
+        company_knowledge = self.get_knowledge_context(
+            knowledge_query_for_turn(current_request, messages) or current_request,
+            "General",
+        )
 
         system_prompt = f"""You are the Orchestrator AI, the central coordination brain of OctaOS.
 Your job is to assist company leadership, answer questions about operations, and coordinate specialized department agents (Marketing, Sales, Support, HR, Finance).
@@ -216,7 +242,7 @@ Available Agents & Actions:
 Guidelines:
 1. If the user asks a conversational question, operational inquiry, or asks for advice, provide a clear, helpful response in the "message" field. (Use the operational database counts above if asked about candidate, resume, or lead counts).
 2. If the user request requires executing tasks, include them in the "tasks" array. If no execution tasks are needed, leave "tasks" as an empty list [].
-3. Adhere strictly to the company knowledge base and guidelines above.
+3. Adhere strictly to the company knowledge base and guidelines above. When those excerpts describe the company or its website, answer from them and cite the source URL. Do not say the company knowledge base is empty, and do not ask the user to paste website content that is already in the excerpts. If a specific fact is absent from the excerpts, say that fact was not in the retrieved pages.
 4. Multi-turn conversation context: If previous conversation history is provided, maintain context across turns. For example, if you asked the user clarifying questions about a role, task, campaign, or parameters in previous turns, interpret the user's latest reply in the context of those prior questions.
 
 Output MUST be valid JSON only.
@@ -248,7 +274,12 @@ Format:
             try:
                 conv_resp = await self.llm.complete(
                     prompt=effective_prompt,
-                    system_prompt=f"You are the Orchestrator AI for OctaOS. Assist the user with their request.\n\n{company_knowledge}\n\n{operational_stats}",
+                    system_prompt=(
+                        "You are the Orchestrator AI for OctaOS. Assist the user with their request. "
+                        "When the company knowledge excerpts answer the question, use them and cite the source URL. "
+                        "Do not claim the knowledge base has no information about the company when those excerpts are present.\n\n"
+                        f"{company_knowledge}\n\n{operational_stats}"
+                    ),
                     provider=provider,
                     model=model
                 )

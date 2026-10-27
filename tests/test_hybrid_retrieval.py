@@ -202,3 +202,100 @@ def test_pinned_directives_vs_selective_retrieval_in_agent(hybrid_db):
     # 3. Irrelevant HR handbook MUST NOT be dumped into the context
     assert "Office hours are from 9 AM to 5 PM" not in context
     assert "Lunch break is 1 hour" not in context
+
+
+def test_company_question_uses_crawled_site_not_application_form(hybrid_db):
+    tenant_id = "tenant-hybrid-1"
+    about = KnowledgeChunk(
+        id="chunk-about",
+        tenant_id=tenant_id,
+        document_id="doc-about",
+        title="About AlienHouse Networks",
+        department="General",
+        content="Who We Are. AlienHouse Networks is a professionally managed technology solutions company.",
+        source_url="https://alienhousenetworks.com/about-us/",
+        is_active=True,
+        version=1,
+    )
+    form = KnowledgeChunk(
+        id="chunk-form",
+        tenant_id=tenant_id,
+        document_id="doc-form",
+        title="HR Recruitment Associate",
+        department="General",
+        content="Apply for this Role. Full Name. Email Address. Resume / CV. Cover Letter.",
+        source_url="https://alienhousenetworks.com/careers/hr-recruitment-associate/",
+        is_active=True,
+        version=1,
+    )
+    hybrid_db.add_all([about, form])
+    hybrid_db.commit()
+
+    engine = HybridRAGEngine(hybrid_db, tenant_id)
+    named = engine.retrieve("what is alienhouse networks", department="General", top_k=4)
+    assert named
+    assert named[0]["source_url"] == "https://alienhousenetworks.com/about-us/"
+    assert "technology solutions company" in named[0]["content"]
+    assert "Full Name" not in named[0]["content"]
+
+    follow_up = engine.retrieve("it is there it just crawled the full website check", department="General", top_k=4)
+    assert follow_up
+    assert follow_up[0]["source_url"] == "https://alienhousenetworks.com/about-us/"
+    assert all("Full Name" not in (hit["content"] or "") for hit in follow_up[:1])
+
+
+def test_assistant_knowledge_query_uses_the_user_question(hybrid_db):
+    from app.services.agents.orchestrator import knowledge_query_for_turn
+    from app.services.agents.runtime import AgentRuntime
+
+    tenant_id = "tenant-hybrid-1"
+    hybrid_db.add(KnowledgeChunk(
+        id="chunk-home",
+        tenant_id=tenant_id,
+        document_id="doc-home",
+        title="AlienHouse Networks",
+        department="General",
+        content="Who We Are. AlienHouse Networks is a professionally managed technology solutions company.",
+        source_url="https://alienhousenetworks.com/",
+        is_active=True,
+        version=1,
+    ))
+    hybrid_db.commit()
+
+    query = knowledge_query_for_turn(
+        "it is there it just crawled the full website check",
+        [{"role": "user", "content": "what is alienhouse networks"}, {"role": "assistant", "content": "I don't have that."}],
+    )
+    assert "what is alienhouse networks" in query
+    assert "crawled" in query
+
+    agent = BaseAgent(hybrid_db, tenant_id, "Orchestrator AI", department="general")
+    context = agent.get_knowledge_context(query, department="General")
+    assert "technology solutions company" in context
+    assert "https://alienhousenetworks.com/" in context
+    assert "Do not say the knowledge base has no information" in context
+
+    runtime_context = AgentRuntime()._retrieve_knowledge(
+        hybrid_db, tenant_id, ["Sales"], query="what is alienhouse networks",
+    )
+    assert "technology solutions company" in runtime_context
+
+
+def test_company_page_is_used_when_only_the_document_was_stored(hybrid_db):
+    tenant_id = "tenant-hybrid-1"
+    hybrid_db.add(KnowledgeDocument(
+        id="doc-only-about",
+        tenant_id=tenant_id,
+        department="General",
+        doc_type="Web Source",
+        source_type="web",
+        source_url="https://alienhousenetworks.com/about-us/",
+        content="Source URL: https://alienhousenetworks.com/about-us/\n\nAlienHouse Networks builds hyper-advanced digital ecosystems.",
+        is_active=True,
+    ))
+    hybrid_db.commit()
+
+    hits = HybridRAGEngine(hybrid_db, tenant_id).retrieve("what is alienhouse networks", top_k=3)
+    assert hits
+    assert "digital ecosystems" in hits[0]["content"]
+    assert hits[0]["source_url"] == "https://alienhousenetworks.com/about-us/"
