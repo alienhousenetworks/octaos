@@ -325,11 +325,28 @@ def review_approval(
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
+    execution_job_id = None
+    if body.approve and a.resource_type == "agent_tool" and a.action_binding:
+        a.execution_status = "queued"
+        a.execution_error = None
+        db.commit()
+        try:
+            from app.worker.tasks import execute_approved_tool
+            job = execute_approved_tool.delay(a.id, tenant_id)
+            execution_job_id = job.id
+        except Exception as exc:
+            a.execution_status = "failed"
+            a.execution_error = "WORKER_QUEUE_UNAVAILABLE"
+            db.commit()
+            raise HTTPException(503, "Approval was recorded, but execution could not be queued. The action has not been verified.") from exc
     return {
         "id": a.id,
         "status": a.status,
+        "execution_status": a.execution_status,
+        "execution_job_id": execution_job_id,
         "reviewed_at": a.reviewed_at.isoformat() if a.reviewed_at else None,
         "review_note": a.review_note,
+        "message": "Approval recorded; execution is queued and is not yet verified." if execution_job_id else "Approval decision recorded.",
     }
 
 
