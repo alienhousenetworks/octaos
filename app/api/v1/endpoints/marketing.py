@@ -1707,6 +1707,78 @@ class VirtualInfluencerBriefRequest(BaseModel):
     creative_direction: str = Field(default="", max_length=2000)
 
 
+class VirtualInfluencerCreateRequest(BaseModel):
+    """Payload sent by the Campaigns AI influencer studio."""
+    name: Optional[str] = Field(default=None, max_length=100)
+    creative_direction: str = Field(default="", max_length=2000)
+    audience: str = Field(default="", max_length=1000)
+    platform: str = Field(default="instagram", max_length=80)
+    generate_image: bool = True
+    generate_video: bool = False
+    image_provider: Optional[str] = Field(default="together", max_length=80)
+    image_model: Optional[str] = Field(default=None, max_length=200)
+    video_provider: Optional[str] = Field(default="together", max_length=80)
+    video_model: Optional[str] = Field(default=None, max_length=200)
+    room_id: Optional[str] = Field(default=None, max_length=100)
+    room_slug: Optional[str] = Field(default=None, max_length=100)
+
+
+def _marketing_room_id(db: Session, tenant_id: str, room_id: Optional[str], room_slug: Optional[str]) -> Optional[str]:
+    if room_id:
+        return room_id
+    if not room_slug:
+        return None
+    from app.models.rooms import SectionRoom
+    room = db.query(SectionRoom).filter(
+        SectionRoom.tenant_id == tenant_id,
+        SectionRoom.section == "marketing",
+        SectionRoom.slug == room_slug.lower(),
+    ).first()
+    return room.id if room else None
+
+
+@router.post("/virtual-influencer")
+async def create_virtual_influencer(
+    body: VirtualInfluencerCreateRequest,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.CAMPAIGNS, Action.CREATE)),
+) -> Dict[str, Any]:
+    """Create a fictional influencer and queue the launch post as a review draft.
+
+    This is the route the Campaigns studio calls. It does not publish.
+    """
+    from app.services.agents.marketing import MarketingAgent
+
+    try:
+        agent = MarketingAgent(db, tenant_id)
+        return await agent.execute_task({
+            "action": "create_virtual_influencer",
+            "parameters": {
+                "name": body.name,
+                "creative_direction": body.creative_direction,
+                "audience": body.audience,
+                "platform": body.platform,
+                "generate_image": body.generate_image,
+                "generate_video": body.generate_video,
+                "image_provider": body.image_provider,
+                "image_model": body.image_model,
+                "video_provider": body.video_provider,
+                "video_model": body.video_model,
+                "room_id": _marketing_room_id(db, tenant_id, body.room_id, body.room_slug),
+            },
+        })
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Virtual influencer generation failed. Check tenant AI provider configuration and try again.",
+        ) from exc
+
+
 @router.post("/virtual-influencer/brief")
 async def generate_virtual_influencer_brief(
     body: VirtualInfluencerBriefRequest,
