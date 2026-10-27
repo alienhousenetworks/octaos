@@ -27,6 +27,8 @@ def test_overview_and_cockpit_follow_the_same_toggle():
     card = _source("frontend/src/features/workforce/components/agent-card.tsx")
     assert "mode === 'classic' ? 'analytics' : 'workforce'" in dashboard
     assert "mode === 'bot' ? 'console' : 'overview'" in cockpit
+    assert "octaos-interface-mode-toggle" in cockpit
+    assert "octaos-interface-mode-toggle" in _source("frontend/src/lib/interface-mode.tsx")
     assert "?tab=console" in card
     assert "${cockpitHref}?tab=" not in card
     assert "${agentPath}?tab=" in card

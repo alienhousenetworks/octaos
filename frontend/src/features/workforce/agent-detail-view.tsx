@@ -57,6 +57,24 @@ export default function AgentDetailView({
 
   React.useEffect(() => {
     if (!ready) return;
+    let samePageToggle = false;
+    try {
+      const raw = sessionStorage.getItem('octaos-interface-mode-toggle');
+      if (raw) {
+        const toggle = JSON.parse(raw) as { to?: string; path?: string };
+        if (toggle.to === mode && toggle.path === window.location.pathname) {
+          samePageToggle = true;
+          sessionStorage.removeItem('octaos-interface-mode-toggle');
+        }
+      }
+    } catch {
+      samePageToggle = false;
+    }
+    if (samePageToggle) {
+      appliedMode.current = mode;
+      setActiveTab(mode === 'bot' ? 'console' : 'overview');
+      return;
+    }
     if (appliedMode.current === null) {
       appliedMode.current = mode;
       if (!searchParams.get('tab')) setActiveTab(mode === 'bot' ? 'console' : 'overview');

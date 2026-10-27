@@ -28,6 +28,16 @@ export function InterfaceModeProvider({ children }: { children: React.ReactNode 
   }, []);
 
   const setMode = (next: InterfaceMode) => {
+    if (next !== mode) {
+      try {
+        sessionStorage.setItem(
+          'octaos-interface-mode-toggle',
+          JSON.stringify({ to: next, path: window.location.pathname }),
+        );
+      } catch {
+        // A page that stays mounted still receives the mode from context.
+      }
+    }
     setModeState(next);
     try {
       localStorage.setItem(STORAGE_KEY, next);
