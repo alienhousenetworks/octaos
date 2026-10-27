@@ -28,7 +28,6 @@ import {
 import { AgentItem, ActivityLogItem } from '@/lib/agent-types';
 import AgentOperations from './components/agent-operations';
 import AgentConsole from './components/agent-console';
-import { useInterfaceMode } from '@/lib/interface-mode';
 import AgentToolGrants from './components/agent-tool-grants';
 import { notify } from '@/lib/notify';
 import { AGENT_AI_PROVIDERS, autoProviderLabel, normalizeAgentProvider, providerDisplayName } from '@/lib/ai-providers';
@@ -50,51 +49,15 @@ export default function AgentDetailView({
 }: AgentDetailViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { mode, ready } = useInterfaceMode();
   const initialTab = (searchParams.get('tab') as CockpitTab) || 'overview';
-  const appliedMode = React.useRef<string | null>(null);
-
   const [activeTab, setActiveTab] = useState<CockpitTab>(initialTab);
 
   React.useEffect(() => {
-    if (!ready) return;
-    let samePageToggle = false;
-    try {
-      const raw = sessionStorage.getItem('octaos-interface-mode-toggle');
-      if (raw) {
-        const toggle = JSON.parse(raw) as { to?: string; path?: string };
-        if (toggle.to === mode && toggle.path === window.location.pathname) {
-          samePageToggle = true;
-          sessionStorage.removeItem('octaos-interface-mode-toggle');
-        }
-      }
-    } catch {
-      samePageToggle = false;
+    const tabFromUrl = (searchParams.get('tab') as CockpitTab) || 'overview';
+    if (tabFromUrl !== activeTab) {
+      setActiveTab(tabFromUrl);
     }
-    const showModeTab = () => {
-      const nextTab = mode === 'bot' ? 'console' : 'overview';
-      setActiveTab(nextTab);
-      const params = new URLSearchParams(window.location.search);
-      if (nextTab === 'overview') params.delete('tab');
-      else params.set('tab', nextTab);
-      const query = params.toString();
-      const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
-      if (`${window.location.pathname}${window.location.search}` !== nextUrl) router.replace(nextUrl);
-    };
-    if (samePageToggle) {
-      appliedMode.current = mode;
-      showModeTab();
-      return;
-    }
-    if (appliedMode.current === null) {
-      appliedMode.current = mode;
-      if (!searchParams.get('tab')) showModeTab();
-      return;
-    }
-    if (appliedMode.current === mode) return;
-    appliedMode.current = mode;
-    showModeTab();
-  }, [mode, ready, searchParams, router]);
+  }, [searchParams, activeTab]);
   const [agent, setAgent] = useState<AgentItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [activityLogs, setActivityLogs] = useState<ActivityLogItem[]>([]);
@@ -335,7 +298,16 @@ export default function AgentDetailView({
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id as CockpitTab)}
+              onClick={() => {
+                const nextTab = tab.id as CockpitTab;
+                setActiveTab(nextTab);
+                const params = new URLSearchParams(window.location.search);
+                if (nextTab === 'overview') params.delete('tab');
+                else params.set('tab', nextTab);
+                const query = params.toString();
+                const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+                if (`${window.location.pathname}${window.location.search}` !== nextUrl) router.replace(nextUrl);
+              }}
               className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-semibold transition-all ${
                 isSelected
                   ? 'border-primary text-white'

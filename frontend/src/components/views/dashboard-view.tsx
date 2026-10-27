@@ -39,8 +39,6 @@ import StackedBarChart, { CategoryDef, StackedDataPoint } from '@/components/ana
 import LeaderboardCard, { LeaderboardItem } from '@/components/analytics/leaderboard-card';
 import ReliabilityGauge from '@/components/analytics/reliability-gauge';
 import RoiPanel from '@/components/analytics/roi-panel';
-import AgentDirectoryView from '@/features/workforce/agent-directory-view';
-import { useInterfaceMode } from '@/lib/interface-mode';
 
 interface DashboardViewProps {
   metrics: any;
@@ -79,8 +77,6 @@ export default function DashboardView({
   fetchWithAuth,
   token,
 }: DashboardViewProps) {
-  const { mode, setMode } = useInterfaceMode();
-  const homeView = mode === 'classic' ? 'analytics' : 'workforce';
   const [selectedDept, setSelectedDept] = useState<DepartmentTab>('executive');
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodTab>('7d');
   const [hideRevenue, setHideRevenue] = useState(false);
@@ -292,46 +288,7 @@ export default function DashboardView({
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 animate-in fade-in duration-300">
-      {/* Top Workforce vs Analytics Switcher */}
-      <div className="flex items-center justify-between border-b border-border/80 pb-4">
-        <div className="flex items-center gap-1.5 rounded-xl border border-border bg-card/60 p-1 text-xs backdrop-blur-md">
-          <button
-            type="button"
-            onClick={() => setMode('bot')}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 font-semibold transition-all ${
-              homeView === 'workforce'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Bot className="size-4" />
-            AI Workforce
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('classic')}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 font-semibold transition-all ${
-              homeView === 'analytics'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <BarChart3 className="size-4" />
-            Executive Analytics
-          </button>
-        </div>
-      </div>
-
-      {homeView === 'workforce' ? (
-        <AgentDirectoryView
-          API_URL={API_URL || ''}
-          fetchWithAuth={fetchWithAuth || (async () => new Response())}
-          token={token || null}
-          onSelectAgent={(agentId) => setActiveView(`agents/${agentId}`)}
-        />
-      ) : (
-        <>
-          {/* Header with Quick Actions & Live Indicator */}
+      {/* Header with Quick Actions & Live Indicator */}
           <PageHeader
         title="Enterprise Intelligence Cockpit"
         description="Comprehensive real-time telemetry from token volume and task velocity to multi-channel execution and business ROI."
@@ -988,8 +945,6 @@ export default function DashboardView({
           </div>
         )}
       </section>
-        </>
-      )}
     </div>
   );
 }
