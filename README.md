@@ -16,7 +16,7 @@ OctaOS is an AI-enabled business operations workspace intended to coordinate wor
 - [8. Customer Support](#8-customer-support)
 - [9. People and HR](#9-people-and-hr)
 - [10. Operations and workflow automation](#10-operations-and-workflow-automation)
-- [11. Real-estate sales workflows](#11-real-estate-sales-workflows)
+- [11. Industry-neutral extension packs](#11-industry-neutral-extension-packs)
 - [12. Knowledge and business context](#12-knowledge-and-business-context)
 - [13. Social publishing and communications](#13-social-publishing-and-communications)
 - [14. Analytics, reporting, and auditability](#14-analytics-reporting-and-auditability)
@@ -857,47 +857,15 @@ flowchart TD
 
 Use explicit states such as draft, active, paused, queued, running, waiting for approval, retry scheduled, succeeded, failed, and cancelled. The exact enum names should match the actual code. Keep workflow definition version separate from execution state so an edit does not silently rewrite a running job's logic.
 
-## 11. Real-estate sales workflows
+## 11. Industry-neutral extension packs
 
-This section documents a domain workflow pattern relevant when real-estate functionality is enabled in the deployment. It is not proof that a real-estate module is present in every branch or tenant.
+OctaOS core is industry-neutral. Shared runtime, identity, tenant isolation, permissions, bots, workflows, integrations, approvals, evidence, and analytics must not require a particular vertical.
 
-### Sub-features
+Optional industry-specific behavior belongs in versioned, tenant-selected extension packs that add configuration (terminology, custom fields, pipeline stages, workflows, connectors, policy, and KPIs) without changing core contracts. No industry pack should be assumed active for a new tenant. A pack is only considered available after its API, UI, configuration, tests, and connector readiness have been verified.
 
-- **Project and inventory catalogue:** projects, units, unit attributes, availability, and pricing rules.
-- **Lead-to-project matching:** compare buyer requirements, budget range, preferred location, configuration, and timeline with available inventory.
-- **Salesperson assignment:** assign an owner based on workload, territory, location, skill, availability, and priority rules.
-- **Visit planning:** propose site visits and group nearby appointments where location data and mapping integrations are available.
-- **Appointment scheduling:** reserve time slots and record confirmations/cancellations.
-- **Inventory holds:** time-bound hold with concurrency control and clear expiry/release behaviour where implemented.
-- **Follow-up:** visit outcome, buyer interest, objections, next action, and reminders.
-- **Broker/channel tracking:** record referral source and configured commission rules.
-- **Field-sales coordination:** location telemetry and route recommendations only with appropriate consent, permissions, and mobile support.
-- **Reporting:** lead response, visits, conversion, inventory status, and source quality.
+Dedicated real-estate and property workflows are not part of the active general product surface. Historical schema migrations and legacy modules may remain temporarily for data compatibility; they are not a guarantee that these capabilities are enabled. See [the industry-neutral product boundary](docs/INDUSTRY_NEUTRAL_PRODUCT_BOUNDARY.md) for the migration and verification policy.
 
-### Real-estate lead-to-visit workflow
-
-~~~mermaid
-flowchart TD
-    A[New buyer lead] --> B[Capture requirements and consent]
-    B --> C[Match project and available units]
-    C --> D[Check inventory freshness and constraints]
-    D --> E[Recommend eligible units with rationale]
-    E --> F[Assign salesperson using configured rules]
-    F --> G[Check salesperson and buyer availability]
-    G --> H[Suggest visit slots and route plan when supported]
-    H --> I[Human or buyer confirms visit]
-    I --> J[Create appointment and notify participants]
-    J --> K[Record visit outcome and buyer feedback]
-    K --> L{Next step}
-    L --> M[Follow-up / second visit]
-    L --> N[Authorised inventory hold or reservation]
-    L --> O[Mark not interested / nurture]
-    M --> P[Update CRM history and reminders]
-    N --> P
-    O --> P
-~~~
-
-Inventory reservation, deposits, commission calculation, and location tracking require explicit business rules, concurrency safety, permission checks, and auditability.
+---
 
 ## 12. Knowledge and business context
 
@@ -1132,7 +1100,7 @@ Only display providers and models that the running backend actually supports. En
 | Google Places | Business/location discovery | API key, enabled APIs, billing and usage restrictions |
 | CRM connector category | Lead/opportunity synchronisation if implemented | OAuth/API token, field mapping, conflict rules and sync ownership |
 | SEO / analytics connector category | Search and website performance reporting if implemented | Correct property/account access, date windows, scopes and sync status |
-| Mapping / routing category | Real-estate field visits and location-aware scheduling if implemented | API key, usage limits, location permission and routing capability |
+| Mapping / routing category | Optional, tenant-configured location-aware workflows | API key, usage limits, location permission and routing capability |
 
 ### 16.3 Connector lifecycle
 
