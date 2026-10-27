@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   CheckCircle2,
   XCircle,
@@ -54,6 +55,7 @@ interface ApprovalItem {
   reviewed_by?: string | null;
   review_note?: string | null;
   action_fingerprint?: string | null;
+  action_binding?: Record<string, any> | null;
   execution_status?: string | null;
   execution_error?: string | null;
 }
@@ -82,6 +84,8 @@ export default function ApprovalsView({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showRawPayload, setShowRawPayload] = useState<Record<string, boolean>>({});
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [bindingDrafts, setBindingDrafts] = useState<Record<string, string>>({});
+  const [bindingSaveInProgress, setBindingSaveInProgress] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!token) return;
@@ -167,6 +171,46 @@ export default function ApprovalsView({
       loadData();
     } finally {
       setActionInProgress(null);
+    }
+  };
+
+
+  const saveActionBinding = async (item: ApprovalItem) => {
+    const raw = bindingDrafts[item.id];
+    if (!raw) {
+      notify('Enter the exact action binding JSON before saving.');
+      return;
+    }
+    let binding: Record<string, any>;
+    try {
+      binding = JSON.parse(raw);
+    } catch {
+      notify('Action binding must be valid JSON.');
+      return;
+    }
+    setBindingSaveInProgress(item.id);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/enterprise/approvals/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action_binding: binding }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        notify(err.detail || 'Failed to save action binding');
+        return;
+      }
+      notify('Action binding saved. Review state was reset; the action must be approved again.');
+      setBindingDrafts((prev) => {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
+      await loadData();
+    } catch {
+      notify('Network error saving action binding');
+    } finally {
+      setBindingSaveInProgress(null);
     }
   };
 
@@ -600,6 +644,47 @@ export default function ApprovalsView({
                           placeholder="e.g. Cleared with Marketing lead; tone verified."
                           className="h-8 text-xs bg-zinc-900/80 border-white/[0.08] focus:border-zinc-500 rounded-md"
                         />
+                      </div>
+                    )}
+
+
+                    {/* Exact action binding editor: saving resets the approval decision. */}
+                    {isPending && (
+                      <div className="space-y-2 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] uppercase tracking-wider text-amber-200 font-semibold">
+                            Exact action binding
+                          </span>
+                          {item.action_fingerprint && (
+                            <span className="text-[10px] text-emerald-300 font-mono">Fingerprint persisted</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-zinc-400">
+                          Bind this approval to one run, bot, tool, target, payload and policy version. Saving recalculates the fingerprint and resets any previous decision.
+                        </p>
+                        <Textarea
+                          value={bindingDrafts[item.id] ?? JSON.stringify(item.action_binding ?? {
+                            run_id: String(item.resource_id || ''),
+                            bot_id: '',
+                            tool_name: item.action_type,
+                            target: '',
+                            payload: {},
+                            policy_version: '1',
+                          }, null, 2)}
+                          onChange={(e) => setBindingDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                          className="min-h-40 text-xs font-mono bg-zinc-950 border-white/[0.1]"
+                          aria-label="Exact action binding JSON"
+                        />
+                        <div className="flex justify-end">
+                          <Button
+                            size="sm"
+                            onClick={() => saveActionBinding(item)}
+                            disabled={bindingSaveInProgress === item.id}
+                            className="text-xs"
+                          >
+                            {bindingSaveInProgress === item.id ? 'Saving…' : 'Save binding and reset review'}
+                          </Button>
+                        </div>
                       </div>
                     )}
 
