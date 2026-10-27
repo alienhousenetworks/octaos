@@ -284,22 +284,34 @@ class AgentRuntime:
     def _resolve_agent(
         self, db: Session, tenant_id: str, agent_id: str, agent_version_id: Optional[str]
     ) -> tuple[Optional[AgentDefinition], Optional[AgentVersion]]:
-        # Query by UUID id or slug or name
-        agent = db.query(AgentDefinition).filter(
+        slug_key = agent_id.lower().replace(" ", "_")
+        matches = db.query(AgentDefinition).filter(
             (AgentDefinition.id == agent_id)
-            | (AgentDefinition.slug == agent_id.lower().replace(" ", "_"))
+            | (AgentDefinition.slug == slug_key)
             | (AgentDefinition.name == agent_id)
         ).filter(
             (AgentDefinition.tenant_id == tenant_id) | (AgentDefinition.tenant_id == None)
-        ).first()
+        ).all()
 
-        if not agent:
+        if not matches:
             # If not in agents table yet, check seeder or create ephemeral system record
             from app.services.agents.seeder import seed_system_agents
             seed_system_agents(db)
-            agent = db.query(AgentDefinition).filter(
-                (AgentDefinition.name == agent_id) | (AgentDefinition.slug == agent_id.lower().replace(" ", "_"))
-            ).first()
+            matches = db.query(AgentDefinition).filter(
+                (AgentDefinition.name == agent_id) | (AgentDefinition.slug == slug_key)
+            ).filter(
+                (AgentDefinition.tenant_id == tenant_id) | (AgentDefinition.tenant_id == None)
+            ).all()
+
+        # A tenant override shares the system slug. Prefer it so saved
+        # instructions apply to this tenant only. A request that still
+        # addresses the shared system id follows the same override.
+        owned = [item for item in matches if item.tenant_id == tenant_id]
+        agent = owned[0] if owned else (matches[0] if matches else None)
+        if agent and agent.tenant_id is None:
+            override = db.query(AgentDefinition).filter_by(tenant_id=tenant_id, slug=agent.slug).first()
+            if override:
+                agent = override
 
         if not agent:
             return None, None

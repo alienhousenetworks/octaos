@@ -142,8 +142,15 @@ def parse_prompt_icp(prompt: str) -> PromptICP:
         icp.summary = f"Targeting {icp.buyer} in {icp.geography} for {icp.service} ({icp.intent}, Budget: {icp.price}, Freshness: {icp.freshness})"
         return icp
 
+    # Keep the user's own request when none of the known offer patterns match.
+    # A general instruction must not be replaced by the website-development default.
+    compact = re.sub(r"\s+", " ", text)
+    compact = compact.split(". ")[0].strip()
+    if len(compact) > 140:
+        compact = compact[:137].rstrip() + "..."
+
     # 1. Service extraction
-    service = "Website Development"
+    service = None
     if re.search(r"\b(mobile app|flutter|react native|ios|android)\b", text, re.IGNORECASE):
         service = "Mobile App Development"
     elif re.search(r"\b(ui/ux|figma|product design|web design)\b", text, re.IGNORECASE):
@@ -152,6 +159,8 @@ def parse_prompt_icp(prompt: str) -> PromptICP:
         service = "SEO & Growth Marketing"
     elif re.search(r"\b(web(?:site)?\s*(?:development|build|redesign|dev))\b", text, re.IGNORECASE):
         service = "Website Development"
+    else:
+        service = compact or "Requested service"
 
     # 2. Price / Budget extraction
     price = None
@@ -164,10 +173,10 @@ def parse_prompt_icp(prompt: str) -> PromptICP:
         if m:
             price = f"₹{m.group(1).strip()}"
     if not price:
-        price = "₹50,000"
+        price = "unspecified"
 
     # 3. Geography extraction
-    geography = "India"
+    geography = None
     if re.search(r"\b(united states|usa|us|u\.s\.)\b", text, re.IGNORECASE):
         geography = "United States"
     elif re.search(r"\b(united kingdom|uk|london)\b", text, re.IGNORECASE):
@@ -178,34 +187,43 @@ def parse_prompt_icp(prompt: str) -> PromptICP:
         geography = "Australia"
     elif re.search(r"\b(india|mumbai|delhi|bangalore|bengaluru|pune|hyderabad)\b", text, re.IGNORECASE):
         geography = "India"
+    else:
+        geography = "unspecified"
 
     # 4. Freshness extraction
-    freshness = "7 days"
+    freshness = None
     m_fresh = re.search(r"\b(\d+)\s*(days?|hours?|weeks?|months?)\b", text, re.IGNORECASE)
     if m_fresh:
         freshness = f"{m_fresh.group(1)} {m_fresh.group(2).lower()}"
     elif re.search(r"\b(recent|fresh|this week|last 7 days)\b", text, re.IGNORECASE):
         freshness = "7 days"
+    else:
+        freshness = "unspecified"
 
     # 5. Buyer Role extraction
-    buyer = "Founder/Business Owner"
+    buyer = None
     if re.search(r"\b(vp\s+sales|cro|head\s+of\s+sales)\b", text, re.IGNORECASE):
         buyer = "VP Sales"
     elif re.search(r"\b(cmo|head\s+of\s+marketing|marketing\s+director)\b", text, re.IGNORECASE):
         buyer = "Head of Marketing"
     elif re.search(r"\b(cto|vp\s+engineering|tech\s+lead)\b", text, re.IGNORECASE):
         buyer = "CTO"
-    elif re.search(r"\b(founder|co-founder|ceo|owner|business\s+owner|managing\s+director|director)\b", text, re.IGNORECASE):
+    elif re.search(r"\b(founders?|co-founders?|ceo|owners?|business\s+owners?|managing\s+directors?|directors?)\b", text, re.IGNORECASE):
         buyer = "Founder/Business Owner"
+    else:
+        buyer = "Decision maker"
 
-    # 6. Intent extraction
-    intent = "Website Build/Redesign"
+    # 6. Intent extraction. Known website intents stay structured. Anything else
+    # keeps the user's sentence so discovery searches for what they asked.
+    intent = None
     if re.search(r"\b(redesign|revamp|rebuild)\b", text, re.IGNORECASE):
         intent = "Website Redesign"
     elif re.search(r"\b(new\s+website|build\s+a\s+website|create\s+website)\b", text, re.IGNORECASE):
         intent = "New Website Build"
     elif re.search(r"\b(hiring\s+web\s+developer|need\s+web\s+developer)\b", text, re.IGNORECASE):
         intent = "Hiring Web Developer"
+    else:
+        intent = compact or "Requested outcome"
 
     # 7. Exclusions
     exclusions = []

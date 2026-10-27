@@ -503,8 +503,9 @@ export default function SalesView({
   }, [token]);
 
   // Run Prompt-Based Sales Agent
-  const handleRunPromptAgent = async () => {
-    if (!promptDirective.trim()) {
+  const handleRunPromptAgent = async (override?: string) => {
+    const directive = (typeof override === 'string' ? override : promptDirective).trim();
+    if (!directive) {
       notify('Please enter a research prompt directive first.');
       return;
     }
@@ -514,7 +515,7 @@ export default function SalesView({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: promptDirective,
+          prompt: directive,
           count: promptLeadCount || 50,
           freshness: promptFreshness || '30_days',
           provider: selectedProvider !== 'auto' ? selectedProvider : 'auto',

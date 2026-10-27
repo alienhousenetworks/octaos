@@ -58,6 +58,7 @@ export default function AgentDetailView({
 
   // Configuration edit state
   const [configPrompt, setConfigPrompt] = useState('');
+  const promptDraftRef = React.useRef('');
   const [configModel, setConfigModel] = useState('');
   const [configProvider, setConfigProvider] = useState('openrouter');
   const [configTemp, setConfigTemp] = useState(0.7);
@@ -72,6 +73,7 @@ export default function AgentDetailView({
       if (res.ok) {
         const data = await res.json();
         setAgent(data);
+        promptDraftRef.current = data.system_prompt || '';
         setConfigPrompt(data.system_prompt || '');
         setConfigModel(data.model || 'meta-llama/llama-3.3-70b-instruct');
         setConfigProvider(data.provider || 'openrouter');
@@ -84,6 +86,7 @@ export default function AgentDetailView({
           const match = allAgents.find((a) => a.id === agentId || a.slug === agentId);
           if (match) {
             setAgent(match);
+            promptDraftRef.current = match.system_prompt || '';
             setConfigPrompt(match.system_prompt || '');
             setConfigModel(match.model || 'meta-llama/llama-3.3-70b-instruct');
             setConfigProvider(match.provider || 'openrouter');
@@ -125,15 +128,16 @@ export default function AgentDetailView({
     }
   }, [activeTab, loadActivity]);
 
-  const handleSaveConfig = async () => {
+  const handleSaveConfig = async (override?: string) => {
     if (!agent) return;
+    const systemPrompt = typeof override === 'string' ? override : (promptDraftRef.current || configPrompt);
     setSavingConfig(true);
     try {
       const res = await fetchWithAuth(`${API_URL}/dashboard/agents/${agent.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          system_prompt: configPrompt,
+          system_prompt: systemPrompt,
           model: configModel,
           provider: configProvider,
           temperature: configTemp,
@@ -397,7 +401,10 @@ export default function AgentDetailView({
             </div>
             <Button
               type="button"
-              onClick={handleSaveConfig}
+              onClick={(event) => {
+                const field = event.currentTarget.closest('.rounded-2xl')?.querySelector('textarea');
+                void handleSaveConfig(field?.value);
+              }}
               disabled={savingConfig}
               className="rounded-xl px-4 text-xs font-semibold"
             >
@@ -451,7 +458,10 @@ export default function AgentDetailView({
             <label className="text-xs font-semibold text-gray-300">System Prompt Directive</label>
             <Textarea
               value={configPrompt}
-              onChange={(e) => setConfigPrompt(e.target.value)}
+              onChange={(e) => {
+                promptDraftRef.current = e.target.value;
+                setConfigPrompt(e.target.value);
+              }}
               className="min-h-[220px] rounded-xl border-gray-800 bg-gray-900/80 text-xs text-white font-mono leading-relaxed"
             />
           </div>

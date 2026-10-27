@@ -51,6 +51,9 @@ api_router.include_router(enterprise.router, prefix="/enterprise", tags=["enterp
 api_router.include_router(manager.router, prefix="/manager", tags=["manager"])
 api_router.include_router(federated_learning.router, prefix="/learning", tags=["federated-learning"])
 api_router.include_router(orchestrator_router, prefix="/octa", tags=["octa-orchestrator"])
+# The assistant calls /orchestrator/execute. The router already carries the
+# /orchestrator prefix, so this mount is /api/v1/orchestrator/execute.
+api_router.include_router(orchestrator_router, tags=["orchestrator"])
 api_router.include_router(data_intelligence_router, tags=["orchestra-data-intelligence"])
 api_router.include_router(deal_rooms.router, prefix="/deal-rooms", tags=["deal-rooms"])
 api_router.include_router(sales_manager.router, prefix="/sales-manager", tags=["sales-manager"])

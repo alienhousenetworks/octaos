@@ -1,6 +1,7 @@
 'use client';
 
 import { notify } from '@/lib/notify';
+import { createId } from '@/lib/id';
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -139,7 +140,7 @@ export default function OrchestratorView({
     try {
       const body = new FormData();
       body.append('title', `Orchestrator data analysis — ${new Date().toLocaleDateString()}`);
-      body.append('idempotency_key', crypto.randomUUID());
+      body.append('idempotency_key', createId());
       uploaded.forEach(file => body.append('files', file, (file as File & {webkitRelativePath?: string}).webkitRelativePath || file.name));
       const response = await fetchWithAuth(`${API_URL}/data-intelligence/runs`, { method: 'POST', body });
       const result = await response.json().catch(() => ({}));
@@ -169,8 +170,9 @@ export default function OrchestratorView({
     } finally { setAnalyzingFiles(false); }
   }, [analysisFiles, analyzingFiles, API_URL, fetchWithAuth]);
 
-  const handleRunCommand = React.useCallback(async () => {
-    const inputText = orchInput.trim() || prompt.trim();
+  const handleRunCommand = React.useCallback(async (override?: string) => {
+    const typed = typeof override === 'string' ? override : orchInput;
+    const inputText = typed.trim() || prompt.trim();
     if (!inputText) return;
 
     const timestamp = new Date().toISOString();
@@ -205,15 +207,29 @@ export default function OrchestratorView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = typeof data?.detail === 'string'
+          ? data.detail
+          : `The request failed (${res.status}). No result was produced.`;
+        setOrchMessages((prev) => [...prev, {
+          id: `error-${Date.now()}`,
+          role: 'assistant',
+          content: detail,
+          timestamp: new Date().toISOString(),
+        }]);
+        return;
+      }
 
+      const answer =
+        data.results?.map((r: any) => r.message || r.status).filter(Boolean).join('\n') ||
+        data.briefing?.briefing_text ||
+        data.plan?.message ||
+        '';
       const assistantMsg = {
         id: `assistant-${Date.now()}`,
         role: 'assistant',
-        content:
-          data.results?.map((r: any) => r.message || r.status).join('\n') ||
-          data.briefing?.briefing_text ||
-          'Task processed successfully.',
+        content: answer || 'The model returned no text for that request.',
         plan: data.plan,
         results: data.results,
         briefing: data.briefing,
@@ -375,7 +391,7 @@ export default function OrchestratorView({
                         setOrchProvider(val);
                         if (val === 'openrouter') setOrchModel('meta-llama/llama-3.3-70b-instruct');
                         else if (val === 'together') setOrchModel('meta-llama/Llama-3.3-70B-Instruct-Turbo');
-                        else if (val === 'groq') setOrchModel('llama-3.3-70b-versatile');
+                        else if (val === 'groq') setOrchModel('openai/gpt-oss-120b');
                         else if (val === 'grok') setOrchModel('grok-2-latest');
                         else if (val === 'anthropic') setOrchModel('claude-sonnet-4-6');
                         else if (val === 'openai') setOrchModel('gpt-4o');
@@ -441,7 +457,7 @@ export default function OrchestratorView({
                       )}
                       {orchProvider === 'groq' && (
                         <>
-                          <SelectItem value="llama-3.3-70b-versatile">Llama 3.3 70B</SelectItem>
+                          <SelectItem value="openai/gpt-oss-120b">GPT OSS 120B</SelectItem>
                           <SelectItem value="llama-3.1-8b-instant">Llama 3.1 8B Instant</SelectItem>
                           <SelectItem value="mixtral-8x7b-32768">Mixtral 8x7B</SelectItem>
                         </>
@@ -1052,7 +1068,7 @@ export default function OrchestratorView({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
-                        handleRunCommand();
+                        void handleRunCommand((e.target as HTMLTextAreaElement).value);
                       }
                     }}
                     className="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary rounded-lg text-sm min-h-[44px] max-h-[120px] resize-none pr-3 py-2.5"
@@ -1060,7 +1076,10 @@ export default function OrchestratorView({
                   />
                 </div>
                 <Button
-                  onClick={handleRunCommand}
+                  onClick={(event) => {
+                    const field = event.currentTarget.parentElement?.querySelector('textarea');
+                    void handleRunCommand(field?.value);
+                  }}
                   disabled={loading || !orchInput.trim()}
                   className="h-11 px-4 rounded-lg flex items-center justify-center gap-1.5 font-medium shrink-0"
                 >

@@ -269,6 +269,18 @@ def test_parse_prompt_icp_extracts_structured_fields():
     assert len(icp.summary.split()) < 30
 
 
+def test_parse_prompt_icp_keeps_a_non_website_intention():
+    prompt = "Find dental clinics in Dubai that need patient reminder software."
+    icp = parse_prompt_icp(prompt)
+
+    assert "Website" not in icp.service
+    assert "Website" not in icp.intent
+    assert "patient reminder" in icp.service.lower()
+    assert icp.geography == "UAE"
+    assert icp.price == "unspecified"
+    assert "₹50,000" not in icp.summary
+
+
 # ---------------------------------------------------------------------------
 # 6. Pipeline Stage Metrics & Logging (Phase 8)
 # ---------------------------------------------------------------------------

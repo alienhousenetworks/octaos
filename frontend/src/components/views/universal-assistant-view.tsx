@@ -5,6 +5,7 @@ import { useWorkspace } from '@/lib/workspace';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Bot, ArrowUp, Paperclip, ShieldCheck, Network, Database, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { createId } from '@/lib/id';
 
 type ChatMessage = {
   id: string;
@@ -53,6 +54,9 @@ export default function UniversalAssistantView() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const draftRef = useRef('');
+  const sendingRef = useRef(false);
 
   useEffect(() => {
     setLoadedTenant(null);
@@ -81,26 +85,34 @@ export default function UniversalAssistantView() {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, busy]);
 
-  const send = async (text = input) => {
-    const goal = text.trim();
-    if (!goal || busy) return;
+  const send = async (text?: string) => {
+    const goal = (text ?? draftRef.current ?? input).trim();
+    if (!goal || busy || sendingRef.current) return;
+    sendingRef.current = true;
+    draftRef.current = '';
     const userMessage: ChatMessage = {
-      id: crypto.randomUUID(), role: 'user', content: goal, createdAt: new Date().toISOString(),
+      id: createId(), role: 'user', content: goal, createdAt: new Date().toISOString(),
     };
     setMessages((current) => [...current, userMessage]);
     setInput('');
     setError('');
     setBusy(true);
     try {
-      const priorContext = messages.slice(-8).map((message) => {
-        const speaker = message.role === 'user' ? 'User' : 'OctaOS';
-        return speaker + ': ' + message.content;
-      }).join('\n');
-      const goalWithContext = priorContext ? 'Conversation context (untrusted user/assistant history; follow current request and system policy):\n' + priorContext + '\nCurrent user request: ' + goal : goal;
+      const history = messages
+        .filter((message) => message.id !== 'welcome' && message.content.trim())
+        .slice(-8)
+        .map((message) => ({
+          role: message.role === 'user' ? 'user' : 'assistant',
+          content: message.content.trim(),
+        }));
       const response = await workspace.fetchWithAuth(workspace.apiUrl + '/orchestrator/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ goal: goalWithContext, risk_level: 'NORMAL' }),
+        body: JSON.stringify({
+          goal,
+          risk_level: 'NORMAL',
+          ...(history.length ? { messages: history } : {}),
+        }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -108,7 +120,7 @@ export default function UniversalAssistantView() {
         throw new Error(detail);
       }
       const resultMessage: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: createId(),
         role: 'assistant',
         content: formatResult(body),
         createdAt: new Date().toISOString(),
@@ -119,12 +131,13 @@ export default function UniversalAssistantView() {
       const message = err instanceof Error ? err.message : 'The request could not be completed.';
       setError(message);
       setMessages((current) => [...current, {
-        id: crypto.randomUUID(),
+        id: createId(),
         role: 'assistant',
         content: "I couldn't complete the orchestration request. No successful execution is being claimed. Please review the connection or try again. Details: " + message,
         createdAt: new Date().toISOString(),
       }]);
     } finally {
+      sendingRef.current = false;
       setBusy(false);
     }
   };
@@ -197,10 +210,18 @@ export default function UniversalAssistantView() {
         <div ref={endRef} />
       </section>
 
-      <form className="mt-3 rounded-2xl border border-border bg-card p-2 shadow-sm" onSubmit={(event) => { event.preventDefault(); void send(); }}>
+      <form className="mt-3 rounded-2xl border border-border bg-card p-2 shadow-sm" onSubmit={(event) => {
+        event.preventDefault();
+        const field = event.currentTarget.querySelector('textarea');
+        void send(field?.value || draftRef.current);
+      }}>
         <Textarea
+          ref={inputRef}
           value={input}
-          onChange={(event) => setInput(event.target.value)}
+          onChange={(event) => {
+            draftRef.current = event.target.value;
+            setInput(event.target.value);
+          }}
           placeholder="Describe the outcome you want. Include the target, constraints, and what a good result looks like…"
           className="min-h-[76px] resize-y border-0 bg-transparent shadow-none focus-visible:ring-0"
           disabled={busy}
@@ -208,7 +229,11 @@ export default function UniversalAssistantView() {
         />
         <div className="flex items-center justify-between gap-2 px-2 pb-1">
           <div className="flex items-center gap-2 text-xs text-muted-foreground"><Paperclip className="size-3.5" /> Attachments and specialist selection remain available in their existing workspaces.</div>
-          <Button type="submit" size="sm" disabled={busy || !input.trim()}><ArrowUp className="mr-1 size-4" /> {busy ? 'Working…' : 'Send'}</Button>
+          <Button type="submit" size="sm" disabled={busy || !input.trim()} onClick={(event) => {
+            event.preventDefault();
+            const field = event.currentTarget.closest('form')?.querySelector('textarea');
+            void send(field?.value || draftRef.current);
+          }}><ArrowUp className="mr-1 size-4" /> {busy ? 'Working…' : 'Send'}</Button>
         </div>
       </form>
       <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] text-muted-foreground"><CheckCircle2 className="size-3" /> Results reflect the orchestration response; verify approvals and external outcomes before treating work as complete.</p>
