@@ -248,8 +248,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <Button
                 type="button"
                 size="sm"
-                variant={interfaceMode === 'bot' ? 'default' : 'outline'}
-                aria-pressed={interfaceMode === 'bot'}
+                variant="outline"
+                aria-pressed={false}
                 onClick={() => setMode('bot')}
                 className="h-8 gap-1.5 px-2.5"
                 title="Show the AI chat on this page"
@@ -261,8 +261,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <Button
                 type="button"
                 size="sm"
-                variant={interfaceMode === 'classic' ? 'default' : 'ghost'}
-                aria-pressed={interfaceMode === 'classic'}
+                variant="default"
+                aria-pressed={true}
                 onClick={() => setMode('classic')}
                 className="h-8 gap-1.5 px-2.5"
                 title="Show the classic layout on this page"
