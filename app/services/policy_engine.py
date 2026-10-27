@@ -218,7 +218,8 @@ class PolicyEngine:
             raise ValueError(f"Approval already {approval.status}")
         binding_tool = str((approval.action_binding or {}).get("tool_name") or approval.action_type)
         from app.services.runtime_governance.tool_policy import HIGH_RISK_ACTION_PREFIXES
-        if approve and any(binding_tool == prefix or binding_tool.startswith(prefix) for prefix in HIGH_RISK_ACTION_PREFIXES):
+        legacy_high_risk_types = {"first_touch_email", "public_post", "price_quote", "refund", "linkedin_dm"}
+        if approve and (binding_tool in legacy_high_risk_types or any(binding_tool == prefix or binding_tool.startswith(prefix) for prefix in HIGH_RISK_ACTION_PREFIXES)):
             if not approval.action_fingerprint or not approval.action_binding:
                 raise ValueError("High-risk approval requires a persisted exact action binding; edit/recreate the approval with one.")
 
