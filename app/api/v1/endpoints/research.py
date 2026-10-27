@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -133,54 +134,104 @@ def _public_job(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-@router.post("/search", status_code=status.HTTP_200_OK)
+@router.post("/search", status_code=status.HTTP_202_ACCEPTED)
 async def run_research_search(
     request: ResearchSearchRequest,
     db: Session = Depends(deps.get_db),
     user: User = Depends(require_permission(Resource.SETTINGS, Action.READ)),
 ) -> dict[str, Any]:
-    """Run a bounded, tenant-scoped search and persist its complete evidence record."""
+    """Queue a bounded search after persisting its tenant-scoped job record."""
     tenant_id = str(user.tenant_id or "")
     if not tenant_id:
         raise HTTPException(status_code=403, detail="A tenant context is required.")
     _require_durable_search_store(db)
-    service = EnterpriseWebResearchService(db=db, tenant_id=tenant_id)
+
+    job_id = str(uuid4())
+    geographies = request.geography or list(EnterpriseWebResearchService.DEFAULT_GEOGRAPHIES)
+    spec = {
+        "tenant_id": tenant_id,
+        "query": request.query,
+        "freshness": request.freshness,
+        "geography": geographies,
+        "industries": request.industries,
+        "buyer_roles": request.buyer_roles,
+        "exclusions": request.exclusions,
+        "budget_inr": request.budget_inr,
+        "monthly_limit_inr": request.budget_inr,
+    }
+    payload: dict[str, Any] = {
+        "job_id": job_id,
+        "status": "queued",
+        "spec": spec,
+        "tasks": [],
+        "records": [],
+        "assessments": [],
+        "ledger": [],
+        "notes": ["Research is queued for the existing OctaOS background worker."],
+        "expansion_done": False,
+        "expansion_round": 0,
+        "max_expansion_rounds": 3,
+        "suppressed_domains": [],
+        "run_limit": request.budget_inr,
+        "requested_count": request.count,
+    }
+    row = SearchV4Job(id=job_id, tenant_id=tenant_id, status="queued", payload=payload)
+    db.add(row)
+    db.commit()
+
+    options = {
+        "freshness": request.freshness,
+        "geography": geographies,
+        "industries": request.industries,
+        "buyer_roles": request.buyer_roles,
+        "exclusions": request.exclusions,
+        "budget_inr": request.budget_inr,
+    }
     try:
-        batch = await service.run(
-            request.query,
-            count=request.count,
-            freshness=request.freshness,
-            geography=request.geography,
-            industries=request.industries,
-            buyer_roles=request.buyer_roles,
-            exclusions=request.exclusions,
-            budget_inr=request.budget_inr,
-        )
-    except (ValueError, TypeError) as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except HTTPException:
-        raise
+        from app.worker.tasks import run_research_search_task
+
+        task_result = run_research_search_task.delay(tenant_id, job_id, request.query, options, False)
+        # Re-read before annotating the queue ID: eager/test workers may already
+        # have advanced the payload while .delay() was returning.
+        row = db.query(SearchV4Job).filter(
+            SearchV4Job.id == job_id,
+            SearchV4Job.tenant_id == tenant_id,
+        ).first()
+        if row is not None:
+            current_payload = dict(row.payload or {})
+            current_payload["queue_task_id"] = task_result.id
+            row.payload = current_payload
+            db.commit()
     except Exception as exc:
-        # Do not expose provider URLs, credentials, or raw upstream exception text.
+        db.rollback()
+        row = db.query(SearchV4Job).filter(
+            SearchV4Job.id == job_id,
+            SearchV4Job.tenant_id == tenant_id,
+        ).first()
+        if row is not None:
+            failed_payload = dict(row.payload or {})
+            failed_payload["status"] = "unavailable"
+            failed_payload["error_code"] = "RESEARCH_QUEUE_UNAVAILABLE"
+            failed_payload["notes"] = ["The background worker could not accept this research job."]
+            row.payload = failed_payload
+            row.status = "unavailable"
+            db.commit()
         raise HTTPException(
-            status_code=502,
-            detail={"code": "RESEARCH_EXECUTION_FAILED", "message": "The research run could not be completed."},
+            status_code=503,
+            detail={"code": "RESEARCH_QUEUE_UNAVAILABLE", "message": "The research worker is unavailable. The job was not started."},
         ) from exc
 
-    result = EnterpriseWebResearchService.summarize(batch, count=request.count)
-    result["tenant_id"] = tenant_id
-    result["counts"] = {
-        "tasks": len(batch.tasks),
-        "sources": len(batch.records),
-        "claims": len(batch.candidates),
-        "qualified": len(batch.qualified),
-        "rejected": len(batch.rejected),
+    row = db.query(SearchV4Job).filter(
+        SearchV4Job.id == job_id,
+        SearchV4Job.tenant_id == tenant_id,
+    ).first()
+    result = _public_job(row.payload or {}) if row is not None else {
+        "job_id": job_id,
+        "status": "queued",
+        "query": request.query,
     }
-    result["usage"] = [entry.model_dump(mode="json") for entry in batch.ledger]
-    result["notes"] = [
-        task.reason for task in batch.tasks
-        if task.reason and task.status in {"unavailable", "failed", "blocked"}
-    ]
+    result["requested_count"] = request.count
+    result["status_url"] = f"/research/jobs/{job_id}"
     return result
 
 
@@ -266,27 +317,52 @@ async def resume_research_job(
                 status_code=409,
                 detail="This research job was updated recently and may still be running. Wait before attempting recovery.",
             )
-    service = EnterpriseWebResearchService(db=db, tenant_id=tenant_id)
+    payload = dict(row.payload or {})
+    query = str((payload.get("spec") or {}).get("query") or "")
+    if not query:
+        raise HTTPException(status_code=409, detail="Research job has no recoverable request specification.")
+    payload["status"] = "queued"
+    payload["notes"] = list(payload.get("notes") or []) + ["Recovery was queued for the background worker."]
+    row.payload = payload
+    row.status = "queued"
+    db.commit()
     try:
-        batch = await service.resume(job_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail="Research job not found.") from exc
+        from app.worker.tasks import run_research_search_task
+
+        task_result = run_research_search_task.delay(tenant_id, job_id, query, {}, True)
+        row = db.query(SearchV4Job).filter(
+            SearchV4Job.id == job_id,
+            SearchV4Job.tenant_id == tenant_id,
+        ).first()
+        if row is not None:
+            current_payload = dict(row.payload or {})
+            current_payload["queue_task_id"] = task_result.id
+            row.payload = current_payload
+            db.commit()
     except Exception as exc:
+        db.rollback()
+        row = db.query(SearchV4Job).filter(
+            SearchV4Job.id == job_id,
+            SearchV4Job.tenant_id == tenant_id,
+        ).first()
+        if row is not None:
+            failed_payload = dict(row.payload or {})
+            failed_payload["status"] = "failed"
+            failed_payload["error_code"] = "RESEARCH_QUEUE_UNAVAILABLE"
+            row.payload = failed_payload
+            row.status = "failed"
+            db.commit()
         raise HTTPException(
-            status_code=502,
-            detail={"code": "RESEARCH_RESUME_FAILED", "message": "The research job could not be resumed."},
+            status_code=503,
+            detail={"code": "RESEARCH_QUEUE_UNAVAILABLE", "message": "The research worker could not resume this job."},
         ) from exc
-    result = EnterpriseWebResearchService.summarize(batch)
-    result["counts"] = {
-        "tasks": len(batch.tasks),
-        "sources": len(batch.records),
-        "claims": len(batch.candidates),
-        "qualified": len(batch.qualified),
-        "rejected": len(batch.rejected),
+    return {
+        "job_id": job_id,
+        "status": "queued",
+        "query": query,
+        "resumed": True,
+        "status_url": f"/research/jobs/{job_id}",
     }
-    result["usage"] = [entry.model_dump(mode="json") for entry in batch.ledger]
-    result["resumed"] = True
-    return result
 
 
 @router.get("/providers")
