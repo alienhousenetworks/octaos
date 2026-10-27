@@ -177,6 +177,31 @@ export default function ResearchWorkspacePage() {
     }
   };
 
+  const resumeJob = async (jobId: string) => {
+    setError('');
+    setLoading(true);
+    try {
+      const response = await workspace.fetchWithAuth(workspace.apiUrl + '/research/jobs/' + encodeURIComponent(jobId) + '/resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const detail = typeof body.detail === 'string' ? body.detail : 'Research job could not be resumed (' + response.status + ').';
+        throw new Error(detail);
+      }
+      const detailResponse = await workspace.fetchWithAuth(workspace.apiUrl + '/research/jobs/' + encodeURIComponent(jobId));
+      if (detailResponse.ok) setResult(await detailResponse.json() as ResearchResult);
+      else setResult(body as ResearchResult);
+      await loadWorkspaceData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Research job could not be resumed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const runSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const cleanedQuery = query.trim();
@@ -390,7 +415,14 @@ export default function ResearchWorkspacePage() {
               <h2 className="text-xl font-semibold">{result.query}</h2>
               <p className="mt-1 text-sm text-muted-foreground">Run ID: <span className="font-mono text-xs">{result.job_id}</span></p>
             </div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium"><Activity className="size-3.5" /> {statusLabel(result.status)}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {['running', 'failed'].includes((result.status || '').toLowerCase()) && (
+                <button type="button" disabled={loading} onClick={() => void resumeJob(result.job_id)} className="inline-flex h-9 items-center gap-2 rounded-lg border border-primary/25 px-3 text-xs font-medium text-primary transition hover:bg-primary/5 disabled:opacity-50">
+                  {loading ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />} Resume run
+                </button>
+              )}
+              <span className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium"><Activity className="size-3.5" /> {statusLabel(result.status)}</span>
+            </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-4">
             {[
