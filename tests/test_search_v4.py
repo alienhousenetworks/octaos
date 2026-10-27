@@ -610,3 +610,52 @@ def test_research_job_lookup_is_scoped_to_the_authenticated_tenant():
     finally:
         session.close()
         engine.dispose()
+
+
+def test_research_api_persists_before_enqueuing_background_work(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+    from app.api.v1 import endpoints
+    from app.api.v1.endpoints import research as research_api
+    from app.models.base import Tenant
+    from app.models.search_v4 import SearchV4Job, SearchV4LedgerRow, SearchV4TaskRow
+    from app.services.sales_os.search_v4.store import SqlSearchStore
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    engine = create_engine("sqlite://")
+    Tenant.__table__.create(engine)
+    SearchV4Job.__table__.create(engine)
+    SearchV4TaskRow.__table__.create(engine)
+    SearchV4LedgerRow.__table__.create(engine)
+    session = sessionmaker(bind=engine)()
+    try:
+        session.add(Tenant(id="tenant-queue", name="Queue Test"))
+        session.commit()
+        monkeypatch.setattr(research_api, "_require_durable_search_store", lambda db: SqlSearchStore(db))
+        from app.worker.tasks import run_research_search_task
+        queued = {}
+        def fake_delay(*args, **kwargs):
+            queued["args"] = args
+            return SimpleNamespace(id="celery-task-1")
+        monkeypatch.setattr(run_research_search_task, "delay", fake_delay)
+
+        request = research_api.ResearchSearchRequest(query="Find ERP market evidence")
+        response = asyncio.run(
+            research_api.run_research_search(
+                request,
+                db=session,
+                user=SimpleNamespace(tenant_id="tenant-queue"),
+            )
+        )
+        row = session.query(SearchV4Job).filter_by(id=response["job_id"], tenant_id="tenant-queue").first()
+        assert response["status"] == "queued"
+        assert row is not None
+        assert row.status == "queued"
+        assert row.payload["spec"]["query"] == "Find ERP market evidence"
+        assert row.payload["queue_task_id"] == "celery-task-1"
+        assert queued["args"][0:3] == ("tenant-queue", response["job_id"], "Find ERP market evidence")
+    finally:
+        session.close()
+        engine.dispose()
