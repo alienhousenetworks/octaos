@@ -1699,6 +1699,11 @@ def execute_approved_tool(self, approval_id: str, tenant_id: str):
             db.commit()
             return {"status": "failed", "reason": approval.execution_error}
         binding = approval.action_binding
+        if str(version.agent_id) != str(binding.get("bot_id") or ""):
+            approval.execution_status = "failed"
+            approval.execution_error = "APPROVED_BOT_DOES_NOT_MATCH_AGENT_VERSION"
+            db.commit()
+            return {"status": "failed", "reason": approval.execution_error}
         tool_name = str(binding.get("tool_name") or "")
         tool_payload = binding.get("payload")
         if not tool_name or not isinstance(tool_payload, dict):
