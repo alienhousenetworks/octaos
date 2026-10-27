@@ -1,20 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-  Wrench,
-  Search,
-  Mail,
-  TrendingUp,
-  MessageSquare,
   Shield,
-  Zap,
-  CheckCircle2,
-  AlertTriangle,
   Lock,
   Loader2,
+  ChevronDown,
 } from 'lucide-react';
 import { AgentItem, ToolGrant } from '@/lib/agent-types';
 import { notify } from '@/lib/notify';
@@ -93,6 +86,39 @@ export default function AgentToolGrants({
 }: AgentToolGrantsProps) {
   const [grantedTools, setGrantedTools] = useState<string[]>(agent.tools || []);
   const [saving, setSaving] = useState(false);
+  const [showAllTools, setShowAllTools] = useState(false);
+
+  // Keep the editor in sync when the selected agent changes or is refreshed.
+  useEffect(() => {
+    setGrantedTools(agent.tools || []);
+  }, [agent.id, agent.tools]);
+
+  const departmentKey = useMemo(() => {
+    const identity = [agent.department, agent.name, agent.role, agent.description]
+      .filter(Boolean).join(' ').toLowerCase();
+    if (/market|growth|content|brand|campaign/.test(identity)) return 'marketing';
+    if (/support|service|customer success|ticket/.test(identity)) return 'support';
+    if (/sales|revenue|business development|prospect|crm/.test(identity)) return 'sales';
+    if (/human resource|\bhr\b|recruit|people operations|talent/.test(identity)) return 'hr';
+    return 'general';
+  }, [agent.department, agent.name, agent.role, agent.description]);
+
+  const relevantToolIds: Record<string, string[]> = {
+    marketing: ['web_search', 'knowledge.search', 'email.send', 'webhook_post'],
+    sales: ['web_search', 'lead.create', 'lead.update', 'email.send', 'knowledge.search', 'webhook_post'],
+    support: ['web_search', 'knowledge.search', 'ticket.reply', 'webhook_post'],
+    hr: ['knowledge.search', 'webhook_post'],
+    general: ['web_search', 'knowledge.search', 'webhook_post'],
+  };
+
+  // Never hide an already-granted capability: existing grants remain visible for review.
+  // The catalog is narrowed to this agent's domain by default; the full catalog is opt-in.
+  const visibleTools = useMemo(() => {
+    const relevant = relevantToolIds[departmentKey] || relevantToolIds.general;
+    return CATALOG_TOOLS.filter((tool) =>
+      showAllTools || relevant.includes(tool.id) || grantedTools.includes(tool.id)
+    );
+  }, [departmentKey, showAllTools, grantedTools]);
 
   const toggleTool = (toolId: string) => {
     if (grantedTools.includes(toolId)) {
@@ -131,9 +157,9 @@ export default function AgentToolGrants({
     <div className="space-y-6">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-white">Tool Grants & Governance Policy</h3>
+          <h3 className="text-sm font-semibold text-white">Agent Tool Access</h3>
           <p className="text-xs text-muted-foreground">
-            Configure authorized tool access, risk classifications, and human approval enforcement.
+            Review the capabilities assigned to {agent.name}. Platform-wide risk and approval rules are enforced separately.
           </p>
         </div>
 
@@ -148,8 +174,18 @@ export default function AgentToolGrants({
         </Button>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-800 bg-gray-950/30 p-3">
+        <div>
+          <p className="text-xs font-medium text-white">{visibleTools.filter((tool) => relevantToolIds[departmentKey]?.includes(tool.id)).length} relevant capabilities shown</p>
+          <p className="text-[11px] text-muted-foreground">Unrelated tools are hidden by default. Existing grants remain visible.</p>
+        </div>
+        <Button type="button" variant="outline" size="sm" className="rounded-lg text-xs" onClick={() => setShowAllTools((value) => !value)}>
+          <ChevronDown className="mr-1.5 size-3.5" />
+          {showAllTools ? 'Show relevant tools' : 'Show full tool catalog'}
+        </Button>
+      </div>
       <div className="space-y-3">
-        {CATALOG_TOOLS.map((tool) => {
+        {visibleTools.map((tool) => {
           const isGranted = grantedTools.includes(tool.id);
 
           return (
