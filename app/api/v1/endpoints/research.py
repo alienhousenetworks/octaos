@@ -325,9 +325,22 @@ async def resume_research_job(
         raise HTTPException(status_code=409, detail="Research job has no recoverable request specification.")
     payload["status"] = "queued"
     payload["notes"] = list(payload.get("notes") or []) + ["Recovery was queued for the background worker."]
-    row.payload = payload
-    row.status = "queued"
+    previous_status = row.status
+    updated_rows = (
+        db.query(SearchV4Job)
+        .filter(
+            SearchV4Job.id == job_id,
+            SearchV4Job.tenant_id == tenant_id,
+            SearchV4Job.status == previous_status,
+        )
+        .update(
+            {"payload": payload, "status": "queued"},
+            synchronize_session=False,
+        )
+    )
     db.commit()
+    if updated_rows != 1:
+        raise HTTPException(status_code=409, detail="Research job changed while recovery was requested. Reload and retry.")
     try:
         from app.worker.tasks import run_research_search_task
 
