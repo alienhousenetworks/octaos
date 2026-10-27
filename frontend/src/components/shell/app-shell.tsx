@@ -47,10 +47,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const savedMode = localStorage.getItem('octaos-interface-mode');
-    setInterfaceMode(savedMode === 'classic' ? 'classic' : 'bot');
+    const routeMode = pathname === '/app/home' ? 'classic' : pathname === '/app/assistant' || pathname === '/app' ? 'bot' : null;
+    const nextMode = routeMode || (savedMode === 'classic' ? 'classic' : 'bot');
+    setInterfaceMode(nextMode);
+    if (routeMode) localStorage.setItem('octaos-interface-mode', routeMode);
     const stored = localStorage.getItem('octaos-sidebar-collapsed');
     if (stored === '1') setCollapsed(true);
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -247,7 +250,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 onClick={() => {
                   setInterfaceMode('bot');
                   localStorage.setItem('octaos-interface-mode', 'bot');
-                  router.push('/app/assistant');
+                  window.location.assign('/app/assistant');
                 }}
                 className="h-8 gap-1.5 px-2.5"
                 title="Use the bot-first AI workspace"
@@ -264,7 +267,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 onClick={() => {
                   setInterfaceMode('classic');
                   localStorage.setItem('octaos-interface-mode', 'classic');
-                  router.push('/app/home');
+                  window.location.assign('/app/home');
                 }}
                 className="h-8 gap-1.5 px-2.5"
                 title="Use the classic dashboard"
