@@ -161,8 +161,10 @@ async def run_research_search(
         "budget_inr": request.budget_inr,
         "monthly_limit_inr": request.budget_inr,
     }
+    queue_task_id = str(uuid4())
     payload: dict[str, Any] = {
         "job_id": job_id,
+        "queue_task_id": queue_task_id,
         "status": "queued",
         "spec": spec,
         "tasks": [],
@@ -192,18 +194,10 @@ async def run_research_search(
     try:
         from app.worker.tasks import run_research_search_task
 
-        task_result = run_research_search_task.delay(tenant_id, job_id, request.query, options, False)
-        # Re-read before annotating the queue ID: eager/test workers may already
-        # have advanced the payload while .delay() was returning.
-        row = db.query(SearchV4Job).filter(
-            SearchV4Job.id == job_id,
-            SearchV4Job.tenant_id == tenant_id,
-        ).first()
-        if row is not None:
-            current_payload = dict(row.payload or {})
-            current_payload["queue_task_id"] = task_result.id
-            row.payload = current_payload
-            db.commit()
+        run_research_search_task.apply_async(
+            args=[tenant_id, job_id, request.query, options, False],
+            task_id=queue_task_id,
+        )
     except Exception as exc:
         db.rollback()
         row = db.query(SearchV4Job).filter(
@@ -323,7 +317,9 @@ async def resume_research_job(
     query = str((payload.get("spec") or {}).get("query") or "")
     if not query:
         raise HTTPException(status_code=409, detail="Research job has no recoverable request specification.")
+    queue_task_id = str(uuid4())
     payload["status"] = "queued"
+    payload["queue_task_id"] = queue_task_id
     payload["notes"] = list(payload.get("notes") or []) + ["Recovery was queued for the background worker."]
     previous_status = row.status
     updated_rows = (
@@ -344,16 +340,10 @@ async def resume_research_job(
     try:
         from app.worker.tasks import run_research_search_task
 
-        task_result = run_research_search_task.delay(tenant_id, job_id, query, {}, True)
-        row = db.query(SearchV4Job).filter(
-            SearchV4Job.id == job_id,
-            SearchV4Job.tenant_id == tenant_id,
-        ).first()
-        if row is not None:
-            current_payload = dict(row.payload or {})
-            current_payload["queue_task_id"] = task_result.id
-            row.payload = current_payload
-            db.commit()
+        run_research_search_task.apply_async(
+            args=[tenant_id, job_id, query, {}, True],
+            task_id=queue_task_id,
+        )
     except Exception as exc:
         db.rollback()
         row = db.query(SearchV4Job).filter(
