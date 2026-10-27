@@ -54,6 +54,8 @@ interface ApprovalItem {
   reviewed_by?: string | null;
   review_note?: string | null;
   action_fingerprint?: string | null;
+  execution_status?: string | null;
+  execution_error?: string | null;
 }
 
 interface Metrics {
@@ -150,7 +152,8 @@ export default function ApprovalsView({
       });
 
       if (res.ok) {
-        notify(approve ? '✅ Action approved and dispatched to downstream pipeline' : '🚫 Action rejected');
+        const response = await res.json().catch(() => ({}));
+        notify(response.message || (approve ? 'Approval recorded' : 'Action rejected'));
         // Refresh metrics and current list
         loadData();
       } else {
@@ -500,6 +503,13 @@ export default function ApprovalsView({
                         <div className="text-xs text-amber-300/80 flex items-center gap-1.5 font-medium">
                           <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
                           <span>{item.policy_reason}</span>
+                        </div>
+                      )}
+                      {item.execution_status && (
+                        <div className="text-xs text-sky-300/90 flex items-center gap-1.5">
+                          <Clock className="w-3 h-3 shrink-0" />
+                          <span>Execution: {item.execution_status}</span>
+                          {item.execution_error && <span className="text-rose-300">— {item.execution_error}</span>}
                         </div>
                       )}
                     </div>
