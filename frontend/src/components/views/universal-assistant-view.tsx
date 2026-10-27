@@ -45,27 +45,37 @@ function formatResult(value: any): string {
 
 export default function UniversalAssistantView() {
   const workspace = useWorkspace();
+  const tenantKey = String(workspace.tenantId || 'default');
+  const storageKey = 'octaos-universal-assistant-messages:' + tenantKey;
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
+  const [loadedTenant, setLoadedTenant] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setLoadedTenant(null);
     try {
-      const raw = localStorage.getItem('octaos-universal-assistant-messages');
+      const raw = localStorage.getItem(storageKey);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length) setMessages(parsed);
+        setMessages(Array.isArray(parsed) && parsed.length ? parsed : [WELCOME]);
+      } else {
+        setMessages([WELCOME]);
       }
-    } catch { /* Ignore invalid local conversation cache. */ }
-  }, []);
+    } catch {
+      setMessages([WELCOME]);
+    }
+    setLoadedTenant(tenantKey);
+  }, [storageKey, tenantKey]);
 
   useEffect(() => {
+    if (loadedTenant !== tenantKey) return;
     try {
-      localStorage.setItem('octaos-universal-assistant-messages', JSON.stringify(messages.slice(-100)));
+      localStorage.setItem(storageKey, JSON.stringify(messages.slice(-100)));
     } catch { /* Storage can be unavailable or full; conversation still works in memory. */ }
-  }, [messages]);
+  }, [messages, loadedTenant, storageKey, tenantKey]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -140,7 +150,7 @@ export default function UniversalAssistantView() {
         <Button variant="outline" size="sm" onClick={() => {
           setMessages([WELCOME]);
           setError('');
-          try { localStorage.removeItem('octaos-universal-assistant-messages'); } catch { /* optional */ }
+          try { localStorage.removeItem(storageKey); } catch { /* optional */ }
         }}>New conversation</Button>
       </div>
 
