@@ -289,8 +289,8 @@ def edit_approval(
             approval.policy_version = None
         else:
             required = {"run_id", "bot_id", "tool_name", "target", "payload"}
-            if not required.issubset(binding) or not isinstance(binding.get("payload"), dict):
-                raise HTTPException(422, "action_binding requires run_id, bot_id, tool_name, target, and object payload")
+            if not required.issubset(binding) or not isinstance(binding.get("payload"), dict) or any(not str(binding.get(key) or "").strip() for key in ("run_id", "bot_id", "tool_name", "target")):
+                raise HTTPException(422, "action_binding requires non-empty run_id, bot_id, tool_name, target, and object payload")
             version = str(binding.get("policy_version") or "1")
             canonical = {
                 "run_id": str(binding["run_id"]), "bot_id": str(binding["bot_id"]),
