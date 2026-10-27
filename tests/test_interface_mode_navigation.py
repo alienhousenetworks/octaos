@@ -15,6 +15,10 @@ def test_interface_toggle_stays_on_the_current_page():
     assert "window.location" not in toggle
     assert "/app/assistant" not in toggle
     assert "/app/home" not in toggle
+    assert "if (interfaceMode === 'bot')" in source
+    shell = _source("frontend/src/components/shell/ai-workspace-shell.tsx")
+    assert "setMode('classic')" in shell
+    assert "window.location.assign('/app/home')" not in shell
 
 
 def test_overview_and_cockpit_follow_the_same_toggle():

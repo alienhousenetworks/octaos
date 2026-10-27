@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import CommandPalette from '@/components/shell/command-palette';
 import WorkforceActivity from '@/components/shell/workforce-activity';
+import AIWorkspaceShell from '@/components/shell/ai-workspace-shell';
 import { LoadingState } from '@/components/shell/states';
 import { useInterfaceMode } from '@/lib/interface-mode';
 import { crumbForPath, isItemActive, visibleGroups } from '@/lib/navigation';
@@ -189,6 +190,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
+
+  if (interfaceMode === 'bot') {
+    return <AIWorkspaceShell accountLabel={profile?.name || profile?.email}>{children}</AIWorkspaceShell>;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">

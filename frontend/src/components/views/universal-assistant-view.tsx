@@ -149,14 +149,14 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
   ];
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-9rem)] w-full max-w-5xl flex-col">
+    <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#7de56b]/20 bg-[#7de56b]/10 px-3 py-1 text-xs font-medium text-[#9af18b]">
             <Bot className="size-3.5" /> OctaOS AI Workforce
           </div>
           <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{title ? `${title} chat` : 'What would you like to get done?'}</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-white/50">
             Work with your specialist bots through one conversation. OctaOS can plan work, use available company context and coordinate supported capabilities. External actions remain subject to permissions and approval.
           </p>
         </div>
@@ -168,49 +168,49 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
       </div>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-border bg-card p-3">
-          <Database className="mb-2 size-4 text-primary" />
+        <div className="rounded-xl border border-white/[0.09] bg-[#131714] p-3">
+          <Database className="mb-2 size-4 text-[#8be977]" />
           <p className="text-sm font-medium">Company knowledge</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">Use authorized business information and flag missing details.</p>
+          <p className="mt-1 text-xs leading-5 text-white/50">Use authorized business information and flag missing details.</p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-3">
-          <Network className="mb-2 size-4 text-primary" />
+        <div className="rounded-xl border border-white/[0.09] bg-[#131714] p-3">
+          <Network className="mb-2 size-4 text-[#8be977]" />
           <p className="text-sm font-medium">Collaborative bots</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">Coordinate specialist capabilities when supported by the runtime.</p>
+          <p className="mt-1 text-xs leading-5 text-white/50">Coordinate specialist capabilities when supported by the runtime.</p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-3">
-          <ShieldCheck className="mb-2 size-4 text-primary" />
+        <div className="rounded-xl border border-white/[0.09] bg-[#131714] p-3">
+          <ShieldCheck className="mb-2 size-4 text-[#8be977]" />
           <p className="text-sm font-medium">Governed execution</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">Review plans and respect the authorization required for each action.</p>
+          <p className="mt-1 text-xs leading-5 text-white/50">Review plans and respect the authorization required for each action.</p>
         </div>
       </div>
 
-      <section aria-label="Conversation" className="flex-1 space-y-4 rounded-2xl border border-border bg-card p-4 md:p-6">
+      <section aria-label="Conversation" className="flex-1 space-y-4 rounded-2xl border border-white/[0.09] bg-[#101311] p-4 md:p-6">
         {messages.map((message) => (
           <div key={message.id} className={'flex ' + (message.role === 'user' ? 'justify-end' : 'justify-start')}>
-            <div className={'max-w-[92%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 md:max-w-[82%] ' + (message.role === 'user' ? 'bg-primary text-primary-foreground' : 'border border-border bg-background')}>
-              {message.role !== 'user' && <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Bot className="size-3.5" /> OctaOS</div>}
+            <div className={'max-w-[92%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 md:max-w-[82%] ' + (message.role === 'user' ? 'border border-[#7de56b]/15 bg-[#243a25] text-[#f2f7f0]' : 'border border-white/[0.09] bg-[#1a1e1b] text-[#edf1ec]')}>
+              {message.role !== 'user' && <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold text-white/50"><Bot className="size-3.5" /> OctaOS</div>}
               {message.content}
               {message.result !== undefined && (
-                <details className="mt-3 border-t border-border/70 pt-2">
-                  <summary className="cursor-pointer text-xs font-medium text-muted-foreground">Inspect execution response</summary>
-                  <pre className="mt-2 max-h-72 overflow-auto rounded-lg bg-muted p-3 text-xs leading-5">{JSON.stringify(message.result, null, 2)}</pre>
+                <details className="mt-3 border-t border-white/10 pt-2">
+                  <summary className="cursor-pointer text-xs font-medium text-white/50">Inspect execution response</summary>
+                  <pre className="mt-2 max-h-72 overflow-auto rounded-lg bg-black/30 p-3 text-xs leading-5">{JSON.stringify(message.result, null, 2)}</pre>
                 </details>
               )}
             </div>
           </div>
         ))}
-        {busy && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> OctaOS is processing your request…</div>}
+        {busy && <div className="flex items-center gap-2 text-sm text-white/50"><Loader2 className="size-4 animate-spin" /> OctaOS is processing your request…</div>}
         {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm"><AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" /><span>{error}</span></div>}
         {!busy && messages.length <= 1 && (
           <div className="flex flex-wrap gap-2 pt-2">
-            {suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => void send(suggestion)} className="rounded-xl border border-border px-3 py-2 text-left text-xs leading-5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">{suggestion}</button>)}
+            {suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => void send(suggestion)} className="rounded-xl border border-white/10 bg-white/[0.025] px-3 py-2 text-left text-xs leading-5 text-white/60 transition-colors hover:bg-white/[0.07] hover:text-white">{suggestion}</button>)}
           </div>
         )}
         <div ref={endRef} />
       </section>
 
-      <form className="mt-3 rounded-2xl border border-border bg-card p-2 shadow-sm" onSubmit={(event) => {
+      <form className="mt-3 rounded-2xl border border-white/[0.1] bg-[#131714] p-2 shadow-sm" onSubmit={(event) => {
         event.preventDefault();
         const field = event.currentTarget.querySelector('textarea');
         void send(field?.value || draftRef.current);
@@ -223,12 +223,12 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
             setInput(event.target.value);
           }}
           placeholder="Describe the outcome you want. Include the target, constraints, and what a good result looks like…"
-          className="min-h-[76px] resize-y border-0 bg-transparent shadow-none focus-visible:ring-0"
+          className="min-h-[76px] resize-y border-0 bg-transparent text-[#f2f5f1] shadow-none placeholder:text-white/35 focus-visible:ring-0"
           disabled={busy}
           aria-label="Message OctaOS"
         />
         <div className="flex items-center justify-between gap-2 px-2 pb-1">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground"><Paperclip className="size-3.5" /> Attachments and specialist selection remain available in their existing workspaces.</div>
+          <div className="flex items-center gap-2 text-xs text-white/50"><Paperclip className="size-3.5" /> Attachments and specialist selection remain available in their existing workspaces.</div>
           <Button type="submit" size="sm" disabled={busy || !input.trim()} onClick={(event) => {
             event.preventDefault();
             const field = event.currentTarget.closest('form')?.querySelector('textarea');
@@ -236,7 +236,7 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
           }}><ArrowUp className="mr-1 size-4" /> {busy ? 'Working…' : 'Send'}</Button>
         </div>
       </form>
-      <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] text-muted-foreground"><CheckCircle2 className="size-3" /> Results reflect the orchestration response; verify approvals and external outcomes before treating work as complete.</p>
+      <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] text-white/50"><CheckCircle2 className="size-3" /> Results reflect the orchestration response; verify approvals and external outcomes before treating work as complete.</p>
     </div>
   );
 }
