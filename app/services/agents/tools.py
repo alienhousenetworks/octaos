@@ -144,7 +144,35 @@ class ToolRegistry:
                 payload=payload,
                 policy_version=str(policy_context.get("policy_version") or "current"),
             )
-            approved_action_binding = policy_context.get("approved_action_binding")
+            # Resolve the approval from the database. Never trust an approval status or
+            # fingerprint supplied by a caller/UI context.
+            approval_id = policy_context.get("approval_id")
+            approved_action_binding = None
+            persisted_status = None
+            if approval_id:
+                from app.models.enterprise import ApprovalRequest
+                approval = db.query(ApprovalRequest).filter(
+                    ApprovalRequest.id == str(approval_id),
+                    ApprovalRequest.tenant_id == tenant_id,
+                ).with_for_update().first()
+                if approval:
+                    persisted_status = approval.status
+                    stored = approval.action_binding or {}
+                    # An approval is valid only for the same run, bot, tool, target,
+                    # payload and policy version. Legacy approvals without bindings fail closed.
+                    same_action = (
+                        approval.status == "approved"
+                        and approval.action_fingerprint
+                        and stored.get("run_id") == str(policy_context.get("run_id") or "")
+                        and stored.get("bot_id") == str(policy_context.get("bot_id") or policy_context.get("agent_id") or "")
+                        and stored.get("tool_name") == name
+                        and stored.get("target") == target
+                        and stored.get("payload") == payload
+                        and stored.get("policy_version") == str(policy_context.get("policy_version") or "1")
+                    )
+                    if same_action:
+                        approved_action_binding = approval.action_fingerprint
+            approval_status = persisted_status
 
         decision = authorize_tool_call(
             tenant_id=tenant_id,
