@@ -1,6 +1,7 @@
 """Tenant-scoped API for the shared OctaOS Search Intelligence engine."""
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -256,6 +257,15 @@ async def resume_research_job(
             status_code=409,
             detail=f"Research job cannot be resumed from status '{row.status}'.",
         )
+    if row.status == "running" and row.updated_at:
+        last_update = row.updated_at
+        if last_update.tzinfo is None:
+            last_update = last_update.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) - last_update < timedelta(minutes=2):
+            raise HTTPException(
+                status_code=409,
+                detail="This research job was updated recently and may still be running. Wait before attempting recovery.",
+            )
     service = EnterpriseWebResearchService(db=db, tenant_id=tenant_id)
     try:
         batch = await service.resume(job_id)
