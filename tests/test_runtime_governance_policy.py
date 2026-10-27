@@ -119,3 +119,23 @@ def test_approval_binding_is_invalidated_by_payload_change():
         payload={"subject": "Approved", "body": "Version 2"}, policy_version="1",
     )
     assert original != edited
+
+
+def test_agent_runtime_uses_shared_fingerprinted_approval_record():
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "app" / "services" / "agents" / "runtime.py").read_text()
+    assert "ApprovalRequest(" in source
+    assert "action_fingerprint(" in source
+    assert "action_binding=binding" in source
+    assert "FlowApprovalRequest(" not in source
+
+
+def test_approved_tool_worker_rechecks_persisted_approval():
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "app" / "worker" / "tasks.py").read_text()
+    assert 'name="execute_approved_tool"' in source
+    assert 'ApprovalRequest.id == approval_id' in source
+    assert '"approval_id": approval.id' in source
+    assert 'approval.execution_status = "completed"' in source
