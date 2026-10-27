@@ -237,6 +237,7 @@ def list_approvals(
             "reviewed_by": a.reviewed_by,
             "review_note": a.review_note,
             "action_fingerprint": a.action_fingerprint,
+            "action_binding": a.action_binding,
             "execution_status": a.execution_status,
             "execution_error": a.execution_error,
         }
