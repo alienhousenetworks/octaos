@@ -77,6 +77,7 @@ class EnterpriseWebResearchService:
         offer: str = "",
         seed_urls: Any = None,
         budget_inr: float = 700.0,
+        job_id: str | None = None,
     ) -> SearchBatch:
         requested_geographies = self._as_list(geography)
         ordered_geographies = requested_geographies or list(self.DEFAULT_GEOGRAPHIES)
@@ -100,6 +101,7 @@ class EnterpriseWebResearchService:
             credentials=self._credentials(),
             suppressed_domains=suppressed_domains,
             db=self.db,
+            job_id=job_id,
         )
 
     async def resume(self, job_id: str) -> SearchBatch:
