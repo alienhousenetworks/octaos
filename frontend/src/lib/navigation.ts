@@ -188,7 +188,7 @@ export function canSeeItem(item: NavItem, profile: any) {
   if (item.systemAdminOnly) return !!profile.is_system_admin;
   if (item.adminOnly) return profile.role === 'admin' || !!profile.is_system_admin;
   if (profile.role === 'admin' || profile.is_system_admin) return true;
-  if (item.id === 'dashboard' || item.id === 'profile' || item.section === 'profile') return true;
+  if (item.id === 'assistant' || item.id === 'dashboard' || item.id === 'profile' || item.section === 'profile') return true;
   const allowed: string[] | undefined = profile.allowed_sections;
   if (!allowed || allowed.includes('all')) return true;
   return allowed.includes(item.section);
