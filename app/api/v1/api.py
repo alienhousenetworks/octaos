@@ -11,6 +11,7 @@ from app.api.v1.endpoints import (
     hr_people, hr_workforce, hr_copilot, hr_enterprise, hr_compensation_read,
     sales_crm, sales_inbox, sales_platform, sales_inbound_webhooks,
     integrations, rbac, heygen, autonomous_work, buffer_oauth, workforce_events,
+    research,
 )
 
 from app.api.v1.orchestrator import router as orchestrator_router
@@ -55,6 +56,7 @@ api_router.include_router(orchestrator_router, prefix="/octa", tags=["octa-orche
 # /orchestrator prefix, so this mount is /api/v1/orchestrator/execute.
 api_router.include_router(orchestrator_router, tags=["orchestrator"])
 api_router.include_router(data_intelligence_router, tags=["orchestra-data-intelligence"])
+api_router.include_router(research.router, prefix="/research", tags=["search-intelligence"])
 api_router.include_router(deal_rooms.router, prefix="/deal-rooms", tags=["deal-rooms"])
 api_router.include_router(sales_manager.router, prefix="/sales-manager", tags=["sales-manager"])
 api_router.include_router(sales_os.router, prefix="/sales-os", tags=["sales-os"])

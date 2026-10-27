@@ -40,6 +40,7 @@ class SearchEngine:
         history: list[str] | None = None,
         suppressed_domains: set[str] | None = None,
         client: httpx.AsyncClient | None = None,
+        job_id: str | None = None,
     ) -> SearchBatch:
         now = datetime.now(timezone.utc)
         spent = self.store.month_spend_inr(spec.tenant_id, now)
@@ -53,7 +54,7 @@ class SearchEngine:
             run_limit,
         )
         payload = {
-            "job_id": new_id(),
+            "job_id": job_id or new_id(),
             "status": "running",
             "spec": spec.model_dump(mode="json"),
             "tasks": [task.model_dump(mode="json") for task in tasks],

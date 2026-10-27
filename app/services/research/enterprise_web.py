@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 from uuid import uuid4
 
-from app.services.sales_os.search_v4 import run_parallel_search
+from app.services.sales_os.search_v4 import resume_parallel_search, run_parallel_search
 from app.services.sales_os.search_v4.contracts import CampaignIntentSpec, SearchBatch
 from app.services.sales_os.search_v4.registry import credential_map
 
@@ -77,6 +77,7 @@ class EnterpriseWebResearchService:
         offer: str = "",
         seed_urls: Any = None,
         budget_inr: float = 700.0,
+        job_id: str | None = None,
     ) -> SearchBatch:
         requested_geographies = self._as_list(geography)
         ordered_geographies = requested_geographies or list(self.DEFAULT_GEOGRAPHIES)
@@ -99,6 +100,18 @@ class EnterpriseWebResearchService:
             spec,
             credentials=self._credentials(),
             suppressed_domains=suppressed_domains,
+            db=self.db,
+            job_id=job_id,
+        )
+
+    async def resume(self, job_id: str) -> SearchBatch:
+        """Resume an existing job only within this service's tenant context."""
+        if not self.db or not self.tenant_id:
+            raise RuntimeError("Durable tenant-scoped storage is required to resume research.")
+        return await resume_parallel_search(
+            self.tenant_id,
+            job_id,
+            credentials=self._credentials(),
             db=self.db,
         )
 

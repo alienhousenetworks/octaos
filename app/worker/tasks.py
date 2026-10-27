@@ -1763,3 +1763,85 @@ def execute_approved_tool(self, approval_id: str, tenant_id: str):
             raise
     finally:
         db.close()
+
+
+@celery_app.task(
+    bind=True,
+    name="app.worker.tasks.run_research_search_task",
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def run_research_search_task(
+    self,
+    tenant_id: str,
+    job_id: str,
+    query: str,
+    options: Optional[Dict[str, Any]] = None,
+    resume_job: bool = False,
+):
+    """Execute or resume a tenant-scoped Search V4 job in the existing worker queue."""
+    del self
+    from app.models.search_v4 import SearchV4Job
+    from app.services.research import EnterpriseWebResearchService
+
+    db = SessionLocal()
+    try:
+        row = (
+            db.query(SearchV4Job)
+            .filter(SearchV4Job.id == job_id, SearchV4Job.tenant_id == tenant_id)
+            .first()
+        )
+        if row is None:
+            return {"job_id": job_id, "status": "not_found"}
+        if row.status in {"succeeded", "cancelled"}:
+            return {"job_id": job_id, "status": row.status}
+
+        payload = dict(row.payload or {})
+        should_resume = bool(payload.get("tasks")) and (resume_job or row.status == "running")
+        payload["status"] = "running"
+        payload.pop("error_code", None)
+        row.payload = payload
+        row.status = "running"
+        db.commit()
+
+        service = EnterpriseWebResearchService(db=db, tenant_id=tenant_id)
+        if should_resume:
+            batch = async_to_sync(service.resume)(job_id)
+        else:
+            saved_spec = payload.get("spec") or {}
+            run_options = dict(options or {})
+            if resume_job:
+                run_options = {
+                    "freshness": saved_spec.get("freshness") or "14_days",
+                    "geography": saved_spec.get("geography") or None,
+                    "industries": saved_spec.get("industries") or None,
+                    "buyer_roles": saved_spec.get("buyer_roles") or None,
+                    "exclusions": saved_spec.get("exclusions") or None,
+                    "budget_inr": float(saved_spec.get("budget_inr") or 0),
+                }
+            batch = async_to_sync(service.run)(
+                query or saved_spec.get("query") or "",
+                job_id=job_id,
+                **run_options,
+            )
+        return {"job_id": batch.job_id, "status": batch.status}
+    except Exception:
+        db.rollback()
+        try:
+            row = (
+                db.query(SearchV4Job)
+                .filter(SearchV4Job.id == job_id, SearchV4Job.tenant_id == tenant_id)
+                .first()
+            )
+            if row is not None:
+                payload = dict(row.payload or {})
+                payload["status"] = "failed"
+                payload["error_code"] = "RESEARCH_EXECUTION_FAILED"
+                row.payload = payload
+                row.status = "failed"
+                db.commit()
+        except Exception:
+            db.rollback()
+        raise
+    finally:
+        db.close()

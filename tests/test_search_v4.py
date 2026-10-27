@@ -510,9 +510,181 @@ async def test_search_engine_runs_bounded_adaptive_expansion_rounds():
 
     store = MemorySearchStore()
     engine = SearchEngine(store, FakeConnectors(handler), {})
-    batch = await engine.run(spec())
+    batch = await engine.run(spec(), job_id="durable-research-job")
     payload = store.get_job("tenant-1", batch.job_id)
 
+    assert batch.job_id == "durable-research-job"
     assert 2 <= payload["expansion_round"] <= 3
     assert payload["expansion_done"] is True
     assert any(record["company_domain"] == "acme.example" for record in payload["records"])
+
+
+def test_shared_research_api_request_validation_and_normalization():
+    from pydantic import ValidationError
+    from app.api.v1.endpoints.research import ResearchSearchRequest
+
+    request = ResearchSearchRequest(
+        query="  ERP   market research ",
+        geography=["India", "india", "United States"],
+        industries=["Manufacturing", "manufacturing"],
+    )
+    assert request.query == "ERP market research"
+    assert request.geography == ["India", "United States"]
+    assert request.industries == ["Manufacturing"]
+    with pytest.raises(ValidationError):
+        ResearchSearchRequest(query="x")
+    with pytest.raises(ValidationError):
+        ResearchSearchRequest(query="valid query", budget_inr=701)
+
+
+def test_research_public_job_projection_preserves_claim_provenance():
+    from app.api.v1.endpoints.research import _public_job
+
+    result = _public_job({
+        "job_id": "job-1",
+        "status": "succeeded",
+        "spec": {"tenant_id": "secret-tenant", "query": "ERP research", "freshness": "14_days"},
+        "tasks": [{"task_id": "task-1", "method": "web", "provider": "duckduckgo", "query": "ERP", "status": "succeeded"}],
+        "records": [{
+            "record_id": "record-1", "title": "Official page", "original_url": "https://example.com/erp",
+            "canonical_url": "example.com/erp", "snippet": "ERP product", "page_excerpt": "Source passage",
+            "provider": "duckduckgo", "method": "web", "company_name": "Example",
+        }],
+        "assessments": [{
+            "evidence": {
+                "claim": "The company offers ERP.", "passage": "Source passage",
+                "source_url": "https://example.com/erp", "verification_state": "supported",
+            }
+        }],
+        "ledger": [], "notes": [],
+    })
+    assert result["sources"][0]["url"] == "https://example.com/erp"
+    assert result["claims"][0]["passage"] == "Source passage"
+    assert result["claims"][0]["verification_state"] == "supported"
+    assert "tenant_id" not in result
+
+
+def test_search_storage_does_not_fall_back_to_process_memory_for_database_sessions():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.services.sales_os.search_v4.store import store_for_session
+
+    engine = create_engine("sqlite://")
+    session = sessionmaker(bind=engine)()
+    try:
+        with pytest.raises(RuntimeError, match="durable storage is unavailable"):
+            store_for_session(session)
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_research_job_lookup_is_scoped_to_the_authenticated_tenant():
+    from types import SimpleNamespace
+    from fastapi import HTTPException
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.api.v1.endpoints.research import get_research_job
+    from app.models.base import Tenant
+    from app.models.search_v4 import SearchV4Job, SearchV4LedgerRow, SearchV4TaskRow
+
+    engine = create_engine("sqlite://")
+    Tenant.__table__.create(engine)
+    SearchV4Job.__table__.create(engine)
+    SearchV4TaskRow.__table__.create(engine)
+    SearchV4LedgerRow.__table__.create(engine)
+    session = sessionmaker(bind=engine)()
+    try:
+        session.add(Tenant(id="tenant-a", name="Tenant A"))
+        session.commit()
+        session.add(SearchV4Job(
+            id="job-owned-by-a",
+            tenant_id="tenant-a",
+            status="succeeded",
+            payload={"job_id": "job-owned-by-a", "status": "succeeded", "spec": {"query": "private research"}},
+        ))
+        session.commit()
+        with pytest.raises(HTTPException) as error:
+            get_research_job("job-owned-by-a", db=session, user=SimpleNamespace(tenant_id="tenant-b"))
+        assert error.value.status_code == 404
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_research_api_persists_before_enqueuing_background_work(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+    from app.api.v1.endpoints import research as research_api
+    from app.models.base import Tenant
+    from app.models.search_v4 import SearchV4Job, SearchV4LedgerRow, SearchV4TaskRow
+    from app.services.sales_os.search_v4.store import SqlSearchStore
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    engine = create_engine("sqlite://")
+    Tenant.__table__.create(engine)
+    SearchV4Job.__table__.create(engine)
+    SearchV4TaskRow.__table__.create(engine)
+    SearchV4LedgerRow.__table__.create(engine)
+    session = sessionmaker(bind=engine)()
+    try:
+        session.add(Tenant(id="tenant-queue", name="Queue Test"))
+        session.commit()
+        monkeypatch.setattr(research_api, "_require_durable_search_store", lambda db: SqlSearchStore(db))
+        from app.worker.tasks import run_research_search_task
+        queued = {}
+        def fake_apply_async(*, args, task_id):
+            queued["args"] = args
+            queued["task_id"] = task_id
+            return SimpleNamespace(id=task_id)
+        monkeypatch.setattr(run_research_search_task, "apply_async", fake_apply_async)
+
+        request = research_api.ResearchSearchRequest(query="Find ERP market evidence")
+        response = asyncio.run(
+            research_api.run_research_search(
+                request,
+                db=session,
+                user=SimpleNamespace(tenant_id="tenant-queue"),
+            )
+        )
+        row = session.query(SearchV4Job).filter_by(id=response["job_id"], tenant_id="tenant-queue").first()
+        assert response["status"] == "queued"
+        assert row is not None
+        assert row.status == "queued"
+        assert row.payload["spec"]["query"] == "Find ERP market evidence"
+        assert row.payload["queue_task_id"] == queued["task_id"]
+        assert queued["args"][0:3] == ["tenant-queue", response["job_id"], "Find ERP market evidence"]
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_public_search_fetch_rejects_redirects_to_private_addresses(monkeypatch):
+    import asyncio
+    import socket
+    from app.services.sales_os.search_v4.connectors import safe_fetch
+
+    class RedirectResponse:
+        status_code = 302
+        headers = {"location": "http://127.0.0.1/admin"}
+
+    class FakeClient:
+        def __init__(self):
+            self.calls = []
+        async def get(self, url, *, headers, follow_redirects):
+            self.calls.append(url)
+            assert follow_redirects is False
+            return RedirectResponse()
+
+    def fake_getaddrinfo(hostname, port, type):
+        address = "93.184.216.34" if hostname == "example.com" else "127.0.0.1"
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (address, port or 443))]
+
+    monkeypatch.setattr(safe_fetch, "validate_target_url", lambda url: url)
+    monkeypatch.setattr(safe_fetch.socket, "getaddrinfo", fake_getaddrinfo)
+    client = FakeClient()
+    with pytest.raises(ValueError, match="non-public"):
+        asyncio.run(safe_fetch.safe_get(client, "https://example.com/", headers={"Accept": "text/html"}))
+    assert client.calls == ["https://example.com/"]
