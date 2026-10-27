@@ -70,20 +70,30 @@ export default function AgentDetailView({
     } catch {
       samePageToggle = false;
     }
+    const showModeTab = () => {
+      const nextTab = mode === 'bot' ? 'console' : 'overview';
+      setActiveTab(nextTab);
+      const params = new URLSearchParams(window.location.search);
+      if (nextTab === 'overview') params.delete('tab');
+      else params.set('tab', nextTab);
+      const query = params.toString();
+      const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+      if (`${window.location.pathname}${window.location.search}` !== nextUrl) router.replace(nextUrl);
+    };
     if (samePageToggle) {
       appliedMode.current = mode;
-      setActiveTab(mode === 'bot' ? 'console' : 'overview');
+      showModeTab();
       return;
     }
     if (appliedMode.current === null) {
       appliedMode.current = mode;
-      if (!searchParams.get('tab')) setActiveTab(mode === 'bot' ? 'console' : 'overview');
+      if (!searchParams.get('tab')) showModeTab();
       return;
     }
     if (appliedMode.current === mode) return;
     appliedMode.current = mode;
-    setActiveTab(mode === 'bot' ? 'console' : 'overview');
-  }, [mode, ready, searchParams]);
+    showModeTab();
+  }, [mode, ready, searchParams, router]);
   const [agent, setAgent] = useState<AgentItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [activityLogs, setActivityLogs] = useState<ActivityLogItem[]>([]);
