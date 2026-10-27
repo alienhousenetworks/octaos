@@ -53,6 +53,7 @@ interface ApprovalItem {
   reviewed_at?: string | null;
   reviewed_by?: string | null;
   review_note?: string | null;
+  action_fingerprint?: string | null;
 }
 
 interface Metrics {
@@ -109,7 +110,21 @@ export default function ApprovalsView({
     loadData();
   }, [loadData]);
 
+  const requiresExactBinding = (item: ApprovalItem) => {
+    const highRiskTypes = new Set([
+      'first_touch_email', 'email_dispatch', 'public_post', 'price_quote', 'refund',
+      'linkedin_dm', 'email.send', 'email.delete', 'crm.delete', 'payment',
+      'billing', 'contract.sign', 'user.delete', 'browser.submit', 'webhook_post',
+    ]);
+    return highRiskTypes.has(item.action_type) && !item.action_fingerprint;
+  };
+
   const handleReview = async (id: string, approve: boolean) => {
+    const selected = items.find((item) => item.id === id);
+    if (approve && selected && requiresExactBinding(selected)) {
+      notify('Cannot approve: this action has no persisted exact-action fingerprint. Recreate it with an action binding.');
+      return;
+    }
     const note = reviewNotes[id] || (approve ? 'Approved from Enterprise Console' : 'Rejected by reviewer');
     setActionInProgress(id);
 
@@ -495,7 +510,8 @@ export default function ApprovalsView({
                         <Button
                           size="sm"
                           onClick={() => handleReview(item.id, true)}
-                          disabled={actionInProgress === item.id}
+                          disabled={actionInProgress === item.id || requiresExactBinding(item)}
+                          title={requiresExactBinding(item) ? "Exact action binding required before approval" : undefined}
                           className="h-8 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs rounded-lg px-3.5 shadow-sm shadow-emerald-950 flex items-center gap-1.5"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
@@ -511,6 +527,11 @@ export default function ApprovalsView({
                           <XCircle className="w-3.5 h-3.5" />
                           Reject
                         </Button>
+                        {requiresExactBinding(item) && (
+                          <span className="max-w-[220px] text-[11px] leading-4 text-amber-300/90">
+                            Exact action binding missing — approval is blocked for safety.
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <div className="text-right text-[11px] text-zinc-500 font-mono shrink-0">
