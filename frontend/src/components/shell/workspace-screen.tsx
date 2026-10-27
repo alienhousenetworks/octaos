@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import DashboardView from '@/components/views/dashboard-view';
+import UniversalAssistantView from '@/components/views/universal-assistant-view';
 import KnowledgeView from '@/components/views/knowledge-view';
 import CampaignsView from '@/components/views/campaigns-view';
 import CampaignStudioView from '@/components/views/campaign-studio-view';
@@ -35,6 +36,7 @@ import { useWorkspace, useWorkspaceFeed } from '@/lib/workspace';
 
 const FEED_PATHS = [
   '/app/home',
+  '/app/assistant',
   '/app/agents',
   '/app/knowledge',
   '/app/campaigns',
@@ -61,7 +63,7 @@ export default function WorkspaceScreen() {
 
   useEffect(() => {
     if (pathname === '/app') {
-      router.replace('/app/home');
+      router.replace('/app/assistant');
     }
   }, [pathname, router]);
 
@@ -89,6 +91,9 @@ export default function WorkspaceScreen() {
     fetchData: workspace.fetchData,
   };
 
+  if (pathname === '/app/assistant') {
+    return <UniversalAssistantView />;
+  }
   if (pathname === '/app/home') {
     return (
       <DashboardView

@@ -264,6 +264,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
+                {pathname === '/app/home' ? (
+                  <DropdownMenuItem onClick={() => router.push('/app/assistant')}>
+                    Switch to New AI UI
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={() => router.push('/app/home')}>
+                    Switch to Classic UI
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onClick={workspace.logout}>
                   <LogOut className="size-4" /> Log out
                 </DropdownMenuItem>

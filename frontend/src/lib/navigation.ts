@@ -51,7 +51,8 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Workspace',
     items: [
-      { id: 'dashboard', name: 'Home', href: '/app/home', icon: BarChart3, section: 'dashboard', keywords: 'dashboard operating' },
+      { id: 'assistant', name: 'AI Assistant', href: '/app/assistant', icon: Bot, section: 'assistant', keywords: 'chat assistant natural language orchestrator bots work' },
+      { id: 'dashboard', name: 'Overview', href: '/app/home', icon: BarChart3, section: 'dashboard', keywords: 'dashboard operating birdseye analytics metrics charts classic' },
       { id: 'approvals', name: 'Approvals', href: '/app/approvals', icon: CheckCheck, section: 'system', keywords: 'hitl review queue' },
       { id: 'knowledge', name: 'Knowledge', href: '/app/knowledge', icon: FileText, section: 'knowledge', keywords: 'documents rag' },
     ],
@@ -129,6 +130,7 @@ export const EXTRA_ROUTES: NavItem[] = [
 ];
 
 const VIEW_PATHS: Record<string, string> = {
+  assistant: '/app/assistant',
   dashboard: '/app/home',
   knowledge: '/app/knowledge',
   campaigns: '/app/campaigns',
@@ -186,7 +188,7 @@ export function canSeeItem(item: NavItem, profile: any) {
   if (item.systemAdminOnly) return !!profile.is_system_admin;
   if (item.adminOnly) return profile.role === 'admin' || !!profile.is_system_admin;
   if (profile.role === 'admin' || profile.is_system_admin) return true;
-  if (item.id === 'dashboard' || item.id === 'profile' || item.section === 'profile') return true;
+  if (item.id === 'assistant' || item.id === 'dashboard' || item.id === 'profile' || item.section === 'profile') return true;
   const allowed: string[] | undefined = profile.allowed_sections;
   if (!allowed || allowed.includes('all')) return true;
   return allowed.includes(item.section);
