@@ -33,6 +33,7 @@ from app.models import executive  # noqa: F401
 from app.models import objectives  # noqa: F401
 from app.models import decision_cases  # noqa: F401
 from app.models import data_intelligence  # noqa: F401 — durable Orchestra analysis runs
+from app.models import workforce_events  # noqa: F401 — durable tenant-scoped workforce event stream
 
 target_metadata = Base.metadata
 config.set_main_option("sqlalchemy.url", settings.SQLALCHEMY_DATABASE_URI)

@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import CommandPalette from '@/components/shell/command-palette';
+import WorkforceActivity from '@/components/shell/workforce-activity';
 import { LoadingState } from '@/components/shell/states';
 import { crumbForPath, isItemActive, visibleGroups } from '@/lib/navigation';
 import { saveSession } from '@/lib/auth-session';
@@ -228,6 +229,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <span className="font-medium">{crumb.name}</span>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <WorkforceActivity />
             <Button variant="outline" size="sm" onClick={() => setPaletteOpen(true)} id="command-palette-btn">
               <Search className="size-3.5" />
               <span className="hidden sm:inline">Search</span>
