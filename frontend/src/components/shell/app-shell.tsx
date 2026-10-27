@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import CommandPalette from '@/components/shell/command-palette';
 import WorkforceActivity from '@/components/shell/workforce-activity';
+import AIWorkspaceShell from '@/components/shell/ai-workspace-shell';
 import { LoadingState } from '@/components/shell/states';
 import { crumbForPath, isItemActive, visibleGroups } from '@/lib/navigation';
 import { saveSession } from '@/lib/auth-session';
@@ -192,6 +193,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
+
+  if (pathname === '/app/assistant') {
+    return <AIWorkspaceShell accountLabel={profile?.name || profile?.email}>{children}</AIWorkspaceShell>;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
