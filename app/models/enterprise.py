@@ -54,6 +54,10 @@ class ApprovalRequest(Base):
     confidence = Column(Float, nullable=True)
     status = Column(String, default="pending", index=True)  # pending, approved, rejected, expired, auto_sent
     policy_reason = Column(String, nullable=True)
+    # Exact server-computed binding for any high-risk side effect. Historical approvals remain nullable.
+    action_fingerprint = Column(String(64), nullable=True, index=True)
+    action_binding = Column(JSON, nullable=True)
+    policy_version = Column(String(64), nullable=True)
     requested_by = Column(String, nullable=True)  # agent or user id
     reviewed_by = Column(String, ForeignKey("users.id"), nullable=True)
     review_note = Column(Text, nullable=True)
