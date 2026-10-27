@@ -98,3 +98,24 @@ def test_webhook_accepts_prefixed_signature():
     secret, timestamp, body, now = "test-secret", "1700000000", b"body", 1700000000
     signature = hmac.new(secret.encode(), timestamp.encode() + b"." + body, hashlib.sha256).hexdigest()
     assert verify_hmac_webhook(secret=secret, timestamp=timestamp, raw_body=body, signature="sha256=" + signature, now=now)
+
+
+def test_approval_request_persists_exact_action_binding_fields():
+    from app.models.enterprise import ApprovalRequest
+
+    columns = set(ApprovalRequest.__table__.columns.keys())
+    assert {"action_fingerprint", "action_binding", "policy_version"}.issubset(columns)
+
+
+def test_approval_binding_is_invalidated_by_payload_change():
+    original = action_fingerprint(
+        tenant_id="tenant-a", run_id="run-1", bot_id="bot-1",
+        tool_name="email.send", target="customer@example.com",
+        payload={"subject": "Approved", "body": "Version 1"}, policy_version="1",
+    )
+    edited = action_fingerprint(
+        tenant_id="tenant-a", run_id="run-1", bot_id="bot-1",
+        tool_name="email.send", target="customer@example.com",
+        payload={"subject": "Approved", "body": "Version 2"}, policy_version="1",
+    )
+    assert original != edited
