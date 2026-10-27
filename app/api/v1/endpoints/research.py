@@ -149,6 +149,8 @@ async def run_research_search(
     job_id = str(uuid4())
     geographies = request.geography or list(EnterpriseWebResearchService.DEFAULT_GEOGRAPHIES)
     spec = {
+        "campaign_id": "research-" + job_id,
+        "correlation_id": str(uuid4()),
         "tenant_id": tenant_id,
         "query": request.query,
         "freshness": request.freshness,
