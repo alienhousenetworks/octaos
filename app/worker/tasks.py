@@ -1763,3 +1763,73 @@ def execute_approved_tool(self, approval_id: str, tenant_id: str):
             raise
     finally:
         db.close()
+
+
+@celery_app.task(
+    bind=True,
+    name="app.worker.tasks.run_research_search_task",
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def run_research_search_task(
+    self,
+    tenant_id: str,
+    job_id: str,
+    query: str,
+    options: Optional[Dict[str, Any]] = None,
+    resume_job: bool = False,
+):
+    """Execute or resume a tenant-scoped Search V4 job in the existing worker queue."""
+    del self
+    from app.models.search_v4 import SearchV4Job
+    from app.services.research import EnterpriseWebResearchService
+
+    db = SessionLocal()
+    try:
+        row = (
+            db.query(SearchV4Job)
+            .filter(SearchV4Job.id == job_id, SearchV4Job.tenant_id == tenant_id)
+            .first()
+        )
+        if row is None:
+            return {"job_id": job_id, "status": "not_found"}
+        if row.status in {"succeeded", "cancelled"}:
+            return {"job_id": job_id, "status": row.status}
+
+        payload = dict(row.payload or {})
+        payload["status"] = "running"
+        payload.pop("error_code", None)
+        row.payload = payload
+        row.status = "running"
+        db.commit()
+
+        service = EnterpriseWebResearchService(db=db, tenant_id=tenant_id)
+        if resume_job:
+            batch = async_to_sync(service.resume)(job_id)
+        else:
+            batch = async_to_sync(service.run)(
+                query,
+                job_id=job_id,
+                **(options or {}),
+            )
+        return {"job_id": batch.job_id, "status": batch.status}
+    except Exception:
+        db.rollback()
+        try:
+            row = (
+                db.query(SearchV4Job)
+                .filter(SearchV4Job.id == job_id, SearchV4Job.tenant_id == tenant_id)
+                .first()
+            )
+            if row is not None:
+                payload = dict(row.payload or {})
+                payload["status"] = "failed"
+                payload["error_code"] = "RESEARCH_EXECUTION_FAILED"
+                row.payload = payload
+                row.status = "failed"
+                db.commit()
+        except Exception:
+            db.rollback()
+        raise
+    finally:
+        db.close()
