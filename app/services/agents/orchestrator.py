@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Optional, List, Dict, Any
 from app.services.agents.base import BaseAgent
 from app.services.agents.marketing import MarketingAgent
@@ -11,6 +12,72 @@ from app.services.agents.hr import HRAgent
 from app.models.base import APICredential
 
 logger = logging.getLogger(__name__)
+
+
+_LEAD_PROVIDER_NAMES = {
+    "apollo": "apollo",
+    "hunter": "hunter",
+    "google places": "google_places",
+    "google_places": "google_places",
+    "google maps": "google_places",
+    "apify": "apify",
+}
+
+_OPEN_WEB_TERMS = (
+    "web search",
+    "websearch",
+    "internet",
+    "public web",
+    "open web",
+    "any source",
+    "scrape",
+    "scraping",
+    "crawl",
+    "browser",
+    "firecrawl",
+    "linkedin",
+    "reddit",
+    "instagram",
+    "facebook",
+)
+
+
+def infer_lead_provider(prompt: str, requested_provider: Optional[str] = None) -> str:
+    """Choose the real discovery path for a lead request.
+
+    Open-web discovery is a first-class, credential-free path when Firecrawl or
+    the public-search fallback is available. Keep an explicitly named provider
+    intact, but do not let the old three-provider default hide web discovery.
+    """
+    text = _current_request_text(prompt).lower()
+    for phrase, provider in _LEAD_PROVIDER_NAMES.items():
+        if re.search(rf"\b{re.escape(phrase)}\b", text):
+            return provider
+    if any(term in text for term in _OPEN_WEB_TERMS):
+        return "web_search"
+
+    requested = (requested_provider or "").strip().lower()
+    if requested in {"web_search", "free_search", "web", "internet", "open_web"}:
+        return "web_search"
+    if requested in _LEAD_PROVIDER_NAMES.values():
+        return requested
+    if requested:
+        # Unknown provider values are left for the normal credential/error path
+        # rather than silently changing an explicit user choice.
+        return requested
+
+    return "web_search"
+
+
+def _lead_provider_was_explicitly_requested(prompt: str) -> bool:
+    text = _current_request_text(prompt).lower()
+    return any(re.search(rf"\b{re.escape(phrase)}\b", text) for phrase in _LEAD_PROVIDER_NAMES)
+
+
+def _current_request_text(prompt: str) -> str:
+    """Ignore quoted conversation history when resolving provider intent."""
+    match = re.search(r"current user request:\s*(.*)\Z", prompt or "", re.IGNORECASE | re.DOTALL)
+    return match.group(1).strip() if match else (prompt or "")
 
 class OrchestratorAgent(BaseAgent):
     def __init__(self, db, tenant_id):
@@ -39,8 +106,9 @@ class OrchestratorAgent(BaseAgent):
         # Check if the user is providing a key manually
         # e.g., "Here is my linkedin key: 12345"
         import re
-        key_match = re.search(r'(?:key|token|credential|smtp|api key) is\s*[:=]?\s*([a-zA-Z0-9_\-\.\:\@\/]+)', prompt, re.IGNORECASE)
-        provider_match = re.search(r'(linkedin|meta|facebook|instagram|twitter|gmail|whatsapp|apollo|hunter|google_places|google_calendar|smtp)', prompt, re.IGNORECASE)
+        current_request = _current_request_text(prompt)
+        key_match = re.search(r'(?:key|token|credential|smtp|api key) is\s*[:=]?\s*([a-zA-Z0-9_\-\.\:\@\/]+)', current_request, re.IGNORECASE)
+        provider_match = re.search(r'(linkedin|meta|facebook|instagram|twitter|gmail|whatsapp|apollo|hunter|google_places|google_calendar|smtp)', current_request, re.IGNORECASE)
         
         if key_match and provider_match:
             provider = provider_match.group(1).lower()
@@ -127,11 +195,15 @@ Available Agents & Actions:
   - "create_posts": parameters: {{"days": int, "topic": str, "platforms": list}}
   - "generate_campaign": parameters: {{"topic": str, "days": int, "platforms": list, "text_provider": str, "image_provider": str, "video_provider": str, "generate_images": bool, "generate_videos": bool}}
 - Sales:
-  - "generate_leads": parameters: {{"provider": "apollo" | "hunter" | "google_places", "query": str, "count": int}}
+  - "generate_leads": parameters: {{"provider": "web_search" | "apify" | "apollo" | "hunter" | "google_places" | "<configured source id>", "query": str, "count": int, "freshness": str}}
     * Lead Source Decision Rules:
-      - If the user specifies "apollo", "hunter", or "google_places" but its key is missing, schedule "request_key" for that provider first.
-      - For local brick-and-mortar business searches (e.g. "gyms in Boston", "plumbers in Texas"), prefer "google_places" (if key configured).
-      - For corporate B2B profiles (e.g. "software companies", "marketing agencies", "founders"), prefer "apollo" or "hunter" (if key configured).
+      - "web_search" is the enterprise multi-channel public research path. It covers buyer-language web searches, public RFP/tender pages, funding and business news, hiring signals, company/contact pages, and permitted public Reddit/X/LinkedIn search results. It uses Firecrawl or DuckDuckGo for web discovery, and does not require Apollo, Hunter, or Google Places credentials.
+      - Use a 14-day freshness window by default ("freshness": "14_days"). India is searched first, followed by the United States and United Kingdom unless the user specifies another geography order.
+      - If the user says web search, internet, scrape, public web, any source, or does not name a provider, use "web_search" by default.
+      - If the user explicitly specifies Apollo, Hunter, Google Places, or Apify, use that provider and request its credential only when that provider is unavailable.
+      - Do not tell the user that web search, Firecrawl, Apify, or public web discovery is unavailable when handling lead research.
+      - For public social, hiring, directory, or signal research, use web_search unless the user explicitly requests a configured Apify/source provider. Respect robots, terms, privacy, and login/access boundaries; do not claim a contact is verified unless the source supports it.
+      - For local brick-and-mortar business searches, web_search may be used unless the user explicitly requests Google Places.
   - "sales_outreach": parameters: {{"channel": "smtp" | "gmail" | "whatsapp", "subject": str, "body_template": str}}
   - "schedule_meeting": parameters: {{"tool": "google_calendar", "count": int}}
 - HR:
@@ -195,6 +267,18 @@ Format:
         for task in plan.get("tasks", []):
             dept = task.get("department")
             try:
+                # The planner is allowed to fill in query/count, but provider
+                # selection for lead discovery must not regress to the legacy
+                # Apollo/Hunter/Places-only behaviour. Preserve an explicit
+                # provider choice; otherwise route to the real open-web path.
+                if dept == "Sales" and task.get("action") == "generate_leads":
+                    params = task.setdefault("parameters", {})
+                    requested_provider = params.get("provider")
+                    current_request = _current_request_text(prompt)
+                    if not _lead_provider_was_explicitly_requested(current_request):
+                        params["provider"] = "web_search"
+                    else:
+                        params["provider"] = infer_lead_provider(current_request, requested_provider)
                 if dept == "Marketing":
                     agent = MarketingAgent(self.db, self.tenant_id)
                     res = await agent.execute_task(task)

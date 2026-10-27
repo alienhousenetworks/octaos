@@ -188,6 +188,55 @@ class ToolRegistry:
     def _register_default_tools(self) -> None:
         """Seeds the universal core department tools."""
 
+        async def enterprise_web_search_handler(*, tenant_id, inputs, user_context, db):
+            del user_context
+            from app.services.research import EnterpriseWebResearchService
+
+            query = str(inputs.get("query") or "").strip()
+            if not query:
+                raise ValueError("A non-empty public research query is required.")
+            count = max(1, min(int(inputs.get("count", 10) or 10), 100))
+            batch = await EnterpriseWebResearchService(db, tenant_id).run(
+                query,
+                count=count,
+                freshness=inputs.get("freshness") or "14_days",
+                geography=inputs.get("geography"),
+                industries=inputs.get("industries"),
+                buyer_roles=inputs.get("buyer_roles"),
+                exclusions=inputs.get("exclusions"),
+                seed_urls=inputs.get("seed_urls"),
+            )
+            return EnterpriseWebResearchService.summarize(batch, count=count)
+
+        self.register(
+            GovernedTool(
+                tool_id="research.web_search",
+                name="Enterprise Public Web Research",
+                department="orchestrator",
+                description=(
+                    "Search public web requests, RFPs and tenders, business news and funding, hiring signals, "
+                    "company contact pages, and permitted public social sources with evidence and freshness metadata."
+                ),
+                parameters_schema={
+                    "type": "object",
+                    "required": ["query"],
+                    "properties": {
+                        "query": {"type": "string"},
+                        "count": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10},
+                        "freshness": {"type": "string", "default": "14_days"},
+                        "geography": {"type": "array", "items": {"type": "string"}},
+                        "industries": {"type": "array", "items": {"type": "string"}},
+                        "buyer_roles": {"type": "array", "items": {"type": "string"}},
+                        "exclusions": {"type": "array", "items": {"type": "string"}},
+                        "seed_urls": {"type": "array", "items": {"type": "string"}},
+                    },
+                },
+                required_permission="research:read",
+                risk_level=RiskLevel.R0_INFORMATIONAL,
+                handler=enterprise_web_search_handler,
+            )
+        )
+
         # 1. Marketing AI Tools
         self.register(
             GovernedTool(

@@ -32,7 +32,8 @@ class DiscoveryService:
         if provider == "free_search":
             provider = "web_search"
         query = params.get("query", "target clients")
-        count = params.get("count", 5)
+        count = max(1, min(int(params.get("count", 5) or 5), 100))
+        freshness = params.get("freshness") or params.get("freshness_window") or "14_days"
 
         self._log_activity("Lead Sourcing", f"Sourcing {count} leads using {provider} for query: '{query}'")
 
@@ -45,21 +46,59 @@ class DiscoveryService:
         if provider != "web_search" and (not cred or "your_api_key" in (cred.encrypted_key or "") or not cred.encrypted_key.strip()):
             raise ValueError(f"No API credentials found for {provider}. Please configure your API credentials under Platform Setup -> API Settings.")
 
+        research_summary = None
         try:
             fetch_extra = {}
+            research_dimensions = {}
             if provider == "web_search":
                 from app.models.verticals import BusinessProfile
                 from app.services.sales_os.discovery.web_discovery import analyst_instructions
                 profile_row = self.db.query(BusinessProfile).filter_by(tenant_id=self.tenant_id).first()
                 if profile_row:
                     fetch_extra["analyst_prompt"] = analyst_instructions(profile_row.extra_context)
-            leads_data = await self.fetch_real_leads(
-                provider,
-                decrypt_api_key(cred.encrypted_key) if cred else "",
-                query,
-                count,
-                **fetch_extra,
-            )
+                    research_dimensions = {
+                        "geography": profile_row.target_countries,
+                        "industries": profile_row.target_industries,
+                        "buyer_roles": profile_row.target_decision_makers,
+                    }
+
+                if provider == "web_search":
+                    # The assistant-neutral enterprise pipeline searches
+                    # multiple public channels in one governed run. Keep the
+                    # older direct web extractor as a bounded fallback for
+                    # pages whose contact details need deeper extraction.
+                    from app.services.research import EnterpriseWebResearchService
+
+                    researcher = EnterpriseWebResearchService(self.db, self.tenant_id)
+                    batch = await researcher.run(
+                        query,
+                        count=count,
+                        freshness=freshness,
+                        geography=research_dimensions.get("geography"),
+                        industries=research_dimensions.get("industries"),
+                        buyer_roles=research_dimensions.get("buyer_roles"),
+                        offer=getattr(profile_row, "service_description", "") if profile_row else "",
+                    )
+                    research_summary = researcher.summarize(batch, count=count)
+                    leads_data = research_summary["contacts"]
+                    if not leads_data:
+                        leads_data = await self.fetch_real_leads(
+                            provider,
+                            "",
+                            query,
+                            count,
+                            freshness_window=freshness,
+                            **fetch_extra,
+                        )
+                        research_summary["contacts"].extend(leads_data[:count])
+                else:
+                    leads_data = await self.fetch_real_leads(
+                        provider,
+                        decrypt_api_key(cred.encrypted_key) if cred else "",
+                        query,
+                        count,
+                        **fetch_extra,
+                    )
             if provider == "web_search" and not leads_data:
                 message = "Open-web discovery found no verifiable contacts after multiple search rounds."
                 self._log_activity("API Error", message, "failed")
@@ -148,7 +187,15 @@ class DiscoveryService:
             enrich_lead_task.delay(self.tenant_id, lead_id)
 
         self._log_activity("Lead Generation Complete", f"Successfully captured {created_count} new leads in the DB.", "success")
-        return {"status": "success", "generated_leads": created_count, "provider": provider}
+        result = {"status": "success", "generated_leads": created_count, "provider": provider}
+        if research_summary is not None:
+            result["research"] = research_summary
+            result["message"] = (
+                f"Enterprise research completed across public web, news, hiring, company pages, "
+                f"and permitted social sources. {len(research_summary['contacts'])} contact(s) and "
+                f"{len(research_summary['extras'])} research extra(s) were returned."
+            )
+        return result
 
     async def collect_parallel_search(
         self,

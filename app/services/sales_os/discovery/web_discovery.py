@@ -139,7 +139,10 @@ def _usable_result(url: str) -> bool:
         return False
     path = urlparse(url).path
     if host.endswith("linkedin.com"):
-        return bool(re.search(r"/(posts|pulse)/", path))
+        # Only use publicly indexed posts and profiles. Login-gated pages are
+        # not treated as evidence, but public search results can still surface
+        # these URLs as unverified extras.
+        return bool(re.search(r"/(posts|pulse|in)/", path))
     if host.endswith(("twitter.com", "x.com")):
         return "/status/" in path
     if host.endswith("reddit.com"):

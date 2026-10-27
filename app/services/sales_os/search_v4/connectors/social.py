@@ -1,5 +1,6 @@
 """Permitted social search. Missing credentials are UNAVAILABLE, not an empty web result."""
 import httpx
+from datetime import datetime, timedelta, timezone
 
 from app.services.sales_os.search_v4.connectors.base import ConnectorResult, Hit, failure_from_status
 from app.services.sales_os.search_v4.contracts import SearchTask
@@ -55,6 +56,10 @@ class RedditConnector:
             failure, reason = failure_from_status(response.status_code)
             return ConnectorResult(status="failed", failure_class=failure, reason=reason)
         children = ((response.json() or {}).get("data") or {}).get("children") or []
+        from app.services.sales_os.discovery.web_discovery import calculate_freshness_window_days
+
+        max_days = calculate_freshness_window_days(task.freshness_window)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=max_days)
         hits = []
         for child in children:
             data = child.get("data") or {}
@@ -62,12 +67,18 @@ class RedditConnector:
             permalink = data.get("permalink") or ""
             if not title:
                 continue
+            published_at = None
+            if data.get("created_utc"):
+                published_at = datetime.fromtimestamp(float(data["created_utc"]), tz=timezone.utc)
+                if max_days < 9999 and published_at < cutoff:
+                    continue
             url = f"https://www.reddit.com{permalink}" if permalink.startswith("/") else permalink
             hits.append(
                 Hit(
                     url=url or "https://www.reddit.com",
                     title=title,
                     snippet=(data.get("selftext") or title)[:500],
+                    published_at=published_at,
                     provider_native_id=str(data.get("id") or ""),
                 )
             )
@@ -99,16 +110,29 @@ class XConnector:
             failure, reason = failure_from_status(response.status_code)
             return ConnectorResult(status="failed", failure_class=failure, reason=reason)
         hits = []
+        from app.services.sales_os.discovery.web_discovery import calculate_freshness_window_days
+
+        max_days = calculate_freshness_window_days(task.freshness_window)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=max_days)
         for row in (response.json() or {}).get("data") or []:
             text = (row.get("text") or "").strip()
             post_id = str(row.get("id") or "")
             if not text or not post_id:
+                continue
+            published_at = None
+            if row.get("created_at"):
+                try:
+                    published_at = datetime.fromisoformat(row["created_at"].replace("Z", "+00:00")).astimezone(timezone.utc)
+                except (TypeError, ValueError):
+                    published_at = None
+            if published_at and max_days < 9999 and published_at < cutoff:
                 continue
             hits.append(
                 Hit(
                     url=f"https://x.com/i/web/status/{post_id}",
                     title=text[:140],
                     snippet=text[:500],
+                    published_at=published_at,
                     provider_native_id=post_id,
                 )
             )

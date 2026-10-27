@@ -8,7 +8,8 @@ from app.models.base import Base, APICredential
 from app.models.verticals import Lead, ContentPost, Ticket, Transaction, Candidate
 from app.models.deal_room import DealRoom
 from app.models.agents import ActivityLog
-from app.services.agents.orchestrator import OrchestratorAgent
+from app.services.agents.orchestrator import OrchestratorAgent, infer_lead_provider
+from app.services.sales.discovery_service import DiscoveryService
 from app.schemas.orchestrator_briefing import BriefingResponse, MetricsPayload, MetricValue
 from app.services.analytics.narrative_service import GroundingValidator
 
@@ -145,3 +146,38 @@ def test_grounding_validator():
     is_valid, unanchored = GroundingValidator.validate(hallucinated_text, metrics)
     assert is_valid is False
     assert len(unanchored) >= 1
+
+
+def test_lead_provider_routing_exposes_open_web_by_default():
+    assert infer_lead_provider("find software companies anywhere on the internet") == "web_search"
+    assert infer_lead_provider("find ecommerce brands from any source") == "web_search"
+    assert infer_lead_provider("use apollo to find SaaS founders") == "apollo"
+    assert infer_lead_provider("use google maps for restaurants") == "google_places"
+    assert infer_lead_provider(
+        "Previous Conversation History: User: use apollo\nCurrent user request: do normal web search",
+        "apollo",
+    ) == "web_search"
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_routes_unqualified_lead_discovery_to_web_search(db_session, monkeypatch):
+    agent = OrchestratorAgent(db_session, "tenant-web-search-test")
+    captured = {}
+
+    async def fake_llm_complete(**kwargs):
+        captured["system_prompt"] = kwargs.get("system_prompt", "")
+        return '{"message":"I will research public company sources.","tasks":[{"department":"Sales","action":"generate_leads","parameters":{"query":"software development buyers","count":10,"provider":"apollo"}}]}'
+
+    async def fake_generate_leads(self, params):
+        captured["params"] = params
+        return {"status": "success", "generated_leads": 0, "provider": params["provider"]}
+
+    monkeypatch.setattr(agent.llm, "complete", fake_llm_complete)
+    monkeypatch.setattr(DiscoveryService, "generate_leads", fake_generate_leads)
+
+    result = await agent.handle_prompt("Find 10 companies that need software development from any source")
+
+    assert captured["params"]["provider"] == "web_search"
+    assert '"web_search"' in captured["system_prompt"]
+    assert "Firecrawl" in captured["system_prompt"]
+    assert result["results"][-1]["provider"] == "web_search"

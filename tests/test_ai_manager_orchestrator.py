@@ -10,6 +10,7 @@ async def test_orchestrator_initialization_and_tool_registry():
     orch = AIManagerOrchestrator(tenant_id="tenant-test")
     assert orch.tool_registry is not None
     assert orch.tenant_id == "tenant-test"
+    assert orch.tool_registry.get("research.web_search") is not None
 
 
 @pytest.mark.asyncio
