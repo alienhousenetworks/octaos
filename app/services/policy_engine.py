@@ -131,6 +131,8 @@ class PolicyEngine:
             required_binding_fields = {"run_id", "bot_id", "tool_name", "target", "payload"}
             if not required_binding_fields.issubset(action_binding):
                 return self._block("Invalid action binding: run_id, bot_id, tool_name, target, and payload are required.")
+            if any(not str(action_binding.get(key) or "").strip() for key in ("run_id", "bot_id", "tool_name", "target")):
+                return self._block("Invalid action binding: run_id, bot_id, tool_name, and target must be non-empty.")
             if not isinstance(action_binding.get("payload"), dict):
                 return self._block("Invalid action binding payload.")
             policy_version = str(action_binding.get("policy_version") or "1")
