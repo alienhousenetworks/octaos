@@ -235,6 +235,50 @@ def get_research_job(
     return result
 
 
+@router.post("/jobs/{job_id}/resume")
+async def resume_research_job(
+    job_id: str,
+    db: Session = Depends(deps.get_db),
+    user: User = Depends(require_permission(Resource.SETTINGS, Action.READ)),
+) -> dict[str, Any]:
+    """Resume a persisted run after a worker/process interruption."""
+    tenant_id = str(user.tenant_id or "")
+    _require_durable_search_store(db)
+    row = (
+        db.query(SearchV4Job)
+        .filter(SearchV4Job.id == job_id, SearchV4Job.tenant_id == tenant_id)
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Research job not found.")
+    if row.status not in {"running", "failed"}:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Research job cannot be resumed from status '{row.status}'.",
+        )
+    service = EnterpriseWebResearchService(db=db, tenant_id=tenant_id)
+    try:
+        batch = await service.resume(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Research job not found.") from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "RESEARCH_RESUME_FAILED", "message": "The research job could not be resumed."},
+        ) from exc
+    result = EnterpriseWebResearchService.summarize(batch)
+    result["counts"] = {
+        "tasks": len(batch.tasks),
+        "sources": len(batch.records),
+        "claims": len(batch.candidates),
+        "qualified": len(batch.qualified),
+        "rejected": len(batch.rejected),
+    }
+    result["usage"] = [entry.model_dump(mode="json") for entry in batch.ledger]
+    result["resumed"] = True
+    return result
+
+
 @router.get("/providers")
 def get_research_providers(
     db: Session = Depends(deps.get_db),
