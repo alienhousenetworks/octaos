@@ -2,12 +2,15 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useWorkspace } from '@/lib/workspace';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Bot, ArrowUp, Paperclip, ShieldCheck, Network, Database, Loader2, AlertCircle, CheckCircle2, Search } from 'lucide-react';
+import { Bot, ArrowUp, ShieldCheck, Network, Loader2, AlertCircle, CheckCircle2, Search } from 'lucide-react';
 import { createId } from '@/lib/id';
 import { AgentItem } from '@/lib/agent-types';
+import { SECTION_AGENT_SLUG, knowledgeDepartmentForScope } from '@/lib/interface-mode';
+import ClassicKnowledgeShelf from '@/components/shell/classic-knowledge-shelf';
 
 type ChatMessage = {
   id: string;
@@ -15,6 +18,52 @@ type ChatMessage = {
   content: string;
   createdAt: string;
   result?: unknown;
+  agentName?: string;
+};
+
+type SalesSpecialist = {
+  agent_id: string;
+  purpose: string;
+  readiness: string;
+  present: boolean;
+};
+
+const SUGGESTIONS: Record<string, string[]> = {
+  general: [
+    'Find suitable companies for our services and prepare a lead research plan.',
+    'Review our company knowledge and tell me which important information is missing or stale.',
+    'Plan a marketing campaign using our approved brand and product information.',
+  ],
+  sales: [
+    'Review the open pipeline and name the next account to work.',
+    'Draft a first outreach note from the approved sales knowledge.',
+    'Which sales specialist should handle qualification for a new lead?',
+  ],
+  marketing: [
+    'Draft a campaign outline from the marketing knowledge.',
+    'List the brand facts that are missing before we publish.',
+    'Propose three posts that stay inside the approved tone.',
+  ],
+  support: [
+    'Summarize the latest support issues using the support knowledge.',
+    'Which documented answers are missing for common questions?',
+    'Draft a reply that stays inside the approved support notes.',
+  ],
+  hiring: [
+    'Summarize the open roles and what a strong candidate must show.',
+    'Which hiring documents are missing from company knowledge?',
+    'Draft a screening checklist from the hiring notes.',
+  ],
+  people: [
+    'Summarize the people operations that need attention this week.',
+    'Which HR documents are missing or stale?',
+    'Draft an onboarding checklist from the hiring knowledge.',
+  ],
+  objectives: [
+    'Turn the current company goals into a short execution plan.',
+    'Which department should own the next objective?',
+    'What knowledge is missing before we commit to a goal?',
+  ],
 };
 
 const WELCOME: ChatMessage = {
@@ -48,6 +97,10 @@ function formatResult(value: any): string {
 
 export default function UniversalAssistantView({ scope = 'general', title }: { scope?: string; title?: string }) {
   const workspace = useWorkspace();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const requestedAgent = searchParams.get('agent') || '';
   const tenantKey = String(workspace.tenantId || 'default');
   const storageKey = 'octaos-universal-assistant-messages:' + tenantKey + ':' + scope;
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
@@ -59,6 +112,10 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
   const [agentsLoading, setAgentsLoading] = useState(false);
   const [agentsError, setAgentsError] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState('');
+  const [agentQuery, setAgentQuery] = useState('');
+  const [specialists, setSpecialists] = useState<SalesSpecialist[]>([]);
+  const [specialistGroups, setSpecialistGroups] = useState<string[]>([]);
+  const [specialistsError, setSpecialistsError] = useState('');
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) || null;
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -77,12 +134,70 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
         if (!active) return;
         const available = Array.isArray(data) ? data as AgentItem[] : [];
         setAgents(available);
-        setSelectedAgentId((current) => current && available.some((agent) => agent.id === current) ? current : '');
       })
       .catch((err) => { if (active) setAgentsError(err instanceof Error ? err.message : 'Could not load agents.'); })
       .finally(() => { if (active) setAgentsLoading(false); });
     return () => { active = false; };
   }, [workspace.token, workspace.apiUrl, workspace.fetchWithAuth]);
+
+  useEffect(() => {
+    if (!agents.length) return;
+    if (requestedAgent === 'orchestrator') {
+      setSelectedAgentId('');
+      return;
+    }
+    if (requestedAgent) {
+      const match = agents.find((agent) => agent.id === requestedAgent || agent.slug === requestedAgent);
+      if (match) {
+        setSelectedAgentId(match.id);
+        return;
+      }
+    }
+    const slug = SECTION_AGENT_SLUG[scope];
+    const scoped = slug ? agents.find((agent) => agent.slug === slug) : null;
+    setSelectedAgentId(scoped?.id || '');
+  }, [agents, requestedAgent, scope]);
+
+  useEffect(() => {
+    if (!workspace.token) return;
+    let active = true;
+    workspace.fetchWithAuth(workspace.apiUrl + '/sales-os/workforce')
+      .then(async (response) => {
+        if (!response.ok) throw new Error('The sales workforce is unavailable (' + response.status + ').');
+        const data = await response.json();
+        if (!active) return;
+        const groups = Array.isArray(data?.departments) ? data.departments : [];
+        const rows: SalesSpecialist[] = [];
+        const names: string[] = [];
+        groups.forEach((group: any) => {
+          if (group?.name) names.push(group.name);
+          (group?.agents || []).forEach((agent: any) => {
+            if (!agent?.agent_id) return;
+            rows.push({
+              agent_id: String(agent.agent_id),
+              purpose: String(agent.purpose || ''),
+              readiness: String(agent.readiness || ''),
+              present: Boolean(agent.present),
+            });
+          });
+        });
+        setSpecialists(rows);
+        setSpecialistGroups(names);
+        setSpecialistsError('');
+      })
+      .catch((err) => { if (active) setSpecialistsError(err instanceof Error ? err.message : 'Could not load sales specialists.'); });
+    return () => { active = false; };
+  }, [workspace.token, workspace.apiUrl, workspace.fetchWithAuth]);
+
+  const chooseAgent = (id: string) => {
+    setSelectedAgentId(id);
+    const agent = agents.find((item) => item.id === id);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('agent', agent ? (agent.slug || agent.id) : 'orchestrator');
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+    window.setTimeout(() => window.dispatchEvent(new Event('octaos-agent-query')), 0);
+  };
 
   useEffect(() => {
     setLoadedTenant(null);
@@ -116,8 +231,9 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
     if (!goal || busy || sendingRef.current) return;
     sendingRef.current = true;
     draftRef.current = '';
+    const speaker = selectedAgent?.name || 'OctaOS';
     const userMessage: ChatMessage = {
-      id: createId(), role: 'user', content: goal, createdAt: new Date().toISOString(),
+      id: createId(), role: 'user', content: goal, createdAt: new Date().toISOString(), agentName: speaker,
     };
     setMessages((current) => [...current, userMessage]);
     setInput('');
@@ -156,6 +272,7 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
         content: selectedAgent ? formatResult(body.output ?? body.raw_response ?? body.response ?? body) : formatResult(body),
         createdAt: new Date().toISOString(),
         result: body,
+        agentName: speaker,
       };
       setMessages((current) => [...current, resultMessage]);
     } catch (err) {
@@ -173,11 +290,20 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
     }
   };
 
-  const suggestions = [
-    'Find suitable companies for our services and prepare a lead research plan.',
-    'Review our company knowledge and tell me which important information is missing or stale.',
-    'Plan a marketing campaign using our approved brand and product information.',
-  ];
+  const suggestions = SUGGESTIONS[scope] || SUGGESTIONS.general;
+  const agentNeedle = agentQuery.trim().toLowerCase();
+  const visibleAgents = agents.filter((agent) => {
+    if (!agentNeedle) return true;
+    return [agent.name, agent.role, agent.department, agent.slug, agent.description].join(' ').toLowerCase().includes(agentNeedle);
+  });
+  const askSpecialist = (specialist: SalesSpecialist) => {
+    const sales = agents.find((agent) => agent.slug === 'sales_ai');
+    if (sales) chooseAgent(sales.id);
+    const draft = 'Use the ' + specialist.agent_id + ' specialist. ' + (specialist.purpose || 'Work from the approved sales knowledge and say when evidence is missing.');
+    draftRef.current = draft;
+    setInput(draft);
+    inputRef.current?.focus();
+  };
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col">
@@ -207,12 +333,28 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-semibold"><Bot className="size-4 text-[#8be977]" /> Choose your AI</div>
-            <p className="mt-1 text-xs leading-5 text-white/50">Use the general orchestrator or run a specific registered built-in/custom agent with its saved instructions and tools.</p>
+            <p className="mt-1 text-xs leading-5 text-white/50">{agents.length > 0 ? agents.length + ' registered AIs. ' : ''}Built-in and custom agents use their saved instructions. The general assistant coordinates the request.</p>
           </div>
           <Link href="/app/agents" className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/75 transition hover:bg-white/[0.06]">Manage agents ↗</Link>
         </div>
+        <label className="mt-3 flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-[#0d100e] px-3 text-white/40">
+          <Search className="size-3.5 shrink-0" />
+          <input value={agentQuery} onChange={(event) => setAgentQuery(event.target.value)} placeholder="Filter by name, role, or department" aria-label="Filter AIs" className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/35" />
+        </label>
+        <div className="mt-3 grid max-h-72 gap-2 overflow-y-auto sm:grid-cols-2" data-testid="ai-agent-roster">
+          <button type="button" aria-pressed={!selectedAgentId} onClick={() => chooseAgent('')} className={'rounded-xl border px-3 py-2 text-left ' + (!selectedAgentId ? 'border-[#7de56b]/50 bg-[#7de56b]/10' : 'border-white/10 hover:bg-white/[0.04]')}>
+            <span className="block text-sm font-medium">General assistant</span>
+            <span className="mt-0.5 block text-[11px] text-white/45">Orchestrator · coordinates the work</span>
+          </button>
+          {visibleAgents.map((agent) => (
+            <button key={agent.id} type="button" data-agent-slug={agent.slug} aria-pressed={selectedAgentId === agent.id} onClick={() => chooseAgent(agent.id)} className={'rounded-xl border px-3 py-2 text-left ' + (selectedAgentId === agent.id ? 'border-[#7de56b]/50 bg-[#7de56b]/10' : 'border-white/10 hover:bg-white/[0.04]')}>
+              <span className="block text-sm font-medium">{agent.name}</span>
+              <span className="mt-0.5 block truncate text-[11px] text-white/45">{agent.role || agent.description || 'Registered agent'} · {agent.department || 'General'} · {agent.is_system ? 'Built-in' : 'Custom'}</span>
+            </button>
+          ))}
+        </div>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <select aria-label="Select AI agent" value={selectedAgentId} onChange={(event) => setSelectedAgentId(event.target.value)} disabled={agentsLoading} className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-[#0d100e] px-3 text-sm text-white outline-none focus:border-[#7de56b]/50">
+          <select aria-label="Select AI agent" value={selectedAgentId} onChange={(event) => chooseAgent(event.target.value)} disabled={agentsLoading} className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-[#0d100e] px-3 text-sm text-white outline-none focus:border-[#7de56b]/50">
             <option value="">OctaOS general assistant · orchestrator</option>
             {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}{agent.is_system ? ' · Built-in' : ' · Custom'}{agent.department ? ' — ' + agent.department : ''}</option>)}
           </select>
@@ -221,19 +363,15 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
         {agentsLoading && <p className="mt-2 text-xs text-white/40">Loading registered agents…</p>}
         {agentsError && <p role="status" className="mt-2 text-xs text-amber-300">{agentsError} The general assistant remains available; refresh to retry.</p>}
         {!agentsLoading && !agentsError && agents.length === 0 && <p className="mt-2 text-xs text-white/40">No agents were returned by the registry. Create or configure agents in Agent Studio.</p>}
+        {!agentsLoading && agents.length > 0 && visibleAgents.length === 0 && <p className="mt-2 text-xs text-white/40">No AIs match that filter.</p>}
         {selectedAgent && <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/[0.08] pt-3 text-xs text-white/55"><span className="rounded-md bg-[#7de56b]/10 px-2 py-1 text-[#a4f196]">{selectedAgent.lifecycle_state || 'registered'}</span><span>{selectedAgent.provider || 'Provider not set'} / {selectedAgent.model || 'Model not set'}</span><span>·</span><span>{selectedAgent.tools?.length || 0} configured tools</span><span>·</span><span>{selectedAgent.version ? 'v' + selectedAgent.version : 'Version not reported'}</span></div>}
       </div>
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-white/[0.09] bg-[#131714] p-3">
-          <Database className="mb-2 size-4 text-[#8be977]" />
-          <p className="text-sm font-medium">Company knowledge</p>
-          <p className="mt-1 text-xs leading-5 text-white/50">Use authorized business information and flag missing details.</p>
-        </div>
+      <div className="mb-4 grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-white/[0.09] bg-[#131714] p-3">
           <Network className="mb-2 size-4 text-[#8be977]" />
           <p className="text-sm font-medium">Collaborative bots</p>
-          <p className="mt-1 text-xs leading-5 text-white/50">Coordinate specialist capabilities when supported by the runtime.</p>
+          <p className="mt-1 text-xs leading-5 text-white/50">Every registered AI is listed above. Sales specialists stay attached to Sales AI.</p>
         </div>
         <div className="rounded-xl border border-white/[0.09] bg-[#131714] p-3">
           <ShieldCheck className="mb-2 size-4 text-[#8be977]" />
@@ -246,7 +384,7 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
         {messages.map((message) => (
           <div key={message.id} className={'flex ' + (message.role === 'user' ? 'justify-end' : 'justify-start')}>
             <div className={'max-w-[92%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 md:max-w-[82%] ' + (message.role === 'user' ? 'border border-[#7de56b]/15 bg-[#243a25] text-[#f2f7f0]' : 'border border-white/[0.09] bg-[#1a1e1b] text-[#edf1ec]')}>
-              {message.role !== 'user' && <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold text-white/50"><Bot className="size-3.5" /> {selectedAgent?.name || "OctaOS"}</div>}
+              {message.role !== 'user' && <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold text-white/50"><Bot className="size-3.5" /> {message.agentName || 'OctaOS'}</div>}
               {message.content}
               {message.result !== undefined && (
                 <details className="mt-3 border-t border-white/10 pt-2">
@@ -285,7 +423,7 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
           aria-label="Message OctaOS"
         />
         <div className="flex items-center justify-between gap-2 px-2 pb-1">
-          <div className="flex items-center gap-2 text-xs text-white/50"><Paperclip className="size-3.5" /> {selectedAgent ? "Running as " + selectedAgent.name + "." : "General orchestration · Select a specialist above to use its configuration."}</div>
+          <div className="text-xs text-white/50">{selectedAgent ? 'Running as ' + selectedAgent.name + '.' : 'General orchestration. Choose an AI above to use its configuration.'}</div>
           <Button type="submit" size="sm" disabled={busy || !input.trim()} onClick={(event) => {
             event.preventDefault();
             const field = event.currentTarget.closest('form')?.querySelector('textarea');
@@ -293,6 +431,27 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
           }}><ArrowUp className="mr-1 size-4" /> {busy ? 'Working…' : 'Send'}</Button>
         </div>
       </form>
+      <div className="mt-4">
+        <ClassicKnowledgeShelf knowledge={workspace.knowledge} department={knowledgeDepartmentForScope(scope)} />
+      </div>
+      {specialists.length > 0 && (
+        <details open className="mt-4 rounded-2xl border border-white/[0.09] bg-[#131714] p-4" data-testid="sales-workforce-roster">
+          <summary className="cursor-pointer text-sm font-semibold">Sales specialists · {specialists.length}</summary>
+          <div className="mt-2 flex flex-wrap items-start justify-between gap-2">
+            <p className="text-xs leading-5 text-white/50">{specialistGroups.length ? specialistGroups.join(', ') + '. ' : ''}These specialists run with Sales AI. Choosing one fills a request and does not send it.</p>
+            <Link href="/app/sales/agents" className="text-xs text-[#a4f196] hover:underline">Open sales workforce</Link>
+          </div>
+          <div className="mt-3 grid max-h-64 gap-1.5 overflow-y-auto sm:grid-cols-2">
+            {specialists.map((specialist) => (
+              <button key={specialist.agent_id} type="button" onClick={() => askSpecialist(specialist)} className="rounded-lg border border-white/10 px-2.5 py-2 text-left hover:bg-white/[0.04]">
+                <span className="block truncate text-xs font-medium">{specialist.agent_id}</span>
+                <span className="mt-0.5 block truncate text-[11px] text-white/45">{specialist.purpose || specialist.readiness || 'Registered specialist'}</span>
+              </button>
+            ))}
+          </div>
+        </details>
+      )}
+      {specialistsError && <p className="mt-4 text-xs text-amber-300">{specialistsError}</p>}
       <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] text-white/50"><CheckCircle2 className="size-3" /> Results reflect the orchestration response; verify approvals and external outcomes before treating work as complete.</p>
     </div>
   );

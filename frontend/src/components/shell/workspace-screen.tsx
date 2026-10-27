@@ -51,6 +51,8 @@ const FEED_PATHS = [
   '/app/hr',
   '/app/hiring',
   '/app/support',
+  '/app/approvals',
+  '/app/boardroom',
   '/app/settings/integrations',
   '/app/settings/guide',
 ];
