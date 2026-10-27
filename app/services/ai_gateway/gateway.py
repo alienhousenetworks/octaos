@@ -131,7 +131,7 @@ class AIProviderGateway:
             # If tenant has configured any AI brain credential, default to byok
             has_creds = db.query(APICredential).filter(
                 APICredential.tenant_id == tenant_id,
-                APICredential.provider.in_(["openrouter", "together", "groq", "grok", "anthropic", "openai", "gemini"])
+                APICredential.provider.in_(["nvidia", "openrouter", "together", "groq", "grok", "anthropic", "openai", "gemini"])
             ).first()
             if has_creds:
                 return "byok"

@@ -7,6 +7,24 @@ from app.services.ai_gateway.gateway import AIProviderGateway
 from sqlalchemy.orm import Session
 import os
 
+def test_auto_provider_follows_environment_default():
+    from app.services.ai_gateway.adapters import resolve_configured_provider
+
+    with patch("app.core.config.settings.DEFAULT_AI_PROVIDER", "nvidia"), patch(
+        "app.core.config.settings.DEFAULT_AI_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b"
+    ):
+        provider, model = resolve_configured_provider("auto", "meta-llama/llama-3.3-70b-instruct")
+    assert provider == "nvidia"
+    assert model == "nvidia/nemotron-3.5-super-vl-120b-a12b"
+
+    provider, model = resolve_configured_provider("openrouter", "meta-llama/llama-3.3-70b-instruct")
+    assert provider == "openrouter"
+    assert model == "meta-llama/llama-3.3-70b-instruct"
+
+    provider, _model = resolve_configured_provider("nvidia_nim", "custom-model")
+    assert provider == "nvidia"
+
+
 def test_dynamic_routing_complexity():
     # High complexity should route to a reasoning model (like sonnet or gpt-4o) if available
     provider, model = AIRoutingEngine.selectProvider(

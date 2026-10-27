@@ -895,6 +895,26 @@ _RETIRED_NVIDIA_MODELS = {
 }
 
 
+def resolve_configured_provider(provider: Optional[str], model: Optional[str] = None) -> tuple:
+    """Turn an agent provider choice into a concrete provider and model.
+
+    ``auto`` follows DEFAULT_AI_PROVIDER and DEFAULT_AI_MODEL. An explicit
+    provider keeps the caller's model.
+    """
+    from app.core.config import settings
+
+    raw = (provider or "auto").strip().lower()
+    if raw in ("nim", "nvidia_nim"):
+        raw = "nvidia"
+    if raw in ("", "auto", "none", "default"):
+        chosen = (getattr(settings, "DEFAULT_AI_PROVIDER", None) or "openrouter").strip().lower()
+        if chosen in ("nim", "nvidia_nim"):
+            chosen = "nvidia"
+        env_model = (getattr(settings, "DEFAULT_AI_MODEL", None) or "").strip()
+        return chosen or "openrouter", env_model or model
+    return raw, model
+
+
 def resolve_nvidia_model(model: Optional[str]) -> str:
     """Return the model id NVIDIA NIM should receive.
 

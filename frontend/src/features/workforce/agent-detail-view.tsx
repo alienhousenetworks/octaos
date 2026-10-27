@@ -31,6 +31,7 @@ import AgentConsole from './components/agent-console';
 import { useInterfaceMode } from '@/lib/interface-mode';
 import AgentToolGrants from './components/agent-tool-grants';
 import { notify } from '@/lib/notify';
+import { AGENT_AI_PROVIDERS, autoProviderLabel, normalizeAgentProvider, providerDisplayName } from '@/lib/ai-providers';
 
 interface AgentDetailViewProps {
   agentId: string;
@@ -103,9 +104,11 @@ export default function AgentDetailView({
   const [configPrompt, setConfigPrompt] = useState('');
   const promptDraftRef = React.useRef('');
   const [configModel, setConfigModel] = useState('');
-  const [configProvider, setConfigProvider] = useState('openrouter');
+  const [configProvider, setConfigProvider] = useState('auto');
   const [configTemp, setConfigTemp] = useState(0.7);
   const [savingConfig, setSavingConfig] = useState(false);
+  const [envProvider, setEnvProvider] = useState('');
+  const [envModel, setEnvModel] = useState('');
 
   // Load agent data
   const loadAgent = useCallback(async () => {
@@ -118,8 +121,8 @@ export default function AgentDetailView({
         setAgent(data);
         promptDraftRef.current = data.system_prompt || '';
         setConfigPrompt(data.system_prompt || '');
-        setConfigModel(data.model || 'meta-llama/llama-3.3-70b-instruct');
-        setConfigProvider(data.provider || 'openrouter');
+        setConfigModel(data.model || '');
+        setConfigProvider(normalizeAgentProvider(data.provider));
         setConfigTemp(data.temperature ?? 0.7);
       } else {
         // Fallback: search in list_agents
@@ -131,8 +134,8 @@ export default function AgentDetailView({
             setAgent(match);
             promptDraftRef.current = match.system_prompt || '';
             setConfigPrompt(match.system_prompt || '');
-            setConfigModel(match.model || 'meta-llama/llama-3.3-70b-instruct');
-            setConfigProvider(match.provider || 'openrouter');
+            setConfigModel(match.model || '');
+            setConfigProvider(normalizeAgentProvider(match.provider));
             setConfigTemp(match.temperature ?? 0.7);
           }
         }
@@ -164,6 +167,24 @@ export default function AgentDetailView({
   useEffect(() => {
     loadAgent();
   }, [loadAgent]);
+
+  useEffect(() => {
+    let active = true;
+    fetchWithAuth(`${API_URL}/commands/ai-mode`)
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((data) => {
+        if (!active || !data) return;
+        if (data.primary_provider) setEnvProvider(String(data.primary_provider));
+        if (data.primary_model) setEnvModel(String(data.primary_model));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [API_URL, fetchWithAuth]);
 
   useEffect(() => {
     if (activeTab === 'activity' || activeTab === 'overview') {
@@ -461,14 +482,25 @@ export default function AgentDetailView({
               <label className="text-xs font-semibold text-gray-300">Provider</label>
               <select
                 value={configProvider}
-                onChange={(e) => setConfigProvider(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setConfigProvider(next);
+                  if (next === 'nvidia' && envModel && !configModel.trim()) setConfigModel(envModel);
+                }}
                 className="w-full h-9 rounded-xl border border-gray-800 bg-gray-900/80 px-3 text-xs text-white"
               >
-                <option value="openrouter">OpenRouter (Preferred)</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="openai">OpenAI</option>
-                <option value="google">Google Gemini</option>
+                {AGENT_AI_PROVIDERS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.value === 'auto' ? autoProviderLabel(envProvider) : item.label}
+                  </option>
+                ))}
               </select>
+              {configProvider === 'auto' && (
+                <p className="text-[11px] leading-4 text-gray-500">
+                  Auto uses {envProvider ? providerDisplayName(envProvider) : 'the server environment'}
+                  {envModel ? ` · ${envModel}` : ''} from the server environment.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5 sm:col-span-2">

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { AutonomyLevel } from '@/lib/agent-types';
 import { notify } from '@/lib/notify';
+import { AGENT_AI_PROVIDERS, autoProviderLabel, providerDisplayName } from '@/lib/ai-providers';
 
 interface AgentCreateWizardProps {
   open: boolean;
@@ -69,11 +70,29 @@ export default function AgentCreateWizard({
   const [role, setRole] = useState('');
   const [description, setDescription] = useState('');
   const [autonomyLevel, setAutonomyLevel] = useState<AutonomyLevel>('L1');
-  const [provider, setProvider] = useState('openrouter');
-  const [model, setModel] = useState('meta-llama/llama-3.3-70b-instruct');
+  const [provider, setProvider] = useState('auto');
+  const [model, setModel] = useState('');
+  const [envProvider, setEnvProvider] = useState('');
+  const [envModel, setEnvModel] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [temperature, setTemperature] = useState(0.7);
   const [selectedTools, setSelectedTools] = useState<string[]>(['web_search']);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    fetchWithAuth(`${API_URL}/commands/ai-mode`)
+      .then(async (res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!active || !data) return;
+        if (data.primary_provider) setEnvProvider(String(data.primary_provider));
+        if (data.primary_model) setEnvModel(String(data.primary_model));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [open, API_URL, fetchWithAuth]);
 
   const toggleTool = (toolId: string) => {
     if (selectedTools.includes(toolId)) {
@@ -259,15 +278,25 @@ export default function AgentCreateWizard({
                 <label className="text-xs font-semibold text-gray-300">Inference Provider</label>
                 <select
                   value={provider}
-                  onChange={(e) => setProvider(e.target.value)}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setProvider(next);
+                    if (next === 'nvidia' && envModel && !model.trim()) setModel(envModel);
+                  }}
                   className="w-full h-9 rounded-xl border border-gray-800 bg-gray-900/80 px-3 text-xs text-white"
                 >
-                  <option value="openrouter">OpenRouter (Preferred)</option>
-                  <option value="grok">Grok (xAI) Direct</option>
-                  <option value="openai">OpenAI Direct</option>
-                  <option value="anthropic">Anthropic Direct</option>
-                  <option value="gemini">Google Gemini</option>
+                  {AGENT_AI_PROVIDERS.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.value === 'auto' ? autoProviderLabel(envProvider) : item.label}
+                    </option>
+                  ))}
                 </select>
+                {provider === 'auto' && (
+                  <p className="text-[11px] leading-4 text-gray-500">
+                    Auto uses {envProvider ? providerDisplayName(envProvider) : 'the server environment'}
+                    {envModel ? ` · ${envModel}` : ''} from the server environment.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -275,7 +304,7 @@ export default function AgentCreateWizard({
                 <Input
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
-                  placeholder="meta-llama/llama-3.3-70b-instruct"
+                  placeholder={envModel || 'Uses the environment model when Auto is selected'}
                   className="rounded-xl border-gray-800 bg-gray-900/80 text-xs text-white font-mono"
                 />
               </div>

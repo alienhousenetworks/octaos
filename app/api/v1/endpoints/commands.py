@@ -238,7 +238,7 @@ def get_ai_mode(
     current_mode = ai_gateway.get_tenant_ai_mode(db, tenant_id)
     
     inbuilt_providers = [
-        p for p in ["openrouter", "together", "groq", "grok", "anthropic", "openai", "gemini"]
+        p for p in ["nvidia", "openrouter", "together", "groq", "grok", "anthropic", "openai", "gemini"]
         if ai_gateway._get_system_env_key(p)
     ]
     

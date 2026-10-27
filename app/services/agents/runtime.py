@@ -76,12 +76,12 @@ class AgentRuntime:
             payload=started_event.to_public_dict()))
         db.commit()
 
-        # 2. Resolve Model and Fallbacks
-        provider = agent_ver.provider
+        # 2. Resolve Model and Fallbacks. Auto uses the server environment provider.
+        from app.services.ai_gateway.adapters import resolve_configured_provider
+        provider, model = resolve_configured_provider(agent_ver.provider, agent_ver.model)
         allowed_providers = (entitlement_snapshot.get("feature_flags") or {}).get("allowed_providers")
         if allowed_providers and provider not in allowed_providers:
             raise PermissionError("Requested provider is not enabled for the tenant's subscription.")
-        model = agent_ver.model
         temperature = agent_ver.temperature or 0.7
 
         # 3. Resolve Tool Grants
