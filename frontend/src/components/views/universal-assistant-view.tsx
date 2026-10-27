@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Bot, ArrowUp, Paperclip, ShieldCheck, Network, Database, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { createId } from '@/lib/id';
+import { AgentItem } from '@/lib/agent-types';
 
 type ChatMessage = {
   id: string;
@@ -53,10 +55,34 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [agents, setAgents] = useState<AgentItem[]>([]);
+  const [agentsLoading, setAgentsLoading] = useState(false);
+  const [agentsError, setAgentsError] = useState('');
+  const [selectedAgentId, setSelectedAgentId] = useState('');
+  const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) || null;
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const draftRef = useRef('');
   const sendingRef = useRef(false);
+
+  useEffect(() => {
+    if (!workspace.token) return;
+    let active = true;
+    setAgentsLoading(true);
+    setAgentsError('');
+    workspace.fetchWithAuth(workspace.apiUrl + '/dashboard/agents')
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Agent catalogue is unavailable (' + response.status + ').');
+        const data = await response.json();
+        if (!active) return;
+        const available = Array.isArray(data) ? data as AgentItem[] : [];
+        setAgents(available);
+        setSelectedAgentId((current) => current && available.some((agent) => agent.id === current) ? current : '');
+      })
+      .catch((err) => { if (active) setAgentsError(err instanceof Error ? err.message : 'Could not load agents.'); })
+      .finally(() => { if (active) setAgentsLoading(false); });
+    return () => { active = false; };
+  }, [workspace.token, workspace.apiUrl, workspace.fetchWithAuth]);
 
   useEffect(() => {
     setLoadedTenant(null);
