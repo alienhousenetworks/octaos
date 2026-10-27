@@ -93,7 +93,7 @@ class SecretValidationService:
             return api_key.startswith("SG.") or len(api_key) >= 15
         elif provider_lower in ("twilio", "twilio_sms", "twilio_voice"):
             return api_key.startswith("AC") or api_key.startswith("SK") or len(api_key) >= 16
-        elif provider_lower in ("calendly", "zoominfo", "zapier", "workato", "landingi", "google_forms", "formstack", "mapsly", "matomo", "powerbi", "google_ads", "postman", "youscan", "sendpulse", "hootsuite", "fbmessenger", "messenger"):
+        elif provider_lower in ("calendly", "zoominfo", "zapier", "workato", "landingi", "google_forms", "formstack", "mapsly", "matomo", "powerbi", "google_ads", "postman", "youscan", "sendpulse", "hootsuite", "fbmessenger", "messenger", "buffer"):
             return len(api_key) >= 6
         # Default minimum validation length
         return len(api_key) >= 8

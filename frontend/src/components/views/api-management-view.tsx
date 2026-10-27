@@ -82,6 +82,7 @@ const PROVIDERS: ProviderDef[] = [
   { id: 'sendpulse', label: 'SendPulse Marketing', category: 'marketing', hint: 'Client ID | Secret', url: 'https://sendpulse.com/', placeholder: 'client_id | secret', description: 'Multi-channel email campaigns, web push notifications, and chatbots' },
 
   // Social & Media
+  { id: 'buffer', label: 'Buffer Omnichannel', category: 'social', hint: 'OAuth 2.0 or API Key', url: 'https://buffer.com/', placeholder: 'Buffer API Key...', description: 'Omnichannel social publishing across Instagram, Facebook, X, LinkedIn, TikTok, Threads, and YouTube' },
   { id: 'linkedin', label: 'LinkedIn Share API', category: 'social', hint: 'OAuth Access Token', url: 'https://developer.linkedin.com/', placeholder: 'AQXTs...', description: 'Publishing B2B thought leadership updates and company posts' },
   { id: 'meta', label: 'Meta Graph API & Lead Ads', category: 'social', hint: 'Page Access Token', url: 'https://developers.facebook.com/', placeholder: 'EAABsbCS...', description: 'Publishing carousels, video reels on IG & FB, and Meta Lead Ads sync' },
   { id: 'heygen', label: 'HeyGen Video AI', category: 'social', hint: 'HeyGen API Key', url: 'https://platform.heygen.com/api-keys', placeholder: 'your_heygen_api_key...', description: 'AI avatars, brand spokesperson videos, and automated video-agent generation' },
@@ -333,6 +334,22 @@ export default function ApiManagementView({
     if (tenantId) params.set('tenant_id', tenantId);
     if (selectedScope) params.set('scope', selectedScope);
     window.location.href = `${API_URL}/linkedin/auth?${params.toString()}`;
+  };
+
+  const handleBufferOAuthConnect = async () => {
+    try {
+      const res = await fetchWithAuth(`${API_URL}/marketing/connectors/buffer/connect`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) {
+          window.location.href = data.url;
+          return;
+        }
+      }
+      showToast('Could not start Buffer OAuth session', 'err');
+    } catch {
+      showToast('Network error starting Buffer OAuth', 'err');
+    }
   };
 
   const handleDeleteKey = async (providerId: string) => {
@@ -936,6 +953,109 @@ export default function ApiManagementView({
                     </>
                   ) : (
                     'Save Settings'
+                  )}
+                </Button>
+              </div>
+            </div>
+          ) : dialogProvider?.id === 'buffer' ? (
+            <div className="space-y-4 mt-2">
+              {/* 1-Click OAuth Connect Card */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-blue-600/15 via-zinc-900 to-indigo-600/10 border border-blue-500/30 flex flex-col gap-3 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 text-xs font-semibold text-blue-400">
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>1-Click Buffer OAuth 2.0 PKCE</span>
+                      {configured.includes('buffer') && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                          ACTIVE
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+                      Connect your Buffer workspace to schedule and publish approved posts across 11 social networks: Instagram, Facebook, X, LinkedIn, TikTok, Threads, YouTube, Pinterest, Bluesky, Mastodon, and Google Business Profile.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleBufferOAuthConnect}
+                    disabled={savingKey}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium h-8 shrink-0 shadow-md gap-1.5 self-start sm:self-auto"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    {configured.includes('buffer') ? 'Reconnect Buffer' : 'Connect Buffer'}
+                  </Button>
+                </div>
+
+                <div className="pt-2.5 border-t border-white/[0.06] flex items-center justify-between">
+                  <span className="text-[11px] text-zinc-400">Connected social channels & mapping:</span>
+                  <a
+                    href="/settings/integrations"
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-400 hover:text-blue-300 font-mono"
+                  >
+                    Open Channel Mapping <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+
+              {/* Direct Buffer API Key (Fallback) */}
+              <div className="space-y-1.5 p-3.5 rounded-xl bg-zinc-900/60 border border-white/[0.06]">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-zinc-200 flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5 text-amber-400" />
+                    Buffer API Key (Optional Fallback)
+                  </label>
+                  <a
+                    href="https://buffer.com/manage/apps"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-indigo-400 hover:text-indigo-300 font-mono flex items-center gap-1"
+                  >
+                    Buffer API Settings <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+
+                <div className="relative">
+                  <Input
+                    type={showKey ? 'text' : 'password'}
+                    value={keyValue}
+                    onChange={(e) => setKeyValue(e.target.value)}
+                    placeholder={configured.includes('buffer') ? '•••••••••••••••• (Leave blank to keep active token)' : 'Paste Buffer API Key...'}
+                    className="h-9 pr-9 text-xs font-mono bg-zinc-950/80 border-white/[0.08] focus:border-zinc-500 rounded-md"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+                  >
+                    {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.08]">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDialogOpen(false)}
+                  className="h-8 border-white/[0.08] bg-zinc-900 text-zinc-300 text-xs rounded-md"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => handleSaveKey()}
+                  disabled={savingKey || (!keyValue.trim() && !configured.includes('buffer'))}
+                  className="h-8 bg-zinc-100 hover:bg-white text-zinc-950 font-medium text-xs rounded-md px-4 shadow-sm"
+                >
+                  {savingKey ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                      Saving…
+                    </>
+                  ) : (
+                    'Save Key'
                   )}
                 </Button>
               </div>
