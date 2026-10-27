@@ -9,6 +9,8 @@ import {
   Menu,
   Search,
   X,
+  Sparkles,
+  LayoutDashboard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -37,6 +39,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [approvalCount, setApprovalCount] = useState<number | null>(null);
   const [orgs, setOrgs] = useState<any[]>([]);
   const [switching, setSwitching] = useState<string | null>(null);
+  const [interfaceMode, setInterfaceMode] = useState<'bot' | 'classic'>('bot');
 
   useEffect(() => {
     if (!workspace.ready) return;
@@ -44,6 +47,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [workspace.ready, workspace.token, router]);
 
   useEffect(() => {
+    const savedMode = localStorage.getItem('octaos-interface-mode');
+    setInterfaceMode(savedMode === 'classic' ? 'classic' : 'bot');
     const stored = localStorage.getItem('octaos-sidebar-collapsed');
     if (stored === '1') setCollapsed(true);
   }, []);
@@ -230,6 +235,46 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <WorkforceActivity />
+            <div
+              role="group"
+              aria-label="Interface mode"
+              className="inline-flex shrink-0 items-center rounded-lg border border-border bg-muted/50 p-1"
+              data-testid="interface-mode-toggle"
+            >
+              <Button
+                type="button"
+                size="sm"
+                variant={interfaceMode === 'bot' ? 'default' : 'outline'}
+                aria-pressed={interfaceMode === 'bot'}
+                onClick={() => {
+                  setInterfaceMode('bot');
+                  localStorage.setItem('octaos-interface-mode', 'bot');
+                  router.push('/app/assistant');
+                }}
+                className="h-8 gap-1.5 px-2.5"
+                title="Use the bot-first AI workspace"
+              >
+                <Sparkles className="size-3.5" />
+                <span className="hidden sm:inline">AI Workspace</span>
+                <span className="sm:hidden">AI</span>
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={interfaceMode === 'classic' ? 'default' : 'ghost'}
+                aria-pressed={interfaceMode === 'classic'}
+                onClick={() => {
+                  setInterfaceMode('classic');
+                  localStorage.setItem('octaos-interface-mode', 'classic');
+                  router.push('/app/home');
+                }}
+                className="h-8 gap-1.5 px-2.5"
+                title="Use the classic dashboard"
+              >
+                <LayoutDashboard className="size-3.5" />
+                <span className="hidden sm:inline">Classic</span>
+              </Button>
+            </div>
             <Button variant="outline" size="sm" onClick={() => setPaletteOpen(true)} id="command-palette-btn">
               <Search className="size-3.5" />
               <span className="hidden sm:inline">Search</span>
@@ -265,16 +310,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     {switching === org.tenant_id ? 'Switching…' : `Switch to ${org.tenant_name}`}
                   </DropdownMenuItem>
                 ))}
-                <DropdownMenuSeparator />
-                {pathname === '/app/home' ? (
-                  <DropdownMenuItem onClick={() => router.push('/app/assistant')}>
-                    Switch to New AI UI
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem onClick={() => router.push('/app/home')}>
-                    Switch to Classic UI
-                  </DropdownMenuItem>
-                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onClick={workspace.logout}>
                   <LogOut className="size-4" /> Log out
