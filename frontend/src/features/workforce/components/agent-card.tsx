@@ -131,9 +131,8 @@ export default function AgentCard({ agent, onOpenCockpit }: AgentCardProps) {
 
   const { mode } = useInterfaceMode();
   const agentTargetId = agent.slug || agent.id;
-  const cockpitHref = mode === 'bot'
-    ? `/app/agents/${agentTargetId}?tab=console`
-    : `/app/agents/${agentTargetId}`;
+  const agentPath = `/app/agents/${agentTargetId}`;
+  const cockpitHref = mode === 'bot' ? `${agentPath}?tab=console` : agentPath;
 
   return (
     <Card className="glass-panel group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-gray-800/80 bg-gray-950/60 p-5 shadow-lg transition-all duration-200 hover:border-gray-700 hover:shadow-xl">
@@ -228,7 +227,7 @@ export default function AgentCard({ agent, onOpenCockpit }: AgentCardProps) {
           {shortcuts.map((sc) => (
             <Link
               key={sc.label}
-              href={`${cockpitHref}?tab=${sc.subpath}`}
+              href={`${agentPath}?tab=${sc.subpath}`}
               className="rounded-md border border-gray-800 bg-gray-900/50 px-2 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:border-gray-700 hover:text-white"
             >
               {sc.label}

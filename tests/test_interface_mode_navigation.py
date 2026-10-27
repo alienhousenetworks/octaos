@@ -28,3 +28,9 @@ def test_overview_and_cockpit_follow_the_same_toggle():
     assert "mode === 'classic' ? 'analytics' : 'workforce'" in dashboard
     assert "mode === 'bot' ? 'console' : 'overview'" in cockpit
     assert "?tab=console" in card
+    assert "${cockpitHref}?tab=" not in card
+    assert "${agentPath}?tab=" in card
+    shell = _source("frontend/src/components/shell/ai-workspace-shell.tsx")
+    header = shell.split('data-testid="interface-mode-toggle"', 1)[1][:500]
+    assert "setMode('classic')" in header
+    assert "window.location" not in header
