@@ -10,6 +10,17 @@ on:
       - "app/api/v2/api.py"
       - "app/api/v1/endpoints/integrations.py"
       - "app/services/integrations/webhook_security.py"
+      - "app/services/durable_workflows.py"
+      - "tests/test_durable_workflow_tenant_safety.py"
+      - "app/models/workforce_events.py"
+      - "app/services/workforce_event_service.py"
+      - "app/services/autonomous_runtime/engine.py"
+      - "alembic/env.py"
+      - "alembic/versions/f9a0b1c2d3e4_workforce_events.py"
+      - "tests/test_workforce_event_runtime_bridge.py"
+      - "app/api/v1/endpoints/workforce_events.py"
+      - "app/api/v1/api.py"
+      - "tests/test_workforce_event_service.py"
       - "tests/test_tenant_middleware_context.py"
       - "tests/test_production_config.py"
       - "tests/test_health_response_sanitization.py"
@@ -45,7 +56,7 @@ jobs:
           python -m pip install -r requirements.txt
       - name: Compile changed Python modules
         run: |
-          python -m compileall -q app/core/middleware.py app/core/config.py app/main.py app/api/v2/api.py app/api/v1/endpoints/integrations.py app/services/integrations/webhook_security.py
+          python -m compileall -q app/core/middleware.py app/core/config.py app/main.py app/api/v2/api.py app/api/v1/endpoints/integrations.py app/services/integrations/webhook_security.py app/services/durable_workflows.py app/models/workforce_events.py app/services/workforce_event_service.py app/services/autonomous_runtime/engine.py app/api/v1/endpoints/workforce_events.py app/api/v1/api.py alembic/env.py alembic/versions/f9a0b1c2d3e4_workforce_events.py
       - name: Run enterprise foundation regression tests
         run: |
           pytest -q \
@@ -55,4 +66,7 @@ jobs:
             tests/test_webhook_security.py \
             tests/test_security_passwords.py \
             tests/test_agent_runtime_protocol.py \
-            tests/test_autonomous_runtime_idempotency.py
+            tests/test_autonomous_runtime_idempotency.py \
+            tests/test_durable_workflow_tenant_safety.py \
+            tests/test_workforce_event_service.py \
+            tests/test_workforce_event_runtime_bridge.py

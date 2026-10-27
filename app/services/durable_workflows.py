@@ -1,10 +1,10 @@
-"""Durable workflow checkpoints + persistent DLQ with replay."""
+"""Tenant-scoped durable workflow checkpoints and persistent DLQ helpers."""
 from __future__ import annotations
 
+import hashlib
 import logging
-import traceback as tb_mod
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -12,9 +12,25 @@ from app.models.enterprise import DeadLetterJob, WorkflowCheckpoint
 
 logger = logging.getLogger(__name__)
 
+_ALLOWED_TRANSITIONS = {
+    "running": {"running", "waiting", "completed", "failed"},
+    "waiting": {"waiting", "running", "failed"},
+    # Failed workflows may be explicitly resumed by checkpointing them to running.
+    "failed": {"failed", "running"},
+    "completed": set(),
+}
+
+
+def _scoped_idempotency_key(tenant_id: str, key: str) -> str:
+    """Return a stable, tenant-namespaced storage key without storing caller input."""
+    digest = hashlib.sha256(f"{tenant_id}:{key}".encode("utf-8")).hexdigest()
+    return f"v1:{digest}"
+
 
 class DurableWorkflowService:
     def __init__(self, db: Session, tenant_id: str):
+        if not tenant_id:
+            raise ValueError("tenant_id is required")
         self.db = db
         self.tenant_id = tenant_id
 
@@ -27,13 +43,32 @@ class DurableWorkflowService:
         idempotency_key: Optional[str] = None,
     ) -> WorkflowCheckpoint:
         if idempotency_key:
+            # First support legacy rows, but only within the authenticated tenant.
             existing = (
                 self.db.query(WorkflowCheckpoint)
-                .filter(WorkflowCheckpoint.idempotency_key == idempotency_key)
+                .filter(
+                    WorkflowCheckpoint.tenant_id == self.tenant_id,
+                    WorkflowCheckpoint.idempotency_key == idempotency_key,
+                )
                 .first()
             )
             if existing:
                 return existing
+
+            scoped_key = _scoped_idempotency_key(self.tenant_id, idempotency_key)
+            existing = (
+                self.db.query(WorkflowCheckpoint)
+                .filter(
+                    WorkflowCheckpoint.tenant_id == self.tenant_id,
+                    WorkflowCheckpoint.idempotency_key == scoped_key,
+                )
+                .first()
+            )
+            if existing:
+                return existing
+        else:
+            scoped_key = None
+
         cp = WorkflowCheckpoint(
             tenant_id=self.tenant_id,
             workflow_name=workflow_name,
@@ -42,7 +77,7 @@ class DurableWorkflowService:
             step_name="start",
             state=initial_state or {},
             status="running",
-            idempotency_key=idempotency_key,
+            idempotency_key=scoped_key,
         )
         self.db.add(cp)
         self.db.commit()
@@ -58,6 +93,10 @@ class DurableWorkflowService:
         state: dict,
         status: str = "running",
     ) -> WorkflowCheckpoint:
+        if status not in _ALLOWED_TRANSITIONS:
+            raise ValueError(f"Unsupported workflow status: {status}")
+        if step_index < 0:
+            raise ValueError("Checkpoint step_index cannot be negative")
         cp = (
             self.db.query(WorkflowCheckpoint)
             .filter(
@@ -69,6 +108,10 @@ class DurableWorkflowService:
         )
         if not cp:
             raise ValueError("Run not found")
+        if status not in _ALLOWED_TRANSITIONS.get(cp.status or "running", set()):
+            raise ValueError(f"Invalid workflow status transition: {cp.status} -> {status}")
+        if step_index < (cp.step_index or 0):
+            raise ValueError("Checkpoint step_index cannot move backwards")
         cp.step_index = step_index
         cp.step_name = step_name
         cp.state = state
@@ -131,12 +174,17 @@ class DeadLetterService:
         q = self.db.query(DeadLetterJob).filter(DeadLetterJob.status == status)
         if tenant_id:
             q = q.filter(DeadLetterJob.tenant_id == tenant_id)
-        return q.order_by(DeadLetterJob.created_at.desc()).limit(limit).all()
+        return q.order_by(DeadLetterJob.created_at.desc()).limit(max(1, min(limit, 200))).all()
 
-    def replay(self, job_id: str) -> Dict[str, Any]:
-        job = self.db.query(DeadLetterJob).filter(DeadLetterJob.id == job_id).first()
+    def replay(self, job_id: str, *, tenant_id: Optional[str] = None) -> Dict[str, Any]:
+        q = self.db.query(DeadLetterJob).filter(DeadLetterJob.id == job_id)
+        if tenant_id:
+            q = q.filter(DeadLetterJob.tenant_id == tenant_id)
+        job = q.first()
         if not job:
             raise ValueError("DLQ job not found")
+        if job.status != "failed":
+            raise ValueError(f"DLQ job cannot be replayed from status: {job.status}")
         job.status = "replaying"
         job.attempts = (job.attempts or 0) + 1
         self.db.commit()
@@ -144,22 +192,32 @@ class DeadLetterService:
         try:
             from app.core.celery_app import celery_app
 
-            # Re-dispatch original celery task by name
-            celery_app.send_task(job.task_name, args=job.args or [], kwargs=job.kwargs or {})
-            job.status = "resolved"
-            job.resolved_at = datetime.now(timezone.utc)
+            result = celery_app.send_task(job.task_name, args=job.args or [], kwargs=job.kwargs or {})
+            # Queue acceptance is not task completion. Keep the record replaying
+            # until a worker/reconciler can confirm the actual outcome.
             self.db.commit()
-            return {"status": "replayed", "job_id": job_id, "task_name": job.task_name}
+            return {
+                "status": "submitted",
+                "job_id": job_id,
+                "task_name": job.task_name,
+                "dispatch_id": getattr(result, "id", None),
+            }
         except Exception as e:
             job.status = "failed"
-            job.error_message = f"Replay failed: {e}"
+            job.error_message = f"Replay dispatch failed: {e}"
             self.db.commit()
-            return {"status": "error", "error": str(e)}
+            logger.exception("DLQ replay dispatch failed for job %s", job_id)
+            return {"status": "error", "job_id": job_id, "error": "Replay dispatch failed"}
 
-    def discard(self, job_id: str) -> DeadLetterJob:
-        job = self.db.query(DeadLetterJob).filter(DeadLetterJob.id == job_id).first()
+    def discard(self, job_id: str, *, tenant_id: Optional[str] = None) -> DeadLetterJob:
+        q = self.db.query(DeadLetterJob).filter(DeadLetterJob.id == job_id)
+        if tenant_id:
+            q = q.filter(DeadLetterJob.tenant_id == tenant_id)
+        job = q.first()
         if not job:
             raise ValueError("DLQ job not found")
+        if job.status != "failed":
+            raise ValueError(f"DLQ job cannot be discarded from status: {job.status}")
         job.status = "discarded"
         job.resolved_at = datetime.now(timezone.utc)
         self.db.commit()

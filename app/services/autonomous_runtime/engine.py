@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional
 
@@ -15,6 +16,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from app.models.autonomous_work import AutonomousTask, AutonomousTaskEvent
+from app.models.workforce_events import WorkforceEvent
+from app.services.agent_runtime.protocol import sanitize_public_text
 
 
 class RuntimePolicyError(Exception):
@@ -62,6 +65,7 @@ class AutonomousRuntime:
         payload: Optional[Dict[str, Any]] = None,
     ) -> AutonomousTaskEvent:
         event = AutonomousTaskEvent(
+            id=str(uuid.uuid4()),
             task_id=task.id,
             tenant_id=task.tenant_id,
             actor_type=actor_type,
@@ -71,6 +75,36 @@ class AutonomousRuntime:
             payload=payload or {},
         )
         self.db.add(event)
+
+        # Mirror operational metadata into the common tenant event stream in the
+        # same transaction. Never publish the task goal, full context, or model output.
+        public_payload = {
+            "task_id": task.id,
+            "title": sanitize_public_text(task.title, 240),
+            "status": task.status,
+            "message": sanitize_public_text(message, 1000),
+            "actor_type": actor_type,
+            "details": {
+                str(key)[:80]: (
+                    sanitize_public_text(value, 300) if isinstance(value, str)
+                    else value if isinstance(value, (int, float, bool)) or value is None
+                    else None
+                )
+                for key, value in (payload or {}).items()
+                if not any(term in str(key).lower() for term in (
+                    "prompt", "token", "secret", "password", "credential", "reasoning"
+                ))
+            },
+        }
+        self.db.add(WorkforceEvent(
+            tenant_id=task.tenant_id,
+            event_key=f"autonomous-task:{event.id}",
+            event_type=f"task.{event_type}"[:120],
+            source="autonomous_runtime",
+            run_id=task.id,
+            actor_user_id=actor_id if actor_type == "user" else None,
+            payload=public_payload,
+        ))
         return event
 
     def transition(
