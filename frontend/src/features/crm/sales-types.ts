@@ -13,7 +13,6 @@ export type SalesSection =
   | 'config'
   | 'prompt_agent'
   | 'configured_engine'
-  | 'industries'
   | 'campaigns'
 ;
 
