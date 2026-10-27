@@ -9,13 +9,19 @@ on:
       - "app/services/autonomous_runtime/**"
       - "app/services/agents/runtime.py"
       - "app/services/agents/tools.py"
-      - "app/services/automation/event_bridge.py app/worker/tasks.py"
+      - "app/services/automation/event_bridge.py"
+      - "app/worker/tasks.py"
+      - "app/models/agent_runtime.py"
+      - "app/models/enterprise.py"
+      - "alembic/versions/**"
       - "app/api/v1/endpoints/automations.py"
       - "app/api/v1/endpoints/autonomous_work.py"
       - "app/core/security.py"
       - "tests/test_agent_runtime_protocol.py"
       - "tests/test_workflow_governance_validator.py"
       - "tests/test_runtime_governance_policy.py"
+      - "tests/test_execution_identity_contract.py"
+      - "tests/test_migration_graph.py"
       - "tests/test_runtime_triggers.py"
       - "tests/test_portable_packs.py"
       - "tests/test_runtime_entitlements.py"
@@ -32,6 +38,9 @@ on:
       - "app/services/autonomous_runtime/**"
       - "app/core/security.py"
       - "app/models/autonomous_work.py"
+      - "app/models/agent_runtime.py"
+      - "app/models/enterprise.py"
+      - "alembic/versions/**"
       - "tests/test_agent_runtime_protocol.py"
       - "tests/test_workflow_governance_validator.py"
       - "tests/test_runtime_governance_policy.py"
@@ -58,7 +67,7 @@ jobs:
       - name: Install focused test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest SQLAlchemy bcrypt cryptography python-jose pydantic pydantic-settings fastapi httpx pgvector
+          python -m pip install pytest alembic SQLAlchemy bcrypt cryptography python-jose pydantic pydantic-settings fastapi httpx pgvector
       - name: Run runtime governance regression tests
         env:
           DEV: "true"
@@ -67,11 +76,13 @@ jobs:
           SQLALCHEMY_DATABASE_URI: "sqlite:///./test_runtime_governance.db"
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          python -m compileall -q app/services/agents/runtime.py app/services/agents/tools.py app/services/agent_runtime app/services/ai_gateway/gateway.py app/services/automation/event_bridge.py app/api/v1/endpoints/automations.py app/api/v1/endpoints/autonomous_work.py app/api/v1/endpoints/dashboard.py app/worker/tasks.py
+          python -m compileall -q app/services/agents/runtime.py app/services/agents/tools.py app/services/agent_runtime app/services/ai_gateway/gateway.py app/services/automation/event_bridge.py app/api/v1/endpoints/automations.py app/api/v1/endpoints/autonomous_work.py app/api/v1/endpoints/dashboard.py app/models/agent_runtime.py app/models/enterprise.py app/worker/tasks.py
           pytest -q \
             tests/test_agent_runtime_protocol.py \
             tests/test_workflow_governance_validator.py \
             tests/test_runtime_governance_policy.py \
+            tests/test_execution_identity_contract.py \
+            tests/test_migration_graph.py \
             tests/test_runtime_triggers.py \
             tests/test_portable_packs.py \
             tests/test_runtime_entitlements.py \
