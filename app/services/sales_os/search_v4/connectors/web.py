@@ -1,5 +1,6 @@
 """General web search. Brave or Tavily when configured, otherwise DuckDuckGo."""
 import httpx
+from datetime import datetime, timedelta, timezone
 
 from app.services.sales_os.search_v4.connectors.base import ConnectorResult, Hit, failure_from_status
 from app.services.sales_os.search_v4.connectors.extract import contact_from_text, page_text, title_of
@@ -70,7 +71,15 @@ class WebSearchConnector:
     async def _duckduckgo(self, task: SearchTask, client: httpx.AsyncClient) -> ConnectorResult:
         from app.services.sales_os.discovery.web_discovery import _search
 
-        urls = await _search(client, task.query, 5)
+        from app.services.sales_os.discovery.web_discovery import calculate_freshness_window_days
+
+        max_days = calculate_freshness_window_days(task.freshness_window)
+        df_param = "w" if max_days <= 14 else ("m" if max_days <= 30 else None)
+        query = task.query
+        if max_days < 9999:
+            cutoff = datetime.now(timezone.utc) - timedelta(days=max_days)
+            query = f"{query} after:{cutoff.date().isoformat()}"
+        urls = await _search(client, query, 5, df_param=df_param)
         hits = [Hit(url=url, provider_native_id=url) for url in urls]
         hits = await self._enrich(client, hits)
         return self._done(hits, 0.0, billable=False)
@@ -93,6 +102,31 @@ class WebSearchConnector:
             raw = response.text or ""
             text = page_text(raw)[:4000]
             name, email = contact_from_text(text, hit.url)
+            # A company homepage often links the actual inbox from a contact
+            # page. Fetch only a small, bounded set of conventional paths; do
+            # not crawl arbitrary links or cross the target origin.
+            if not email:
+                from urllib.parse import urljoin
+
+                for path in ("/contact", "/contact-us", "/about", "/about-us", "/team"):
+                    try:
+                        contact_response = await client.get(
+                            urljoin(hit.url, path),
+                            headers={"User-Agent": _HEADERS["User-Agent"], "Accept": "text/html"},
+                            follow_redirects=True,
+                        )
+                    except Exception:
+                        continue
+                    if contact_response.status_code != 200:
+                        continue
+                    contact_raw = contact_response.text or ""
+                    contact_text = page_text(contact_raw)[:4000]
+                    contact_name, contact_email = contact_from_text(contact_text, hit.url)
+                    if contact_email:
+                        name = contact_name or name
+                        email = contact_email
+                        text = f"{text}\n{contact_text}"[:4000]
+                        break
             hit.title = hit.title or title_of(raw)
             hit.page_excerpt = text[:700]
             hit.snippet = hit.snippet or text[:320]

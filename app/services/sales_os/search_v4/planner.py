@@ -141,6 +141,66 @@ def plan_tasks(
             base_cost, base_reason, 5,
         )
     ]
+
+    # Explicit buyer-language searches are more useful than broad industry
+    # terms for web discovery. Keep the set bounded, and rotate the requested
+    # geography so the first region is searched first while other regions are
+    # still covered in the same run.
+    buyer_phrases = [
+        "looking for a developer",
+        "need an e-commerce website",
+        "RFP website redesign",
+        "custom CRM proposal",
+        "ERP implementation tender",
+    ]
+    for index, phrase in enumerate(buyer_phrases):
+        geography = geographies[index % len(geographies)]
+        proposals.append(
+            _task(
+                spec,
+                "web",
+                base_provider,
+                "buyer_phrase_search",
+                " ".join(part for part in (phrase, spec.query, geography) if part),
+                "Search for an explicit public request for the service rather than inferring demand from a generic company profile.",
+                base_cost,
+                base_reason,
+                6 + index,
+            )
+        )
+
+    # Publicly indexed social pages are read-only research evidence. They are
+    # never treated as verified contacts unless a separate public company page
+    # supplies the contact details.
+    for index, phrase in enumerate(("looking for app developer", "need a website")):
+        geography = geographies[index % len(geographies)]
+        proposals.append(
+            _task(
+                spec,
+                "web",
+                base_provider,
+                "public_social_search",
+                f"site:linkedin.com/posts {phrase} {geography}".strip(),
+                "Find publicly indexed LinkedIn posts; profile-only results remain research extras without fabricated email addresses.",
+                base_cost,
+                base_reason,
+                12 + index,
+            )
+        )
+
+    proposals.append(
+        _task(
+            spec,
+            "web",
+            base_provider,
+            "procurement_search",
+            " ".join(part for part in (spec.query, "RFP tender proposal", "NGO nonprofit university research institute government", geographies[0]) if part),
+            "Search public procurement and RFP pages, including nonprofit, education, research, and government buyers.",
+            base_cost,
+            base_reason,
+            14,
+        )
+    )
     for index, (industry, geography, role) in enumerate(coverage):
         route_provider, route_cost, route_reason = web_route(index + 1)
         subject_parts = [industry, geography, role, spec.query]
@@ -161,7 +221,7 @@ def plan_tasks(
         proposals.append(
             _task(
                 spec, "news", "google_news", "rss_search",
-                " ".join(part for part in (subject, "funding expansion new leadership procurement") if part),
+                " ".join(part for part in (subject, "funding raised expansion announced press release procurement") if part),
                 "Recent trigger events that may change the buying situation.",
                 0.0,
                 "Google News RSS is a free public headline source and does not replace the lead connectors.",
@@ -197,6 +257,20 @@ def plan_tasks(
             61,
         ),
     ])
+    for index, phrase in enumerate(("need a website", "looking for app developer")):
+        proposals.append(
+            _task(
+                spec,
+                "social_x",
+                "x",
+                "recent_search",
+                " ".join(part for part in (f'"{phrase}"', geographies[index % len(geographies)]) if part),
+                "Search recent public X posts for an explicit service request; service sellers are filtered during intent scoring.",
+                0.0,
+                "X official search runs only with an authorized search credential; otherwise the task is marked unavailable.",
+                62 + index,
+            )
+        )
     for url in spec.seed_urls[:2]:
         proposals.append(
             _task(

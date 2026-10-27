@@ -11,7 +11,7 @@ from app.models.search_v4 import SearchV4Job, SearchV4LedgerRow, SearchV4TaskRow
 from app.services.sales_os.search_v4.bridge import merge_connector_leads
 from app.services.sales_os.search_v4.budget import BudgetLedger
 from app.services.sales_os.search_v4.connectors.base import ConnectorResult, Hit
-from app.services.sales_os.search_v4.connectors.news import _items
+from app.services.sales_os.search_v4.connectors.news import _items, _items_with_dates
 from app.services.sales_os.search_v4.connectors.social import RedditConnector, XConnector
 from app.services.sales_os.search_v4.contracts import CampaignIntentSpec, DiscoveryRecord, IntentCategory
 from app.services.sales_os.search_v4.dag import SALES_V4_EDGES, SALES_V4_NODES, validate_dag
@@ -32,6 +32,7 @@ from app.services.sales_os.search_v4.skills import resolve_request
 from app.services.sales_os.search_v4.store import MemorySearchStore, SqlSearchStore
 from app.services.sales_os.search_v4.urls import canonical_url
 from app.services.skill_synthesizer import skill_synthesizer
+from app.services.research import EnterpriseWebResearchService
 
 
 class FakeConnectors:
@@ -420,6 +421,50 @@ def test_planner_covers_multiple_industries_geographies_and_buyer_roles():
     assert any("vp sales" in query for query in web_queries)
     assert any("coo" in query for query in web_queries)
     assert any("head of operations" in query for query in web_queries)
+
+
+def test_planner_includes_buyer_phrases_procurement_and_public_linkedin():
+    tasks, _notes = plan_tasks(
+        spec(query="software development", geography=["India", "United States", "United Kingdom"], freshness="14_days"),
+        {}, [], ProviderStats(), ProviderHealth(), 700,
+    )
+    queries = [task.query.lower() for task in tasks if task.method == "web"]
+    assert any("looking for a developer" in query for query in queries)
+    assert any("need an e-commerce website" in query for query in queries)
+    assert any("erp implementation tender" in query for query in queries)
+    assert any("rpf website redesign" in query or "rfp website redesign" in query for query in queries)
+    assert any("site:linkedin.com/posts" in query for query in queries)
+    assert queries.index(next(query for query in queries if "india" in query)) < queries.index(next(query for query in queries if "united states" in query))
+
+
+def test_news_parser_retains_publication_date():
+    rows = _items_with_dates(
+        "<rss><channel><item><title>Funding</title><link>https://example.com/funding</link>"
+        "<pubDate>Tue, 27 Oct 2026 12:00:00 GMT</pubDate></item></channel></rss>"
+    )
+    assert rows[0][0:2] == ("Funding", "https://example.com/funding")
+    assert rows[0][2] is not None
+
+
+@pytest.mark.asyncio
+async def test_enterprise_research_facade_defaults_to_ordered_global_geographies(monkeypatch):
+    import app.services.research.enterprise_web as enterprise_web
+
+    captured = {}
+
+    async def fake_run(specification, **kwargs):
+        captured["spec"] = specification
+        captured["kwargs"] = kwargs
+        return "batch"
+
+    monkeypatch.setattr(enterprise_web, "run_parallel_search", fake_run)
+    service = EnterpriseWebResearchService(tenant_id="tenant-research")
+    result = await service.run("need an e-commerce website", freshness="14_days")
+
+    assert result == "batch"
+    assert captured["spec"].geography == ["India", "United States", "United Kingdom"]
+    assert captured["spec"].freshness == "14_days"
+    assert captured["kwargs"]["suppressed_domains"] == set()
 
 
 def test_planner_uses_multiple_configured_web_providers_when_budget_allows():

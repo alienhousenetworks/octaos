@@ -160,50 +160,28 @@ class ToolRegistry:
         query = payload.get("query", "").strip()
         if not query:
             return {"results": [], "query": query, "message": "Empty query."}
+        from app.services.research import EnterpriseWebResearchService
 
-        # Check for Tavily / Search API key in APICredentials
-        from app.models.base import APICredential
-        from app.core.security import decrypt_api_key
-
-        tavily_cred = db.query(APICredential).filter_by(tenant_id=tenant_id, provider="tavily").first()
-        if tavily_cred and tavily_cred.encrypted_key:
-            api_key = decrypt_api_key(tavily_cred.encrypted_key)
-            try:
-                async with httpx.AsyncClient(timeout=15.0) as client:
-                    resp = await client.post(
-                        "https://api.tavily.com/search",
-                        json={"api_key": api_key, "query": query, "search_depth": "basic", "max_results": 5},
-                    )
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        return {
-                            "query": query,
-                            "results": [
-                                {"title": r.get("title"), "url": r.get("url"), "snippet": r.get("content")}
-                                for r in data.get("results", [])
-                            ],
-                            "provider": "tavily",
-                        }
-            except Exception as e:
-                # Fallback to simulated live research result if network times out
-                pass
-
-        # Simulated live search knowledge extraction
+        count = max(1, min(int(payload.get("count", 10) or 10), 100))
+        batch = await EnterpriseWebResearchService(db, tenant_id).run(
+            query,
+            count=count,
+            freshness=payload.get("freshness") or payload.get("freshness_window") or "14_days",
+            geography=payload.get("geography"),
+            industries=payload.get("industries"),
+            buyer_roles=payload.get("buyer_roles"),
+            exclusions=payload.get("exclusions"),
+            seed_urls=payload.get("seed_urls"),
+        )
+        summary = EnterpriseWebResearchService.summarize(batch, count=count)
         return {
             "query": query,
-            "results": [
-                {
-                    "title": f"Market Analysis: {query}",
-                    "url": f"https://insights.industry.com/search?q={urllib.parse.quote(query)}",
-                    "snippet": f"Verified industry intelligence and company data relating to '{query}'. High growth segment with strategic opportunities.",
-                },
-                {
-                    "title": f"Executive Profile & Operations overview: {query}",
-                    "url": f"https://directory.business.com/org/{urllib.parse.quote(query)}",
-                    "snippet": f"Key stakeholders, decision makers, and operational structures for {query}.",
-                },
-            ],
-            "provider": "synthesized_market_intelligence",
+            "provider": "enterprise_web_research",
+            "results": summary["contacts"],
+            "extras": summary["extras"],
+            "methods": summary["methods"],
+            "report": summary["report"],
+            "status": batch.status,
         }
 
     async def _exec_email_send(self, payload: Dict[str, Any], db: Session, tenant_id: str) -> Dict[str, Any]:
@@ -397,13 +375,35 @@ class ToolRegistry:
         self.register(
             ToolDefinition(
                 name="web_search",
-                description="Performs live web research and extracts search snippets for company intelligence.",
+                description=(
+                    "Runs governed multi-channel public research across web search, buyer-language requests, "
+                    "public RFP/tender pages, funding and business news, company contact pages, hiring signals, "
+                    "and permitted public social searches. Returns evidence-backed contacts plus clearly labeled extras."
+                ),
                 input_schema={
                     "type": "object",
                     "required": ["query"],
-                    "properties": {"query": {"type": "string", "description": "Search query terms"}},
+                    "properties": {
+                        "query": {"type": "string", "description": "Research objective or search terms"},
+                        "count": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10},
+                        "freshness": {"type": "string", "default": "14_days", "description": "Freshness window such as 14_days or all"},
+                        "geography": {"type": "array", "items": {"type": "string"}},
+                        "industries": {"type": "array", "items": {"type": "string"}},
+                        "buyer_roles": {"type": "array", "items": {"type": "string"}},
+                        "exclusions": {"type": "array", "items": {"type": "string"}},
+                        "seed_urls": {"type": "array", "items": {"type": "string"}},
+                    },
                 },
-                output_schema={"type": "object", "properties": {"results": {"type": "array"}}},
+                output_schema={
+                    "type": "object",
+                    "properties": {
+                        "results": {"type": "array"},
+                        "extras": {"type": "array"},
+                        "methods": {"type": "array"},
+                        "report": {"type": "string"},
+                        "status": {"type": "string"},
+                    },
+                },
                 required_scopes=["search:read"],
                 risk_level="LOW",
                 side_effect="READ",

@@ -1,5 +1,6 @@
 """Public hiring signals from Hacker News search. No person or inbox is invented."""
 import httpx
+from datetime import datetime, timezone
 
 from app.services.sales_os.search_v4.connectors.base import ConnectorResult, Hit, failure_from_status
 from app.services.sales_os.search_v4.contracts import SearchTask
@@ -28,11 +29,18 @@ class JobsConnector:
             url = row.get("url") or f"https://news.ycombinator.com/item?id={row.get('objectID')}"
             if not title:
                 continue
+            published_at = None
+            if row.get("created_at"):
+                try:
+                    published_at = datetime.fromisoformat(row["created_at"].replace("Z", "+00:00")).astimezone(timezone.utc)
+                except (TypeError, ValueError):
+                    published_at = None
             hits.append(
                 Hit(
                     url=url,
                     title=title,
                     snippet=title,
+                    published_at=published_at,
                     provider_native_id=str(row.get("objectID") or ""),
                     company_name=title.split(" is hiring")[0].split(" (")[0][:120],
                 )
