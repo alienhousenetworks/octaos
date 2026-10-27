@@ -510,9 +510,10 @@ async def test_search_engine_runs_bounded_adaptive_expansion_rounds():
 
     store = MemorySearchStore()
     engine = SearchEngine(store, FakeConnectors(handler), {})
-    batch = await engine.run(spec())
+    batch = await engine.run(spec(), job_id="durable-research-job")
     payload = store.get_job("tenant-1", batch.job_id)
 
+    assert batch.job_id == "durable-research-job"
     assert 2 <= payload["expansion_round"] <= 3
     assert payload["expansion_done"] is True
     assert any(record["company_domain"] == "acme.example" for record in payload["records"])
