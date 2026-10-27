@@ -9,7 +9,7 @@ import { useWorkspace, useWorkspaceFeed } from '@/lib/workspace';
 import { AgentItem } from '@/lib/agent-types';
 import ClassicKnowledgeShelf from '@/components/shell/classic-knowledge-shelf';
 import {
-  Bot, ChevronDown, FileText, Globe2, LayoutDashboard, Menu,
+  Bot, FileText, Globe2, LayoutDashboard, Menu,
   MessageSquare, Plus, Search, Settings2, ShieldCheck, Sparkles, Workflow, X,
   Clock3, ListTodo, PanelRight, PanelRightClose, SlidersHorizontal, CheckCircle2,
 } from 'lucide-react';
@@ -129,7 +129,6 @@ export default function AIWorkspaceShell({ children, accountLabel }: { children:
   const pageChat = sectionAssistant(pathname);
   const isKnowledge = pathname === '/app/knowledge' || pathname.startsWith('/app/knowledge/');
   const isChat = pathname === '/app/assistant' || pageChat !== null;
-  const [contextOpen, setContextOpen] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [rightPanelTab, setRightPanelTab] = useState<'chats' | 'tasks' | 'configure'>('chats');
   const [recentChats, setRecentChats] = useState<Array<{ key: string; title: string; thread: string; updatedAt: number }>>([]);
