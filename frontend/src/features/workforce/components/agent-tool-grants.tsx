@@ -111,14 +111,16 @@ export default function AgentToolGrants({
     general: ['web_search', 'knowledge.search', 'webhook_post'],
   };
 
-  // Never hide an already-granted capability: existing grants remain visible for review.
-  // The catalog is narrowed to this agent's domain by default; the full catalog is opt-in.
+  // Keep the default view role-focused. The full catalog remains available so admins
+  // can inspect and revoke any out-of-scope grant instead of silently losing it.
   const visibleTools = useMemo(() => {
     const relevant = relevantToolIds[departmentKey] || relevantToolIds.general;
-    return CATALOG_TOOLS.filter((tool) =>
-      showAllTools || relevant.includes(tool.id) || grantedTools.includes(tool.id)
-    );
-  }, [departmentKey, showAllTools, grantedTools]);
+    return CATALOG_TOOLS.filter((tool) => showAllTools || relevant.includes(tool.id));
+  }, [departmentKey, showAllTools]);
+  const outOfScopeGrantCount = grantedTools.filter((id) => {
+    const relevant = relevantToolIds[departmentKey] || relevantToolIds.general;
+    return !relevant.includes(id);
+  }).length;
 
   const toggleTool = (toolId: string) => {
     if (grantedTools.includes(toolId)) {
@@ -177,7 +179,8 @@ export default function AgentToolGrants({
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-800 bg-gray-950/30 p-3">
         <div>
           <p className="text-xs font-medium text-white">{visibleTools.filter((tool) => relevantToolIds[departmentKey]?.includes(tool.id)).length} relevant capabilities shown</p>
-          <p className="text-[11px] text-muted-foreground">Unrelated tools are hidden by default. Existing grants remain visible.</p>
+          <p className="text-[11px] text-muted-foreground">Unrelated tools are hidden by default; open the full catalog to review or revoke them.</p>
+          {outOfScopeGrantCount > 0 && <p role="status" className="mt-1 text-[11px] font-medium text-amber-400">{outOfScopeGrantCount} existing grant(s) are outside this agent's recommended scope.</p>}
         </div>
         <Button type="button" variant="outline" size="sm" className="rounded-lg text-xs" onClick={() => setShowAllTools((value) => !value)}>
           <ChevronDown className="mr-1.5 size-3.5" />
