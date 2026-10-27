@@ -120,7 +120,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         refresh_token: data.refresh_token,
         tenant_id: data.tenant_id,
       });
-      window.location.assign('/app/home');
+      router.push('/app/home');
     } finally {
       setSwitching(null);
     }
@@ -252,7 +252,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 onClick={() => {
                   setInterfaceMode('bot');
                   localStorage.setItem('octaos-interface-mode', 'bot');
-                  window.location.assign('/app/assistant');
+                  router.push('/app/assistant');
                 }}
                 className="h-8 gap-1.5 px-2.5"
                 title="Use the bot-first AI workspace"
