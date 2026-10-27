@@ -4,8 +4,8 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  ArrowUp, Bot, BriefcaseBusiness, ChevronDown, CircleHelp, FileText,
-  FolderKanban, Globe2, LayoutDashboard, MessageSquare, Paperclip,
+  ArrowUp, Bot, ChevronDown, CircleHelp, FileText,
+  FolderKanban, Globe2, LayoutDashboard, MessageSquare,
   Plus, Search, Settings2, ShieldCheck, Sparkles, Workflow, X
 } from 'lucide-react';
 
@@ -45,7 +45,7 @@ export default function AIWorkspaceShell({ children, accountLabel }: { children:
         <nav className="space-y-1 px-2.5">
           {links.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={'flex h-10 items-center gap-3 rounded-xl px-3 text-[13px] transition ' + (pathname === href || pathname.startsWith(href + '/') ? 'bg-white/[0.08] text-white' : 'text-white/60 hover:bg-white/[0.05] hover:text-white')}><Icon className="size-4 text-[#8be977]" />{label}</Link>)}
         </nav>
-        <div className="px-4 pb-2 pt-7 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">Recent workspaces</div>
+        <div className="px-4 pb-2 pt-7 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">Jump back in</div>
         <nav className="space-y-1 px-2.5">
           {conversations.map((item) => <Link key={item.href} href={item.href} className={'flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-[12px] ' + (pathname === item.href ? 'bg-[#1b241c] text-white' : 'text-white/55 hover:bg-white/[0.05] hover:text-white')}><MessageSquare className="size-4 shrink-0 text-white/40" /><span className="truncate">{item.label}</span></Link>)}
           {conversations.length === 0 && <p className="px-3 py-2 text-xs text-white/40">No matching workspaces</p>}
