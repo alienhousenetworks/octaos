@@ -9,6 +9,8 @@ import {
   Menu,
   Search,
   X,
+  Sparkles,
+  LayoutDashboard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -228,6 +230,38 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <span className="font-medium">{crumb.name}</span>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <div
+              role="group"
+              aria-label="Interface mode"
+              className="inline-flex shrink-0 items-center rounded-lg border border-border bg-muted/50 p-1"
+              data-testid="interface-mode-toggle"
+            >
+              <Button
+                type="button"
+                size="sm"
+                variant={pathname === '/app/home' ? 'outline' : 'default'}
+                aria-pressed={pathname !== '/app/home'}
+                onClick={() => router.push('/app/assistant')}
+                className="h-8 gap-1.5 px-2.5"
+                title="Use the bot-first AI workspace"
+              >
+                <Sparkles className="size-3.5" />
+                <span className="hidden sm:inline">AI Workspace</span>
+                <span className="sm:hidden">AI</span>
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={pathname === '/app/home' ? 'default' : 'ghost'}
+                aria-pressed={pathname === '/app/home'}
+                onClick={() => router.push('/app/home')}
+                className="h-8 gap-1.5 px-2.5"
+                title="Use the classic dashboard"
+              >
+                <LayoutDashboard className="size-3.5" />
+                <span className="hidden sm:inline">Classic</span>
+              </Button>
+            </div>
             <Button variant="outline" size="sm" onClick={() => setPaletteOpen(true)} id="command-palette-btn">
               <Search className="size-3.5" />
               <span className="hidden sm:inline">Search</span>
@@ -263,16 +297,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     {switching === org.tenant_id ? 'Switching…' : `Switch to ${org.tenant_name}`}
                   </DropdownMenuItem>
                 ))}
-                <DropdownMenuSeparator />
-                {pathname === '/app/home' ? (
-                  <DropdownMenuItem onClick={() => router.push('/app/assistant')}>
-                    Switch to New AI UI
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem onClick={() => router.push('/app/home')}>
-                    Switch to Classic UI
-                  </DropdownMenuItem>
-                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onClick={workspace.logout}>
                   <LogOut className="size-4" /> Log out
