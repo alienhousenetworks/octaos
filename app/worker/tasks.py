@@ -1804,13 +1804,24 @@ def run_research_search_task(
         db.commit()
 
         service = EnterpriseWebResearchService(db=db, tenant_id=tenant_id)
-        if resume_job:
+        if resume_job and (payload.get("tasks") or []):
             batch = async_to_sync(service.resume)(job_id)
         else:
+            saved_spec = payload.get("spec") or {}
+            run_options = dict(options or {})
+            if resume_job:
+                run_options = {
+                    "freshness": saved_spec.get("freshness") or "14_days",
+                    "geography": saved_spec.get("geography") or None,
+                    "industries": saved_spec.get("industries") or None,
+                    "buyer_roles": saved_spec.get("buyer_roles") or None,
+                    "exclusions": saved_spec.get("exclusions") or None,
+                    "budget_inr": float(saved_spec.get("budget_inr") or 0),
+                }
             batch = async_to_sync(service.run)(
-                query,
+                query or saved_spec.get("query") or "",
                 job_id=job_id,
-                **(options or {}),
+                **run_options,
             )
         return {"job_id": batch.job_id, "status": batch.status}
     except Exception:
