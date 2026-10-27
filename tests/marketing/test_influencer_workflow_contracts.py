@@ -2,9 +2,11 @@
 import pytest
 from pydantic import ValidationError
 
+from app.api.v1.api import api_router
 from app.api.v1.endpoints.marketing import (
     InfluencerCreativeGenerateRequest,
     InfluencerCreativePlanRequest,
+    VirtualInfluencerCreateRequest,
 )
 
 
@@ -34,6 +36,28 @@ def test_creative_plan_rejects_unsupported_format_and_duration():
             company_name="Example Brand", industry="Retail", campaign_goal="Explain product",
             duration_seconds=181,
         )
+
+
+def test_campaigns_studio_create_route_accepts_frontend_payload():
+    req = VirtualInfluencerCreateRequest(
+        name="Aria Chen",
+        creative_direction="Calm architectural host for luxury spaces.",
+        audience="Property buyers",
+        platform="instagram",
+        generate_image=True,
+        generate_video=False,
+        image_provider="together",
+        image_model="black-forest-labs/FLUX.1-schnell",
+        room_slug="default",
+    )
+    assert req.platform == "instagram"
+    assert req.generate_image is True
+    assert req.name == "Aria Chen"
+    paths = {
+        (route.path, tuple(sorted(getattr(route, "methods", None) or [])))
+        for route in api_router.routes
+    }
+    assert ("/marketing/virtual-influencer", ("POST",)) in paths
 
 
 def test_creative_generation_is_limited_to_image_or_video_and_bounded_references():

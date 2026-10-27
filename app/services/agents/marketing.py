@@ -522,6 +522,7 @@ class MarketingAgent(BaseAgent):
             audience=str(params.get("audience") or ""),
             platform=str(params.get("platform") or "instagram"),
             creative_direction=str(params.get("creative_direction") or ""),
+            name=str(params.get("name") or ""),
         )
 
         image_url = None
@@ -561,6 +562,7 @@ class MarketingAgent(BaseAgent):
 
         post = ContentPost(
             tenant_id=self.tenant_id,
+            room_id=params.get("room_id") or None,
             platform=str(params.get("platform") or "instagram").lower(),
             content=persona["intro_caption"] + "\n\n" + persona["disclosure"],
             image_url=image_url,
