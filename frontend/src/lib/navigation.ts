@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   Cpu,
   Mail,
+  Search,
 } from 'lucide-react';
 
 export type NavItem = {
