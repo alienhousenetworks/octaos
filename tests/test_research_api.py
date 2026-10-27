@@ -105,3 +105,18 @@ def test_public_job_projection_preserves_provenance_and_omits_internal_spec():
         "succeeded": 1,
         "failed": 0,
     }
+
+
+def test_search_store_does_not_silently_fall_back_to_process_memory():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.services.sales_os.search_v4.store import store_for_session
+
+    engine = create_engine("sqlite://")
+    session = sessionmaker(bind=engine)()
+    try:
+        with pytest.raises(RuntimeError, match="durable storage is unavailable"):
+            store_for_session(session)
+    finally:
+        session.close()
+        engine.dispose()
