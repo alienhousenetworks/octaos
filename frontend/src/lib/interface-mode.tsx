@@ -57,28 +57,60 @@ export function useInterfaceMode() {
   return useContext(InterfaceModeContext);
 }
 
-/** AI-first chat for the current workspace page. Home, assistant, and agent routes handle the toggle themselves. */
+/** Section home that becomes an AI chat. Subpages keep their own screens, and Knowledge always stays the classic library. */
+const SECTION_CHATS: Array<[string, string, string]> = [
+  ['/app/sales', 'sales', 'Sales'],
+  ['/app/campaigns', 'marketing', 'Marketing'],
+  ['/app/support', 'support', 'Support'],
+  ['/app/hiring', 'hiring', 'Hiring'],
+  ['/app/hr', 'people', 'People'],
+  ['/app/orchestrator', 'activity', 'Activity'],
+  ['/app/ceo', 'objectives', 'Objectives'],
+  ['/app/boardroom', 'governance', 'Governance'],
+  ['/app/teams', 'teams', 'Teams'],
+  ['/app/approvals', 'approvals', 'Approvals'],
+  ['/app/costs', 'costs', 'AI usage'],
+  ['/app/marketplace', 'marketplace', 'Marketplace'],
+  ['/app/automations', 'workflows', 'Workflows'],
+];
+
+/** Built-in agent slug for a chat scope. Finance has no section home, so it stays on the assistant. */
+export const SECTION_AGENT_SLUG: Record<string, string> = {
+  sales: 'sales_ai',
+  marketing: 'marketing_ai',
+  support: 'support_ai',
+  hiring: 'hr_ai',
+  people: 'hr_ai',
+  objectives: 'ceo_ai',
+};
+
+const AGENT_SECTION_PATH: Record<string, string> = {
+  sales_ai: '/app/sales',
+  marketing_ai: '/app/campaigns',
+  support_ai: '/app/support',
+  hr_ai: '/app/hr',
+  ceo_ai: '/app/ceo',
+};
+
 export function sectionAssistant(pathname: string): { scope: string; title: string } | null {
-  const rules: Array<[string, string, string]> = [
-    ['/app/sales', 'sales', 'Sales'],
-    ['/app/campaigns', 'marketing', 'Marketing'],
-    ['/app/support', 'support', 'Support'],
-    ['/app/hiring', 'hiring', 'Hiring'],
-    ['/app/hr', 'people', 'People'],
-    ['/app/orchestrator', 'activity', 'Activity'],
-    ['/app/knowledge', 'knowledge', 'Knowledge'],
-    ['/app/ceo', 'objectives', 'Objectives'],
-    ['/app/boardroom', 'governance', 'Governance'],
-    ['/app/teams', 'teams', 'Teams'],
-    ['/app/approvals', 'approvals', 'Approvals'],
-    ['/app/costs', 'costs', 'AI usage'],
-    ['/app/marketplace', 'marketplace', 'Marketplace'],
-    ['/app/automations', 'workflows', 'Workflows'],
-  ];
-  for (const [prefix, scope, title] of rules) {
-    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
-      return { scope, title };
-    }
+  for (const [path, scope, title] of SECTION_CHATS) {
+    if (pathname === path) return { scope, title };
   }
   return null;
+}
+
+/** Classic Knowledge departments. HR is stored as HR and labeled Hiring, matching the Knowledge page. */
+export function knowledgeDepartmentForScope(scope?: string | null): string {
+  if (scope === 'sales') return 'Sales';
+  if (scope === 'marketing') return 'Marketing';
+  if (scope === 'support') return 'Support';
+  if (scope === 'hiring' || scope === 'people') return 'HR';
+  return 'all';
+}
+
+export function pathForAgentSlug(slug?: string | null, id?: string | null): string {
+  if (slug && AGENT_SECTION_PATH[slug]) return AGENT_SECTION_PATH[slug];
+  const key = slug || id;
+  if (!key) return '/app/assistant';
+  return `/app/assistant?agent=${encodeURIComponent(key)}`;
 }
