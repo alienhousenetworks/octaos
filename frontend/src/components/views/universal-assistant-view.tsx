@@ -6,11 +6,12 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useWorkspace } from '@/lib/workspace';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Bot, ArrowUp, ShieldCheck, Network, Loader2, AlertCircle, CheckCircle2, Search } from 'lucide-react';
+import { Bot, ArrowUp, Loader2, AlertCircle, CheckCircle2, Search } from 'lucide-react';
 import { createId } from '@/lib/id';
 import { AgentItem } from '@/lib/agent-types';
 import { SECTION_AGENT_SLUG, knowledgeDepartmentForScope } from '@/lib/interface-mode';
 import ClassicKnowledgeShelf from '@/components/shell/classic-knowledge-shelf';
+import AgentWorkspaceBody, { resolveAgentWorkspace } from '@/components/views/agent-workspace-body';
 
 type ChatMessage = {
   id: string;
@@ -102,7 +103,6 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
   const searchParams = useSearchParams();
   const requestedAgent = searchParams.get('agent') || '';
   const tenantKey = String(workspace.tenantId || 'default');
-  const storageKey = 'octaos-universal-assistant-messages:' + tenantKey + ':' + scope;
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [loadedTenant, setLoadedTenant] = useState<string | null>(null);
   const [input, setInput] = useState('');
@@ -117,6 +117,11 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
   const [specialistGroups, setSpecialistGroups] = useState<string[]>([]);
   const [specialistsError, setSpecialistsError] = useState('');
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) || null;
+  const workspaceKind = resolveAgentWorkspace(selectedAgent, scope, requestedAgent === 'orchestrator');
+  const threadKey = requestedAgent === 'orchestrator'
+    ? 'orchestrator'
+    : (selectedAgent?.slug || SECTION_AGENT_SLUG[scope] || scope);
+  const storageKey = 'octaos-universal-assistant-messages:' + tenantKey + ':' + threadKey;
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const draftRef = useRef('');
@@ -290,7 +295,16 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
     }
   };
 
-  const suggestions = SUGGESTIONS[scope] || SUGGESTIONS.general;
+  const suggestions = SUGGESTIONS[workspaceKind] || SUGGESTIONS[scope] || SUGGESTIONS.general;
+  const knowledgeDepartment = workspaceKind === 'sales'
+    ? 'Sales'
+    : workspaceKind === 'marketing'
+      ? 'Marketing'
+      : workspaceKind === 'support'
+        ? 'Support'
+        : workspaceKind === 'people' || workspaceKind === 'hiring'
+          ? 'HR'
+          : knowledgeDepartmentForScope(scope);
   const agentNeedle = agentQuery.trim().toLowerCase();
   const visibleAgents = agents.filter((agent) => {
     if (!agentNeedle) return true;
@@ -306,15 +320,17 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
   };
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col">
+    <div className={'mx-auto flex min-h-full w-full flex-col ' + (workspaceKind === 'general' ? 'max-w-5xl' : 'max-w-none')}>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#7de56b]/20 bg-[#7de56b]/10 px-3 py-1 text-xs font-medium text-[#9af18b]">
             <Bot className="size-3.5" /> OctaOS AI Workforce
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{title ? `${title} chat` : 'What would you like to get done?'}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{workspaceKind === 'general' ? (title ? `${title} chat` : 'What would you like to get done?') : `${selectedAgent?.name || title || 'Agent'} workspace`}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-white/50">
-            Work with your specialist bots through one conversation. OctaOS can plan work, use available company context and coordinate supported capabilities. External actions remain subject to permissions and approval.
+            {workspaceKind === 'general'
+              ? 'Work with your specialist bots through one conversation. OctaOS can plan work, use available company context and coordinate supported capabilities. External actions remain subject to permissions and approval.'
+              : 'This body is the ' + (selectedAgent?.name || title || 'agent') + ' workspace. Switch AIs above to open a different workspace. Messaging this agent stays below the workspace.'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -367,19 +383,51 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
         {selectedAgent && <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/[0.08] pt-3 text-xs text-white/55"><span className="rounded-md bg-[#7de56b]/10 px-2 py-1 text-[#a4f196]">{selectedAgent.lifecycle_state || 'registered'}</span><span>{selectedAgent.provider || 'Provider not set'} / {selectedAgent.model || 'Model not set'}</span><span>·</span><span>{selectedAgent.tools?.length || 0} configured tools</span><span>·</span><span>{selectedAgent.version ? 'v' + selectedAgent.version : 'Version not reported'}</span></div>}
       </div>
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border border-white/[0.09] bg-[#131714] p-3">
-          <Network className="mb-2 size-4 text-[#8be977]" />
-          <p className="text-sm font-medium">Collaborative bots</p>
-          <p className="mt-1 text-xs leading-5 text-white/50">Every registered AI is listed above. Sales specialists stay attached to Sales AI.</p>
+      {workspaceKind !== 'general' && (
+        <div className="mb-4">
+          <AgentWorkspaceBody kind={workspaceKind} agent={selectedAgent} />
         </div>
-        <div className="rounded-xl border border-white/[0.09] bg-[#131714] p-3">
-          <ShieldCheck className="mb-2 size-4 text-[#8be977]" />
-          <p className="text-sm font-medium">Governed execution</p>
-          <p className="mt-1 text-xs leading-5 text-white/50">Review plans and respect the authorization required for each action.</p>
-        </div>
-      </div>
+      )}
 
+      {workspaceKind !== 'general' ? (
+        <details className="mb-4 rounded-2xl border border-white/[0.09] bg-[#101311] p-4" data-testid="agent-message-dock">
+          <summary className="cursor-pointer text-sm font-medium">Message {selectedAgent?.name || title || 'this agent'}</summary>
+          <div className="pt-4">
+            {Conversation()}
+          </div>
+        </details>
+      ) : (
+        Conversation()
+      )}
+
+      <div className="mt-4">
+        <ClassicKnowledgeShelf knowledge={workspace.knowledge} department={knowledgeDepartment} />
+      </div>
+      {workspaceKind === 'sales' && specialists.length > 0 && (
+        <details open className="mt-4 rounded-2xl border border-white/[0.09] bg-[#131714] p-4" data-testid="sales-workforce-roster">
+          <summary className="cursor-pointer text-sm font-semibold">Sales specialists · {specialists.length}</summary>
+          <div className="mt-2 flex flex-wrap items-start justify-between gap-2">
+            <p className="text-xs leading-5 text-white/50">{specialistGroups.length ? specialistGroups.join(', ') + '. ' : ''}These specialists run with Sales AI. Choosing one fills a request and does not send it.</p>
+            <Link href="/app/sales/agents" className="text-xs text-[#a4f196] hover:underline">Open sales workforce</Link>
+          </div>
+          <div className="mt-3 grid max-h-64 gap-1.5 overflow-y-auto sm:grid-cols-2">
+            {specialists.map((specialist) => (
+              <button key={specialist.agent_id} type="button" onClick={() => askSpecialist(specialist)} className="rounded-lg border border-white/10 px-2.5 py-2 text-left hover:bg-white/[0.04]">
+                <span className="block truncate text-xs font-medium">{specialist.agent_id}</span>
+                <span className="mt-0.5 block truncate text-[11px] text-white/45">{specialist.purpose || specialist.readiness || 'Registered specialist'}</span>
+              </button>
+            ))}
+          </div>
+        </details>
+      )}
+      {workspaceKind === 'sales' && specialistsError && <p className="mt-4 text-xs text-amber-300">{specialistsError}</p>}
+      <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] text-white/50"><CheckCircle2 className="size-3" /> Results reflect the orchestration response; verify approvals and external outcomes before treating work as complete.</p>
+    </div>
+  );
+
+  function Conversation() {
+    return (
+      <>
       <section aria-label="Conversation" className="flex-1 space-y-4 rounded-2xl border border-white/[0.09] bg-[#101311] p-4 md:p-6">
         {messages.map((message) => (
           <div key={message.id} className={'flex ' + (message.role === 'user' ? 'justify-end' : 'justify-start')}>
@@ -431,28 +479,7 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
           }}><ArrowUp className="mr-1 size-4" /> {busy ? 'Working…' : 'Send'}</Button>
         </div>
       </form>
-      <div className="mt-4">
-        <ClassicKnowledgeShelf knowledge={workspace.knowledge} department={knowledgeDepartmentForScope(scope)} />
-      </div>
-      {specialists.length > 0 && (
-        <details open className="mt-4 rounded-2xl border border-white/[0.09] bg-[#131714] p-4" data-testid="sales-workforce-roster">
-          <summary className="cursor-pointer text-sm font-semibold">Sales specialists · {specialists.length}</summary>
-          <div className="mt-2 flex flex-wrap items-start justify-between gap-2">
-            <p className="text-xs leading-5 text-white/50">{specialistGroups.length ? specialistGroups.join(', ') + '. ' : ''}These specialists run with Sales AI. Choosing one fills a request and does not send it.</p>
-            <Link href="/app/sales/agents" className="text-xs text-[#a4f196] hover:underline">Open sales workforce</Link>
-          </div>
-          <div className="mt-3 grid max-h-64 gap-1.5 overflow-y-auto sm:grid-cols-2">
-            {specialists.map((specialist) => (
-              <button key={specialist.agent_id} type="button" onClick={() => askSpecialist(specialist)} className="rounded-lg border border-white/10 px-2.5 py-2 text-left hover:bg-white/[0.04]">
-                <span className="block truncate text-xs font-medium">{specialist.agent_id}</span>
-                <span className="mt-0.5 block truncate text-[11px] text-white/45">{specialist.purpose || specialist.readiness || 'Registered specialist'}</span>
-              </button>
-            ))}
-          </div>
-        </details>
-      )}
-      {specialistsError && <p className="mt-4 text-xs text-amber-300">{specialistsError}</p>}
-      <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] text-white/50"><CheckCircle2 className="size-3" /> Results reflect the orchestration response; verify approvals and external outcomes before treating work as complete.</p>
-    </div>
-  );
+      </>
+    );
+  }
 }

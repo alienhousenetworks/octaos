@@ -195,7 +195,7 @@ export default function AIWorkspaceShell({ children, accountLabel }: { children:
         <header className="flex h-[68px] shrink-0 items-center gap-3 border-b border-white/[0.08] bg-[#0d100e] px-4 md:px-7">
           <button type="button" className="inline-flex size-9 items-center justify-center rounded-lg border border-white/10 text-white/70 md:hidden" aria-label="Open navigation" onClick={() => setNavOpen(true)}><Menu className="size-4" /></button>
           <div className="flex size-9 items-center justify-center rounded-xl border border-[#7de56b]/20 bg-[#172219] text-[#83eb70]"><Bot className="size-4" /></div>
-          <div className="min-w-0"><h1 className="truncate text-sm font-semibold">{crumb.name}</h1><p className="truncate text-[11px] text-white/45">{pageChat ? pageChat.title + ' chat' : crumb.section}{agents.length > 0 ? ` · ${agents.length} AIs` : ''}</p></div>
+          <div className="min-w-0"><h1 className="truncate text-sm font-semibold">{crumb.name}</h1><p className="truncate text-[11px] text-white/45">{pageChat ? pageChat.title + ' workspace' : crumb.section}{agents.length > 0 ? ` · ${agents.length} AIs` : ''}</p></div>
           <div className="ml-auto flex items-center gap-2">
             <div role="group" aria-label="Interface mode" data-testid="interface-mode-toggle" className="inline-flex shrink-0 items-center rounded-lg border border-white/10 bg-white/[0.04] p-0.5">
               <button type="button" aria-pressed="true" className="h-8 rounded-md bg-[#78e565] px-2.5 text-xs font-semibold text-[#0b1609]" title="AI chat is showing on this page">AI</button>
@@ -206,8 +206,8 @@ export default function AIWorkspaceShell({ children, accountLabel }: { children:
           </div>
         </header>
         <div className="flex min-h-0 flex-1">
-          <main className={isChat ? 'ai-workspace-chat min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 md:px-8 md:py-6' : 'min-w-0 flex-1 overflow-y-auto px-3 py-4 md:px-6 md:py-5'}>
-            <div className={isChat ? 'mx-auto w-full max-w-[1050px]' : 'w-full'}>
+          <main className="ai-workspace-chat min-w-0 flex-1 overflow-y-auto px-3 py-4 md:px-6 md:py-5">
+            <div className="w-full">
               {!isKnowledge && !isChat && (
                 <details className="mb-4 rounded-2xl border border-white/[0.09] bg-[#101311] px-4 py-3 lg:hidden">
                   <summary className="cursor-pointer text-sm font-medium text-white/80">Company knowledge</summary>

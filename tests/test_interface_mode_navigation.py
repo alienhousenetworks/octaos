@@ -36,6 +36,25 @@ def test_knowledge_stays_classic_and_registered_ais_are_listed():
     assert "<KnowledgeView" in screen
 
 
+def test_each_agent_opens_its_own_workspace():
+    source = _source("frontend/src/components/views/agent-workspace-body.tsx")
+    assert "return 'sales'" in source
+    assert "return 'marketing'" in source
+    assert "return 'support'" in source
+    assert "return 'finance'" in source
+    assert "return 'ceo'" in source
+    assert "SalesView" in source
+    assert "CampaignsView" in source
+    assert "SupportView" in source
+    assert "HREnterpriseSuite" in source
+    assert "AIOptimizationView" in source
+    assert "CEOView" in source
+    view = _source("frontend/src/components/views/universal-assistant-view.tsx")
+    assert "AgentWorkspaceBody" in view
+    assert "resolveAgentWorkspace" in view
+    assert 'data-testid="agent-workspace"' in source
+
+
 def test_cockpit_and_dashboard_stay_streamlined_without_mode_hijacking():
     dashboard = _source("frontend/src/components/views/dashboard-view.tsx")
     cockpit = _source("frontend/src/features/workforce/agent-detail-view.tsx")
