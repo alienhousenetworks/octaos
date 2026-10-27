@@ -51,7 +51,8 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Workspace',
     items: [
-      { id: 'dashboard', name: 'Home', href: '/app/home', icon: BarChart3, section: 'dashboard', keywords: 'dashboard operating' },
+      { id: 'assistant', name: 'AI Assistant', href: '/app/assistant', icon: Bot, section: 'assistant', keywords: 'chat assistant natural language orchestrator bots work' },
+      { id: 'dashboard', name: 'Overview', href: '/app/home', icon: BarChart3, section: 'dashboard', keywords: 'dashboard operating birdseye analytics metrics charts classic' },
       { id: 'approvals', name: 'Approvals', href: '/app/approvals', icon: CheckCheck, section: 'system', keywords: 'hitl review queue' },
       { id: 'knowledge', name: 'Knowledge', href: '/app/knowledge', icon: FileText, section: 'knowledge', keywords: 'documents rag' },
     ],
@@ -129,6 +130,7 @@ export const EXTRA_ROUTES: NavItem[] = [
 ];
 
 const VIEW_PATHS: Record<string, string> = {
+  assistant: '/app/assistant',
   dashboard: '/app/home',
   knowledge: '/app/knowledge',
   campaigns: '/app/campaigns',
