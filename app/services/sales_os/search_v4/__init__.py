@@ -19,6 +19,7 @@ async def run_parallel_search(
     store=None,
     connectors=None,
     db=None,
+    job_id: str | None = None,
 ) -> SearchBatch:
     resolved = credential_map(credentials)
     engine = SearchEngine(
@@ -26,7 +27,7 @@ async def run_parallel_search(
         connectors if connectors is not None else MethodConnectors(resolved),
         resolved,
     )
-    return await engine.run(spec, history=history, suppressed_domains=suppressed_domains, client=client)
+    return await engine.run(spec, history=history, suppressed_domains=suppressed_domains, client=client, job_id=job_id)
 
 
 def empty_store() -> MemorySearchStore:
