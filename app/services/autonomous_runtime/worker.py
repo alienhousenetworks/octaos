@@ -3,6 +3,7 @@ from app.core.celery_app import celery_app
 from app.db.session import SessionLocal
 from app.models.autonomous_work import AutonomousTask
 from app.services.autonomous_runtime import AutonomousRuntime
+from app.services.agent_runtime.execution_identity import register_execution_identity
 
 
 @celery_app.task(name="octaos.execute_autonomous_task", bind=True, max_retries=0)
@@ -15,6 +16,17 @@ def execute_autonomous_task(self, task_id: str, tenant_id: str):
         ).first()
         if not task:
             return {"status": "not_found", "task_id": task_id}
+        context = dict(task.context or {})
+        canonical_id = str(context.get("canonical_execution_id") or task.id)
+        register_execution_identity(
+            db, tenant_id=tenant_id, source_kind="autonomous_task",
+            source_id=task.id, canonical_execution_id=canonical_id,
+            metadata={"worker_task_id": task.id},
+        )
+        if context.get("canonical_execution_id") != canonical_id:
+            context["canonical_execution_id"] = canonical_id
+            task.context = context
+            db.commit()
         runtime = AutonomousRuntime(db)
         task = runtime.execute_registered_handler(task)
         return {
