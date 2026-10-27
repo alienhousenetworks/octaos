@@ -9,9 +9,10 @@ from app.models.flow_engine import (
     AgentVersion,
     UsageEvent,
     ExecutionEvent,
-    FlowApprovalRequest,
 )
 from app.models.agents import KnowledgeDocument
+from app.models.enterprise import ApprovalRequest
+from app.services.runtime_governance.tool_policy import action_fingerprint
 from app.services.agents.tools import tool_registry
 from app.services.agent_runtime.protocol import AgentEvent, AgentEventType, AgentOutcome, AgentRequest
 from app.services.agent_runtime.gateway_adapter import AIGatewayAgentAdapter
@@ -126,16 +127,41 @@ class AgentRuntime:
                 continue
 
             if tool_def.approval_required and not dry_run:
-                # Create ApprovalRequest and pause execution
-                approval = FlowApprovalRequest(
+                # One approval record is shared by the approval UI, reviewer API, and
+                # execution-time tool guard. Bind it to the exact proposed side effect.
+                target = str(
+                    tool_args.get("target") or tool_args.get("recipient")
+                    or tool_args.get("recipient_email") or tool_args.get("email")
+                    or tool_args.get("url") or tool_args.get("account_id") or ""
+                )
+                policy_version = "1"
+                binding = {
+                    "run_id": event_run_id,
+                    "bot_id": agent.id,
+                    "tool_name": tool_name,
+                    "target": target,
+                    "payload": tool_args,
+                    "policy_version": policy_version,
+                }
+                fingerprint = action_fingerprint(
+                    tenant_id=tenant_id, run_id=event_run_id, bot_id=agent.id,
+                    tool_name=tool_name, target=target, payload=tool_args,
+                    policy_version=policy_version,
+                )
+                approval = ApprovalRequest(
                     tenant_id=tenant_id,
-                    flow_run_id=flow_run_id or "adhoc_run",
-                    step_run_id=step_run_id or "adhoc_step",
+                    action_type=tool_name,
+                    agent_name=agent.name,
+                    resource_type="agent_tool",
+                    resource_id=event_run_id,
                     title=f"Approval Required: {tool_name} by {agent.name}",
-                    description=f"Agent '{agent.name}' requested to execute high-risk write action '{tool_name}'.",
-                    risk_level=tool_def.risk_level,
+                    policy_reason=f"Agent '{agent.name}' requested a {tool_def.risk_level.lower()}-risk tool action.",
                     status="pending",
-                    payload={"tool": tool_name, "args": tool_args, "agent_id": agent.id},
+                    requested_by=agent.id,
+                    payload={"tool": tool_name, "args": tool_args, "agent_id": agent.id, "agent_version_id": agent_ver.id},
+                    action_binding=binding,
+                    action_fingerprint=fingerprint,
+                    policy_version=policy_version,
                 )
                 db.add(approval)
                 db.commit()
