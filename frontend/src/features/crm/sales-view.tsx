@@ -22,7 +22,6 @@ import SalesIntelligenceView from './sales-intelligence-view';
 import SalesDealDeskView from './sales-deal-desk-view';
 import SalesConfigPanel from './sales-config-panel';
 import SalesHome from './sales-home';
-import SalesIndustries from './sales-industries';
 import SalesWorkforce, { WorkforceMap } from './sales-workforce';
 import SalesCampaigns from './sales-campaigns';
 import SalesRecordWorkspace from './sales-record-workspace';
@@ -1106,23 +1105,12 @@ export default function SalesView({
               setSelectedLead(lead);
               selectSalesSection('pipeline');
             }}
-            onOpenIndustries={() => selectSalesSection('industries')}
+            onOpenConfig={() => selectSalesSection('config')}
             onOpenCampaignsModule={() => router.push('/app/campaigns')}
             onOpenWorkflows={() => router.push('/app/automations')}
           />
         )}
 
-        {activeSalesTab === 'industries' && (
-          <SalesIndustries
-            packs={packs}
-            activeId={activePack?.id || null}
-            loading={packsLoading}
-            error={packsError}
-            savingId={packSavingId}
-            notice={packNotice}
-            onSelect={handleSelectPack}
-          />
-        )}
 
         {activeSalesTab === 'campaigns' && (
           <SalesCampaigns
