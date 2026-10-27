@@ -516,3 +516,63 @@ async def test_search_engine_runs_bounded_adaptive_expansion_rounds():
     assert 2 <= payload["expansion_round"] <= 3
     assert payload["expansion_done"] is True
     assert any(record["company_domain"] == "acme.example" for record in payload["records"])
+
+
+def test_shared_research_api_request_validation_and_normalization():
+    from pydantic import ValidationError
+    from app.api.v1.endpoints.research import ResearchSearchRequest
+
+    request = ResearchSearchRequest(
+        query="  ERP   market research ",
+        geography=["India", "india", "United States"],
+        industries=["Manufacturing", "manufacturing"],
+    )
+    assert request.query == "ERP market research"
+    assert request.geography == ["India", "United States"]
+    assert request.industries == ["Manufacturing"]
+    with pytest.raises(ValidationError):
+        ResearchSearchRequest(query="x")
+    with pytest.raises(ValidationError):
+        ResearchSearchRequest(query="valid query", budget_inr=701)
+
+
+def test_research_public_job_projection_preserves_claim_provenance():
+    from app.api.v1.endpoints.research import _public_job
+
+    result = _public_job({
+        "job_id": "job-1",
+        "status": "succeeded",
+        "spec": {"tenant_id": "secret-tenant", "query": "ERP research", "freshness": "14_days"},
+        "tasks": [{"task_id": "task-1", "method": "web", "provider": "duckduckgo", "query": "ERP", "status": "succeeded"}],
+        "records": [{
+            "record_id": "record-1", "title": "Official page", "original_url": "https://example.com/erp",
+            "canonical_url": "example.com/erp", "snippet": "ERP product", "page_excerpt": "Source passage",
+            "provider": "duckduckgo", "method": "web", "company_name": "Example",
+        }],
+        "assessments": [{
+            "evidence": {
+                "claim": "The company offers ERP.", "passage": "Source passage",
+                "source_url": "https://example.com/erp", "verification_state": "supported",
+            }
+        }],
+        "ledger": [], "notes": [],
+    })
+    assert result["sources"][0]["url"] == "https://example.com/erp"
+    assert result["claims"][0]["passage"] == "Source passage"
+    assert result["claims"][0]["verification_state"] == "supported"
+    assert "tenant_id" not in result
+
+
+def test_search_storage_does_not_fall_back_to_process_memory_for_database_sessions():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.services.sales_os.search_v4.store import store_for_session
+
+    engine = create_engine("sqlite://")
+    session = sessionmaker(bind=engine)()
+    try:
+        with pytest.raises(RuntimeError, match="durable storage is unavailable"):
+            store_for_session(session)
+    finally:
+        session.close()
+        engine.dispose()
