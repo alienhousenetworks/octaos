@@ -38,8 +38,6 @@ from app.models import decision_cases
 from app.models import mcp
 from app.models.rooms import SectionRoom
 from app.models import agent_runtime
-from app.models import real_estate
-from app.models import field_sales
 from app.models import sales_workflow as sales_workflow_models
 from app.models import lifecycle
 from app.models import collaborative_workforce as collaborative_workforce_models

@@ -14,6 +14,9 @@ DEFAULT_TERMINOLOGY = {
 }
 
 
+DISABLED_LEGACY_PACK_IDS = {"real_estate", "property_development", "property_sales"}
+
+
 PACK_ALIASES: Dict[str, str] = {
     "service_company": "business_services",
     "services": "business_services",
@@ -40,6 +43,8 @@ def resolve_marketing_pack_id(pack_id: Optional[str]) -> Optional[str]:
     if not pack_id:
         return None
     normalized = pack_id.lower().strip().replace(" ", "_").replace("-", "_")
+    if normalized in DISABLED_LEGACY_PACK_IDS:
+        return None
     if normalized in PACKS:
         return normalized
     if normalized in PACK_ALIASES:

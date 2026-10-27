@@ -24,7 +24,7 @@ interface SalesHomeProps {
   leads: Lead[];
   onOpen: (section: SalesSection) => void;
   onOpenLead: (lead: Lead) => void;
-  onOpenIndustries: () => void;
+  onOpenConfig: () => void;
   onOpenCampaignsModule: () => void;
   onOpenWorkflows: () => void;
 }
@@ -45,7 +45,7 @@ export default function SalesHome({
   leads,
   onOpen,
   onOpenLead,
-  onOpenIndustries,
+  onOpenConfig,
   onOpenCampaignsModule,
   onOpenWorkflows,
 }: SalesHomeProps) {
@@ -57,7 +57,7 @@ export default function SalesHome({
       number: '01',
       title: 'Define your target market',
       description: 'Tell Sales AI who you sell to, where you sell, and what makes your offer relevant.',
-      detail: 'Business profile · ICP · industries · geographies · offer',
+      detail: 'Business profile · ICP · target market · geographies · offer',
       icon: <Settings2 size={18} />,
       actionLabel: 'Configure targeting',
       onClick: () => onOpen('config'),
@@ -118,8 +118,8 @@ export default function SalesHome({
           <div className="flex shrink-0 flex-col items-start gap-1 rounded-xl border border-[#414C5A] bg-[#202630] px-4 py-3 md:min-w-52">
             <span className="text-xs text-[#AAB5C4]">Current workspace</span>
             <span className="max-w-60 truncate text-sm font-semibold text-[#E5EAF1]">{companyName || 'Your organization'}</span>
-            <button type="button" onClick={onOpenIndustries} className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-[#A1AEF0] hover:text-white">
-              {pack ? pack.name : 'Choose industry settings'} <ArrowRight size={13} />
+            <button type="button" onClick={onOpenConfig} className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-[#A1AEF0] hover:text-white">
+              Configure business context <ArrowRight size={13} />
             </button>
           </div>
         </div>

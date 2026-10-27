@@ -9,8 +9,7 @@ from app.api.v1.endpoints import (
     data_collection,
     automation_nodes, automation_documents,
     hr_people, hr_workforce, hr_copilot, hr_enterprise, hr_compensation_read,
-    sales_crm, sales_inbox, sales_platform,
-    sales_real_estate, sales_inbound_webhooks, field_sales,
+    sales_crm, sales_inbox, sales_platform, sales_inbound_webhooks,
     integrations, rbac, heygen, autonomous_work, buffer_oauth, workforce_events,
 )
 
@@ -59,9 +58,9 @@ api_router.include_router(sales_os.router, prefix="/sales-os", tags=["sales-os"]
 api_router.include_router(sales_crm.router, prefix="/sales-crm", tags=["sales-crm"])
 api_router.include_router(sales_inbox.router, prefix="/sales-inbox", tags=["sales-inbox"])
 api_router.include_router(sales_platform.router, prefix="/sales-os", tags=["sales-platform"])
-api_router.include_router(sales_real_estate.router, prefix="/sales-os/real-estate", tags=["sales-real-estate"])
-api_router.include_router(sales_real_estate.router, prefix="/sales-real-estate", tags=["sales-real-estate-alias"])
-api_router.include_router(field_sales.router, prefix="/sales-os/field-sales", tags=["field-sales"])
+# Dedicated real-estate and property-oriented field-sales routers are intentionally
+# not registered in the industry-neutral product surface. Historical models and
+# migrations remain for data compatibility until a separately tested migration.
 api_router.include_router(sales_inbound_webhooks.router, prefix="/sales-os", tags=["sales-inbound-webhooks"])
 api_router.include_router(automations.router, prefix="/automations", tags=["automations"])
 api_router.include_router(schedules.router, prefix="/schedules", tags=["schedules"])

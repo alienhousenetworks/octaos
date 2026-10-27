@@ -71,18 +71,3 @@ export interface MarketingComplianceResult {
   cleaned_content: string;
 }
 
-export interface RealEstateProjectSummary {
-  id: string;
-  name: string;
-  code?: string;
-  location?: string;
-  city?: string;
-  status?: string;
-  total_units: number;
-  available_units: number;
-  rera_number?: string;
-  amenities: string[];
-  unit_types: string[];
-  min_price?: number;
-  max_price?: number;
-}

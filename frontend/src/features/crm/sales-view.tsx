@@ -22,11 +22,9 @@ import SalesIntelligenceView from './sales-intelligence-view';
 import SalesDealDeskView from './sales-deal-desk-view';
 import SalesConfigPanel from './sales-config-panel';
 import SalesHome from './sales-home';
-import SalesIndustries from './sales-industries';
 import SalesWorkforce, { WorkforceMap } from './sales-workforce';
 import SalesCampaigns from './sales-campaigns';
 import SalesRecordWorkspace from './sales-record-workspace';
-import SalesFieldSalesView from './sales-field-sales-view';
 import { SHARED_TERMS, VerticalPack } from './sales-platform';
 import { CreateLeadModal, UploadLeadsModal } from './sales-modals';
 import RoomFolderExplorer from '@/components/rooms/room-folder-explorer';
@@ -1107,23 +1105,12 @@ export default function SalesView({
               setSelectedLead(lead);
               selectSalesSection('pipeline');
             }}
-            onOpenIndustries={() => selectSalesSection('industries')}
+            onOpenConfig={() => selectSalesSection('config')}
             onOpenCampaignsModule={() => router.push('/app/campaigns')}
             onOpenWorkflows={() => router.push('/app/automations')}
           />
         )}
 
-        {activeSalesTab === 'industries' && (
-          <SalesIndustries
-            packs={packs}
-            activeId={activePack?.id || null}
-            loading={packsLoading}
-            error={packsError}
-            savingId={packSavingId}
-            notice={packNotice}
-            onSelect={handleSelectPack}
-          />
-        )}
 
         {activeSalesTab === 'campaigns' && (
           <SalesCampaigns
@@ -1306,14 +1293,6 @@ export default function SalesView({
         />
       )}
 
-      {/* ── TAB: FIELD SALES & SMART VISIT SCHEDULING ── */}
-      {activeSalesTab === 'field_sales' && (
-        <SalesFieldSalesView
-          token={token}
-          API_URL={API_URL}
-          fetchWithAuth={fetchWithAuth}
-        />
-      )}
 
       {/* ── TAB 5: DEAL ROOMS ── */}
       {activeSalesTab === 'deal_rooms' && (
