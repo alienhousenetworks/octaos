@@ -16,6 +16,7 @@ from app.models.autonomous_work import AutonomousApproval, AutonomousTask, Auton
 from app.models.flow_engine import ExecutionEvent
 from app.services.autonomous_runtime import AutonomousRuntime, RuntimePolicyError
 from app.services.agent_runtime.protocol import sanitize_public_text
+from app.services.agent_runtime.execution_identity import register_execution_identity
 
 router = APIRouter()
 
@@ -94,6 +95,18 @@ def create_task(
         )
     except RuntimePolicyError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    context = dict(task.context or {})
+    canonical_id = str(context.get("canonical_execution_id") or task.id)
+    register_execution_identity(
+        db, tenant_id=user.tenant_id, source_kind="autonomous_task",
+        source_id=task.id, canonical_execution_id=canonical_id,
+        metadata={"created_by_id": user.id, "task_title": task.title},
+    )
+    if context.get("canonical_execution_id") != canonical_id:
+        context["canonical_execution_id"] = canonical_id
+        task.context = context
+        db.commit()
+        db.refresh(task)
     return _task_dict(task)
 
 
