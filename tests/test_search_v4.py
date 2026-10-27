@@ -584,11 +584,14 @@ def test_research_job_lookup_is_scoped_to_the_authenticated_tenant():
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     from app.api.v1.endpoints.research import get_research_job
-    from app.models.base import Base, Tenant
-    from app.models.search_v4 import SearchV4Job
+    from app.models.base import Tenant
+    from app.models.search_v4 import SearchV4Job, SearchV4LedgerRow, SearchV4TaskRow
 
     engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine)
+    Tenant.__table__.create(engine)
+    SearchV4Job.__table__.create(engine)
+    SearchV4TaskRow.__table__.create(engine)
+    SearchV4LedgerRow.__table__.create(engine)
     session = sessionmaker(bind=engine)()
     try:
         session.add(Tenant(id="tenant-a", name="Tenant A"))
