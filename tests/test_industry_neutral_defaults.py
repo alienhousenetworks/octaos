@@ -1,6 +1,6 @@
 """Regression tests for industry-neutral Sales and Marketing defaults."""
 
-from app.services.sales_os.verticals.registry import list_packs, shared_terminology, terminology_for
+from app.services.sales_os.verticals.registry import list_packs, shared_terminology, terminology_for, get_pack
 from app.services.marketing.verticals.registry import (
     list_marketing_packs,
     default_terminology,
@@ -16,12 +16,15 @@ def test_general_sales_does_not_expose_industry_packs():
     assert list_packs() == []
     assert terminology_for("real_estate") == shared_terminology()
     assert terminology_for("banking") == shared_terminology()
+    assert get_pack("real_estate") is None
 
 
 def test_general_marketing_does_not_expose_industry_packs():
     assert list_marketing_packs() == []
     assert marketing_terminology_for("real_estate") == default_terminology()
     assert marketing_terminology_for("banking") == default_terminology()
+    from app.services.marketing.verticals.registry import get_marketing_pack
+    assert get_marketing_pack("real_estate") is None
     assert get_content_pillars("real_estate") == []
     assert get_compliance_rules("real_estate") == {
         "prohibited_guarantees": [],
