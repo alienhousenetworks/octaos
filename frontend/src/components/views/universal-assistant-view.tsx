@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Bot, ArrowUp, Paperclip, ShieldCheck, Network, Database, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Bot, ArrowUp, Paperclip, ShieldCheck, Network, Database, Loader2, AlertCircle, CheckCircle2, Search } from 'lucide-react';
 import { createId } from '@/lib/id';
 import { AgentItem } from '@/lib/agent-types';
 
@@ -191,11 +191,16 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
             Work with your specialist bots through one conversation. OctaOS can plan work, use available company context and coordinate supported capabilities. External actions remain subject to permissions and approval.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => {
-          setMessages([WELCOME]);
-          setError('');
-          try { localStorage.removeItem(storageKey); } catch { /* optional */ }
-        }}>New conversation</Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/app/research" className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#7de56b]/25 px-3 text-xs font-medium text-[#a4f196] transition hover:bg-[#7de56b]/10">
+            <Search className="size-3.5" /> Search Intelligence
+          </Link>
+          <Button variant="outline" size="sm" onClick={() => {
+            setMessages([WELCOME]);
+            setError('');
+            try { localStorage.removeItem(storageKey); } catch { /* optional */ }
+          }}>New conversation</Button>
+        </div>
       </div>
 
       <div className="mb-4 rounded-2xl border border-white/[0.09] bg-[#131714] p-4">
