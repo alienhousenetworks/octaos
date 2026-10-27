@@ -1731,8 +1731,22 @@ def execute_approved_tool(self, approval_id: str, tenant_id: str):
                     "connection_active": True,
                 },
             )
+            normalized_result = result if isinstance(result, dict) else {"result": str(result)}
+            side_effect_failed = (
+                normalized_result.get("sent") is False
+                or normalized_result.get("success") is False
+                or (
+                    isinstance(normalized_result.get("status_code"), int)
+                    and normalized_result["status_code"] >= 400
+                )
+            )
+            approval.execution_result = normalized_result
+            if side_effect_failed:
+                approval.execution_status = "failed"
+                approval.execution_error = "SIDE_EFFECT_NOT_CONFIRMED"
+                db.commit()
+                return {"status": "failed", "reason": approval.execution_error, "approval_id": approval.id}
             approval.execution_status = "completed"
-            approval.execution_result = result if isinstance(result, dict) else {"result": str(result)}
             approval.execution_error = None
             db.commit()
             return {"status": "completed", "approval_id": approval.id}
