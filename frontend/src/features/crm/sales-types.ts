@@ -15,7 +15,7 @@ export type SalesSection =
   | 'configured_engine'
   | 'industries'
   | 'campaigns'
-  | 'field_sales';
+;
 
 export type LeadStatus =
   | 'new'
@@ -277,35 +277,6 @@ export interface FieldSalesAnalysisReport {
   strategic_recommendations: string[];
 }
 
-export interface RealEstateProjectItem {
-  id: string;
-  name: string;
-  code?: string;
-  location?: string;
-  city?: string;
-  address?: string;
-  latitude?: number;
-  longitude?: number;
-  rera_number?: string;
-  amenities?: string[];
-  hold_duration_hours?: number;
-  status?: string;
-  total_units?: number;
-  available_units?: number;
-  assigned_team_count?: number;
-  units?: any[];
-  team?: Array<{
-    assignment_id?: string;
-    user_id: string;
-    name: string;
-    email?: string;
-    phone?: string;
-    role: string;
-    ai_recommended?: boolean;
-    ai_match_score?: number;
-    ai_recommendation_reason?: string;
-  }>;
-}
 
 export interface SalespersonDirectoryItem {
   user_id: string;
