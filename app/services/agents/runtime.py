@@ -16,6 +16,7 @@ from app.services.runtime_governance.tool_policy import action_fingerprint
 from app.services.agents.tools import tool_registry
 from app.services.agent_runtime.protocol import AgentEvent, AgentEventType, AgentOutcome, AgentRequest
 from app.services.agent_runtime.gateway_adapter import AIGatewayAgentAdapter
+from app.services.agent_runtime.execution_identity import register_execution_identity
 from app.services.subscription_service import SubscriptionService
 
 
@@ -35,6 +36,18 @@ class AgentRuntime:
     ) -> Dict[str, Any]:
         start_time = time.time()
         event_run_id = flow_run_id or f"adhoc:{uuid.uuid4()}"
+        canonical_execution_id = str(input_context.get("canonical_execution_id") or flow_run_id or event_run_id)
+        register_execution_identity(
+            db, tenant_id=tenant_id, source_kind="agent_runtime_run",
+            source_id=event_run_id, canonical_execution_id=canonical_execution_id,
+            metadata={"agent_id": agent_id, "flow_run_id": flow_run_id, "step_run_id": step_run_id},
+        )
+        if flow_run_id:
+            register_execution_identity(
+                db, tenant_id=tenant_id, source_kind="workflow_run",
+                source_id=flow_run_id, canonical_execution_id=canonical_execution_id,
+                metadata={"step_run_id": step_run_id},
+            )
 
         # 1. Resolve Agent & AgentVersion
         agent, agent_ver = self._resolve_agent(db, tenant_id, agent_id, agent_version_id)
