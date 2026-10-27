@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useWorkspace } from '@/lib/workspace';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Bot, ArrowUp, Loader2, AlertCircle, CheckCircle2, Search } from 'lucide-react';
+import { Bot, ArrowUp, Loader2, AlertCircle, CheckCircle2, Search, Settings2 } from 'lucide-react';
 import { createId } from '@/lib/id';
 import { AgentItem } from '@/lib/agent-types';
 import { SECTION_AGENT_SLUG, knowledgeDepartmentForScope } from '@/lib/interface-mode';
@@ -112,7 +112,6 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
   const [agentsLoading, setAgentsLoading] = useState(false);
   const [agentsError, setAgentsError] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState('');
-  const [agentQuery, setAgentQuery] = useState('');
   const [specialists, setSpecialists] = useState<SalesSpecialist[]>([]);
   const [specialistGroups, setSpecialistGroups] = useState<string[]>([]);
   const [specialistsError, setSpecialistsError] = useState('');
@@ -305,11 +304,6 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
         : workspaceKind === 'people' || workspaceKind === 'hiring'
           ? 'HR'
           : knowledgeDepartmentForScope(scope);
-  const agentNeedle = agentQuery.trim().toLowerCase();
-  const visibleAgents = agents.filter((agent) => {
-    if (!agentNeedle) return true;
-    return [agent.name, agent.role, agent.department, agent.slug, agent.description].join(' ').toLowerCase().includes(agentNeedle);
-  });
   const askSpecialist = (specialist: SalesSpecialist) => {
     const sales = agents.find((agent) => agent.slug === 'sales_ai');
     if (sales) chooseAgent(sales.id);
