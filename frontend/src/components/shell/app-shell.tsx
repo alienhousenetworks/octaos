@@ -38,6 +38,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [approvalCount, setApprovalCount] = useState<number | null>(null);
   const [orgs, setOrgs] = useState<any[]>([]);
   const [switching, setSwitching] = useState<string | null>(null);
+  const [interfaceMode, setInterfaceMode] = useState<'bot' | 'classic'>('bot');
 
   useEffect(() => {
     if (!workspace.ready) return;
@@ -45,6 +46,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [workspace.ready, workspace.token, router]);
 
   useEffect(() => {
+    const savedMode = localStorage.getItem('octaos-interface-mode');
+    setInterfaceMode(savedMode === 'classic' ? 'classic' : 'bot');
     const stored = localStorage.getItem('octaos-sidebar-collapsed');
     if (stored === '1') setCollapsed(true);
   }, []);
@@ -239,9 +242,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <Button
                 type="button"
                 size="sm"
-                variant={pathname === '/app/home' ? 'outline' : 'default'}
-                aria-pressed={pathname !== '/app/home'}
-                onClick={() => router.push('/app/assistant')}
+                variant={interfaceMode === 'bot' ? 'default' : 'outline'}
+                aria-pressed={interfaceMode === 'bot'}
+                onClick={() => {
+                  setInterfaceMode('bot');
+                  localStorage.setItem('octaos-interface-mode', 'bot');
+                  router.push('/app/assistant');
+                }}
                 className="h-8 gap-1.5 px-2.5"
                 title="Use the bot-first AI workspace"
               >
@@ -252,9 +259,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <Button
                 type="button"
                 size="sm"
-                variant={pathname === '/app/home' ? 'default' : 'ghost'}
-                aria-pressed={pathname === '/app/home'}
-                onClick={() => router.push('/app/home')}
+                variant={interfaceMode === 'classic' ? 'default' : 'ghost'}
+                aria-pressed={interfaceMode === 'classic'}
+                onClick={() => {
+                  setInterfaceMode('classic');
+                  localStorage.setItem('octaos-interface-mode', 'classic');
+                  router.push('/app/home');
+                }}
                 className="h-8 gap-1.5 px-2.5"
                 title="Use the classic dashboard"
               >
