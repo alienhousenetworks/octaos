@@ -113,6 +113,7 @@ class WorkforceEventService:
         limit: int = 100,
         event_type: Optional[str] = None,
         run_id: Optional[str] = None,
+        latest: bool = False,
     ) -> dict[str, Any]:
         query = self.db.query(WorkforceEvent).filter(WorkforceEvent.tenant_id == self.tenant_id)
         if event_type:
@@ -130,13 +131,25 @@ class WorkforceEventService:
                     ),
                 )
             )
-        rows = (
-            query.order_by(WorkforceEvent.created_at.asc(), WorkforceEvent.id.asc())
-            .limit(max(1, min(limit, 200)) + 1)
-            .all()
-        )
-        has_more = len(rows) > max(1, min(limit, 200))
-        rows = rows[: max(1, min(limit, 200))]
+        page_limit = max(1, min(limit, 200))
+        if latest and not cursor:
+            # First UI load gets the newest page; subsequent reads use the normal
+            # forward cursor so newly appended events arrive without duplicates.
+            rows = (
+                query.order_by(WorkforceEvent.created_at.desc(), WorkforceEvent.id.desc())
+                .limit(page_limit + 1)
+                .all()
+            )
+            has_more = len(rows) > page_limit
+            rows = list(reversed(rows[:page_limit]))
+        else:
+            rows = (
+                query.order_by(WorkforceEvent.created_at.asc(), WorkforceEvent.id.asc())
+                .limit(page_limit + 1)
+                .all()
+            )
+            has_more = len(rows) > page_limit
+            rows = rows[:page_limit]
         items = [
             {
                 "id": row.id,
