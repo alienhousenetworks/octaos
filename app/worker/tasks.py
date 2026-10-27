@@ -1666,3 +1666,81 @@ def schedule_future_buffer_posts_task():
                     task_logger.warning("Buffer scheduling needs reconciliation for post %s: %s", post.id, exc)
     finally:
         db.close()
+
+
+@celery_app.task(name="execute_approved_tool", bind=True, max_retries=0)
+def execute_approved_tool(self, approval_id: str, tenant_id: str):
+    """Execute one approved high-risk tool action using its persisted exact binding."""
+    from app.models.enterprise import ApprovalRequest
+    from app.models.flow_engine import AgentVersion
+    from app.services.agents.tools import tool_registry
+
+    db = SessionLocal()
+    try:
+        approval = db.query(ApprovalRequest).filter(
+            ApprovalRequest.id == approval_id,
+            ApprovalRequest.tenant_id == tenant_id,
+        ).with_for_update().first()
+        if not approval:
+            return {"status": "not_found"}
+        if approval.status != "approved" or not approval.action_binding:
+            approval.execution_status = "failed"
+            approval.execution_error = "APPROVAL_NOT_APPROVED_OR_BINDING_MISSING"
+            db.commit()
+            return {"status": "failed", "reason": approval.execution_error}
+        if approval.execution_status in {"running", "completed"}:
+            return {"status": approval.execution_status, "deduplicated": True}
+        payload_record = approval.payload or {}
+        version_id = payload_record.get("agent_version_id")
+        version = db.query(AgentVersion).filter(AgentVersion.id == version_id).first() if version_id else None
+        if not version:
+            approval.execution_status = "failed"
+            approval.execution_error = "AGENT_VERSION_NOT_FOUND"
+            db.commit()
+            return {"status": "failed", "reason": approval.execution_error}
+        binding = approval.action_binding
+        tool_name = str(binding.get("tool_name") or "")
+        tool_payload = binding.get("payload")
+        if not tool_name or not isinstance(tool_payload, dict):
+            approval.execution_status = "failed"
+            approval.execution_error = "INVALID_PERSISTED_ACTION_BINDING"
+            db.commit()
+            return {"status": "failed", "reason": approval.execution_error}
+        approval.execution_status = "running"
+        approval.execution_error = None
+        db.commit()
+        try:
+            result = async_to_sync(tool_registry.execute_tool)(
+                name=tool_name,
+                payload=tool_payload,
+                db=db,
+                tenant_id=tenant_id,
+                context={
+                    "approval_id": approval.id,
+                    "run_id": str(binding.get("run_id") or ""),
+                    "bot_id": str(binding.get("bot_id") or ""),
+                    "agent_id": str(binding.get("bot_id") or ""),
+                    "policy_version": str(binding.get("policy_version") or "1"),
+                    "granted_tools": version.tool_grants or [],
+                    "request_tenant_id": tenant_id,
+                    "connection_active": True,
+                },
+            )
+            approval.execution_status = "completed"
+            approval.execution_result = result if isinstance(result, dict) else {"result": str(result)}
+            approval.execution_error = None
+            db.commit()
+            return {"status": "completed", "approval_id": approval.id}
+        except Exception as exc:
+            db.rollback()
+            failed = db.query(ApprovalRequest).filter(
+                ApprovalRequest.id == approval_id,
+                ApprovalRequest.tenant_id == tenant_id,
+            ).with_for_update().first()
+            if failed:
+                failed.execution_status = "failed"
+                failed.execution_error = str(exc)[:2000]
+                db.commit()
+            raise
+    finally:
+        db.close()
