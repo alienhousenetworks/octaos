@@ -113,3 +113,23 @@ class AgentHandoff(Base):
     )  # pending | accepted | completed | rejected
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ExecutionIdentity(Base):
+    """Canonical durable execution identity shared by agent, workflow and autonomous-task runtimes."""
+    __tablename__ = "execution_identities"
+
+    id = Column(String, primary_key=True, default=_id)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    canonical_execution_id = Column(String, nullable=False, index=True)
+    source_kind = Column(String(64), nullable=False)
+    source_id = Column(String(160), nullable=False)
+    status = Column(String(24), nullable=False, default="active")
+    metadata_json = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("uq_execution_identity_tenant_source", "tenant_id", "source_kind", "source_id", unique=True),
+        Index("ix_execution_identity_tenant_canonical", "tenant_id", "canonical_execution_id"),
+    )
