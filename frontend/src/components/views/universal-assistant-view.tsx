@@ -345,60 +345,29 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
         </div>
       </div>
 
-      <div className="mb-4 rounded-2xl border border-white/[0.09] bg-[#131714] p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sm font-semibold"><Bot className="size-4 text-[#8be977]" /> Choose your AI</div>
-            <p className="mt-1 text-xs leading-5 text-white/50">{agents.length > 0 ? agents.length + ' registered AIs. ' : ''}Built-in and custom agents use their saved instructions. The general assistant coordinates the request.</p>
-          </div>
-          <Link href="/app/agents" className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/75 transition hover:bg-white/[0.06]">Manage agents ↗</Link>
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-white/[0.09] bg-[#131714] p-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#7de56b]/10 text-[#9af18b]"><Bot className="size-4" /></div>
+          <div className="min-w-0"><p className="text-xs font-medium text-white/85">Working with</p><p className="truncate text-[11px] text-white/45">{selectedAgent ? selectedAgent.name + ' · ' + (selectedAgent.department || 'General') : 'OctaOS general assistant · orchestrator'}</p></div>
         </div>
-        <label className="mt-3 flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-[#0d100e] px-3 text-white/40">
-          <Search className="size-3.5 shrink-0" />
-          <input value={agentQuery} onChange={(event) => setAgentQuery(event.target.value)} placeholder="Filter by name, role, or department" aria-label="Filter AIs" className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/35" />
-        </label>
-        <div className="mt-3 grid max-h-72 gap-2 overflow-y-auto sm:grid-cols-2" data-testid="ai-agent-roster">
-          <button type="button" aria-pressed={!selectedAgentId} onClick={() => chooseAgent('')} className={'rounded-xl border px-3 py-2 text-left ' + (!selectedAgentId ? 'border-[#7de56b]/50 bg-[#7de56b]/10' : 'border-white/10 hover:bg-white/[0.04]')}>
-            <span className="block text-sm font-medium">General assistant</span>
-            <span className="mt-0.5 block text-[11px] text-white/45">Orchestrator · coordinates the work</span>
-          </button>
-          {visibleAgents.map((agent) => (
-            <button key={agent.id} type="button" data-agent-slug={agent.slug} aria-pressed={selectedAgentId === agent.id} onClick={() => chooseAgent(agent.id)} className={'rounded-xl border px-3 py-2 text-left ' + (selectedAgentId === agent.id ? 'border-[#7de56b]/50 bg-[#7de56b]/10' : 'border-white/10 hover:bg-white/[0.04]')}>
-              <span className="block text-sm font-medium">{agent.name}</span>
-              <span className="mt-0.5 block truncate text-[11px] text-white/45">{agent.role || agent.description || 'Registered agent'} · {agent.department || 'General'} · {agent.is_system ? 'Built-in' : 'Custom'}</span>
-            </button>
-          ))}
-        </div>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <select aria-label="Select AI agent" value={selectedAgentId} onChange={(event) => chooseAgent(event.target.value)} disabled={agentsLoading} className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-[#0d100e] px-3 text-sm text-white outline-none focus:border-[#7de56b]/50">
-            <option value="">OctaOS general assistant · orchestrator</option>
-            {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}{agent.is_system ? ' · Built-in' : ' · Custom'}{agent.department ? ' — ' + agent.department : ''}</option>)}
-          </select>
-          {selectedAgent && <Link href={'/app/agents/' + encodeURIComponent(selectedAgent.id) + '?tab=configuration'} className="inline-flex h-10 items-center justify-center rounded-xl border border-[#7de56b]/25 px-3 text-xs text-[#a4f196] hover:bg-[#7de56b]/10">Customize selected agent ↗</Link>}
-        </div>
-        {agentsLoading && <p className="mt-2 text-xs text-white/40">Loading registered agents…</p>}
-        {agentsError && <p role="status" className="mt-2 text-xs text-amber-300">{agentsError} The general assistant remains available; refresh to retry.</p>}
-        {!agentsLoading && !agentsError && agents.length === 0 && <p className="mt-2 text-xs text-white/40">No agents were returned by the registry. Create or configure agents in Agent Studio.</p>}
-        {!agentsLoading && agents.length > 0 && visibleAgents.length === 0 && <p className="mt-2 text-xs text-white/40">No AIs match that filter.</p>}
-        {selectedAgent && <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/[0.08] pt-3 text-xs text-white/55"><span className="rounded-md bg-[#7de56b]/10 px-2 py-1 text-[#a4f196]">{selectedAgent.lifecycle_state || 'registered'}</span><span>{selectedAgent.provider || 'Provider not set'} / {selectedAgent.model || 'Model not set'}</span><span>·</span><span>{selectedAgent.tools?.length || 0} configured tools</span><span>·</span><span>{selectedAgent.version ? 'v' + selectedAgent.version : 'Version not reported'}</span></div>}
+        <select aria-label="Choose AI agent" value={selectedAgentId} onChange={(event) => chooseAgent(event.target.value)} disabled={agentsLoading} className="h-10 min-w-[190px] max-w-full rounded-xl border border-white/10 bg-[#0d100e] px-3 text-xs text-white outline-none focus:border-[#7de56b]/50">
+          <option value="">General assistant</option>
+          {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}{agent.is_system ? ' · Built-in' : ' · Custom'}{agent.department ? ' — ' + agent.department : ''}</option>)}
+        </select>
+        {selectedAgent && <Link href={'/app/agents/' + encodeURIComponent(selectedAgent.id) + '?tab=configuration'} className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs text-white/70 hover:bg-white/[0.05]"><Settings2 className="size-3.5" /> Configure</Link>}
+        <Link href="/app/agents" className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs text-white/70 hover:bg-white/[0.05]"><Bot className="size-3.5" /> All agents</Link>
+        {agentsLoading && <span className="text-[11px] text-white/40">Loading agents…</span>}
+        {agentsError && <span role="status" className="text-[11px] text-amber-300">{agentsError} General assistant remains available.</span>}
       </div>
 
       {workspaceKind !== 'general' && (
-        <div className="mb-4">
-          <AgentWorkspaceBody kind={workspaceKind} agent={selectedAgent} />
-        </div>
+        <details className="mb-4 rounded-2xl border border-white/[0.09] bg-[#101311] p-3">
+          <summary className="cursor-pointer text-xs font-medium text-white/70">Open {selectedAgent?.name || title || 'department'} workspace tools</summary>
+          <div className="pt-3"><AgentWorkspaceBody kind={workspaceKind} agent={selectedAgent} /></div>
+        </details>
       )}
 
-      {workspaceKind !== 'general' ? (
-        <details className="mb-4 rounded-2xl border border-white/[0.09] bg-[#101311] p-4" data-testid="agent-message-dock">
-          <summary className="cursor-pointer text-sm font-medium">Message {selectedAgent?.name || title || 'this agent'}</summary>
-          <div className="pt-4">
             {Conversation()}
-          </div>
-        </details>
-      ) : (
-        Conversation()
-      )}
 
       <div className="mt-4">
         <ClassicKnowledgeShelf knowledge={workspace.knowledge} department={knowledgeDepartment} />
