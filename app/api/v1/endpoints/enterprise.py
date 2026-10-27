@@ -269,6 +269,15 @@ def edit_approval(
         approval.title = updates["title"]
     if "payload" in updates and updates["payload"] is not None:
         approval.payload = updates["payload"]
+        # Payload edits cannot inherit a prior approval. Require a new exact binding.
+        if "action_binding" not in updates:
+            approval.action_binding = None
+            approval.action_fingerprint = None
+            approval.policy_version = None
+            approval.status = "pending"
+            approval.reviewed_by = None
+            approval.reviewed_at = None
+            approval.review_note = None
     if "action_binding" in updates:
         binding = updates["action_binding"]
         if binding is None:
