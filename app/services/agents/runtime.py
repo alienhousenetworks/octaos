@@ -36,18 +36,6 @@ class AgentRuntime:
     ) -> Dict[str, Any]:
         start_time = time.time()
         event_run_id = flow_run_id or f"adhoc:{uuid.uuid4()}"
-        canonical_execution_id = str(input_context.get("canonical_execution_id") or flow_run_id or event_run_id)
-        register_execution_identity(
-            db, tenant_id=tenant_id, source_kind="agent_runtime_run",
-            source_id=event_run_id, canonical_execution_id=canonical_execution_id,
-            metadata={"agent_id": agent_id, "flow_run_id": flow_run_id, "step_run_id": step_run_id},
-        )
-        if flow_run_id:
-            register_execution_identity(
-                db, tenant_id=tenant_id, source_kind="workflow_run",
-                source_id=flow_run_id, canonical_execution_id=canonical_execution_id,
-                metadata={"step_run_id": step_run_id},
-            )
 
         # 1. Resolve Agent & AgentVersion
         agent, agent_ver = self._resolve_agent(db, tenant_id, agent_id, agent_version_id)
@@ -68,6 +56,18 @@ class AgentRuntime:
         if not (subscription.agent_allowed(tenant_id, agent_key) or subscription.agent_allowed(tenant_id, department_key)):
             raise PermissionError("This agent is not included in the tenant's active subscription.")
 
+        canonical_execution_id = str(input_context.get("canonical_execution_id") or flow_run_id or event_run_id)
+        register_execution_identity(
+            db, tenant_id=tenant_id, source_kind="agent_runtime_run",
+            source_id=event_run_id, canonical_execution_id=canonical_execution_id,
+            metadata={"agent_id": agent_id, "flow_run_id": flow_run_id, "step_run_id": step_run_id},
+        )
+        if flow_run_id:
+            register_execution_identity(
+                db, tenant_id=tenant_id, source_kind="workflow_run",
+                source_id=flow_run_id, canonical_execution_id=canonical_execution_id,
+                metadata={"step_run_id": step_run_id},
+            )
         started_event = AgentEvent(tenant_id=tenant_id, run_id=event_run_id,
             event_type=AgentEventType.RUN_STARTED, message=f"Agent {agent.name} started.",
             agent_id=agent.id, sequence=1)
