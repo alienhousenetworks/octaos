@@ -20,6 +20,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { AgentItem } from '@/lib/agent-types';
+import { useInterfaceMode } from '@/lib/interface-mode';
 
 interface AgentCardProps {
   agent: AgentItem;
@@ -128,8 +129,11 @@ export default function AgentCard({ agent, onOpenCockpit }: AgentCardProps) {
     { label: 'Permissions', subpath: 'permissions' },
   ];
 
+  const { mode } = useInterfaceMode();
   const agentTargetId = agent.slug || agent.id;
-  const cockpitHref = `/app/agents/${agentTargetId}`;
+  const cockpitHref = mode === 'bot'
+    ? `/app/agents/${agentTargetId}?tab=console`
+    : `/app/agents/${agentTargetId}`;
 
   return (
     <Card className="glass-panel group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-gray-800/80 bg-gray-950/60 p-5 shadow-lg transition-all duration-200 hover:border-gray-700 hover:shadow-xl">

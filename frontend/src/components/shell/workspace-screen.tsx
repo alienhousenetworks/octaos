@@ -31,6 +31,7 @@ import AgentDirectoryView from '@/features/workforce/agent-directory-view';
 import AgentDetailView from '@/features/workforce/agent-detail-view';
 import AgentLockedScreen from '@/components/shell/agent-locked-screen';
 import { EmptyState } from '@/components/shell/states';
+import { sectionAssistant, useInterfaceMode } from '@/lib/interface-mode';
 import { allNavItems, canSeeItem, pathForView, isAgentAllowed } from '@/lib/navigation';
 import { useWorkspace, useWorkspaceFeed } from '@/lib/workspace';
 
@@ -58,6 +59,7 @@ export default function WorkspaceScreen() {
   const pathname = usePathname();
   const router = useRouter();
   const workspace = useWorkspace();
+  const { mode, ready } = useInterfaceMode();
   const needsFeed = FEED_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
   useWorkspaceFeed(needsFeed);
 
@@ -67,7 +69,7 @@ export default function WorkspaceScreen() {
     }
   }, [pathname, router]);
 
-  if (pathname === '/app') {
+  if (!ready || pathname === '/app') {
     return null;
   }
 
@@ -83,6 +85,30 @@ export default function WorkspaceScreen() {
     );
   }
 
+  const pageChat = mode === 'bot' ? sectionAssistant(pathname) : null;
+  if (pageChat) {
+    const lockedAgent = pathname.startsWith('/app/sales')
+      ? 'sales'
+      : pathname.startsWith('/app/campaigns')
+        ? 'marketing'
+        : pathname.startsWith('/app/support')
+          ? 'support'
+          : pathname.startsWith('/app/hr') || pathname.startsWith('/app/hiring')
+            ? 'hr'
+            : null;
+    if (lockedAgent && !isAgentAllowed(lockedAgent, workspace.userProfile)) {
+      return (
+        <AgentLockedScreen
+          agentKey={lockedAgent}
+          token={workspace.token}
+          API_URL={workspace.apiUrl}
+          fetchData={workspace.fetchData}
+        />
+      );
+    }
+    return <UniversalAssistantView scope={pageChat.scope} title={pageChat.title} />;
+  }
+
   const setActiveView = (viewId: string) => router.push(pathForView(viewId));
   const shared = {
     token: workspace.token,
@@ -92,6 +118,21 @@ export default function WorkspaceScreen() {
   };
 
   if (pathname === '/app/assistant') {
+    if (mode === 'classic') {
+      return (
+        <DashboardView
+          {...shared}
+          metrics={workspace.metrics}
+          timeline={workspace.timeline}
+          queue={workspace.queue}
+          apps={workspace.apps}
+          setActiveView={setActiveView}
+          uninstallApp={workspace.uninstallApp}
+          handleApprovePost={workspace.handleApprovePost}
+          handleRejectPost={workspace.handleRejectPost}
+        />
+      );
+    }
     return <UniversalAssistantView />;
   }
   if (pathname === '/app/home') {
