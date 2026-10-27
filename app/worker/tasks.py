@@ -1797,6 +1797,7 @@ def run_research_search_task(
             return {"job_id": job_id, "status": row.status}
 
         payload = dict(row.payload or {})
+        should_resume = bool(payload.get("tasks")) and (resume_job or row.status == "running")
         payload["status"] = "running"
         payload.pop("error_code", None)
         row.payload = payload
@@ -1804,7 +1805,7 @@ def run_research_search_task(
         db.commit()
 
         service = EnterpriseWebResearchService(db=db, tenant_id=tenant_id)
-        if resume_job and (payload.get("tasks") or []):
+        if should_resume:
             batch = async_to_sync(service.resume)(job_id)
         else:
             saved_spec = payload.get("spec") or {}
