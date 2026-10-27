@@ -198,6 +198,27 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
         }}>New conversation</Button>
       </div>
 
+      <div className="mb-4 rounded-2xl border border-white/[0.09] bg-[#131714] p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-semibold"><Bot className="size-4 text-[#8be977]" /> Choose your AI</div>
+            <p className="mt-1 text-xs leading-5 text-white/50">Use the general orchestrator or run a specific registered built-in/custom agent with its saved instructions and tools.</p>
+          </div>
+          <Link href="/app/agents" className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/75 transition hover:bg-white/[0.06]">Manage agents ↗</Link>
+        </div>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <select aria-label="Select AI agent" value={selectedAgentId} onChange={(event) => setSelectedAgentId(event.target.value)} disabled={agentsLoading} className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-[#0d100e] px-3 text-sm text-white outline-none focus:border-[#7de56b]/50">
+            <option value="">OctaOS general assistant · orchestrator</option>
+            {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}{agent.is_system ? ' · Built-in' : ' · Custom'}{agent.department ? ' — ' + agent.department : ''}</option>)}
+          </select>
+          {selectedAgent && <Link href={'/app/agents/' + encodeURIComponent(selectedAgent.id) + '?tab=configuration'} className="inline-flex h-10 items-center justify-center rounded-xl border border-[#7de56b]/25 px-3 text-xs text-[#a4f196] hover:bg-[#7de56b]/10">Customize selected agent ↗</Link>}
+        </div>
+        {agentsLoading && <p className="mt-2 text-xs text-white/40">Loading registered agents…</p>}
+        {agentsError && <p role="status" className="mt-2 text-xs text-amber-300">{agentsError} The general assistant remains available; refresh to retry.</p>}
+        {!agentsLoading && !agentsError && agents.length === 0 && <p className="mt-2 text-xs text-white/40">No agents were returned by the registry. Create or configure agents in Agent Studio.</p>}
+        {selectedAgent && <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/[0.08] pt-3 text-xs text-white/55"><span className="rounded-md bg-[#7de56b]/10 px-2 py-1 text-[#a4f196]">{selectedAgent.lifecycle_state || 'registered'}</span><span>{selectedAgent.provider || 'Provider not set'} / {selectedAgent.model || 'Model not set'}</span><span>·</span><span>{selectedAgent.tools?.length || 0} configured tools</span><span>·</span><span>{selectedAgent.version ? 'v' + selectedAgent.version : 'Version not reported'}</span></div>}
+      </div>
+
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-white/[0.09] bg-[#131714] p-3">
           <Database className="mb-2 size-4 text-[#8be977]" />
@@ -220,7 +241,7 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
         {messages.map((message) => (
           <div key={message.id} className={'flex ' + (message.role === 'user' ? 'justify-end' : 'justify-start')}>
             <div className={'max-w-[92%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 md:max-w-[82%] ' + (message.role === 'user' ? 'border border-[#7de56b]/15 bg-[#243a25] text-[#f2f7f0]' : 'border border-white/[0.09] bg-[#1a1e1b] text-[#edf1ec]')}>
-              {message.role !== 'user' && <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold text-white/50"><Bot className="size-3.5" /> OctaOS</div>}
+              {message.role !== 'user' && <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold text-white/50"><Bot className="size-3.5" /> {selectedAgent?.name || "OctaOS"}</div>}
               {message.content}
               {message.result !== undefined && (
                 <details className="mt-3 border-t border-white/10 pt-2">
@@ -259,7 +280,7 @@ export default function UniversalAssistantView({ scope = 'general', title }: { s
           aria-label="Message OctaOS"
         />
         <div className="flex items-center justify-between gap-2 px-2 pb-1">
-          <div className="flex items-center gap-2 text-xs text-white/50"><Paperclip className="size-3.5" /> Attachments and specialist selection remain available in their existing workspaces.</div>
+          <div className="flex items-center gap-2 text-xs text-white/50"><Paperclip className="size-3.5" /> {selectedAgent ? "Running as " + selectedAgent.name + "." : "General orchestration · Select a specialist above to use its configuration."}</div>
           <Button type="submit" size="sm" disabled={busy || !input.trim()} onClick={(event) => {
             event.preventDefault();
             const field = event.currentTarget.closest('form')?.querySelector('textarea');
