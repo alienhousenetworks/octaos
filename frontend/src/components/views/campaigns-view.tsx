@@ -1730,6 +1730,15 @@ export default function CampaignsView({
           <>
             <button
               type="button"
+              onClick={() => window.location.assign('/settings/integrations')}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
+              title="Connect Buffer or map social channels"
+            >
+              <Share2 className="size-3.5 text-blue-500" />
+              Buffer Publishing
+            </button>
+            <button
+              type="button"
               onClick={() => window.location.assign('/app/campaigns/studio')}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
               title="Open the unified Campaign Studio"
