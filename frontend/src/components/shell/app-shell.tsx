@@ -47,13 +47,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [workspace.ready, workspace.token, router]);
 
   useEffect(() => {
+    // Interface mode is a user preference, not a property of the current route.
+    // Keep it stable while navigating between Overview, agent cockpit, and other pages.
     const savedMode = localStorage.getItem('octaos-interface-mode');
-    const routeMode = pathname === '/app/home' ? 'classic' : pathname === '/app/assistant' || pathname === '/app' ? 'bot' : null;
-    const nextMode = routeMode || (savedMode === 'classic' ? 'classic' : 'bot');
-    setInterfaceMode(nextMode);
-    if (routeMode) localStorage.setItem('octaos-interface-mode', routeMode);
+    setInterfaceMode(savedMode === 'classic' ? 'classic' : 'bot');
     const stored = localStorage.getItem('octaos-sidebar-collapsed');
-    if (stored === '1') setCollapsed(true);
+    setCollapsed(stored === '1');
   }, [pathname]);
 
   useEffect(() => {
@@ -252,7 +251,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 onClick={() => {
                   setInterfaceMode('bot');
                   localStorage.setItem('octaos-interface-mode', 'bot');
-                  router.push('/app/assistant');
+                  window.location.assign('/app/assistant');
                 }}
                 className="h-8 gap-1.5 px-2.5"
                 title="Use the bot-first AI workspace"
