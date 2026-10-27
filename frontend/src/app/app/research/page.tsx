@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   Activity,
   AlertCircle,
@@ -177,7 +177,7 @@ export default function ResearchWorkspacePage() {
     }
   };
 
-  const runSearch = async (event: React.FormEvent<HTMLFormElement>) => {
+  const runSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const cleanedQuery = query.trim();
     if (cleanedQuery.length < 3 || loading) return;
