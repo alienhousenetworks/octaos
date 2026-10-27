@@ -216,6 +216,11 @@ class PolicyEngine:
             raise ValueError("Approval not found")
         if approval.status != "pending":
             raise ValueError(f"Approval already {approval.status}")
+        binding_tool = str((approval.action_binding or {}).get("tool_name") or approval.action_type)
+        from app.services.runtime_governance.tool_policy import HIGH_RISK_ACTION_PREFIXES
+        if approve and any(binding_tool == prefix or binding_tool.startswith(prefix) for prefix in HIGH_RISK_ACTION_PREFIXES):
+            if not approval.action_fingerprint or not approval.action_binding:
+                raise ValueError("High-risk approval requires a persisted exact action binding; edit/recreate the approval with one.")
 
         approval.status = "approved" if approve else "rejected"
         # Fingerprints are immutable after review; any edit must create a new approval.
