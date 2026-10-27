@@ -615,7 +615,6 @@ def test_research_job_lookup_is_scoped_to_the_authenticated_tenant():
 def test_research_api_persists_before_enqueuing_background_work(monkeypatch):
     import asyncio
     from types import SimpleNamespace
-    from app.api.v1 import endpoints
     from app.api.v1.endpoints import research as research_api
     from app.models.base import Tenant
     from app.models.search_v4 import SearchV4Job, SearchV4LedgerRow, SearchV4TaskRow
