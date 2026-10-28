@@ -9,13 +9,17 @@ from app.services.agents.support import SupportAgent
 from app.services.agents.finance import FinanceAgent
 from app.services.agents.hr import HRAgent
 from app.services.agents.connected_systems import (
+    ai_webhook_target,
     clients_addressed_by,
     connection_facts,
     correct_assistant_reply,
     ensure_mcp_message_task,
     load_connected_systems,
     mcp_handoff_note,
+    redact_webhook_details,
     request_addresses_octaos_itself,
+    request_asks_to_message_connection,
+    webhook_details_in_text,
 )
 
 from app.models.base import APICredential
@@ -96,11 +100,24 @@ async def _message_connected_client(
     text: str = "",
 ) -> str:
     """Place a message on the named MCP client and call its webhook when one is saved."""
-    from app.services.mcp.client_channel import dispatch_client_message
+    from app.services.mcp.client_channel import dispatch_client_message, post_named_webhook
 
     snapshot = load_connected_systems(agent.db, agent.tenant_id)
     lookup = " ".join(part for part in (client_hint, request) if part).strip()
     clients = clients_addressed_by(snapshot, lookup or request)
+    target = ai_webhook_target(lookup or request)
+    # A named external AI is the target even when the same sentence also says OctaOS.
+    if not clients and target:
+        body = (text or request).strip()
+        if body.lower().startswith("message from the octaos assistant:"):
+            body = body.split(":", 1)[1].strip()
+        placed = await post_named_webhook(
+            agent.db,
+            tenant_id=agent.tenant_id,
+            client_name=target,
+            text=body or request,
+        )
+        return mcp_handoff_note(placed)
     if not clients and request_addresses_octaos_itself(lookup or request):
         quote = (text or request).strip()
         if quote.lower().startswith("message from the octaos assistant:"):
@@ -119,6 +136,7 @@ async def _message_connected_client(
     if not body.lower().startswith("message from the octaos assistant"):
         body = f"Message from the OctaOS assistant: {body}"
     lines = []
+    posted: set = set()
     for client in clients:
         if not client.get("id"):
             lines.append(f"MCP handoff: {client.get('name') or 'MCP client'} has no saved credential id, so nothing was queued.")
@@ -129,7 +147,10 @@ async def _message_connected_client(
             credential_id=str(client["id"]),
             client_name=str(client.get("name") or "MCP client"),
             text=body,
+            skip_connection_names=posted,
         )
+        if placed.get("webhook_status") in ("delivered", "failed"):
+            posted.update(placed.get("webhook_connections") or [])
         lines.append(mcp_handoff_note(placed))
     return "\n".join(lines)
 
@@ -183,6 +204,51 @@ class OrchestratorAgent(BaseAgent):
         # e.g., "Here is my linkedin key: 12345"
         import re
         current_request = _current_request_text(prompt)
+        webhook_details = webhook_details_in_text(current_request)
+        webhook_name = ai_webhook_target(current_request) if webhook_details else ""
+        if webhook_details and webhook_name:
+            from app.services.agents.tools import SSRFProtectionError
+            from app.services.webhooks.dispatcher import save_outbound_webhook
+
+            try:
+                save_outbound_webhook(
+                    self.db,
+                    tenant_id=self.tenant_id,
+                    name=webhook_name,
+                    endpoint_url=webhook_details["endpoint_url"],
+                    auth_type="bearer",
+                    auth_secret=webhook_details["auth_secret"],
+                )
+            except SSRFProtectionError as exc:
+                return {
+                    "plan": {},
+                    "results": [{
+                        "status": "error",
+                        "message": f"That webhook URL was not saved. {exc}",
+                    }],
+                }
+            self.log_activity("Configuration", f"Saved outbound webhook for {webhook_name}.")
+            saved = (
+                f"Saved the webhook for {webhook_name}. The bearer token is stored encrypted. "
+                f"OctaOS will call that URL when you ask to message {webhook_name}."
+            )
+            if not request_asks_to_message_connection(current_request):
+                return {"plan": {}, "results": [{"status": "success", "message": saved}]}
+            visible = redact_webhook_details(current_request, webhook_details)
+            if (
+                not visible
+                or webhook_details["auth_secret"] in visible
+                or webhook_details["endpoint_url"] in visible
+            ):
+                visible = webhook_name
+            handoff = await _message_connected_client(
+                self,
+                visible,
+                client_hint=webhook_name,
+                text=visible,
+            )
+            return {"plan": {}, "results": [{"status": "success", "message": f"{saved} {handoff}"}]}
+
         key_match = re.search(r'(?:key|token|credential|smtp|api key) is\s*[:=]?\s*([a-zA-Z0-9_\-\.\:\@\/]+)', current_request, re.IGNORECASE)
         provider_match = re.search(r'(linkedin|meta|facebook|instagram|twitter|gmail|whatsapp|apollo|hunter|google_places|google_calendar|smtp)', current_request, re.IGNORECASE)
         
@@ -339,7 +405,7 @@ Guidelines:
 2. If the user request requires executing tasks, include them in the "tasks" array. If no execution tasks are needed, leave "tasks" as an empty list [].
 3. Adhere strictly to the company knowledge base and guidelines above. When those excerpts describe the company or its website, answer from them and cite the source URL. Do not say the company knowledge base is empty, and do not ask the user to paste website content that is already in the excerpts. If a specific fact is absent from the excerpts, say that fact was not in the retrieved pages.
 4. Multi-turn conversation context: If previous conversation history is provided, maintain context across turns. For example, if you asked the user clarifying questions about a role, task, campaign, or parameters in previous turns, interpret the user's latest reply in the context of those prior questions. If an earlier turn printed a fixed connection card, do not repeat that card. Answer this turn from the records.
-5. Write the reply in your own words from the connection records. When asked_about is present, answer that system: say whether it is saved or absent. An MCP client and a provider API key are different records. A missing provider key does not make an MCP client one-way and does not block message_mcp_client. A saved webhook for that client is called immediately when the user asks to message it. inbuilt_model_route is the server model answering this turn; a provider with configured false only means no tenant API key is saved. Do not paste the JSON. Do not answer a question about one system by reciting every other system. Do not say you cannot check connections. Do not claim a client displayed a message.
+5. Write the reply in your own words from the connection records. When asked_about is present, answer that system: say whether it is saved or absent. An MCP client and a provider API key are different records. A missing provider key does not make an MCP client one-way and does not block message_mcp_client. A saved webhook for that client is called immediately when the user asks to message it. When a named AI has no saved webhook, ask for that AI's webhook URL and Authorization bearer. Each AI has its own. Do not invent a webhook URL. Do not repeat a bearer token. inbuilt_model_route is the server model answering this turn; a provider with configured false only means no tenant API key is saved. Do not paste the JSON. Do not answer a question about one system by reciting every other system. Do not say you cannot check connections. Do not claim a client displayed a message.
 6. If the user asks whether the company offers consulting, marketing, hiring, or another service, answer from the knowledge excerpts and cite the page URL. Leave tasks empty for that question.
 7. Say that email or WhatsApp can be sent only when mailbox_connected or whatsapp_configured is true in those records. Otherwise say an unsent draft can be stored.
 
@@ -379,6 +445,8 @@ Format:
                         "The connection JSON is a lookup of what is saved and what is absent. "
                         "Answer the system the user asked about. Do not paste the JSON or recite every system. "
                         "An MCP client and a provider API key are different. A missing key does not make an MCP client one-way. "
+                        "When a named AI has no saved webhook, ask for that AI's webhook URL and Authorization bearer. "
+                        "Each AI has its own. Do not invent a webhook URL. Do not repeat a bearer token. "
                         "If an earlier turn printed a fixed connection card, do not repeat it.\n\n"
                         f"{company_knowledge}\n\n{connected_systems}\n\n{operational_stats}"
                     ),

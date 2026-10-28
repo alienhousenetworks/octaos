@@ -1,16 +1,19 @@
 import json
 
 from app.services.agents.connected_systems import (
+    ai_webhook_target,
     clients_addressed_by,
     connection_facts,
     correct_assistant_reply,
     ensure_mcp_message_task,
     mcp_handoff_note,
+    redact_webhook_details,
     reply_claims_live_send,
     request_addresses_octaos_itself,
     request_asks_about_connections,
     request_asks_to_message_connection,
     request_checks_company_services,
+    webhook_details_in_text,
 )
 
 
@@ -134,9 +137,117 @@ def test_handoff_note_does_not_claim_the_client_displayed_it():
     assert "Connected systems" not in note
     absent = mcp_handoff_note({"client_name": "Grok Bot", "webhook_status": "absent", "open_streams": 0})
     assert "no saved webhook" in absent
+    assert "Authorization bearer" in absent
+    assert "stays queued" in absent
+    named = mcp_handoff_note({"client_name": "Gemini", "status": "webhook", "webhook_status": "absent"})
+    assert "Authorization bearer" in named
+    assert "stays queued" not in named
     called = mcp_handoff_note({"client_name": "Grok Bot", "webhook_status": "delivered", "webhook_http_status": 204})
     assert "HTTP 204" in called
     assert "did not wait" in called
+
+
+def test_each_ai_webhook_is_named_without_reading_the_url_host():
+    pasted = (
+        "POST https://api2.cursor.sh/automations/webhook/example "
+        "for grok bot Authorization: Bearer sk-example-token-value-123456"
+    )
+    details = webhook_details_in_text(pasted)
+    assert details["endpoint_url"] == "https://api2.cursor.sh/automations/webhook/example"
+    assert details["auth_secret"] == "sk-example-token-value-123456"
+    assert ai_webhook_target(pasted) == "Grok Bot"
+    assert "sk-example-token-value-123456" not in redact_webhook_details(pasted, details)
+    assert "api2.cursor.sh" not in redact_webhook_details(pasted, details)
+    assert ai_webhook_target("send hello to gemini") == "Gemini"
+    assert ai_webhook_target("message openai please") == "OpenAI"
+    assert ai_webhook_target("tell claude the draft is ready") == "Claude"
+    assert ai_webhook_target("send hello to cotaos") == ""
+    assert webhook_details_in_text("https://example.com/hook only") == {}
+    assert request_asks_to_message_connection("send hello to gemini")
+    assert request_asks_to_message_connection("message chatgpt")
+    assert not request_asks_to_message_connection("send an email to the lead")
+
+
+def test_chatgpt_and_openai_share_one_webhook_name():
+    from app.services.mcp.client_channel import _same_ai_name
+
+    assert _same_ai_name("chatgpt", "OpenAI")
+    assert _same_ai_name("Grok Bot", "grok")
+    assert _same_ai_name("claude", "Anthropic")
+    assert not _same_ai_name("chatgpt", "Grok Bot")
+
+
+def test_a_second_client_does_not_post_the_same_webhook_again():
+    import asyncio
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    import app.services.webhooks.dispatcher as dispatcher
+    from app.models.base import Tenant
+    from app.models.collaborative_workforce import AgentMessage
+    from app.models.external_agents import ExternalAgentConnection, WebhookDelivery, WebhookSubscription
+    from app.services.mcp.client_channel import dispatch_client_message
+    from app.services.webhooks.dispatcher import save_outbound_webhook
+
+    engine = create_engine("sqlite:///:memory:")
+    for table in (Tenant, ExternalAgentConnection, WebhookSubscription, WebhookDelivery, AgentMessage):
+        table.__table__.create(engine)
+    db = sessionmaker(bind=engine)()
+    db.add(Tenant(id="tenant-1", name="AlienHouse"))
+    db.commit()
+    save_outbound_webhook(
+        db,
+        tenant_id="tenant-1",
+        name="OpenAI",
+        endpoint_url="https://example.com/openai-webhook",
+    )
+
+    class FakeResponse:
+        status_code = 204
+        text = ""
+
+    class FakeClient:
+        calls = 0
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def post(self, url, content=None, headers=None):
+            FakeClient.calls += 1
+            return FakeResponse()
+
+    original = dispatcher.httpx.AsyncClient
+    dispatcher.httpx.AsyncClient = FakeClient
+    try:
+        first = asyncio.run(dispatch_client_message(
+            db,
+            tenant_id="tenant-1",
+            credential_id="chatgpt-1",
+            client_name="chatgpt",
+            text="hello",
+        ))
+        second = asyncio.run(dispatch_client_message(
+            db,
+            tenant_id="tenant-1",
+            credential_id="chatgpt-2",
+            client_name="chatgpt",
+            text="hello",
+            skip_connection_names=set(first.get("webhook_connections") or []),
+        ))
+    finally:
+        dispatcher.httpx.AsyncClient = original
+
+    assert first["webhook_status"] == "delivered"
+    assert second["webhook_status"] == "skipped"
+    assert second["status"] == "queued"
+    assert FakeClient.calls == 1
+    db.close()
 
 
 def test_a_saved_webhook_is_called_without_waiting_for_the_client():

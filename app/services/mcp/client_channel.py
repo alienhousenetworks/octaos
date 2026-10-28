@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Set
 
 from sqlalchemy.orm import Session
 
@@ -55,8 +55,31 @@ def queue_client_message(
     }
 
 
+_NAME_FAMILIES = (
+    ("grok", "grok bot"),
+    ("chatgpt", "openai"),
+    ("claude", "anthropic"),
+    ("gemini",),
+    ("deepseek",),
+    ("cursor",),
+)
+
+
+def _same_ai_name(left: str, right: str) -> bool:
+    a = (left or "").lower()
+    b = (right or "").lower()
+    if not a or not b:
+        return False
+    if a in b or b in a:
+        return True
+    for family in _NAME_FAMILIES:
+        if any(part in a for part in family) and any(part in b for part in family):
+            return True
+    return False
+
+
 def connections_for_client(db: Session, tenant_id: str, client_name: str) -> List[Any]:
-    """Enabled outbound webhooks whose name matches this MCP client."""
+    """Enabled outbound webhooks whose name matches this client or the same AI."""
     from app.models.external_agents import ExternalAgentConnection
 
     needle = (client_name or "").strip().lower()
@@ -70,38 +93,18 @@ def connections_for_client(db: Session, tenant_id: str, client_name: str) -> Lis
         )
         .all()
     )
-    tokens = [token for token in re.findall(r"[a-z0-9]{4,}", needle)]
-    chosen = []
-    for row in rows:
-        blob = (row.name or "").lower()
-        if needle in blob or blob in needle or any(token in blob for token in tokens):
-            chosen.append(row)
-    return chosen
+    return [row for row in rows if _same_ai_name(needle, row.name or "")]
 
 
-async def dispatch_client_message(
+async def _post_to_connections(
     db: Session,
+    connections: List[Any],
     *,
     tenant_id: str,
-    credential_id: str,
     client_name: str,
     text: str,
-) -> Dict[str, Any]:
-    """Queue the message, push an open stream, and POST the saved webhook now."""
-    placed = queue_client_message(
-        db,
-        tenant_id=tenant_id,
-        credential_id=credential_id,
-        client_name=client_name,
-        text=text,
-    )
-    try:
-        connections = connections_for_client(db, tenant_id, client_name)
-    except Exception:
-        return placed
-    if not connections:
-        return placed
-
+    message_id: str,
+) -> List[Dict[str, Any]]:
     from app.services.webhooks.dispatcher import deliver_webhook, generate_envelope
 
     attempts = []
@@ -111,12 +114,14 @@ async def dispatch_client_message(
             tenant_id=tenant_id,
             payload={
                 "text": text,
+                "command": text,
                 "client_name": client_name,
-                "message_id": placed["id"],
+                "message_id": message_id,
                 "from": "Orchestrator AI",
             },
-            correlation_id=placed["id"],
+            correlation_id=message_id or None,
         )
+        envelope["command"] = text
         try:
             delivery = await deliver_webhook(connection, envelope, db)
             attempts.append({
@@ -132,29 +137,113 @@ async def dispatch_client_message(
                 "http_status": None,
                 "error": str(exc),
             })
+    return attempts
 
+
+def _apply_webhook_attempts(placed: Dict[str, Any], attempts: List[Dict[str, Any]]) -> Dict[str, Any]:
+    placed["webhook_connections"] = [item.get("connection") for item in attempts if item.get("connection")]
     posted = next((item for item in attempts if item["status"] == "delivered"), None)
     if posted:
+        placed["status"] = "delivered"
+        placed["webhook_status"] = "delivered"
+        placed["webhook_http_status"] = posted["http_status"]
+        placed["webhook_connection"] = posted["connection"]
+        return placed
+    failed = attempts[0] if attempts else {}
+    placed["webhook_status"] = "failed"
+    placed["webhook_http_status"] = failed.get("http_status")
+    placed["webhook_error"] = failed.get("error") or "the webhook call failed"
+    placed["webhook_connection"] = failed.get("connection")
+    return placed
+
+
+async def post_named_webhook(
+    db: Session,
+    *,
+    tenant_id: str,
+    client_name: str,
+    text: str,
+) -> Dict[str, Any]:
+    """Call a saved webhook when the AI is not an MCP client."""
+    placed = {
+        "id": "",
+        "status": "webhook",
+        "open_streams": 0,
+        "client_name": client_name,
+        "text": text,
+        "webhook_status": "absent",
+    }
+    try:
+        connections = connections_for_client(db, tenant_id, client_name)
+    except Exception:
+        return placed
+    if not connections:
+        return placed
+    attempts = await _post_to_connections(
+        db,
+        connections,
+        tenant_id=tenant_id,
+        client_name=client_name,
+        text=text,
+        message_id=str(uuid.uuid4()),
+    )
+    return _apply_webhook_attempts(placed, attempts)
+
+
+async def dispatch_client_message(
+    db: Session,
+    *,
+    tenant_id: str,
+    credential_id: str,
+    client_name: str,
+    text: str,
+    include_webhook: bool = True,
+    skip_connection_names: Optional[Set[str]] = None,
+) -> Dict[str, Any]:
+    """Queue the message, push an open stream, and POST the saved webhook now."""
+    placed = queue_client_message(
+        db,
+        tenant_id=tenant_id,
+        credential_id=credential_id,
+        client_name=client_name,
+        text=text,
+    )
+    if not include_webhook:
+        placed["webhook_status"] = "skipped"
+        return placed
+    try:
+        matches = connections_for_client(db, tenant_id, client_name)
+    except Exception:
+        return placed
+    skipped = {name for name in (skip_connection_names or set()) if name}
+    connections = [row for row in matches if (row.name or "") not in skipped]
+    if not connections:
+        if matches and skipped:
+            placed["webhook_status"] = "skipped"
+        return placed
+
+    attempts = await _post_to_connections(
+        db,
+        connections,
+        tenant_id=tenant_id,
+        client_name=client_name,
+        text=text,
+        message_id=placed["id"],
+    )
+
+    placed = _apply_webhook_attempts(placed, attempts)
+    if placed.get("webhook_status") == "delivered":
         row = db.query(AgentMessage).filter(AgentMessage.id == placed["id"]).first()
         if row is not None and row.status == "queued":
             payload = dict(row.payload or {})
             payload["webhook"] = {
-                "connection": posted["connection"],
-                "http_status": posted["http_status"],
+                "connection": placed.get("webhook_connection"),
+                "http_status": placed.get("webhook_http_status"),
             }
             row.payload = payload
             row.status = "delivered"
             row.completed_at = datetime.now(timezone.utc)
             db.commit()
-        placed["status"] = "delivered"
-        placed["webhook_status"] = "delivered"
-        placed["webhook_http_status"] = posted["http_status"]
-        return placed
-
-    failed = attempts[0] if attempts else {}
-    placed["webhook_status"] = "failed"
-    placed["webhook_http_status"] = failed.get("http_status")
-    placed["webhook_error"] = failed.get("error") or "the webhook call failed"
     return placed
 
 

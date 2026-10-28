@@ -59,10 +59,67 @@ def request_asks_to_message_connection(text: str) -> bool:
         return True
     tokens = re.findall(r"[a-z0-9]{4,}", lowered)
     for token in tokens:
-        for stem in ("grok", "claude", "cursor", "deepseek", "octaos"):
+        for stem in ("grok", "claude", "cursor", "deepseek", "octaos", "openai", "chatgpt", "gemini"):
             if _near(token, stem):
                 return True
     return bool(re.search(r"\b(bot|client)\b", lowered))
+
+
+_AI_WEBHOOK_TARGETS = (
+    ("grok", "Grok Bot"),
+    ("claude", "Claude"),
+    ("anthropic", "Claude"),
+    ("openai", "OpenAI"),
+    ("chatgpt", "OpenAI"),
+    ("gemini", "Gemini"),
+    ("deepseek", "DeepSeek"),
+    ("cursor", "Cursor"),
+)
+
+
+def ai_webhook_target(text: str) -> str:
+    """Which external AI this turn names. OctaOS itself is not a webhook target.
+
+    A webhook URL is ignored here. api2.cursor.sh must not turn a Grok webhook into a Cursor target.
+    """
+    cleaned = re.sub(r"https?://[^\s<>\"']+", " ", text or "", flags=re.IGNORECASE)
+    tokens = re.findall(r"[a-z0-9]{4,}", cleaned.lower())
+    for token in tokens:
+        for alias, label in _AI_WEBHOOK_TARGETS:
+            if _near(token, alias):
+                return label
+    return ""
+
+
+def redact_webhook_details(text: str, details: Dict[str, str]) -> str:
+    """Remove a pasted webhook URL and bearer before any reply or later send."""
+    cleaned = text or ""
+    for key in ("auth_secret", "endpoint_url"):
+        value = details.get(key) or ""
+        if value:
+            cleaned = cleaned.replace(value, " ")
+    cleaned = re.sub(r"(?i)authorization:\s*", " ", cleaned)
+    cleaned = re.sub(r"(?i)\bbearer\b", " ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def webhook_details_in_text(text: str) -> Dict[str, str]:
+    """Pull a public webhook URL and bearer token out of a chat reply. Empty if either is missing."""
+    url_match = re.search(r"https://[^\s<>\"']+", text or "")
+    if not url_match:
+        return {}
+    bearer = re.search(
+        r"(?:authorization:\s*)?bearer\s+([A-Za-z0-9_\-\.]{16,})",
+        text or "",
+        re.IGNORECASE,
+    )
+    secret = bearer.group(1) if bearer else ""
+    if not secret:
+        token = re.search(r"\b((?:crsr_|sk-)[A-Za-z0-9_\-]{16,})\b", text or "")
+        secret = token.group(1) if token else ""
+    if not secret:
+        return {}
+    return {"endpoint_url": url_match.group(0).rstrip(".,)"), "auth_secret": secret}
 
 
 def request_addresses_octaos_itself(text: str) -> bool:
@@ -363,16 +420,25 @@ def mcp_handoff_note(placed: Dict[str, Any]) -> str:
         )
     if webhook_status == "failed":
         reason = placed.get("webhook_error") or "the webhook call failed"
+        hold = (
+            "Nothing was left queued."
+            if placed.get("status") == "webhook"
+            else "The message stays queued for the client's next OctaOS call."
+        )
         return (
             f"MCP handoff: {name} webhook call did not succeed ({reason}). "
-            "The message stays queued for the client's next OctaOS call. "
-            "This is not a claim that the client displayed it."
+            f"{hold} This is not a claim that the client displayed it."
         )
     if webhook_status == "absent":
+        hold = (
+            ""
+            if placed.get("status") == "webhook"
+            else " Until then the message stays queued for the client's next OctaOS call."
+        )
         return (
-            f"MCP handoff: {name} has no saved webhook, so OctaOS cannot call it. "
-            "The message is queued until that client calls OctaOS or a webhook URL is saved "
-            "at POST /api/v1/integrations/external-agents/webhook. "
+            f"MCP handoff: {name} has no saved webhook, so OctaOS cannot call it yet. "
+            f"Reply with the webhook URL and the Authorization bearer token for {name}. "
+            f"Each AI has its own.{hold} "
             "This is not a claim that the client displayed it."
         )
     streams = int(placed.get("open_streams") or 0)
