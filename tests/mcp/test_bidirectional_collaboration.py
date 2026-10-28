@@ -504,7 +504,7 @@ async def test_admin_credential_does_not_bypass_policy_approval(collab_setup, mo
     ))
     db.commit()
     receipt = DelegationReceipt(
-        tenant_id=setup["tenant"].id,
+        tenant_id=setup["tenant_id"],
         task_id="approval-gated-task",
         parent_agent="test-agent",
         child_agent="external:test",
@@ -528,7 +528,7 @@ async def test_admin_credential_does_not_bypass_policy_approval(collab_setup, mo
 
     result = await ExecutionBridge.process_proposed_action(
         db=db,
-        tenant_id=setup["tenant"].id,
+        tenant_id=setup["tenant_id"],
         request=ExecutionBridgeRequest(
             task_id="approval-gated-task",
             proposed_tool="octaos_social_publish_post",
