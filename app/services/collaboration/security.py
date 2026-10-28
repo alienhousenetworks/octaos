@@ -74,3 +74,55 @@ def bounded_json_size(value: Any, max_bytes: int = 1_000_000) -> None:
         raise CollaborationSecurityError("Result is not JSON serializable.") from exc
     if len(encoded) > max_bytes:
         raise CollaborationSecurityError("Result exceeds the 1 MB collaboration payload limit.")
+
+
+class PublicPinnedResolver:
+    """aiohttp resolver that validates and pins DNS answers for the actual socket.
+
+    The connector receives numeric, prevalidated addresses from this resolver rather
+    than resolving the hostname a second time in the networking stack. TLS still uses
+    the original URL hostname for certificate/SNI verification.
+    """
+
+    async def resolve(self, host: str, port: int = 443, family: int = socket.AF_UNSPEC):
+        import asyncio
+        import aiohttp.abc
+
+        hostname = host.rstrip(".").lower()
+        if hostname in {"localhost", "localhost.localdomain"} or hostname.endswith((".localhost", ".local")):
+            raise CollaborationSecurityError("Local destinations are not permitted.")
+        loop = asyncio.get_running_loop()
+        try:
+            infos = await loop.getaddrinfo(
+                hostname, port, family=family, type=socket.SOCK_STREAM,
+            )
+        except OSError as exc:
+            raise CollaborationSecurityError("Destination hostname could not be safely resolved.") from exc
+        if not infos:
+            raise CollaborationSecurityError("Destination hostname returned no addresses.")
+        resolved = []
+        for af, socktype, proto, _canonname, sockaddr in infos:
+            ip = ipaddress.ip_address(sockaddr[0])
+            if not (ip.is_global and not ip.is_private and not ip.is_loopback and
+                    not ip.is_link_local and not ip.is_multicast and not ip.is_reserved):
+                raise CollaborationSecurityError("DNS resolved to a private or reserved address.")
+            resolved.append({
+                "hostname": hostname,
+                "host": str(ip),
+                "port": port,
+                "family": af,
+                "proto": proto,
+                "flags": 0,
+            })
+        # De-duplicate resolver results while preserving their order.
+        unique = []
+        seen = set()
+        for entry in resolved:
+            key = (entry["host"], entry["family"])
+            if key not in seen:
+                unique.append(entry)
+                seen.add(key)
+        return unique
+
+    async def close(self) -> None:
+        return None
