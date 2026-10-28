@@ -223,10 +223,12 @@ def deliver_collaboration_webhook(self, outbox_id: str, tenant_id: str):
             SystemMCPCredential.is_active.is_(True),
         ).first()
         if not credential:
-            row.status = "queued"
+            row.status = "retry_wait" if self.request.retries < self.max_retries else "queued"
             row.error_code = "WEBHOOK_CREDENTIAL_UNAVAILABLE"
             db.commit()
-            raise self.retry(exc=RuntimeError("Webhook signing credential unavailable."))
+            if self.request.retries < self.max_retries:
+                raise self.retry(exc=RuntimeError("Webhook signing credential unavailable."))
+            return {"outbox_id": outbox_id, "status": "queued", "error_code": row.error_code}
         row.status = "processing"
         db.commit()
         delivered = asyncio.run(dispatch_signed_webhook(
@@ -240,7 +242,7 @@ def deliver_collaboration_webhook(self, outbox_id: str, tenant_id: str):
             row.error_code = None
             db.commit()
             return {"outbox_id": outbox_id, "status": "completed"}
-        row.status = "queued"
+        row.status = "retry_wait" if self.request.retries < self.max_retries else "queued"
         row.error_code = "WEBHOOK_DELIVERY_FAILED"
         db.commit()
         if self.request.retries < self.max_retries:
