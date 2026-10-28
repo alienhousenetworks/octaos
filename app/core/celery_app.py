@@ -28,10 +28,12 @@ celery_app.conf.task_default_routing_key = "main"
 
 # Ensure the existing worker task module (including Search Intelligence jobs)
 # is imported by the worker even when the Celery app is loaded from core.celery_app.
-celery_app.conf.imports = ("app.worker.tasks",)
+celery_app.conf.imports = ("app.worker.tasks", "app.services.autonomous_runtime.worker", "app.services.collaboration.worker")
 
 celery_app.conf.task_routes = {
     "app.worker.tasks.*": "main-queue",
+    "octaos.execute_autonomous_task": "main-queue",
+    "octaos.execute_inbound_collaboration": "main-queue",
 }
 
 from celery.schedules import crontab

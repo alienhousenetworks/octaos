@@ -26,6 +26,7 @@ from app.services.collaboration.orchestrator import (
     validate_delegation_safety,
 )
 from app.services.collaboration.provider_registry import AIProviderRegistry, ProviderDescriptor
+from app.services.collaboration.security import validate_json_schema, bounded_json_size, validate_public_https_url
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +167,7 @@ class AICollaborationEngine:
                     f"Provide clear, factual, actionable findings in structured JSON."
                 )
 
-                content = await ai_gateway.executeRequest(
+                content = await asyncio.wait_for(ai_gateway.executeRequest(
                     db=self.db,
                     tenant_id=self.tenant_id,
                     prompt=prompt_text,
@@ -175,7 +176,7 @@ class AICollaborationEngine:
                     system_prompt=system_prompt,
                     task_type="collaboration",
                     correlation_id=corr_id,
-                )
+                ), timeout=max(1, min(int(selected_provider.timeout_seconds if selected_provider else 60), 180)))
                 try:
                     result_payload = json.loads(content)
                 except Exception:
@@ -192,13 +193,15 @@ class AICollaborationEngine:
         # 7. Validate Output Schema Contract if Specified
         schema_validation_passed = True
         schema = task.get("output_schema")
-        if success and schema and isinstance(schema.get("required"), list):
-            for req_key in schema["required"]:
-                if req_key not in result_payload:
-                    schema_validation_passed = False
-                    error_msg = f"Output schema contract violation: missing required key '{req_key}'"
-                    success = False
-                    break
+        if success:
+            try:
+                bounded_json_size(result_payload)
+                if schema:
+                    validate_json_schema(result_payload, schema)
+            except Exception as exc:
+                schema_validation_passed = False
+                error_msg = str(exc)[:500]
+                success = False
 
         # 8. Update Durable Records
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -292,6 +295,16 @@ class AICollaborationEngine:
         task_id = str(uuid.uuid4())
         corr_id = request.parent_task_id or str(uuid.uuid4())
         target_emp = request.target_employee or "sales"
+        if request.webhook_url:
+            # Validate before persisting/accepting the callback destination.
+            validate_public_https_url(request.webhook_url)
+        for reference in request.input_references:
+            if reference.url:
+                validate_public_https_url(reference.url)
+        if request.timeout_seconds < 1 or request.timeout_seconds > 300:
+            raise ValueError("timeout_seconds must be between 1 and 300.")
+        if request.cost_limit_usd <= 0:
+            raise ValueError("cost_limit_usd must be greater than zero.")
 
         # 2. Loop & Limit Prevention Check
         new_depth, updated_lineage = validate_delegation_safety(
@@ -347,11 +360,33 @@ class AICollaborationEngine:
                 "instructions": request.task_description,
             }
 
-            tool_result = await mcp_server.registry.call_tool(
-                credential=mcp_credential,
-                tool_name="octaos_delegate_ai_employee",
-                arguments=tool_args,
-            )
+            try:
+                tool_result = await asyncio.wait_for(
+                    mcp_server.registry.call_tool(
+                        credential=mcp_credential,
+                        tool_name="octaos_delegate_ai_employee",
+                        arguments=tool_args,
+                    ),
+                    timeout=max(1, min(int(request.timeout_seconds), 300)),
+                )
+            except asyncio.TimeoutError:
+                now = datetime.now(timezone.utc)
+                msg.status = "failed"
+                msg.error_code = "EXECUTION_TIMEOUT"
+                msg.completed_at = now
+                receipt.status = "failed"
+                receipt.verification_errors = ["Employee execution exceeded the configured timeout."]
+                self.db.commit()
+                return TaskStatusResponse(
+                    task_id=task_id, parent_task_id=request.parent_task_id,
+                    correlation_id=corr_id, tenant_id=self.tenant_id,
+                    source_agent=source_identifier, target_employee=target_emp,
+                    target_capability=request.target_capability,
+                    task_description=request.task_description, status="failed",
+                    lineage=updated_lineage, depth=new_depth,
+                    error_details="EXECUTION_TIMEOUT", evidence=[],
+                    created_at=msg.created_at.isoformat(), completed_at=now.isoformat(),
+                )
 
             content_text = "".join(getattr(c, "text", str(c)) for c in tool_result.content)
             try:
@@ -359,7 +394,15 @@ class AICollaborationEngine:
             except Exception:
                 parsed_res = {"result": content_text}
 
-            is_error = tool_result.isError
+            is_error = bool(tool_result.isError)
+            try:
+                bounded_json_size(parsed_res)
+                if request.output_schema:
+                    validate_json_schema(parsed_res, request.output_schema)
+            except Exception as exc:
+                is_error = True
+                msg.error_code = "OUTPUT_VALIDATION_FAILED"
+                receipt.verification_errors = [str(exc)[:500]]
             msg.status = "completed" if not is_error else "failed"
             msg.response = parsed_res
             msg.completed_at = datetime.now(timezone.utc)
@@ -375,15 +418,19 @@ class AICollaborationEngine:
             receipt.evidence = [evidence_item]
             self.db.commit()
 
-            # Webhook callback if requested
+            # Publish a durable, retryable webhook task after the result is committed.
             if request.webhook_url:
-                asyncio.create_task(
-                    dispatch_signed_webhook(
-                        webhook_url=request.webhook_url,
-                        payload={"task_id": task_id, "status": msg.status, "result": parsed_res},
-                        secret=mcp_credential.raw_token_preview or "octaos_sec",
+                from app.core.celery_app import celery_app
+                try:
+                    celery_app.send_task(
+                        "octaos.deliver_collaboration_webhook",
+                        args=[request.webhook_url,
+                              {"task_id": task_id, "status": msg.status, "result": parsed_res},
+                              mcp_credential.key_hash],
+                        queue="main-queue",
                     )
-                )
+                except Exception as exc:
+                    logger.error("Webhook enqueue failed for task %s (%s)", task_id, type(exc).__name__)
 
             return TaskStatusResponse(
                 task_id=task_id,
@@ -403,7 +450,42 @@ class AICollaborationEngine:
                 completed_at=now_iso,
             )
 
-        # 4. Asynchronous Queued Response
+        # 4. Durable handoff: the task row is committed before publishing to Celery.
+        # A failed publish is surfaced and the row is marked failed, never left queued silently.
+        from app.core.celery_app import celery_app
+        from app.models.mcp import SystemMCPCredential
+        credential_id = getattr(mcp_credential, "id", None)
+        if not credential_id:
+            msg.status = "failed"
+            msg.error_code = "MISSING_EXECUTION_CREDENTIAL"
+            msg.completed_at = datetime.now(timezone.utc)
+            receipt.status = "failed"
+            receipt.verification_errors = ["No execution credential was available for durable handoff."]
+            self.db.commit()
+            raise RuntimeError("An authenticated execution credential is required for asynchronous collaboration.")
+        msg.payload = {**(msg.payload or {}), "credential_id": credential_id,
+                       "target_capability": request.target_capability,
+                       "output_schema": request.output_schema,
+                       "timeout_seconds": request.timeout_seconds,
+                       "cost_limit_usd": request.cost_limit_usd}
+        self.db.commit()
+        try:
+            celery_app.send_task(
+                "octaos.execute_inbound_collaboration",
+                args=[task_id, self.tenant_id],
+                queue="main-queue",
+                task_id=task_id,
+            )
+        except Exception as exc:
+            msg.status = "failed"
+            msg.error_code = "DURABLE_HANDOFF_FAILED"
+            msg.completed_at = datetime.now(timezone.utc)
+            receipt.status = "failed"
+            receipt.verification_errors = ["Durable worker handoff failed."]
+            self.db.commit()
+            logger.error("Collaboration task %s could not be enqueued (%s)", task_id, type(exc).__name__)
+            raise RuntimeError("Collaboration task could not be queued for execution.") from exc
+
         now_iso = datetime.now(timezone.utc).isoformat()
         return TaskStatusResponse(
             task_id=task_id,
@@ -472,6 +554,7 @@ class AICollaborationEngine:
 
         msg.status = "cancelled"
         msg.completed_at = datetime.now(timezone.utc)
+        msg.error_code = "CANCELLED_BY_REQUEST"
 
         receipt = (
             self.db.query(DelegationReceipt)
@@ -482,4 +565,12 @@ class AICollaborationEngine:
             receipt.status = "cancelled"
 
         self.db.commit()
+        # Revoke the matching Celery delivery as a best-effort interruption.
+        # The worker also re-checks persisted cancellation before writing a result.
+        if msg.message_type == "inbound_collaboration":
+            try:
+                from app.core.celery_app import celery_app
+                celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
+            except Exception as exc:
+                logger.warning("Could not signal cancellation for task %s (%s)", task_id, type(exc).__name__)
         return True

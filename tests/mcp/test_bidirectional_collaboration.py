@@ -175,14 +175,17 @@ def test_provider_registry_connection_status(collab_setup):
     prov_map = {p.provider: p for p in providers}
 
     # Anthropic was configured with valid key
-    assert prov_map["anthropic"].is_connected is True
-    assert prov_map["anthropic"].status == "connected"
+    assert prov_map["anthropic"].is_configured is True
+    assert prov_map["anthropic"].is_connected is False
+    assert prov_map["anthropic"].status == "configured"
     assert "deep_coding" in prov_map["anthropic"].supported_capabilities
     assert prov_map["anthropic"].cost_ceiling_usd == 50.0
 
     # Grok and OpenAI have not been configured for this tenant
+    assert prov_map["grok"].is_configured is False
     assert prov_map["grok"].is_connected is False
     assert prov_map["grok"].status == "not_configured"
+    assert prov_map["openai"].is_configured is False
     assert prov_map["openai"].is_connected is False
 
 
@@ -466,7 +469,7 @@ async def test_execution_bridge_rejects_actions_without_collaboration_receipt(co
     setup = collab_setup
     result = await ExecutionBridge.process_proposed_action(
         db=setup["db"],
-        tenant_id=setup["tenant"].id,
+        tenant_id=setup["tenant_id"],
         request=ExecutionBridgeRequest(
             task_id="missing-receipt-task",
             proposed_tool="octaos_query_ai_workforce",
@@ -490,7 +493,7 @@ async def test_admin_credential_does_not_bypass_policy_approval(collab_setup, mo
     db = setup["db"]
     db.add(AgentMessage(
         id="approval-gated-task",
-        tenant_id=setup["tenant"].id,
+        tenant_id=setup["tenant_id"],
         correlation_id="approval-gated-correlation",
         idempotency_key="approval-gated-idempotency",
         from_agent="test-agent",
@@ -501,7 +504,7 @@ async def test_admin_credential_does_not_bypass_policy_approval(collab_setup, mo
     ))
     db.commit()
     receipt = DelegationReceipt(
-        tenant_id=setup["tenant"].id,
+        tenant_id=setup["tenant_id"],
         task_id="approval-gated-task",
         parent_agent="test-agent",
         child_agent="external:test",
@@ -525,7 +528,7 @@ async def test_admin_credential_does_not_bypass_policy_approval(collab_setup, mo
 
     result = await ExecutionBridge.process_proposed_action(
         db=db,
-        tenant_id=setup["tenant"].id,
+        tenant_id=setup["tenant_id"],
         request=ExecutionBridgeRequest(
             task_id="approval-gated-task",
             proposed_tool="octaos_social_publish_post",
@@ -539,3 +542,59 @@ async def test_admin_credential_does_not_bypass_policy_approval(collab_setup, mo
     assert result.verified is False
     assert result.approval_request_id == "approval-test-1"
     assert receipt.status == "waiting_approval"
+
+
+def test_collaboration_security_rejects_private_webhook_destinations():
+    from app.services.collaboration.security import validate_public_https_url, CollaborationSecurityError
+
+    for url in (
+        "http://example.com/callback",
+        "https://127.0.0.1/callback",
+        "https://localhost/callback",
+        "https://169.254.169.254/latest/meta-data",
+        "https://user:pass@example.com/callback",
+    ):
+        with pytest.raises(CollaborationSecurityError):
+            validate_public_https_url(url)
+
+
+def test_output_schema_validation_checks_nested_types_and_constraints():
+    from app.services.collaboration.security import validate_json_schema, CollaborationSecurityError
+
+    schema = {
+        "type": "object",
+        "required": ["lead"],
+        "additionalProperties": False,
+        "properties": {
+            "lead": {
+                "type": "object",
+                "required": ["score"],
+                "properties": {"score": {"type": "integer", "minimum": 0, "maximum": 100}},
+                "additionalProperties": False,
+            }
+        },
+    }
+    validate_json_schema({"lead": {"score": 75}}, schema)
+    with pytest.raises(CollaborationSecurityError):
+        validate_json_schema({"lead": {"score": "75"}}, schema)
+    with pytest.raises(CollaborationSecurityError):
+        validate_json_schema({"lead": {"score": 120}}, schema)
+    with pytest.raises(CollaborationSecurityError):
+        validate_json_schema({"lead": {"score": 75}, "extra": True}, schema)
+
+
+def test_provider_task_budget_is_not_compared_to_account_ceiling(collab_setup):
+    db = collab_setup["db"]
+    tenant_id = collab_setup["tenant_id"]
+
+    # Anthropic's account ceiling is $50. A $100 per-task cap is a different
+    # dimension and must not incorrectly exclude it from provider eligibility.
+    eligible = AIProviderRegistry.get_eligible_providers_for_task(
+        db, tenant_id, required_capabilities=["deep_coding"], max_cost=100.0
+    )
+    assert any(provider.provider == "anthropic" for provider in eligible)
+
+    no_budget = AIProviderRegistry.get_eligible_providers_for_task(
+        db, tenant_id, required_capabilities=["deep_coding"], max_cost=0.0
+    )
+    assert all(provider.provider != "anthropic" for provider in no_budget)

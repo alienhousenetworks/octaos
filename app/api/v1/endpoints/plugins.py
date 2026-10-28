@@ -381,8 +381,8 @@ async def submit_collaboration_task(
         )
         return JSONResponse(status_code=200, content=task_response.model_dump())
     except Exception as e:
-        logger.error("Failed to submit collaboration task: %s", e)
-        return JSONResponse(status_code=400, content={"error": str(e)})
+        logger.error("Failed to submit collaboration task (%s)", type(e).__name__)
+        return JSONResponse(status_code=400, content={"error": "Collaboration task submission failed. Check task constraints and retry."})
 
 
 @router.get("/collaboration/tasks/{task_id}")
