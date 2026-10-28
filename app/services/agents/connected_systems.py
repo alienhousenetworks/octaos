@@ -53,16 +53,25 @@ _KNOWLEDGE_DENIALS = (
 def request_asks_to_message_connection(text: str) -> bool:
     """True when the user wants a message placed on a connected MCP client."""
     lowered = (text or "").lower()
-    if not re.search(r"\b(message|tell|text|notify|ping)\w*", lowered):
+    if not re.search(r"\b(message|tell|text|notify|ping|send)\w*", lowered):
         return False
     if "mcp" in lowered:
         return True
     tokens = re.findall(r"[a-z0-9]{4,}", lowered)
     for token in tokens:
-        for stem in ("grok", "claude", "cursor", "deepseek"):
+        for stem in ("grok", "claude", "cursor", "deepseek", "octaos"):
             if _near(token, stem):
                 return True
     return bool(re.search(r"\b(bot|client)\b", lowered))
+
+
+def request_addresses_octaos_itself(text: str) -> bool:
+    """True when the message is for this workspace, not for an external client."""
+    lowered = (text or "").lower()
+    if "core services" in lowered:
+        return True
+    tokens = re.findall(r"[a-z0-9]{4,}", lowered)
+    return any(_near(token, "octaos") for token in tokens)
 
 
 def clients_addressed_by(snapshot: Dict[str, Any], request: str) -> List[Dict[str, Any]]:

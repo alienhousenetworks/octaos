@@ -15,6 +15,7 @@ from app.services.agents.connected_systems import (
     ensure_mcp_message_task,
     load_connected_systems,
     mcp_handoff_note,
+    request_addresses_octaos_itself,
 )
 
 from app.models.base import APICredential
@@ -100,6 +101,14 @@ async def _message_connected_client(
     snapshot = load_connected_systems(agent.db, agent.tenant_id)
     lookup = " ".join(part for part in (client_hint, request) if part).strip()
     clients = clients_addressed_by(snapshot, lookup or request)
+    if not clients and request_addresses_octaos_itself(lookup or request):
+        quote = (text or request).strip()
+        if quote.lower().startswith("message from the octaos assistant:"):
+            quote = quote.split(":", 1)[1].strip()
+        return (
+            f"OctaOS received it: {quote} "
+            "OctaOS Core Services is this workspace, and the message stays here."
+        )
     if not clients:
         known = ", ".join(
             str(client.get("name") or "unnamed")

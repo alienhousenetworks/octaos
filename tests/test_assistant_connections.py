@@ -7,6 +7,7 @@ from app.services.agents.connected_systems import (
     ensure_mcp_message_task,
     mcp_handoff_note,
     reply_claims_live_send,
+    request_addresses_octaos_itself,
     request_asks_about_connections,
     request_asks_to_message_connection,
     request_checks_company_services,
@@ -68,6 +69,17 @@ def test_connection_facts_name_what_is_saved_and_what_is_absent():
     assert "two-way MCP channel" not in report
     assert "octa_mcp_" not in report
     assert "encrypted" not in report.lower()
+
+
+def test_a_message_to_octaos_itself_is_not_a_missing_client():
+    ask = "send hello to cotaos ans as did you recive it"
+    assert request_asks_to_message_connection(ask)
+    assert request_addresses_octaos_itself(ask)
+    assert request_addresses_octaos_itself("octaos")
+    assert clients_addressed_by(GROK_SNAPSHOT, "octaos hello, did you receive it?") == []
+    assert not request_addresses_octaos_itself("send hello to grok bot")
+    assert request_asks_to_message_connection("send hello to grok bot")
+    assert not request_asks_to_message_connection("send an email to the lead")
 
 
 def test_a_claude_question_does_not_select_the_grok_client_or_send():
