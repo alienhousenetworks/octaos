@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import uuid
 from typing import Any, AsyncGenerator, Dict, Optional
 from fastapi import Request, HTTPException, status
@@ -20,6 +21,20 @@ logger = logging.getLogger(__name__)
 # In-memory session registry for SSE connections
 _ACTIVE_SSE_SESSIONS: Dict[str, asyncio.Queue] = {}
 _SESSIONS_BY_CREDENTIAL: Dict[str, Dict[str, asyncio.Queue]] = {}
+
+
+def validate_mcp_origin(request: Request) -> None:
+    """Fail closed for browser-originated MCP requests unless explicitly trusted."""
+    origin = request.headers.get("origin")
+    if not origin:
+        return
+    allowed_origins = {
+        value.strip().rstrip("/")
+        for value in os.getenv("MCP_ALLOWED_ORIGINS", "").split(",")
+        if value.strip()
+    }
+    if origin.rstrip("/") not in allowed_origins:
+        raise HTTPException(status_code=403, detail="Origin is not allowed for the MCP endpoint.")
 
 
 def extract_credential_from_request(request: Request, db: Session) -> SystemMCPCredential:
