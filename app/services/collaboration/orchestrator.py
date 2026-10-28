@@ -8,8 +8,8 @@ import logging
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Tuple
-import httpx
-from app.services.collaboration.security import validate_public_https_url
+import aiohttp
+from app.services.collaboration.security import validate_public_https_url, PublicPinnedResolver
 from sqlalchemy.orm import Session
 
 from app.models.collaborative_workforce import AgentMessage, DelegationReceipt
@@ -140,9 +140,13 @@ async def dispatch_signed_webhook(
         "X-OctaOS-Signature": f"sha256={signature}",
     }
     try:
-        async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=False, trust_env=False) as client:
-            res = await client.post(safe_url, content=body_bytes, headers=headers)
-            return res.is_success
+        timeout = aiohttp.ClientTimeout(total=timeout_seconds, connect=min(3.0, timeout_seconds), sock_read=timeout_seconds)
+        connector = aiohttp.TCPConnector(resolver=PublicPinnedResolver(), use_dns_cache=False, limit=1)
+        async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env=False) as client:
+            async with client.post(safe_url, data=body_bytes, headers=headers, allow_redirects=False) as res:
+                # Read a bounded response body so connections are released safely.
+                await res.content.read(4096)
+                return 200 <= res.status < 300
     except Exception as exc:
         logger.warning("Webhook dispatch failed (%s)", type(exc).__name__)
         return False
