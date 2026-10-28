@@ -32,10 +32,37 @@ class ExecutionBridge:
     ) -> ExecutionBridgeResponse:
         from app.services.mcp.server import mcp_server
 
-        # 1. Retrieve or verify associated collaboration task
+        # 1. Bind execution to the authenticated tenant and a durable collaboration receipt.
+        # Never allow the bridge to become a general-purpose tool execution endpoint.
+        credential_tenant = getattr(mcp_credential, "tenant_id", None)
+        if not tenant_id or (credential_tenant and str(credential_tenant) != str(tenant_id)):
+            return ExecutionBridgeResponse(
+                task_id=request.task_id,
+                status="blocked",
+                verified=False,
+                policy_decision="block",
+                error="Execution bridge tenant does not match the authenticated credential.",
+            )
+
         receipt = db.query(DelegationReceipt).filter_by(
             tenant_id=tenant_id, task_id=request.task_id
         ).first()
+        if receipt is None:
+            AuditService.log_event(
+                db=db,
+                action="execution_bridge.blocked_missing_receipt",
+                tenant_id=tenant_id,
+                resource="collaboration_bridge",
+                resource_id=request.task_id,
+                details={"tool": request.proposed_tool, "reason": "No tenant-scoped collaboration receipt"},
+            )
+            return ExecutionBridgeResponse(
+                task_id=request.task_id,
+                status="blocked",
+                verified=False,
+                policy_decision="block",
+                error="A valid collaboration task receipt is required before executing a proposed action.",
+            )
 
         policy_engine = PolicyEngine(db, tenant_id)
 
@@ -53,10 +80,8 @@ class ExecutionBridge:
         reason = eval_result.get("reason", "")
         approval_id = eval_result.get("approval_id")
 
-        # Admin credential role grants immediate execution authority (consistent with MCP admin role)
-        if getattr(mcp_credential, "role", None) == "admin" and decision != "block":
-            decision = "allow_auto"
-            approval_id = None
+        # Credential role authorizes access to the bridge; it must never override
+        # policy-engine approval requirements. Approval is a separate governance decision.
 
         now_iso = datetime.now(timezone.utc).isoformat()
 
