@@ -8,7 +8,7 @@ import os
 import uuid
 from typing import Any, AsyncGenerator, Dict, Optional
 from fastapi import Request, HTTPException, status
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
@@ -80,27 +80,23 @@ async def handle_streamable_http(request: Request, credential: SystemMCPCredenti
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload.")
 
+    # MCP uses individual JSON-RPC messages; JSON-RPC batch requests are
+    # not part of the MCP transport contract.
     if isinstance(body, list):
-        # Batch requests
-        responses = []
-        for req in body:
-            res = await mcp_server.handle_message(credential, req)
-            if res is not None:
-                responses.append(res)
-        return JSONResponse(content=responses)
-    else:
-        # Single request
-        res = await mcp_server.handle_message(credential, body)
-        if res is None:
-            return JSONResponse(status_code=204, content=None)
-        from app.services.mcp.client_channel import attach_pending_messages
-        from app.db.session import SessionLocal
-        attach_db = SessionLocal()
-        try:
-            res = attach_pending_messages(attach_db, credential, res)
-        finally:
-            attach_db.close()
-        return JSONResponse(content=res)
+        raise HTTPException(status_code=400, detail="MCP does not support JSON-RPC batch requests.")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Expected a single JSON-RPC object.")
+
+    res = await mcp_server.handle_message(credential, body)
+    if res is None:
+        return Response(status_code=202)
+    from app.services.mcp.client_channel import attach_pending_messages
+    attach_db = SessionLocal()
+    try:
+        res = attach_pending_messages(attach_db, credential, res)
+    finally:
+        attach_db.close()
+    return JSONResponse(content=res)
 
 
 async def sse_event_generator(session_id: str, queue: asyncio.Queue) -> AsyncGenerator[str, None]:
