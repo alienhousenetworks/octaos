@@ -1,12 +1,12 @@
-"""Live status of the systems the OctaOS assistant is allowed to use.
+"""Live records of the systems the OctaOS assistant can use.
 
-The assistant used to answer from a fixed department list and tell the user it
-could not see MCP. Grok Bot is an inbound MCP client of this workspace, and
-the crawled service pages are already stored. This module reports those facts
-and does not call a provider or send mail.
+The assistant writes its own answer from these records. This module only
+looks up what is saved and what is absent. It does not call a provider or
+send mail, and it does not author the sentence the user reads.
 """
 from __future__ import annotations
 
+import json
 import re
 from typing import Any, Dict, List, Optional
 
@@ -17,6 +17,22 @@ from app.services.rag.hybrid_engine import _near, query_requests_company_knowled
 
 _CONNECTION_STEMS = ("grok", "connected", "connection", "connector")
 _WORK_VERBS = ("find", "draft", "send", "create", "hire", "source", "generate", "launch", "publish")
+# Words that point at a saved system. The provider key is separate from an MCP client.
+_SYSTEM_ALIASES = (
+    ("claude", "anthropic", "Claude"),
+    ("anthropic", "anthropic", "Claude"),
+    ("grok", "grok", "Grok"),
+    ("xai", "grok", "Grok"),
+    ("deepseek", "deepseek", "DeepSeek"),
+    ("cursor", None, "Cursor"),
+    ("openai", "openai", "OpenAI"),
+    ("chatgpt", "openai", "OpenAI"),
+    ("gemini", "gemini", "Gemini"),
+    ("whatsapp", None, "WhatsApp"),
+    ("mailbox", None, "Mailbox"),
+    ("email", None, "Mailbox"),
+)
+
 _KNOWLEDGE_DENIALS = (
     "don't have specific information",
     "do not have specific information",
@@ -31,18 +47,6 @@ _KNOWLEDGE_DENIALS = (
     "paste the",
     "paste website",
     "paste crawled",
-)
-_MCP_DENIALS = (
-    "cannot reach",
-    "can't reach",
-    "can not reach",
-    "no mcp",
-    "don't have a direct mcp",
-    "do not have a direct mcp",
-    "no direct mcp",
-    "not connected to grok",
-    "cannot reach out to grok",
-    "can't reach out to grok",
 )
 
 
@@ -65,7 +69,9 @@ def clients_addressed_by(snapshot: Dict[str, Any], request: str) -> List[Dict[st
     """Pick the MCP clients named in the request. One saved client matches a generic ask."""
     clients = [client for client in (snapshot.get("mcp_clients") or []) if client.get("active", True)]
     lowered = (request or "").lower()
-    tokens = re.findall(r"[a-z0-9]{3,}", lowered)
+    # Three-letter words such as "you" are within edit distance of "bot".
+    # A client is selected from a real name token, or from an explicit bot/client ask below.
+    tokens = re.findall(r"[a-z0-9]{4,}", lowered)
     chosen = []
     for client in clients:
         blob = f"{client.get('name') or ''} {client.get('client_type') or ''}".lower()
@@ -109,11 +115,6 @@ def request_checks_company_services(text: str) -> bool:
 def reply_denies_stored_knowledge(reply: str) -> bool:
     lowered = (reply or "").lower()
     return any(phrase in lowered for phrase in _KNOWLEDGE_DENIALS)
-
-
-def reply_denies_mcp(reply: str) -> bool:
-    lowered = (reply or "").lower()
-    return any(phrase in lowered for phrase in _MCP_DENIALS)
 
 
 def reply_claims_live_send(reply: str) -> bool:
@@ -180,13 +181,25 @@ def load_connected_systems(db: Session, tenant_id: str) -> Dict[str, Any]:
     try:
         from app.services.collaboration.provider_registry import AIProviderRegistry
 
-        configured = []
+        providers = []
         for provider in AIProviderRegistry.get_connected_providers(db, tenant_id):
-            if provider.is_configured:
-                configured.append(provider.provider)
-        snapshot["outbound_providers"] = configured
+            providers.append({
+                "name": provider.provider,
+                "display_name": provider.display_name,
+                "configured": bool(provider.is_configured),
+            })
+        snapshot["providers"] = providers
+        snapshot["outbound_providers"] = [item["name"] for item in providers if item["configured"]]
     except Exception:
+        snapshot["providers"] = []
         snapshot["outbound_providers"] = []
+
+    try:
+        from app.core.config import settings
+
+        snapshot["inbuilt_model_route"] = getattr(settings, "DEFAULT_AI_PROVIDER", None) or ""
+    except Exception:
+        snapshot["inbuilt_model_route"] = ""
 
     try:
         from app.models.base import APICredential
@@ -209,63 +222,121 @@ def load_connected_systems(db: Session, tenant_id: str) -> Dict[str, Any]:
     return snapshot
 
 
+def _public_client(client: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "name": client.get("name"),
+        "client_type": client.get("client_type"),
+        "role": client.get("role"),
+        "active": client.get("active", True),
+        "last_used_at": client.get("last_used_at"),
+    }
+
+
+def _client_matches(client: Dict[str, Any], alias: str) -> bool:
+    blob = f"{client.get('name') or ''} {client.get('client_type') or ''}".lower()
+    if alias in blob:
+        return True
+    parts = re.findall(r"[a-z0-9]{3,}", blob)
+    return any(_near(alias, part) for part in parts)
+
+
+def systems_named_in_request(snapshot: Dict[str, Any], request: str) -> List[Dict[str, Any]]:
+    """Which systems this turn names, and whether each one is saved."""
+    lowered = (request or "").lower()
+    tokens = re.findall(r"[a-z0-9]{4,}", lowered)
+    providers = list(snapshot.get("providers") or [])
+    configured_names = set(snapshot.get("outbound_providers") or [])
+    found: List[Dict[str, Any]] = []
+    seen = set()
+    for token in tokens:
+        for alias, provider_name, label in _SYSTEM_ALIASES:
+            if label in seen or not _near(token, alias):
+                continue
+            if label in ("Mailbox", "WhatsApp") and not request_asks_about_connections(request):
+                if alias == "email" or alias not in lowered:
+                    continue
+            seen.add(label)
+            entry: Dict[str, Any] = {
+                "name": label,
+                "mcp_clients": [
+                    _public_client(client)
+                    for client in (snapshot.get("mcp_clients") or [])
+                    if _client_matches(client, alias if alias != "email" else label.lower())
+                ],
+            }
+            if provider_name:
+                match = next((item for item in providers if item.get("name") == provider_name), None)
+                entry["provider"] = provider_name
+                entry["provider_configured"] = bool(
+                    (match and match.get("configured")) or provider_name in configured_names
+                )
+            if label == "Mailbox":
+                entry["connected"] = bool(snapshot.get("mailbox_connected"))
+            if label == "WhatsApp":
+                entry["configured"] = bool(snapshot.get("whatsapp_configured"))
+            found.append(entry)
+    return found
+
+
+def connection_facts(snapshot: Dict[str, Any], request: str = "") -> str:
+    """Records the assistant reads before it answers. This is data, not a reply."""
+    providers = snapshot.get("providers")
+    if not providers:
+        providers = [
+            {"name": name, "configured": True}
+            for name in (snapshot.get("outbound_providers") or [])
+        ]
+    payload: Dict[str, Any] = {
+        "mcp_clients": [_public_client(client) for client in (snapshot.get("mcp_clients") or [])],
+        "connectors": snapshot.get("connectors") or [],
+        "collaboration_listener": snapshot.get("collaboration") or "unknown",
+        "providers": providers,
+        "mailbox_connected": bool(snapshot.get("mailbox_connected")),
+        "whatsapp_configured": bool(snapshot.get("whatsapp_configured")),
+        "inbuilt_model_route": snapshot.get("inbuilt_model_route") or "",
+    }
+    asked = systems_named_in_request(snapshot, request) if request else []
+    if asked:
+        payload["asked_about"] = asked
+    return json.dumps(payload, default=str)
+
+
+def ensure_mcp_message_task(tasks: Optional[List[Dict[str, Any]]], request: str) -> List[Dict[str, Any]]:
+    """Queue a real MCP handoff when the user asked to message a client.
+
+    A reach or status question does not add this task. The model's own words
+    stay in the reply; this only makes the send happen.
+    """
+    items = [task for task in (tasks or []) if isinstance(task, dict)]
+    if not request_asks_to_message_connection(request):
+        return items
+    if any(task.get("department") == "System" and task.get("action") == "message_mcp_client" for task in items):
+        return items
+    items.append({
+        "department": "System",
+        "action": "message_mcp_client",
+        "parameters": {"client": request, "text": request},
+    })
+    return items
+
+
+def mcp_handoff_note(placed: Dict[str, Any]) -> str:
+    """One factual line about a message that was actually queued or pushed."""
+    name = placed.get("client_name") or "MCP client"
+    streams = int(placed.get("open_streams") or 0)
+    if streams:
+        where = f"pushed to {streams} open stream(s) and kept for the next call"
+    else:
+        where = "queued because no stream is open; it is included in the client's next OctaOS call"
+    return (
+        f"MCP handoff: {name} status {placed.get('status') or 'queued'} ({where}). "
+        "This is not a claim that the client displayed it."
+    )
+
+
 def format_connection_report(snapshot: Dict[str, Any]) -> str:
-    """Plain-language status. This is the answer when the user asks what is connected."""
-    lines: List[str] = ["Connected systems for this workspace:"]
-    clients = snapshot.get("mcp_clients") or []
-    if clients:
-        lines.append("MCP clients on the two-way channel:")
-        for client in clients:
-            state = "active" if client.get("active") else "inactive"
-            used = client.get("last_used_at") or "never"
-            lines.append(
-                f"- {client.get('name')} ({client.get('client_type')}, role {client.get('role')}, {state}, last used {used})"
-            )
-    else:
-        lines.append("MCP clients on the two-way channel: none saved.")
-
-    connectors = snapshot.get("connectors") or []
-    if connectors:
-        lines.append("Data connectors:")
-        for connector in connectors:
-            lines.append(
-                f"- {connector.get('name')} ({connector.get('slug')}, {connector.get('connector_type')}, {connector.get('status')})"
-            )
-    else:
-        lines.append("Data connectors: none saved.")
-
-    lines.append(f"External collaboration listener: {snapshot.get('collaboration') or 'unknown'}.")
-    outbound = snapshot.get("outbound_providers") or []
-    if outbound:
-        lines.append("Outbound AI keys saved: " + ", ".join(outbound) + ".")
-    else:
-        lines.append("Outbound AI keys saved: none. This assistant still uses the server's inbuilt model route.")
-
-    linked = [
-        client for client in clients
-        if "grok" in str(client.get("name") or "").lower() or "grok" in str(client.get("client_type") or "").lower()
-    ]
-    if linked:
-        names = ", ".join(str(client.get("name") or "MCP client") for client in linked)
-        lines.append(
-            f"{names} is connected on the two-way MCP channel. "
-            "That client can call OctaOS, and OctaOS can place a message on the same channel. "
-            "The message is pushed when the client's stream is open and is included in the client's next OctaOS call."
-        )
-    if "grok" in outbound:
-        lines.append("An xAI API key is also saved. That is a separate call to api.x.ai, not the MCP channel.")
-    elif not linked:
-        lines.append("No Grok MCP client is saved.")
-
-    if snapshot.get("mailbox_connected"):
-        lines.append("Mailbox: connected. Email send is available when you explicitly ask to send.")
-    else:
-        lines.append("Mailbox: not connected. Email cannot be sent. Unsent drafts can still be stored.")
-    if snapshot.get("whatsapp_configured"):
-        lines.append("WhatsApp: a credential is saved.")
-    else:
-        lines.append("WhatsApp: no credential is saved, so a WhatsApp message cannot be sent.")
-    return "\n".join(lines)
+    """Backward-compatible name. The assistant writes the answer; this is only the lookup."""
+    return connection_facts(snapshot)
 
 
 def grounded_company_answer(hits: List[Dict[str, Any]]) -> str:
@@ -299,7 +370,11 @@ def correct_assistant_reply(
     hits: Optional[List[Dict[str, Any]]],
     snapshot: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """Replace a refusal that contradicts stored pages or a live MCP client."""
+    """Replace a refusal that contradicts stored company pages.
+
+    Connection answers are left to the model. A denial is not overwritten
+    with a connection script.
+    """
     text = (message or "").strip()
     drop_tasks = request_checks_company_services(request)
     company_question = drop_tasks or query_requests_company_knowledge(
@@ -310,8 +385,6 @@ def correct_assistant_reply(
         grounded = grounded_company_answer(hits)
         if grounded:
             text = grounded
-    if active_mcp_clients(snapshot) and reply_denies_mcp(text):
-        text = format_connection_report(snapshot)
     if not snapshot.get("mailbox_connected") and reply_claims_live_send(text):
         text = (
             text.rstrip()

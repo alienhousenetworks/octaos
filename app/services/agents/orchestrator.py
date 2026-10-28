@@ -10,11 +10,11 @@ from app.services.agents.finance import FinanceAgent
 from app.services.agents.hr import HRAgent
 from app.services.agents.connected_systems import (
     clients_addressed_by,
+    connection_facts,
     correct_assistant_reply,
-    format_connection_report,
+    ensure_mcp_message_task,
     load_connected_systems,
-    request_asks_about_connections,
-    request_asks_to_message_connection,
+    mcp_handoff_note,
 )
 
 from app.models.base import APICredential
@@ -88,43 +88,40 @@ def _current_request_text(prompt: str) -> str:
     return match.group(1).strip() if match else (prompt or "")
 
 
-def _message_connected_client(agent: "OrchestratorAgent", request: str) -> str:
-    """Place the user's message on the named MCP client and report the real handoff."""
+def _message_connected_client(
+    agent: "OrchestratorAgent",
+    request: str,
+    client_hint: str = "",
+    text: str = "",
+) -> str:
+    """Place a message on the named MCP client and return the real handoff."""
     from app.services.mcp.client_channel import queue_client_message
 
     snapshot = load_connected_systems(agent.db, agent.tenant_id)
-    clients = clients_addressed_by(snapshot, request)
+    lookup = " ".join(part for part in (client_hint, request) if part).strip()
+    clients = clients_addressed_by(snapshot, lookup or request)
     if not clients:
         known = ", ".join(
             str(client.get("name") or "unnamed")
             for client in (snapshot.get("mcp_clients") or [])
         ) or "none"
-        return (
-            "No connected MCP client matched that request. "
-            f"Saved MCP clients: {known}."
-        )
-    text = f"Message from the OctaOS assistant: {request.strip()}"
+        return f"MCP handoff: no saved client matched that request. Saved MCP clients: {known}."
+    body = (text or request).strip()
+    if not body.lower().startswith("message from the octaos assistant"):
+        body = f"Message from the OctaOS assistant: {body}"
     lines = []
     for client in clients:
         if not client.get("id"):
-            lines.append(f"{client.get('name') or 'MCP client'} has no saved credential id, so no message was queued.")
+            lines.append(f"MCP handoff: {client.get('name') or 'MCP client'} has no saved credential id, so nothing was queued.")
             continue
         placed = queue_client_message(
             agent.db,
             tenant_id=agent.tenant_id,
             credential_id=str(client["id"]),
             client_name=str(client.get("name") or "MCP client"),
-            text=text,
+            text=body,
         )
-        streams = int(placed.get("open_streams") or 0)
-        if streams:
-            handoff = f"pushed onto {streams} open MCP stream(s) and kept for the next call"
-        else:
-            handoff = "no stream is open right now, so it is waiting for the client's next OctaOS call"
-        lines.append(
-            f"Placed a message for {placed['client_name']} on the two-way MCP channel ({handoff}). "
-            "This does not by itself mean the client has displayed it."
-        )
+        lines.append(mcp_handoff_note(placed))
     return "\n".join(lines)
 
 
@@ -188,24 +185,6 @@ class OrchestratorAgent(BaseAgent):
             save_credential(self.db, self.tenant_id, provider, key)
             self.log_activity("Configuration", f"Saved {provider} API key.")
             return {"plan": {}, "results": [{"status": "success", "message": f"I've saved your {provider} configuration. What task should I execute next?"}]}
-
-        if request_asks_to_message_connection(current_request):
-            report = _message_connected_client(self, current_request)
-            self.log_activity("Message MCP Client", report.split("\n", 1)[0])
-            return {
-                "mode": "execution",
-                "plan": {"message": report, "tasks": []},
-                "results": [{"status": "success", "message": report}],
-            }
-
-        if request_asks_about_connections(current_request):
-            report = format_connection_report(load_connected_systems(self.db, self.tenant_id))
-            self.log_activity("Connected Systems", f"Reported live connections for '{current_request}'")
-            return {
-                "mode": "execution",
-                "plan": {"message": report, "tasks": []},
-                "results": [{"status": "success", "message": report}],
-            }
 
         # Build structured multi-turn conversation history
         conversation_context = ""
@@ -301,14 +280,12 @@ class OrchestratorAgent(BaseAgent):
             logger.warning("Company knowledge hits failed: %s", knowledge_error)
             knowledge_hits = []
         connection_snapshot = load_connected_systems(self.db, self.tenant_id)
-        connected_systems = format_connection_report(connection_snapshot)
+        connected_systems = connection_facts(connection_snapshot, current_request)
 
         system_prompt = f"""You are the Orchestrator AI, the central coordination brain of OctaOS.
 Your job is to assist company leadership, answer questions about operations, and coordinate specialized department agents (Marketing, Sales, Support, HR, Finance).
 
 {company_knowledge}
-
-{connected_systems}
 
 Currently configured API keys/credentials: {configured_providers}.
 {operational_stats}
@@ -339,16 +316,23 @@ Available Agents & Actions:
   - "candidate_outreach": parameters: {{"channel": "smtp" | "gmail", "subject": str, "body_template": str, "candidate_id": str | None}}
   - "schedule_interview": parameters: {{"tool": "google_calendar", "candidate_id": str | None}}
 - System:
+  - "message_mcp_client": parameters: {{"client": str, "text": str}}
+    * Use this only when the user asks to message, tell, text, notify, or ping a saved MCP client.
+    * client is the name or type from the records. text is the message to place.
+    * Do not use it when the user only asks whether a system can be reached.
   - "request_key": parameters: {{"provider": str}} - use this to ask the user for a missing key.
+
+Connection records for this turn. This JSON is a lookup of what is saved and what is absent. It is not an answer to copy:
+{connected_systems}
 
 Guidelines:
 1. If the user asks a conversational question, operational inquiry, or asks for advice, provide a clear, helpful response in the "message" field. (Use the operational database counts above if asked about candidate, resume, or lead counts).
 2. If the user request requires executing tasks, include them in the "tasks" array. If no execution tasks are needed, leave "tasks" as an empty list [].
 3. Adhere strictly to the company knowledge base and guidelines above. When those excerpts describe the company or its website, answer from them and cite the source URL. Do not say the company knowledge base is empty, and do not ask the user to paste website content that is already in the excerpts. If a specific fact is absent from the excerpts, say that fact was not in the retrieved pages.
-4. Multi-turn conversation context: If previous conversation history is provided, maintain context across turns. For example, if you asked the user clarifying questions about a role, task, campaign, or parameters in previous turns, interpret the user's latest reply in the context of those prior questions.
-5. The connected-systems list above is live. If it names an MCP client, say so. Do not say you cannot check MCP or that Grok is unreachable when that list shows the client. An inbound MCP client can call OctaOS. An outbound message to Grok requires an outbound Grok key in that list.
+4. Multi-turn conversation context: If previous conversation history is provided, maintain context across turns. For example, if you asked the user clarifying questions about a role, task, campaign, or parameters in previous turns, interpret the user's latest reply in the context of those prior questions. If an earlier turn printed a fixed connection card, do not repeat that card. Answer this turn from the records.
+5. Write the reply in your own words from the connection records. When asked_about is present, answer that system: say whether it is saved or absent. An MCP client and a provider API key are different records. A missing provider key does not make an MCP client one-way and does not block message_mcp_client. inbuilt_model_route is the server model answering this turn; a provider with configured false only means no tenant API key is saved. Do not paste the JSON. Do not answer a question about one system by reciting every other system. Do not say you cannot check connections. Do not claim a client displayed a message.
 6. If the user asks whether the company offers consulting, marketing, hiring, or another service, answer from the knowledge excerpts and cite the page URL. Leave tasks empty for that question.
-7. Say that email or WhatsApp can be sent only when the connected-systems list says that channel is connected. Otherwise say an unsent draft can be stored.
+7. Say that email or WhatsApp can be sent only when mailbox_connected or whatsapp_configured is true in those records. Otherwise say an unsent draft can be stored.
 
 Output MUST be valid JSON only.
 Format:
@@ -380,10 +364,13 @@ Format:
                 conv_resp = await self.llm.complete(
                     prompt=effective_prompt,
                     system_prompt=(
-                        "You are the Orchestrator AI for OctaOS. Assist the user with their request. "
+                        "You are the Orchestrator AI for OctaOS. Answer in your own words. "
                         "When the company knowledge excerpts answer the question, use them and cite the source URL. "
                         "Do not claim the knowledge base has no information about the company when those excerpts are present. "
-                        "If the connected-systems list names an MCP client, report that client. Do not say MCP cannot be checked.\n\n"
+                        "The connection JSON is a lookup of what is saved and what is absent. "
+                        "Answer the system the user asked about. Do not paste the JSON or recite every system. "
+                        "An MCP client and a provider API key are different. A missing key does not make an MCP client one-way. "
+                        "If an earlier turn printed a fixed connection card, do not repeat it.\n\n"
                         f"{company_knowledge}\n\n{connected_systems}\n\n{operational_stats}"
                     ),
                     provider=provider,
@@ -404,6 +391,8 @@ Format:
         plan["message"] = corrected["message"]
         if corrected["drop_tasks"]:
             plan["tasks"] = []
+        else:
+            plan["tasks"] = ensure_mcp_message_task(plan.get("tasks"), current_request)
 
         self.log_activity("Delegate Tasks", f"Delegated goal: '{prompt}'")
         
@@ -449,6 +438,16 @@ Format:
                     agent = HRAgent(self.db, self.tenant_id)
                     res = await agent.execute_task(task)
                     results.append(res)
+                elif dept == "System" and task.get("action") == "message_mcp_client":
+                    params = task.get("parameters") or {}
+                    handoff = _message_connected_client(
+                        self,
+                        current_request,
+                        client_hint=str(params.get("client") or ""),
+                        text=str(params.get("text") or ""),
+                    )
+                    self.log_activity("Message MCP Client", handoff.split("\n", 1)[0])
+                    results.append({"status": "success", "message": handoff})
                 elif dept == "System" and task.get("action") == "request_key":
                     provider = task.get("parameters", {}).get("provider", "unknown")
                     if provider == "smtp":

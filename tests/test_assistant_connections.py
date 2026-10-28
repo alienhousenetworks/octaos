@@ -1,7 +1,11 @@
+import json
+
 from app.services.agents.connected_systems import (
     clients_addressed_by,
+    connection_facts,
     correct_assistant_reply,
-    format_connection_report,
+    ensure_mcp_message_task,
+    mcp_handoff_note,
     reply_claims_live_send,
     request_asks_about_connections,
     request_asks_to_message_connection,
@@ -37,26 +41,48 @@ def test_connection_questions_are_recognized():
     assert not request_asks_about_connections("find leads and draft an email")
 
 
-def test_connection_report_names_the_grok_mcp_client_and_the_closed_mailbox():
-    report = format_connection_report(GROK_SNAPSHOT)
-    assert "Grok Bot" in report
-    assert "grok_deepseek" in report
-    assert "two-way MCP channel" in report
+def test_connection_facts_name_what_is_saved_and_what_is_absent():
+    snapshot = {
+        **GROK_SNAPSHOT,
+        "providers": [
+            {"name": "anthropic", "display_name": "Anthropic Claude", "configured": False},
+            {"name": "grok", "display_name": "xAI Grok", "configured": False},
+        ],
+        "inbuilt_model_route": "nvidia",
+    }
+    report = connection_facts(snapshot, "can you reach claude")
+    facts = json.loads(report)
+    assert facts["mcp_clients"][0]["name"] == "Grok Bot"
+    assert facts["mcp_clients"][0]["client_type"] == "grok_deepseek"
+    assert "id" not in facts["mcp_clients"][0]
+    assert facts["mailbox_connected"] is False
+    assert facts["whatsapp_configured"] is False
+    assert facts["inbuilt_model_route"] == "nvidia"
+    claude = facts["asked_about"][0]
+    assert claude["name"] == "Claude"
+    assert claude["provider"] == "anthropic"
+    assert claude["provider_configured"] is False
+    assert claude["mcp_clients"] == []
+    assert "Connected systems for this workspace" not in report
     assert "cannot open a new chat" not in report
-    assert "Mailbox: not connected" in report
+    assert "two-way MCP channel" not in report
     assert "octa_mcp_" not in report
     assert "encrypted" not in report.lower()
 
 
-def test_mcp_refusal_is_replaced_with_the_live_report():
-    corrected = correct_assistant_reply(
-        "I cannot reach out to Grok bot or any external AI service. I don't have a direct MCP diagnostic.",
-        "can you reach to grok bot",
-        [],
-        GROK_SNAPSHOT,
-    )
-    assert "Grok Bot" in corrected["message"]
-    assert "cannot reach out" not in corrected["message"].lower()
+def test_a_claude_question_does_not_select_the_grok_client_or_send():
+    ask = "can you reach claude"
+    assert not request_asks_to_message_connection(ask)
+    assert not request_asks_about_connections(ask)
+    assert clients_addressed_by(GROK_SNAPSHOT, ask) == []
+    assert ensure_mcp_message_task([], ask) == []
+
+
+def test_mcp_refusal_is_not_replaced_by_a_connection_script():
+    original = "I cannot reach out to Grok bot or any external AI service. I don't have a direct MCP diagnostic."
+    corrected = correct_assistant_reply(original, "can you reach to grok bot", [], GROK_SNAPSHOT)
+    assert corrected["message"] == original
+    assert "Connected systems for this workspace" not in corrected["message"]
 
 
 def test_service_check_drops_tasks_and_send_claims_stay_unsent():
@@ -75,7 +101,25 @@ def test_a_message_request_is_not_only_a_status_check():
     ask = "but it is aboth direction conention happend try to message grok"
     assert request_asks_to_message_connection(ask)
     assert clients_addressed_by(GROK_SNAPSHOT, ask)[0]["name"] == "Grok Bot"
+    assert clients_addressed_by(GROK_SNAPSHOT, "message the bot")[0]["name"] == "Grok Bot"
     assert not request_asks_to_message_connection("can you reach to grok bot")
+    tasks = ensure_mcp_message_task([], ask)
+    assert tasks[0]["action"] == "message_mcp_client"
+    kept = ensure_mcp_message_task(
+        [{"department": "System", "action": "message_mcp_client", "parameters": {"text": "hello"}}],
+        ask,
+    )
+    assert len(kept) == 1
+    assert kept[0]["parameters"]["text"] == "hello"
+
+
+def test_handoff_note_does_not_claim_the_client_displayed_it():
+    note = mcp_handoff_note({"client_name": "Grok Bot", "status": "queued", "open_streams": 0})
+    assert "Grok Bot" in note
+    assert "queued" in note
+    assert "displayed it" in note
+    assert "cannot open a new chat" not in note
+    assert "Connected systems" not in note
 
 
 def test_queued_mcp_message_is_returned_on_the_client_call():
