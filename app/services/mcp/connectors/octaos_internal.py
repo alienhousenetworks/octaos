@@ -13,6 +13,7 @@ from app.models.verticals import Lead, Ticket, TicketMessage, ContentPost, Candi
 from app.models.agents import KnowledgeDocument
 from app.models.boardroom_events import MeetingAction
 from app.models.automations import AutomationWorkflow
+from app.models.external_agents import ActivityEvent, ControllerCommand
 from app.services.mcp.connectors.base import (
     ConnectorAdapter,
     ConnectorContext,
@@ -76,6 +77,13 @@ CORE_OCTAOS_MODELS: Dict[str, Dict[str, Any]] = {
         "supported_operations": ["discover", "read", "query", "invoke"],
         "relationships": {},
     },
+    "activity_event": {
+        "model": ActivityEvent,
+        "display_name": "Activity Event",
+        "description": "First-class dashboard feed updates, operational notes, controller replies, and attachments",
+        "supported_operations": ["discover", "read", "query", "create"],
+        "relationships": {},
+    },
 }
 
 
@@ -114,16 +122,36 @@ def build_json_schema_for_model(model_cls: Type[Base]) -> Dict[str, Any]:
     mapper = inspect(model_cls)
     for col in mapper.columns:
         # Hide internal system columns from required writes
-        if col.name in ("id", "tenant_id", "created_at", "updated_at"):
+        if col.name in ("id", "tenant_id", "created_at", "updated_at", "actor", "source"):
             prop = sqlalchemy_column_to_json_schema_type(col)
             prop["readOnly"] = True
             properties[col.name] = prop
             continue
 
+
         prop = sqlalchemy_column_to_json_schema_type(col)
         properties[col.name] = prop
         if not col.nullable and col.default is None and col.server_default is None:
             required.append(col.name)
+
+    # Core business required fields even when underlying SQL column allows nulls
+    tbl = getattr(model_cls, "__tablename__", "").lower()
+    if tbl == "leads":
+        for req_field in ("name", "email"):
+            if req_field in properties and req_field not in required:
+                required.append(req_field)
+    elif tbl == "tickets":
+        for req_field in ("subject",):
+            if req_field in properties and req_field not in required:
+                required.append(req_field)
+    elif tbl == "content_posts":
+        for req_field in ("platform", "content"):
+            if req_field in properties and req_field not in required:
+                required.append(req_field)
+    elif tbl == "activity_events":
+        for req_field in ("title", "body"):
+            if req_field in properties and req_field not in required:
+                required.append(req_field)
 
     return {
         "type": "object",
@@ -285,6 +313,30 @@ class OctaOSInternalAdapter(ConnectorAdapter):
         if not meta:
             raise ValueError(f"Unknown business object: '{object_name}'")
 
+        # 1. Lead Specific Validation: Reject empty or placeholder values
+        if object_name.lower() == "lead":
+            name = str(values.get("name") or "").strip()
+            email = str(values.get("email") or "").strip().lower()
+            if not name or not email:
+                raise ValueError("Lead creation requires non-empty 'name' and 'email'.")
+            if email.endswith("@example.com") or email.endswith("@test.com") or email == "lead@example.com":
+                raise ValueError(f"Placeholder emails ('{email}') are strictly forbidden.")
+            if name.lower() in ("inbound lead", "placeholder lead", "test lead"):
+                raise ValueError(f"Placeholder lead name '{name}' is strictly forbidden.")
+
+        # 2. Activity Event Specific Mapping & Validation
+        if object_name.lower() == "activity_event":
+            title = str(values.get("title") or "").strip()
+            body = str(values.get("body") or "").strip()
+            if not title or not body:
+                raise ValueError("ActivityEvent requires non-empty 'title' and 'body'.")
+            if "attachments" in values and "attachments_json" not in values:
+                values["attachments_json"] = values["attachments"]
+            if "data" in values and "data_json" not in values:
+                values["data_json"] = values["data"]
+            if "actor" not in values:
+                values["actor"] = ctx.credential_id or "external_controller"
+
         model = meta["model"]
         db: Session = self.db_factory()
         try:
@@ -296,6 +348,25 @@ class OctaOSInternalAdapter(ConnectorAdapter):
 
             new_instance = model(**filtered_values)
             db.add(new_instance)
+
+            # Correlate ActivityEvent with ControllerCommand if applicable
+            if object_name.lower() == "activity_event":
+                corr_id = filtered_values.get("correlation_id")
+                if corr_id:
+                    cmd = db.query(ControllerCommand).filter(
+                        ControllerCommand.correlation_id == corr_id,
+                        ControllerCommand.tenant_id == ctx.tenant_id,
+                    ).first()
+                    if cmd:
+                        cmd.reply_summary = filtered_values.get("title", "")[:500]
+                        kind = filtered_values.get("kind", "status")
+                        if kind in ("result", "completed"):
+                            cmd.status = "completed"
+                        elif kind == "error":
+                            cmd.status = "failed"
+                        else:
+                            cmd.status = "acked"
+
             db.commit()
             db.refresh(new_instance)
             return row_to_dict(new_instance)

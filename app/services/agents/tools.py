@@ -208,6 +208,8 @@ class ToolRegistry:
             return await section_registry.execute_action("hr", name, tenant_id, payload, db)
         elif name == "webhook_post":
             return await self._exec_webhook_post(payload)
+        elif name == "external_agent.send_command":
+            return await self._exec_external_agent_send_command(payload, db, tenant_id, context)
         elif name == "knowledge.search":
             return await self._exec_knowledge_search(payload, db, tenant_id)
         elif name == "knowledge.search_sources":
@@ -286,6 +288,61 @@ class ToolRegistry:
                 "response_body": resp.text[:500],
                 "success": resp.status_code < 400,
             }
+
+    async def _exec_external_agent_send_command(
+        self,
+        payload: Dict[str, Any],
+        db: Session,
+        tenant_id: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        from app.models.external_agents import ControllerCommand
+        from app.services.webhooks.dispatcher import enqueue_webhook_event
+        import uuid
+
+        command_text = payload.get("command")
+        if not command_text:
+            raise ValueError("Missing 'command' in external_agent.send_command payload.")
+
+        connection_id = payload.get("connection_id")
+        correlation_id = payload.get("correlation_id") or f"cmd_{uuid.uuid4().hex[:12]}"
+        ctx = payload.get("context") or {}
+        actor = (context or {}).get("agent_name") or "OctaOS Agent"
+
+        cmd = ControllerCommand(
+            tenant_id=tenant_id,
+            connection_id=connection_id,
+            correlation_id=correlation_id,
+            command=command_text,
+            context_json=ctx,
+            status="sent",
+            issued_by=actor,
+        )
+        db.add(cmd)
+        db.commit()
+        db.refresh(cmd)
+
+        enqueue_webhook_event(
+            db=db,
+            tenant_id=tenant_id,
+            event_type="command.issued",
+            payload={
+                "command_id": cmd.id,
+                "correlation_id": correlation_id,
+                "command": cmd.command,
+                "context": cmd.context_json,
+                "issued_by": actor,
+                "reply_endpoint": "/api/v1/controller/replies",
+            },
+            correlation_id=correlation_id,
+        )
+
+        return {
+            "success": True,
+            "command_id": cmd.id,
+            "correlation_id": correlation_id,
+            "status": cmd.status,
+        }
 
     async def _exec_knowledge_search(self, payload: Dict[str, Any], db: Session, tenant_id: str) -> Dict[str, Any]:
         from app.models.agents import KnowledgeDocument
@@ -608,6 +665,37 @@ class ToolRegistry:
                 risk_level="HIGH",
                 side_effect="WRITE",
                 approval_required=True,
+            )
+        )
+
+        # 7b. external_agent.send_command (Governed Command Dispatch to External Agents)
+        self.register(
+            ToolDefinition(
+                name="external_agent.send_command",
+                description="Sends a governed command to an external AI agent controller (e.g. Grok Bot, Claude Agent, n8n webhook) with correlation tracking and callback listener.",
+                input_schema={
+                    "type": "object",
+                    "required": ["command"],
+                    "properties": {
+                        "connection_id": {"type": "string", "description": "Target external agent connection ID (optional)"},
+                        "command": {"type": "string", "description": "Directive or task instructions for the external controller"},
+                        "correlation_id": {"type": "string", "description": "Tracking correlation ID"},
+                        "context": {"type": "object", "description": "Structured context, parameters, or file URLs"},
+                    },
+                },
+                output_schema={
+                    "type": "object",
+                    "properties": {
+                        "success": {"type": "boolean"},
+                        "command_id": {"type": "string"},
+                        "correlation_id": {"type": "string"},
+                        "status": {"type": "string"},
+                    },
+                },
+                required_scopes=["webhook:write"],
+                risk_level="MEDIUM",
+                side_effect="WRITE",
+                approval_required=False,
             )
         )
 

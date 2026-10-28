@@ -370,25 +370,25 @@ DOMAIN_WRAPPERS_SPEC: List[Dict[str, Any]] = [
     },
     {
         "name": "octaos_upload_media_or_document",
-        "description": "Upload or ingest any media (video, image, audio) or document (PDF, docx, csv, markdown) into OctaOS secure storage with quarantine inspection, returning a permanent sanitized URL and metadata.",
+        "description": "Upload or ingest any media (video, image, audio) or document (PDF, docx, xlsx, pptx, csv, markdown, code, archive) into OctaOS secure storage with quarantine inspection, returning a permanent sanitized URL and rich metadata.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "file_name": {
                     "type": "string",
-                    "description": "File name including extension (e.g. video.mp4, doc.pdf)",
+                    "description": "File name including extension (e.g. video.mp4, doc.pdf, audio.mp3, sheet.xlsx)",
                 },
                 "media_base64": {
                     "type": "string",
-                    "description": "Base64 encoded string or data URI",
+                    "description": "Base64 encoded payload or data URI",
                 },
                 "media_url": {
                     "type": "string",
-                    "description": "External URL to download and ingest",
+                    "description": "External URL to download, quarantine, and ingest",
                 },
                 "mime_type": {
                     "type": "string",
-                    "description": "MIME type (e.g. video/mp4, image/jpeg, application/pdf)",
+                    "description": "MIME type (e.g. video/mp4, image/png, audio/mpeg, application/pdf)",
                 },
             },
             "required": [],
@@ -397,6 +397,92 @@ DOMAIN_WRAPPERS_SPEC: List[Dict[str, Any]] = [
         "wrapper_target": {
             "source": "marketing",
             "object": "media_asset",
+            "action": "create",
+        },
+    },
+    {
+        "name": "octaos_get_media_or_document",
+        "description": "Retrieve or inspect any media asset, document, or file stored in OctaOS by URL or filename. Returns metadata, public URL, and optional base64 content chunks.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "file_url": {
+                    "type": "string",
+                    "description": "Public URL or filename of the stored media/document asset.",
+                },
+                "include_base64": {
+                    "type": "boolean",
+                    "description": "Whether to return the base64-encoded file content (default false).",
+                    "default": False,
+                },
+                "max_bytes": {
+                    "type": "integer",
+                    "description": "Maximum bytes to decode in base64 if include_base64 is true (default 5242880 = 5MB).",
+                    "default": 5242880,
+                },
+            },
+            "required": ["file_url"],
+        },
+        "required_action": "invoke",
+        "wrapper_target": {
+            "source": "marketing",
+            "object": "media_asset",
+            "action": "invoke",
+            "action_name": "octaos.media.get_asset",
+        },
+    },
+    {
+        "name": "octaos_post_status",
+        "description": "Post a status note, progress update, execution result, or error into the OctaOS dashboard activity feed. Use this instead of inventing fake knowledge documents. Supports attachments (media, documents, spreadsheets).",
+        "inputSchema": {
+            "type": "object",
+            "required": ["title", "body"],
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "Short headline or status title",
+                },
+                "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20000,
+                    "description": "Markdown body detailing task progress or outcome",
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": ["status", "result", "error", "progress"],
+                    "default": "status",
+                    "description": "Classification of this update",
+                },
+                "correlation_id": {
+                    "type": "string",
+                    "description": "Correlation ID from inbound command or outbound event",
+                },
+                "attachments": {
+                    "type": "array",
+                    "description": "Optional list of media or document attachments",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "url": {"type": "string"},
+                            "mime_type": {"type": "string"},
+                            "size_bytes": {"type": "integer"},
+                        },
+                    },
+                },
+                "data": {
+                    "type": "object",
+                    "description": "Structured metadata or evidence payload",
+                },
+            },
+        },
+        "required_action": "create",
+        "wrapper_target": {
+            "source": "octaos",
+            "object": "activity_event",
             "action": "create",
         },
     },
@@ -467,9 +553,9 @@ class CapabilityRegistry:
         """
         Routes tool execution through the single governed execution dispatcher.
         """
-        # Check domain wrappers first
-        for dw in DOMAIN_WRAPPERS_SPEC:
-            if dw["name"] == tool_name:
+        # Check domain wrappers and universal tools with wrapper_target
+        for dw in DOMAIN_WRAPPERS_SPEC + UNIVERSAL_TOOLS_SPEC:
+            if dw["name"] == tool_name and "wrapper_target" in dw:
                 target = dw["wrapper_target"]
                 source = target["source"]
                 obj = target["object"]

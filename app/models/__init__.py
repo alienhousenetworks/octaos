@@ -41,3 +41,5 @@ from app.models import agent_runtime
 from app.models import sales_workflow as sales_workflow_models
 from app.models import lifecycle
 from app.models import collaborative_workforce as collaborative_workforce_models
+from app.models import external_agents
+

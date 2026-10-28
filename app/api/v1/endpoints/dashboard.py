@@ -1686,3 +1686,47 @@ async def test_agent(
         dry_run=False,
     )
     return {"response": res["output"], "agent": request.agent_name, "tool_calls": res["tool_calls"]}
+
+
+@router.get("/activity")
+def get_dashboard_activity(
+    *,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    correlation_id: Optional[str] = Query(None),
+    kind: Optional[str] = Query(None),
+    source: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> Any:
+    """Retrieve first-class activity events with attachments and correlation metadata."""
+    from app.models.external_agents import ActivityEvent
+    query = db.query(ActivityEvent).filter(ActivityEvent.tenant_id == tenant_id)
+    if correlation_id:
+        query = query.filter(ActivityEvent.correlation_id == correlation_id)
+    if kind:
+        query = query.filter(ActivityEvent.kind == kind)
+    if source:
+        query = query.filter(ActivityEvent.source == source)
+
+    total = query.count()
+    items = query.order_by(ActivityEvent.created_at.desc()).offset(offset).limit(limit).all()
+    return {
+        "items": [
+            {
+                "id": it.id,
+                "correlation_id": it.correlation_id,
+                "source": it.source,
+                "actor": it.actor,
+                "kind": it.kind,
+                "title": it.title,
+                "body": it.body,
+                "attachments": it.attachments_json or [],
+                "data": it.data_json or {},
+                "created_at": it.created_at.isoformat() if it.created_at else None,
+            }
+            for it in items
+        ],
+        "total": total,
+    }
+

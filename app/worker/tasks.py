@@ -1845,3 +1845,39 @@ def run_research_search_task(
         raise
     finally:
         db.close()
+
+
+@celery_app.task(name="dispatch_webhook_delivery_task", bind=True, max_retries=4)
+def dispatch_webhook_delivery_task(self, delivery_id: str):
+    """Dispatches an outbound webhook event with exponential retry backoff."""
+    from app.models.external_agents import WebhookDelivery, ExternalAgentConnection
+    from app.services.webhooks.dispatcher import deliver_webhook
+    from datetime import datetime, timezone, timedelta
+
+    db = SessionLocal()
+    try:
+        delivery = db.query(WebhookDelivery).filter(WebhookDelivery.id == delivery_id).first()
+        if not delivery or delivery.status == "delivered":
+            return {"status": "skipped", "delivery_id": delivery_id}
+
+        connection = db.query(ExternalAgentConnection).filter(ExternalAgentConnection.id == delivery.connection_id).first()
+        if not connection or not connection.enabled:
+            delivery.status = "dead"
+            delivery.last_error = "Connection missing or disabled"
+            db.commit()
+            return {"status": "cancelled", "delivery_id": delivery_id}
+
+        res = async_to_sync(deliver_webhook)(connection, delivery.payload_json, db, delivery_record=delivery)
+        if res.status != "delivered" and self.request.retries < self.max_retries:
+            backoff_delays = [30, 120, 600, 3600]
+            countdown = backoff_delays[min(self.request.retries, len(backoff_delays) - 1)]
+            delivery.next_attempt_at = datetime.now(timezone.utc) + timedelta(seconds=countdown)
+            db.commit()
+            raise self.retry(countdown=countdown)
+        elif res.status != "delivered":
+            delivery.status = "dead"
+            db.commit()
+        return {"status": res.status, "delivery_id": delivery_id, "http_status": res.last_http_status}
+    finally:
+        db.close()
+

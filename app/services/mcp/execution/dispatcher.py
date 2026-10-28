@@ -141,6 +141,13 @@ class GovernedExecutionDispatcher:
                 obj_meta = await adapter.describe_object(ctx, object_name)
                 if obj_meta:
                     record_data = parameters.get("record") or parameters.get("values") or {}
+                    req_fields = obj_meta.json_schema.get("required") or []
+                    if action == "create" and req_fields and not record_data:
+                        return ToolResult(
+                            content=[TextContent(text=f"Validation Error: Empty argument payload rejected. Required: {req_fields}")],
+                            isError=True,
+                            metadata={"validation_errors": [{"error": "empty_arguments", "message": f"Payload cannot be empty. Missing {req_fields}"}]},
+                        )
                     is_valid, val_errors = validate_record_against_schema(
                         record=record_data,
                         json_schema=obj_meta.json_schema,

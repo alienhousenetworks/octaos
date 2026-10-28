@@ -31,11 +31,12 @@ def validate_record_against_schema(
 
     # 1. Check required fields
     for req_field in required:
-        if req_field not in record or record[req_field] is None:
+        val = record.get(req_field)
+        if val is None or (isinstance(val, str) and not val.strip()):
             errors.append({
                 "field": req_field,
                 "error": "missing_required_field",
-                "message": f"Required field '{req_field}' is missing.",
+                "message": f"Required field '{req_field}' must be provided and non-empty.",
             })
 
     # 2. Check property types and constraints

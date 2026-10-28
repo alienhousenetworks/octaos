@@ -21,6 +21,9 @@ from app.services.media.storage import (
     ensure_public_url,
     validate_and_quarantine_media,
     _write_bytes,
+    store_media_bytes,
+    get_media_asset,
+    read_media_asset_bytes,
 )
 from app.services.audit_service import AuditService
 import base64
@@ -234,7 +237,12 @@ class MarketingIntegrationsAdapter(ConnectorAdapter):
     ) -> Optional[Dict[str, Any]]:
         db = self._get_db()
         try:
-            if object_name == "firmographic_enrichment":
+            if object_name == "media_asset":
+                asset = get_media_asset(record_id)
+                if not asset:
+                    return None
+                return asset
+            elif object_name == "firmographic_enrichment":
                 service = ZoomInfoService(db, ctx.tenant_id)
                 return await service.enrich_company(record_id)
             return None
@@ -253,26 +261,43 @@ class MarketingIntegrationsAdapter(ConnectorAdapter):
             if object_name == "media_asset":
                 raw_b64 = values.get("media_base64")
                 url = values.get("media_url")
-                filename = values.get("file_name", "upload")
+                filename = values.get("file_name") or values.get("filename") or "upload"
                 declared_mime = values.get("mime_type")
 
                 if raw_b64:
                     if "," in raw_b64 and "data:" in raw_b64:
                         public_url_res = await ensure_public_url(raw_b64, prefix="asset")
-                        return {"status": "success", "url": public_url_res, "source": "data_uri"}
+                        asset_meta = get_media_asset(public_url_res) or {}
+                        return {
+                            "status": "success",
+                            "url": public_url_res,
+                            "source": "data_uri",
+                            "filename": filename,
+                            "mime_type": asset_meta.get("mime_type"),
+                            "size_bytes": asset_meta.get("size_bytes"),
+                            "sha256": asset_meta.get("sha256"),
+                        }
                     else:
                         try:
                             content = base64.b64decode(raw_b64)
-                            valid, detected_mime, err = validate_and_quarantine_media(content, declared_mime, filename)
-                            if not valid:
-                                return {"status": "error", "message": f"Quarantine rejection: {err}"}
-                            public_url_res = _write_bytes(content, detected_mime, prefix="asset")
-                            return {"status": "success", "url": public_url_res, "mime_type": detected_mime}
+                            meta = store_media_bytes(
+                                content, filename=filename, declared_mime=declared_mime, prefix="asset"
+                            )
+                            return {"status": "success", **meta}
                         except Exception as e:
                             return {"status": "error", "message": f"Base64 decode failed: {str(e)}"}
                 elif url:
                     public_url_res = await ensure_public_url(url, default_mime=declared_mime or "application/octet-stream", prefix="asset")
-                    return {"status": "success", "url": public_url_res, "source": "remote_url"}
+                    asset_meta = get_media_asset(public_url_res) or {}
+                    return {
+                        "status": "success",
+                        "url": public_url_res,
+                        "source": "remote_url",
+                        "filename": filename,
+                        "mime_type": asset_meta.get("mime_type") or declared_mime,
+                        "size_bytes": asset_meta.get("size_bytes"),
+                        "sha256": asset_meta.get("sha256"),
+                    }
                 return {"status": "error", "message": "Provide 'media_base64' or 'media_url'."}
             elif object_name == "email_campaign":
                 service = SendGridService(db, ctx.tenant_id)
@@ -556,6 +581,21 @@ class MarketingIntegrationsAdapter(ConnectorAdapter):
                     "media_url": media_url,
                     "note": res.note or res.error,
                 }
+            elif action_name in ("octaos.media.get_asset", "get_media_asset"):
+                ident = arguments.get("file_url") or arguments.get("identifier") or arguments.get("filename") or ""
+                asset = get_media_asset(ident)
+                if not asset:
+                    return {"status": "error", "message": f"Asset not found for identifier '{ident}'"}
+                include_b64 = arguments.get("include_base64", False)
+                max_bytes = arguments.get("max_bytes", 5 * 1024 * 1024)
+                resp = dict(asset)
+                if include_b64:
+                    raw_tuple = read_media_asset_bytes(ident, max_bytes=max_bytes)
+                    if raw_tuple:
+                        b_content, _, _ = raw_tuple
+                        resp["base64"] = base64.b64encode(b_content).decode("ascii")
+                        resp["base64_truncated"] = len(b_content) < asset["size_bytes"]
+                return {"status": "success", "asset": resp}
             return {"status": "unsupported_action", "action_name": action_name}
         finally:
             if db:

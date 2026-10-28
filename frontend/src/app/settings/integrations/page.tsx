@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+
 
 type Channel = { id: string; name: string; service: string };
 type Organization = { id: string; name: string; channels: Channel[] };
@@ -146,6 +148,16 @@ export default function IntegrationsPage() {
         <h1 className="text-3xl font-semibold tracking-tight">Publishing integrations</h1>
         <p className="max-w-2xl text-muted-foreground">Connect Buffer once, choose your connected social channels, and let OctaOS prepare and schedule approved campaign content. Tokens stay on the server.</p>
       </header>
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-primary/20 bg-primary/5 p-5">
+        <div>
+          <h2 className="font-semibold text-base">External Agent Controllers & Webhooks</h2>
+          <p className="text-xs text-muted-foreground">Integrate Grok Bot, Claude/ChatGPT agents, n8n, Zapier, and custom AI bots with bidirectional sync.</p>
+        </div>
+        <Link href="/settings/integrations/external-agents" className="shrink-0 rounded-xl bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:opacity-90 w-fit">
+          Manage External Agents →
+        </Link>
+      </div>
 
       {error && <div role="alert" className="rounded-xl border border-red-500/40 bg-red-500/5 p-4 text-sm">{error}</div>}
       {message && <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm">{message}</div>}

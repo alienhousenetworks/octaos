@@ -12,7 +12,9 @@ from app.api.v1.endpoints import (
     sales_crm, sales_inbox, sales_platform, sales_inbound_webhooks,
     integrations, rbac, heygen, autonomous_work, buffer_oauth, workforce_events,
     research, unified_email, plugins,
+    controller_replies, external_agents,
 )
+
 
 from app.api.v1.orchestrator import router as orchestrator_router
 from app.api.v1.data_intelligence import router as data_intelligence_router
@@ -82,3 +84,6 @@ api_router.include_router(buffer_oauth.router, prefix="/marketing/connectors/buf
 api_router.include_router(workforce_events.router, prefix="/workforce/events", tags=["workforce-events"])
 api_router.include_router(unified_email.router, prefix="/unified-mail", tags=["unified-email"])
 api_router.include_router(plugins.router, prefix="/plugin", tags=["universal-plugins"])
+api_router.include_router(controller_replies.router, prefix="/controller", tags=["controller-replies"])
+api_router.include_router(external_agents.router, prefix="/integrations/external-agents", tags=["external-agents"])
+
