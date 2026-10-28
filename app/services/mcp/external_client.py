@@ -65,8 +65,20 @@ def validate_external_mcp_config(config: Dict[str, Any]) -> Dict[str, Any]:
         parsed = urlparse(endpoint)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError("MCP endpoint must be a valid http:// or https:// URL.")
+        if parsed.username or parsed.password:
+            raise ValueError("Credentials must be supplied through encrypted headers, not embedded in the endpoint URL.")
         normalized["endpoint"] = endpoint
     else:
+        # stdio executes a command on the OctaOS host. It is unsafe to let a
+        # tenant-configurable endpoint spawn arbitrary host processes in a
+        # shared deployment. Use a dedicated sandboxed runner for production.
+        allow_stdio = os.getenv("OCTAOS_MCP_ALLOW_UNSANDBOXED_STDIO", "").strip().lower()
+        if allow_stdio not in {"1", "true", "yes"}:
+            raise ValueError(
+                "stdio MCP execution is disabled by default because it runs commands on the OctaOS host. "
+                "Use remote HTTPS MCP or an isolated runner. Explicit opt-in requires "
+                "OCTAOS_MCP_ALLOW_UNSANDBOXED_STDIO=true."
+            )
         command = str(normalized.get("command") or "").strip()
         if not command:
             raise ValueError("stdio MCP servers require a command.")
