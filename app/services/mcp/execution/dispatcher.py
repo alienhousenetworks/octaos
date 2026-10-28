@@ -260,6 +260,14 @@ class GovernedExecutionDispatcher:
         elif action == "invoke":
             action_name = parameters.get("action_name") or parameters.get("action")
             arguments = parameters.get("arguments") or parameters.get("args") or {}
+            # Pass the acknowledgement only to the external MCP adapter. The
+            # adapter removes this internal marker before sending arguments to
+            # the remote tool, so it never pollutes a provider's input schema.
+            if isinstance(adapter, ExternalMCPAdapter):
+                arguments = dict(arguments)
+                arguments["__octaos_confirm_side_effects"] = bool(
+                    parameters.get("confirm_side_effects", False)
+                )
             return await adapter.invoke_action(ctx, action_name, arguments)
 
         raise ValueError(f"Unsupported action: '{action}'")
