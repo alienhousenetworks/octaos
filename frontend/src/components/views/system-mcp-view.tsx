@@ -698,6 +698,7 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
               </div>
             ))
           )}
+        </div>
       </div>
 
       {/* Bidirectional Universal AI Collaboration Engine Section */}
