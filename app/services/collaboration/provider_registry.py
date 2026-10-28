@@ -158,8 +158,9 @@ class ProviderDescriptor(BaseModel):
     display_name: str
     default_model: str
     supported_models: List[str]
-    status: str = Field(description="'connected', 'not_configured', or 'error'")
+    status: str = Field(description="'configured', 'verified_reachable', 'not_configured', or 'error'")
     is_connected: bool
+    is_configured: bool = False
     supported_capabilities: List[str]
     supported_modalities: List[str]
     supported_tool_interfaces: List[str]
@@ -191,9 +192,9 @@ class AIProviderRegistry:
         verify_health: bool = False,
     ) -> List[ProviderDescriptor]:
         """
-        Inspect the tenant's configured credentials.
-        A provider is reported as connected ONLY if it is configured in the database
-        with a valid, decryptable credential and permitted scope.
+        Inspect credentials without confusing configuration with live reachability.
+        A decrypted key only proves configuration; live connectivity is verified by a
+        successful provider request and recorded by its caller.
         """
         credentials = db.query(APICredential).filter(APICredential.tenant_id == tenant_id).all()
         cred_map: Dict[str, APICredential] = {}
@@ -231,7 +232,7 @@ class AIProviderRegistry:
             permitted_scopes = settings.get("permitted_scopes") or spec["capabilities"]
             data_sharing = settings.get("data_sharing_scope", spec["default_data_sharing"])
 
-            status = "connected" if is_configured else "not_configured"
+            status = "configured" if is_configured else "not_configured"
 
             descriptors.append(
                 ProviderDescriptor(
@@ -240,7 +241,7 @@ class AIProviderRegistry:
                     default_model=spec["default_model"],
                     supported_models=spec["supported_models"],
                     status=status,
-                    is_connected=is_configured,
+                    is_connected=False,\n                    is_configured=is_configured,
                     supported_capabilities=spec["capabilities"],
                     supported_modalities=spec["modalities"],
                     supported_tool_interfaces=spec["tool_interfaces"],
@@ -272,12 +273,17 @@ class AIProviderRegistry:
         all_providers = cls.get_connected_providers(db, tenant_id)
         eligible = []
         for p in all_providers:
-            if not p.is_connected:
+            # A configured provider is a candidate, not a proven-live connection.
+            # The actual dispatch is the reachability check and must fail closed.
+            if not p.is_configured:
                 continue
             has_capabilities = all(cap in p.supported_capabilities for cap in required_capabilities)
             if not has_capabilities:
                 continue
-            if max_cost is not None and p.cost_ceiling_usd < max_cost:
+            # max_cost is a per-task spend budget, while cost_ceiling_usd is
+            # the tenant's configured provider-account ceiling. They are different
+            # dimensions and must not be compared as if they were interchangeable.
+            if max_cost is not None and max_cost <= 0:
                 continue
             eligible.append(p)
         return eligible
