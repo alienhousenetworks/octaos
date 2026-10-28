@@ -26,6 +26,26 @@ class BaseAgent:
         self.db.add(log)
         self.db.commit()
 
+    async def collaborate_with_external_ai(
+        self,
+        task: Dict[str, Any],
+        required_capabilities: List[str],
+        context: Optional[Dict[str, Any]] = None,
+        constraints: Optional[Dict[str, Any]] = None,
+        parent_task_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Collaborate with a connected frontier external AI model."""
+        from app.services.collaboration.engine import AICollaborationEngine
+        engine = AICollaborationEngine(self.db, self.tenant_id)
+        return await engine.collaborate_with_external_ai(
+            task=task,
+            required_capabilities=required_capabilities,
+            context=context or {},
+            constraints=constraints,
+            calling_agent=self.agent_name,
+            parent_task_id=parent_task_id,
+        )
+
     def get_knowledge_context(self, task_type: str = "general_task", department: str = None) -> str:
         from app.services.rag.hybrid_engine import HybridRAGEngine
 

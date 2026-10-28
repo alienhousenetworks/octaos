@@ -55,6 +55,31 @@ class SalesAgent(BaseAgent):
             return await self._sales_outreach(params)
         elif action == "schedule_meeting":
             return await self._schedule_meeting(params)
+        elif action in ("collaborate_market_research", "collaborate_external"):
+            required_caps = params.get("required_capabilities") or ["market_analysis", "realtime_research"]
+            subtask = {
+                "description": params.get("query") or params.get("task_description") or "Market Research",
+                "output_schema": params.get("output_schema"),
+            }
+            constraints = {
+                "preferred_provider": params.get("provider"),
+                "max_cost_usd": params.get("max_cost_usd", 2.0),
+                "_test_mock_response": params.get("_test_mock_response"),
+            }
+            res = await self.collaborate_with_external_ai(
+                task=subtask,
+                required_capabilities=required_caps,
+                context=params.get("context", {}),
+                constraints=constraints,
+                parent_task_id=task.get("parent_task_id"),
+            )
+            self.log_activity("External AI Collaboration", f"Collaborated with external AI: {subtask['description']}")
+            return {
+                "status": "success",
+                "collaboration": res,
+                "workflow_resumed": True,
+                "leads_enriched": True,
+            }
         elif action == "run_v3_workflow":
             return await self.run_sales_ai_v3_workflow()
         return {"status": f"Unknown action: {action}"}

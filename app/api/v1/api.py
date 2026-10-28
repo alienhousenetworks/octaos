@@ -11,7 +11,7 @@ from app.api.v1.endpoints import (
     hr_people, hr_workforce, hr_copilot, hr_enterprise, hr_compensation_read,
     sales_crm, sales_inbox, sales_platform, sales_inbound_webhooks,
     integrations, rbac, heygen, autonomous_work, buffer_oauth, workforce_events,
-    research,
+    research, unified_email, plugins,
 )
 
 from app.api.v1.orchestrator import router as orchestrator_router
@@ -80,3 +80,5 @@ api_router.include_router(heygen.router, prefix="/integrations/heygen", tags=["h
 api_router.include_router(buffer_oauth.router, prefix="/marketing/connectors/buffer", tags=["marketing-buffer"])
 
 api_router.include_router(workforce_events.router, prefix="/workforce/events", tags=["workforce-events"])
+api_router.include_router(unified_email.router, prefix="/unified-mail", tags=["unified-email"])
+api_router.include_router(plugins.router, prefix="/plugin", tags=["universal-plugins"])

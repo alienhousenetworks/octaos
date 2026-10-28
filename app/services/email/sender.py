@@ -80,6 +80,15 @@ def send_gmail_email(creds_dict: dict, to_email: str, subject: str, body: str):
     }
 
 
+def check_universal_email_configured(db: Session, tenant_id: str) -> bool:
+    try:
+        from app.services.email.universal_provider import get_universal_mailbox_provider
+        provider = get_universal_mailbox_provider(db, tenant_id)
+        return bool(provider and provider.is_configured())
+    except Exception:
+        return False
+
+
 def check_gmail_configured(db: Session, tenant_id: str) -> bool:
     cred = get_credential(db, tenant_id, "gmail")
     return bool(cred and cred.encrypted_key)
@@ -100,6 +109,13 @@ def send_email(
     body: str,
     channel: str = "smtp",
 ) -> Dict[str, Any]:
+    if channel in ("universal", "unipile", "emailengine"):
+        from app.services.email.universal_provider import get_universal_mailbox_provider
+        provider = get_universal_mailbox_provider(db, tenant_id)
+        if provider and provider.is_configured():
+            return provider.send_email(to_email, subject, body)
+        return {"sent": False, "reason": "Universal email provider not configured"}
+
     if channel == "gmail":
         if not check_gmail_configured(db, tenant_id):
             return {"sent": False, "reason": "Gmail not configured"}
@@ -129,21 +145,25 @@ def send_email_with_status(
     to_email: str,
     subject: str,
     body: str,
+    thread_id: Optional[str] = None,
+    in_reply_to: Optional[str] = None,
 ) -> dict:
     """
-    Try to send email via Gmail first, then SMTP.
+    Try to send email via Universal Mailbox (Google/Outlook/IMAP) first,
+    then Gmail OAuth, then SMTP.
     Always returns a structured dict: {sent, channel, reason, message}.
     Never raises — safe to call without try/except.
     """
+    universal_ok = check_universal_email_configured(db, tenant_id)
     gmail_ok = check_gmail_configured(db, tenant_id)
     smtp_ok = check_smtp_configured(db, tenant_id)
 
-    if not gmail_ok and not smtp_ok:
+    if not universal_ok and not gmail_ok and not smtp_ok:
         return {
             "sent": False,
             "channel": None,
             "reason": "no_email_configured",
-            "message": "Neither SMTP nor Gmail is configured. Add credentials in API Management.",
+            "message": "No email provider configured. Connect Google Workspace, Microsoft 365, or SMTP in API Management.",
         }
 
     if not to_email:
@@ -154,7 +174,32 @@ def send_email_with_status(
             "message": "No email address available for this lead.",
         }
 
-    # Try Gmail first
+    # 1. Try Universal Mailbox first (Unipile, EmailEngine, Aurinko)
+    if universal_ok:
+        try:
+            from app.services.email.universal_provider import get_universal_mailbox_provider
+            provider = get_universal_mailbox_provider(db, tenant_id)
+            if provider and provider.is_configured():
+                res = provider.send_email(
+                    to_email,
+                    subject,
+                    body,
+                    thread_id=thread_id,
+                    in_reply_to=in_reply_to,
+                )
+                if res.get("sent"):
+                    return {
+                        "sent": True,
+                        "channel": "universal",
+                        "provider": provider.name,
+                        "reason": "success",
+                        "message": f"Sent via Universal Mailbox ({provider.name})",
+                        "details": res,
+                    }
+        except Exception:
+            pass  # Fall through to Gmail or SMTP
+
+    # 2. Try Gmail next
     if gmail_ok:
         try:
             cred = get_credential(db, tenant_id, "gmail")
@@ -165,7 +210,7 @@ def send_email_with_status(
         except Exception as e:
             pass  # Fall through to SMTP
 
-    # Try SMTP
+    # 3. Try SMTP fallback
     if smtp_ok:
         try:
             cred = get_credential(db, tenant_id, "smtp")

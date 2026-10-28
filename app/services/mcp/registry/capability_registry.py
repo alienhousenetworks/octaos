@@ -268,6 +268,157 @@ DOMAIN_WRAPPERS_SPEC: List[Dict[str, Any]] = [
         "required_action": "invoke",
         "wrapper_target": {"source": "octaos", "object": "workflow", "action": "invoke", "action_name": "octaos.workflows.trigger"},
     },
+    {
+        "name": "octaos_delegate_ai_employee",
+        "description": "Delegate a high-level goal or task to an autonomous OctaOS AI Employee (marketing, sales, support, hr, or ceo).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "employee": {
+                    "type": "string",
+                    "description": "Target AI Employee vertical role",
+                    "enum": ["marketing", "sales", "support", "hr", "ceo"],
+                },
+                "task_type": {
+                    "type": "string",
+                    "description": "Task category: publish_social_content, qualify_leads, triage_tickets, execute_directive",
+                    "default": "execute_task",
+                },
+                "parameters": {
+                    "type": "object",
+                    "description": "Key-value parameters for the task execution",
+                },
+                "instructions": {
+                    "type": "string",
+                    "description": "Natural language instructions and guidance for the AI Employee",
+                },
+            },
+            "required": ["employee"],
+        },
+        "required_action": "invoke",
+        "wrapper_target": {
+            "source": "marketing",
+            "object": "ai_employee",
+            "action": "invoke",
+            "action_name": "octaos.ai_employee.delegate",
+        },
+    },
+    {
+        "name": "octaos_query_ai_workforce",
+        "description": "Query status, daily quotas, standup reports, and operational health of OctaOS AI Employees.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "employee": {
+                    "type": "string",
+                    "description": "Optional specific employee role to inspect (marketing, sales, support, hr)",
+                },
+            },
+            "required": [],
+        },
+        "required_action": "query",
+        "wrapper_target": {
+            "source": "marketing",
+            "object": "ai_employee",
+            "action": "query",
+        },
+    },
+    {
+        "name": "octaos_social_publish_post",
+        "description": "Publish or schedule a social media post across Instagram, Facebook, LinkedIn, or X with media asset attachment (video, image) and optional Marketing AI enhancement.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "platform": {
+                    "type": "string",
+                    "description": "Target social platform",
+                    "enum": ["instagram", "facebook", "linkedin", "x"],
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Post caption or message text",
+                },
+                "media_url": {
+                    "type": "string",
+                    "description": "Public URL of video or image",
+                },
+                "media_base64": {
+                    "type": "string",
+                    "description": "Base64 data URI of video (e.g. data:video/mp4;base64,...) or image",
+                },
+                "media_type": {
+                    "type": "string",
+                    "description": "Media asset type",
+                    "enum": ["video", "image", "reel"],
+                    "default": "image",
+                },
+                "auto_optimize_with_marketing_ai": {
+                    "type": "boolean",
+                    "description": "Let OctaOS Marketing AI optimize caption tone and hashtags",
+                    "default": True,
+                },
+            },
+            "required": ["platform"],
+        },
+        "required_action": "invoke",
+        "wrapper_target": {
+            "source": "marketing",
+            "object": "social_post",
+            "action": "invoke",
+            "action_name": "octaos.social.publish_post",
+        },
+    },
+    {
+        "name": "octaos_upload_media_or_document",
+        "description": "Upload or ingest any media (video, image, audio) or document (PDF, docx, csv, markdown) into OctaOS secure storage with quarantine inspection, returning a permanent sanitized URL and metadata.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "file_name": {
+                    "type": "string",
+                    "description": "File name including extension (e.g. video.mp4, doc.pdf)",
+                },
+                "media_base64": {
+                    "type": "string",
+                    "description": "Base64 encoded string or data URI",
+                },
+                "media_url": {
+                    "type": "string",
+                    "description": "External URL to download and ingest",
+                },
+                "mime_type": {
+                    "type": "string",
+                    "description": "MIME type (e.g. video/mp4, image/jpeg, application/pdf)",
+                },
+            },
+            "required": [],
+        },
+        "required_action": "create",
+        "wrapper_target": {
+            "source": "marketing",
+            "object": "media_asset",
+            "action": "create",
+        },
+    },
+    {
+        "name": "octaos_ingest_knowledge_document",
+        "description": "Ingest an enterprise knowledge document (policy, guidelines, contract, SOP) into OctaOS context for AI Employee retrieval.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Document title"},
+                "content": {"type": "string", "description": "Document text/markdown body"},
+                "category": {"type": "string", "default": "general"},
+            },
+            "required": ["title", "content"],
+        },
+        "required_action": "create",
+        "wrapper_target": {
+            "source": "octaos",
+            "object": "knowledge_document",
+            "action": "create",
+        },
+    },
 ]
 
 
@@ -329,6 +480,8 @@ class CapabilityRegistry:
                     params["arguments"] = arguments
                 elif action == "create":
                     params = {"record": arguments}
+                elif action == "query":
+                    params = arguments
                 return await self.dispatcher.execute(
                     credential=credential,
                     connector_slug=source,

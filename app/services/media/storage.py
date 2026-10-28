@@ -17,6 +17,58 @@ logger = logging.getLogger(__name__)
 
 DATA_URL_RE = re.compile(r"^data:([^;]+);base64,(.+)$", re.DOTALL)
 
+MAX_MEDIA_SIZE_BYTES = 100 * 1024 * 1024  # 100 MB limit
+MAX_DOCUMENT_SIZE_BYTES = 25 * 1024 * 1024  # 25 MB limit
+FORBIDDEN_EXTENSIONS = {".exe", ".bat", ".cmd", ".sh", ".py", ".bin", ".elf", ".dll", ".so", ".dylib", ".vbs", ".ps1"}
+
+
+def validate_and_quarantine_media(
+    content: bytes,
+    declared_mime: Optional[str] = None,
+    filename: Optional[str] = None,
+) -> Tuple[bool, str, str]:
+    """
+    Validates payload against size limits, forbidden extensions, and known magic bytes.
+    Returns (is_valid, resolved_mime, error_message).
+    """
+    if not content:
+        return False, "", "Empty payload."
+
+    if len(content) > MAX_MEDIA_SIZE_BYTES:
+        return False, "", f"Payload size exceeds maximum limit of {MAX_MEDIA_SIZE_BYTES // (1024 * 1024)}MB."
+
+    if filename:
+        ext = Path(filename).suffix.lower()
+        if ext in FORBIDDEN_EXTENSIONS:
+            return False, "", f"File extension '{ext}' is forbidden for security quarantine."
+
+    detected_mime = declared_mime or "application/octet-stream"
+    if content.startswith(b"\xff\xd8\xff"):
+        detected_mime = "image/jpeg"
+    elif content.startswith(b"\x89PNG\r\n\x1a\n"):
+        detected_mime = "image/png"
+    elif content.startswith(b"GIF87a") or content.startswith(b"GIF89a"):
+        detected_mime = "image/gif"
+    elif content.startswith(b"RIFF") and len(content) >= 12 and content[8:12] == b"WEBP":
+        detected_mime = "image/webp"
+    elif len(content) >= 12 and content[4:8] == b"ftyp":
+        detected_mime = "video/mp4"
+    elif content.startswith(b"%PDF-"):
+        detected_mime = "application/pdf"
+    elif content.startswith(b"PK\x03\x04"):
+        if declared_mime and "word" in declared_mime:
+            detected_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        elif declared_mime and "excel" in declared_mime:
+            detected_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        else:
+            detected_mime = declared_mime or "application/zip"
+    elif declared_mime in ("text/plain", "text/csv", "application/json", "text/markdown"):
+        if b"\x00" in content[:1024]:
+            return False, "", "Corrupted or binary payload disguised as text."
+        detected_mime = declared_mime
+
+    return True, detected_mime, ""
+
 
 def _upload_dir() -> Path:
     path = Path(settings.MEDIA_UPLOAD_DIR)

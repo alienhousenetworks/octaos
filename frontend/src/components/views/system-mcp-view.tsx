@@ -90,6 +90,7 @@ export default function SystemMcpView({
   });
   const [connectors, setConnectors] = useState<any[]>([]);
   const [externalServers, setExternalServers] = useState<ExternalMCPServer[]>([]);
+  const [collaborationProviders, setCollaborationProviders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
@@ -135,11 +136,12 @@ export default function SystemMcpView({
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [credsRes, catRes, connRes, serversRes] = await Promise.allSettled([
+      const [credsRes, catRes, connRes, serversRes, collabRes] = await Promise.allSettled([
         fetchWithAuth(`${API_URL}/mcp/credentials`),
         fetchWithAuth(`${API_URL}/mcp/catalog`),
         fetchWithAuth(`${API_URL}/mcp/connectors`),
         fetchWithAuth(`${API_URL}/mcp/servers`),
+        fetchWithAuth(`${API_URL}/plugin/collaboration/providers`),
       ]);
 
       if (credsRes.status === 'fulfilled' && credsRes.value.ok) {
@@ -157,6 +159,10 @@ export default function SystemMcpView({
       if (serversRes.status === 'fulfilled' && serversRes.value.ok) {
         const d = await serversRes.value.json();
         setExternalServers(d.servers || []);
+      }
+      if (collabRes.status === 'fulfilled' && collabRes.value.ok) {
+        const d = await collabRes.value.json();
+        setCollaborationProviders(Array.isArray(d) ? d : []);
       }
     } finally {
       setLoading(false);
@@ -330,11 +336,64 @@ export default function SystemMcpView({
     }
   };
 
-  const generateClientConfigSnippet = (clientKey: string, transport: 'streamable_http' | 'stdio') => {
+  const generateClientConfigSnippet = (clientKey: string, transport: 'streamable_http' | 'stdio' | string) => {
     const keyPlaceholder = newKeyData?.raw_key || 'octa_mcp_YOUR_SECRET_KEY';
     const baseUrl = API_URL.replace('/api/v1', '');
 
-    if (transport === 'stdio') {
+    if (clientKey === 'chatgpt') {
+      return JSON.stringify(
+        {
+          openApiSchemaUrl: `${baseUrl}/api/v1/plugin/openapi.json`,
+          manifestUrl: `${baseUrl}/.well-known/ai-plugin.json`,
+          authentication: {
+            type: 'API Key',
+            authType: 'Bearer',
+            apiKey: keyPlaceholder,
+          },
+          supportedCapabilities: [
+            'octaos_delegate_ai_employee',
+            'octaos_social_publish_post',
+            'octaos_upload_media_or_document',
+            'octaos_query_ai_workforce',
+          ],
+        },
+        null,
+        2
+      );
+    } else if (clientKey === 'grok_deepseek') {
+      return `# Grok / DeepSeek / Kimi Python Tool Calling
+import requests
+
+OCTAOS_KEY = "${keyPlaceholder}"
+headers = {"Authorization": f"Bearer {OCTAOS_KEY}"}
+
+# Example: Command Marketing AI to post an Instagram launch video
+response = requests.post(
+    "${baseUrl}/api/v1/plugin/gateway/execute",
+    headers=headers,
+    json={
+        "tool": "octaos_social_publish_post",
+        "arguments": {
+            "platform": "instagram",
+            "media_url": "https://example.com/launch_video.mp4",
+            "media_type": "video",
+            "content": "Autonomous product launch video! 🚀",
+            "auto_optimize_with_marketing_ai": True,
+        },
+    },
+)
+print(response.json())`;
+    } else if (clientKey === 'inhouse') {
+      return `# In-House System: Direct Multipart Media Upload & Publishing
+curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
+  -H "Authorization: Bearer ${keyPlaceholder}" \\
+  -F "tool=octaos_social_publish_post" \\
+  -F "platform=instagram" \\
+  -F "content=Direct video upload from internal ERP system" \\
+  -F "media_type=video" \\
+  -F "auto_optimize_with_marketing_ai=true" \\
+  -F "file=@launch_video.mp4"`;
+    } else if (transport === 'stdio') {
       return JSON.stringify(
         {
           mcpServers: {
@@ -491,12 +550,13 @@ export default function SystemMcpView({
       </div>
 
       {/* Quick Setup Cards for Clients */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {[
-          { id: 'claude_desktop', name: 'Claude Desktop', desc: 'Anthropic Desktop App via local Stdio Pipe', icon: Cpu },
-          { id: 'cursor', name: 'Cursor / Windsurf', desc: 'AI code editors with native MCP tool calling', icon: Code2 },
-          { id: 'remote_mcp', name: 'Streamable HTTP', desc: 'Remote AI agents & external automation platforms', icon: Globe },
-          { id: 'n8n_zapier', name: 'n8n & Webhooks', desc: 'Workflow engines with JSON-RPC tool calling', icon: Layers },
+          { id: 'claude_desktop', name: 'Claude Desktop & Code', desc: 'Anthropic Claude Desktop via Stdio Pipe / Remote MCP', icon: Cpu },
+          { id: 'chatgpt', name: 'ChatGPT Custom GPTs', desc: 'OpenAPI 3.1 Actions & ChatGPT Plugin Manifest', icon: Sparkles },
+          { id: 'grok_deepseek', name: 'Grok / DeepSeek / Kimi', desc: 'xAI & OpenAI-compatible Tool Calling & Python SDK', icon: Globe },
+          { id: 'cursor', name: 'Cursor & Windsurf', desc: 'AI code editors with native MCP tool calling', icon: Code2 },
+          { id: 'inhouse', name: 'In-House Software', desc: 'REST & Multipart Media Ingestion Gateway', icon: Layers },
         ].map((item) => (
           <div
             key={item.id}
@@ -638,6 +698,86 @@ export default function SystemMcpView({
               </div>
             ))
           )}
+      </div>
+
+      {/* Bidirectional Universal AI Collaboration Engine Section */}
+      <div className="rounded-xl border border-purple-500/20 bg-[#111318] p-5 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-purple-400" />
+            <h3 className="text-sm font-semibold text-white">Bidirectional Universal AI Collaboration Engine</h3>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30">
+              Two-Way Gateway
+            </span>
+          </div>
+          <span className="text-xs font-mono text-zinc-500">
+            Loop Prevention • Result-to-Execution Bridge • Tenant Isolated
+          </span>
+        </div>
+
+        <p className="text-xs text-zinc-400 leading-relaxed">
+          OctaOS AI Employees (Sales AI, Marketing AI, Support AI, HR AI, CEO AI) can collaborate with connected frontier models (Claude, Grok, ChatGPT, DeepSeek) on deep reasoning and market research, while external models can safely delegate execution tasks to OctaOS with human-in-the-loop policy gates.
+        </p>
+
+        {/* Connected AI Providers Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+          {(collaborationProviders.length > 0 ? collaborationProviders : [
+            { provider: 'anthropic', display_name: 'Anthropic Claude', default_model: 'claude-3-7-sonnet', status: 'not_configured', is_connected: false, supported_capabilities: ['deep_coding', 'complex_reasoning', 'document_analysis'], cost_ceiling_usd: 50 },
+            { provider: 'grok', display_name: 'xAI Grok', default_model: 'grok-2-1212', status: 'not_configured', is_connected: false, supported_capabilities: ['realtime_research', 'market_analysis', 'vision'], cost_ceiling_usd: 30 },
+            { provider: 'openai', display_name: 'OpenAI ChatGPT / o1', default_model: 'gpt-4o', status: 'not_configured', is_connected: false, supported_capabilities: ['reasoning', 'coding', 'tools'], cost_ceiling_usd: 50 },
+            { provider: 'deepseek', display_name: 'DeepSeek AI', default_model: 'deepseek-chat', status: 'not_configured', is_connected: false, supported_capabilities: ['deep_reasoning', 'mathematical_logic'], cost_ceiling_usd: 20 },
+          ]).map((prov: any) => (
+            <div key={prov.provider} className="p-3.5 rounded-lg border border-white/5 bg-zinc-900/60 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-white">{prov.display_name}</span>
+                <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-medium ${prov.is_connected ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/50' : 'bg-zinc-800 text-zinc-400'}`}>
+                  {prov.is_connected ? '● Connected' : '○ Not Configured'}
+                </span>
+              </div>
+              <div className="text-[10px] font-mono text-zinc-400">
+                Model: <span className="text-zinc-200">{prov.default_model}</span>
+              </div>
+              <div className="flex flex-wrap gap-1 pt-1">
+                {(prov.supported_capabilities || []).slice(0, 3).map((cap: string) => (
+                  <span key={cap} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                    {cap}
+                  </span>
+                ))}
+              </div>
+              <div className="pt-1 flex items-center justify-between text-[10px] font-mono text-zinc-500 border-t border-white/5">
+                <span>Ceiling: ${prov.cost_ceiling_usd || 20}/task</span>
+                <span>{prov.data_sharing_scope || 'anonymized'}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Collaboration Pipeline Features */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+          <div className="p-3 rounded-lg border border-white/5 bg-zinc-900/40 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-indigo-300">
+              <ArrowRight className="w-3.5 h-3.5" /> 1. Outbound Delegation
+            </div>
+            <p className="text-[11px] text-zinc-400">
+              Sales AI & Marketing AI discover active providers, redact sensitive tenant context, and delegate complex research or coding subtasks.
+            </p>
+          </div>
+          <div className="p-3 rounded-lg border border-white/5 bg-zinc-900/40 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-300">
+              <Shield className="w-3.5 h-3.5" /> 2. Result-to-Execution Bridge
+            </div>
+            <p className="text-[11px] text-zinc-400">
+              External AI proposals are evaluated by PolicyEngine. High-risk actions require human approval; executed tools log concrete verification evidence.
+            </p>
+          </div>
+          <div className="p-3 rounded-lg border border-white/5 bg-zinc-900/40 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-amber-300">
+              <ShieldAlert className="w-3.5 h-3.5" /> 3. Loop & Cycle Guard
+            </div>
+            <p className="text-[11px] text-zinc-400">
+              Maximum delegation depth of 3, max 5 child tasks per parent, duplicate task fingerprinting, and lineage cycle prevention ensure zero runaway costs.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -734,10 +874,13 @@ export default function SystemMcpView({
             {/* Step 1: Client & Transport */}
             <div>
               <label className="text-xs font-medium text-zinc-300 mb-1.5 block">Client & Environment</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {[
                   { id: 'claude_desktop', label: 'Claude Desktop', transport: 'stdio' },
+                  { id: 'chatgpt', label: 'ChatGPT Custom GPT', transport: 'openapi' },
+                  { id: 'grok_deepseek', label: 'Grok / DeepSeek', transport: 'gateway' },
                   { id: 'cursor', label: 'Cursor / Windsurf', transport: 'stdio' },
+                  { id: 'inhouse', label: 'In-House Software', transport: 'gateway' },
                   { id: 'remote_mcp', label: 'Remote Agent / API', transport: 'streamable_http' },
                 ].map((c) => (
                   <button

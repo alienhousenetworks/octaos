@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, Response
 
 from app.api.v1.api import api_router
 from app.api.v2.api import api_router as api_router_v2
+from app.api.v1.endpoints.plugins import root_router as plugins_root_router
 from app.core.config import settings
 from app.core.middleware import TenantMiddleware
 from app.core.observability import PrometheusMiddleware, metrics_registry
@@ -35,6 +36,7 @@ app.add_middleware(
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 app.include_router(api_router_v2, prefix="/api/v2")
+app.include_router(plugins_root_router)
 
 
 @app.exception_handler(Exception)
