@@ -277,3 +277,30 @@ def test_unauthenticated_request_rejected(test_setup):
         json={"tool": "octaos_query_ai_workforce", "arguments": {}},
     )
     assert res.status_code == 401
+
+
+def test_collaboration_providers_accepts_workspace_login(test_setup):
+    """The integrations screen calls this with the user session, not an MCP key."""
+    from app.core.security import create_access_token
+
+    setup = test_setup
+    user = setup["user"]
+    user.is_verified = True
+    user.is_active = True
+    setup["db"].commit()
+
+    token = create_access_token(subject=user.id, tenant_id=user.tenant_id)
+    client = setup["client"]
+    logged_in = client.get(
+        "/api/v1/plugin/collaboration/providers",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert logged_in.status_code == 200
+    assert isinstance(logged_in.json(), list)
+
+    with_mcp_key = client.get(
+        "/api/v1/plugin/collaboration/providers",
+        headers={"Authorization": f"Bearer {setup['raw_key']}"},
+    )
+    assert with_mcp_key.status_code == 200
+    assert isinstance(with_mcp_key.json(), list)

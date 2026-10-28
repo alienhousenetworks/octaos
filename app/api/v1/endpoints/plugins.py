@@ -345,6 +345,21 @@ async def delegate_to_ai_employee(
 # 6. Bidirectional Universal AI Collaboration Engine Endpoints
 # -------------------------------------------------------------
 
+def _collaboration_tenant_id(request: Request, db: Session) -> str:
+    """Workspace screens send a user JWT. External plugins send an MCP API key.
+
+    A user JWT must not be treated as an MCP key. That 401 was logging people
+    out of the integrations page, because the app treats any 401 as a dead session.
+    """
+    auth_header = request.headers.get("Authorization") or ""
+    token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
+    if token.count(".") == 2:
+        user = deps.get_current_user(db=db, token=token)
+        return user.tenant_id
+    credential = extract_credential_from_request(request, db)
+    return credential.tenant_id
+
+
 @router.get("/collaboration/providers")
 def list_collaboration_providers(
     request: Request,
@@ -354,8 +369,8 @@ def list_collaboration_providers(
     Returns the real connectivity status, capabilities, and permitted scopes
     for all external AI models connected to this tenant.
     """
-    credential = extract_credential_from_request(request, db)
-    providers = AIProviderRegistry.get_connected_providers(db, tenant_id=credential.tenant_id)
+    tenant_id = _collaboration_tenant_id(request, db)
+    providers = AIProviderRegistry.get_connected_providers(db, tenant_id=tenant_id)
     return JSONResponse(status_code=200, content=[p.model_dump() for p in providers])
 
 
