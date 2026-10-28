@@ -464,7 +464,6 @@ async def test_execution_bridge_rejects_actions_without_collaboration_receipt(co
     from app.services.collaboration import ExecutionBridge, ExecutionBridgeRequest
 
     setup = collab_setup
-    engine = AICollaborationEngine(setup["db"], tenant_id=setup["tenant"].id)
     result = await ExecutionBridge.process_proposed_action(
         db=setup["db"],
         tenant_id=setup["tenant"].id,
@@ -483,12 +482,24 @@ async def test_execution_bridge_rejects_actions_without_collaboration_receipt(co
 @pytest.mark.asyncio
 async def test_admin_credential_does_not_bypass_policy_approval(collab_setup, monkeypatch):
     """Admin API access must not erase a policy decision requiring human approval."""
-    from app.models.collaborative_workforce import DelegationReceipt
+    from app.models.collaborative_workforce import AgentMessage, DelegationReceipt
     from app.services.collaboration import ExecutionBridge, ExecutionBridgeRequest
     from app.services.policy_engine import PolicyEngine
 
     setup = collab_setup
     db = setup["db"]
+    db.add(AgentMessage(
+        id="approval-gated-task",
+        tenant_id=setup["tenant"].id,
+        correlation_id="approval-gated-correlation",
+        idempotency_key="approval-gated-idempotency",
+        from_agent="test-agent",
+        to_agent="external:test",
+        message_type="test",
+        status="processing",
+        payload={},
+    ))
+    db.commit()
     receipt = DelegationReceipt(
         tenant_id=setup["tenant"].id,
         task_id="approval-gated-task",
