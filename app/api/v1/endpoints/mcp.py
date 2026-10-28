@@ -33,6 +33,7 @@ from app.services.mcp.transport_http import (
     handle_streamable_http,
     initiate_sse_session,
     handle_sse_message,
+    validate_mcp_origin,
 )
 from app.services.mcp.server import mcp_server
 
@@ -54,6 +55,7 @@ async def mcp_stream_endpoint(
     Primary MCP Streamable HTTP transport endpoint.
     Processes JSON-RPC 2.0 requests over HTTP.
     """
+    validate_mcp_origin(request)
     credential = extract_credential_from_request(request, db)
     return await handle_streamable_http(request, credential)
 
@@ -66,6 +68,7 @@ async def mcp_sse_endpoint(
     """
     Legacy Server-Sent Events stream initialization.
     """
+    validate_mcp_origin(request)
     credential = extract_credential_from_request(request, db)
     return initiate_sse_session(request, credential)
 
@@ -79,6 +82,7 @@ async def mcp_sse_message_endpoint(
     """
     Message receiver for an active SSE stream session.
     """
+    validate_mcp_origin(request)
     credential = extract_credential_from_request(request, db)
     return await handle_sse_message(session_id, request, credential)
 
