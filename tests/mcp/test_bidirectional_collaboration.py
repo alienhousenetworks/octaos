@@ -456,3 +456,75 @@ def test_execution_bridge_policy_and_evidence(collab_setup):
     assert "tool_executed" in data["evidence"]
     assert data["evidence"]["tool_executed"] == "octaos_create_lead"
     assert data["evidence"]["is_error"] is False
+
+
+@pytest.mark.asyncio
+async def test_execution_bridge_rejects_actions_without_collaboration_receipt(collab_setup):
+    """The bridge must not be usable as a generic tool-execution endpoint."""
+    from app.services.collaboration import ExecutionBridge, ExecutionBridgeRequest
+
+    setup = collab_setup
+    engine = AICollaborationEngine(setup["db"], tenant_id=setup["tenant"].id)
+    result = await ExecutionBridge.process_proposed_action(
+        db=setup["db"],
+        tenant_id=setup["tenant"].id,
+        request=ExecutionBridgeRequest(
+            task_id="missing-receipt-task",
+            proposed_tool="octaos_query_ai_workforce",
+            intent_description="Regression test: no durable task receipt exists",
+        ),
+        mcp_credential=setup["cred"],
+    )
+    assert result.status == "blocked"
+    assert result.verified is False
+    assert "receipt" in (result.error or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_admin_credential_does_not_bypass_policy_approval(collab_setup, monkeypatch):
+    """Admin API access must not erase a policy decision requiring human approval."""
+    from app.models.collaborative_workforce import DelegationReceipt
+    from app.services.collaboration import ExecutionBridge, ExecutionBridgeRequest
+    from app.services.policy_engine import PolicyEngine
+
+    setup = collab_setup
+    db = setup["db"]
+    receipt = DelegationReceipt(
+        tenant_id=setup["tenant"].id,
+        task_id="approval-gated-task",
+        parent_agent="test-agent",
+        child_agent="external:test",
+        request_message_id="approval-gated-task",
+        status="in_progress",
+        acceptance_criteria=[],
+        evidence=[],
+    )
+    db.add(receipt)
+    db.commit()
+
+    monkeypatch.setattr(
+        PolicyEngine,
+        "evaluate",
+        lambda *args, **kwargs: {
+            "decision": "queue_approval",
+            "reason": "Human approval required by policy",
+            "approval_id": "approval-test-1",
+        },
+    )
+
+    result = await ExecutionBridge.process_proposed_action(
+        db=db,
+        tenant_id=setup["tenant"].id,
+        request=ExecutionBridgeRequest(
+            task_id="approval-gated-task",
+            proposed_tool="octaos_social_publish_post",
+            action_type="social_publish",
+            arguments={"platform": "instagram", "content": "test"},
+            intent_description="Regression test for approval enforcement",
+        ),
+        mcp_credential=setup["cred"],
+    )
+    assert result.status == "waiting_approval"
+    assert result.verified is False
+    assert result.approval_request_id == "approval-test-1"
+    assert receipt.status == "waiting_approval"
