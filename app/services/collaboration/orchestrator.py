@@ -9,6 +9,7 @@ import time
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 import httpx
+from app.services.collaboration.security import validate_public_https_url
 from sqlalchemy.orm import Session
 
 from app.models.collaborative_workforce import AgentMessage, DelegationReceipt
@@ -116,28 +117,32 @@ async def dispatch_signed_webhook(
     secret: str,
     timeout_seconds: float = 10.0,
 ) -> bool:
-    """
-    Dispatches task completion notification with HMAC-SHA256 signature
-    and anti-replay timestamp headers.
+    """Deliver a signed webhook only to a validated public HTTPS endpoint.
+
+    Redirects are disabled to prevent redirect-based SSRF. Callers must enqueue this
+    operation through the durable Celery task for retryable background delivery.
     """
     if not webhook_url:
+        return False
+    try:
+        safe_url = validate_public_https_url(webhook_url)
+    except Exception as exc:
+        logger.warning("Webhook destination rejected by SSRF guard: %s", type(exc).__name__)
         return False
 
     timestamp = str(int(time.time()))
     body_bytes = json.dumps(payload, default=str).encode("utf-8")
     sig_payload = f"{timestamp}.".encode("utf-8") + body_bytes
     signature = hmac.new(secret.encode("utf-8"), sig_payload, hashlib.sha256).hexdigest()
-
     headers = {
         "Content-Type": "application/json",
         "X-OctaOS-Timestamp": timestamp,
         "X-OctaOS-Signature": f"sha256={signature}",
     }
-
     try:
-        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
-            res = await client.post(webhook_url, content=body_bytes, headers=headers)
+        async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=False, trust_env=False) as client:
+            res = await client.post(safe_url, content=body_bytes, headers=headers)
             return res.is_success
-    except Exception as e:
-        logger.warning("Webhook dispatch failed to %s: %s", webhook_url, e)
+    except Exception as exc:
+        logger.warning("Webhook dispatch failed (%s)", type(exc).__name__)
         return False
