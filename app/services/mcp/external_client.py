@@ -135,6 +135,11 @@ class ExternalMCPClient:
         headers.update(self.config.get("headers") or {})
         if self._session_id:
             headers.setdefault("Mcp-Session-Id", self._session_id)
+        if self._initialize_result:
+            headers.setdefault(
+                "Mcp-Protocol-Version",
+                str(self._initialize_result.get("protocolVersion") or LATEST_PROTOCOL_VERSION),
+            )
         return headers
 
     async def initialize(self) -> Dict[str, Any]:
