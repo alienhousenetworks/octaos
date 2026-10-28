@@ -133,6 +133,7 @@ def load_connected_systems(db: Session, tenant_id: str) -> Dict[str, Any]:
         "outbound_providers": [],
         "mailbox_connected": False,
         "whatsapp_configured": False,
+        "webhooks": [],
     }
     try:
         from app.models.mcp import DynamicConnector, SystemMCPCredential
@@ -214,6 +215,25 @@ def load_connected_systems(db: Session, tenant_id: str) -> Dict[str, Any]:
         snapshot["whatsapp_configured"] = False
 
     try:
+        from app.models.external_agents import ExternalAgentConnection
+
+        rows = (
+            db.query(ExternalAgentConnection)
+            .filter(ExternalAgentConnection.tenant_id == tenant_id)
+            .all()
+        )
+        snapshot["webhooks"] = [
+            {
+                "name": row.name,
+                "enabled": bool(row.enabled),
+                "has_endpoint": bool(row.endpoint_url),
+            }
+            for row in rows
+        ]
+    except Exception:
+        snapshot["webhooks"] = []
+
+    try:
         from app.services.email.universal_provider import get_universal_mailbox_provider
 
         snapshot["mailbox_connected"] = get_universal_mailbox_provider(db, tenant_id) is not None
@@ -293,6 +313,7 @@ def connection_facts(snapshot: Dict[str, Any], request: str = "") -> str:
         "providers": providers,
         "mailbox_connected": bool(snapshot.get("mailbox_connected")),
         "whatsapp_configured": bool(snapshot.get("whatsapp_configured")),
+        "webhooks": snapshot.get("webhooks") or [],
         "inbuilt_model_route": snapshot.get("inbuilt_model_route") or "",
     }
     asked = systems_named_in_request(snapshot, request) if request else []
@@ -321,8 +342,30 @@ def ensure_mcp_message_task(tasks: Optional[List[Dict[str, Any]]], request: str)
 
 
 def mcp_handoff_note(placed: Dict[str, Any]) -> str:
-    """One factual line about a message that was actually queued or pushed."""
+    """One factual line about a message that was called, queued, or pushed."""
     name = placed.get("client_name") or "MCP client"
+    webhook_status = placed.get("webhook_status")
+    if webhook_status == "delivered":
+        code = placed.get("webhook_http_status") or 200
+        return (
+            f"MCP handoff: {name} was called at its saved webhook (HTTP {code}). "
+            "OctaOS did not wait for the next check-in. "
+            "This is not a claim that the client displayed it."
+        )
+    if webhook_status == "failed":
+        reason = placed.get("webhook_error") or "the webhook call failed"
+        return (
+            f"MCP handoff: {name} webhook call did not succeed ({reason}). "
+            "The message stays queued for the client's next OctaOS call. "
+            "This is not a claim that the client displayed it."
+        )
+    if webhook_status == "absent":
+        return (
+            f"MCP handoff: {name} has no saved webhook, so OctaOS cannot call it. "
+            "The message is queued until that client calls OctaOS or a webhook URL is saved "
+            "at POST /api/v1/integrations/external-agents/webhook. "
+            "This is not a claim that the client displayed it."
+        )
     streams = int(placed.get("open_streams") or 0)
     if streams:
         where = f"pushed to {streams} open stream(s) and kept for the next call"

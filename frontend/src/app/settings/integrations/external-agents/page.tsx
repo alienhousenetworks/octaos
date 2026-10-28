@@ -34,6 +34,7 @@ type Delivery = {
 const AVAILABLE_EVENTS = [
   { id: "lead.created", label: "lead.created", desc: "Triggered whenever a verified lead is created or ingested" },
   { id: "lead.status_changed", label: "lead.status_changed", desc: "Fired upon CRM lead stage transitions" },
+  { id: "agent.message", label: "agent.message", desc: "A message OctaOS posts immediately instead of waiting for the next check-in" },
   { id: "command.issued", label: "command.issued", desc: "Direct instructions or task delegations sent to this agent" },
   { id: "activity.recorded", label: "activity.recorded", desc: "Workforce activity updates and status logs" },
   { id: "*", label: "* (All Events)", desc: "Subscribe to all current and future webhook event categories" },
@@ -492,7 +493,27 @@ Content-Type: application/json
           </div>
 
           <div className="rounded-xl border p-4 bg-muted/20 space-y-2">
-            <h3 className="font-semibold text-sm">2. Universal Media & Document Transfer</h3>
+            <h3 className="font-semibold text-sm">2. Give OctaOS your webhook so it can call you</h3>
+            <p className="text-muted-foreground">OctaOS POSTs agent.message to this URL as soon as a message is sent. It does not wait for the next check-in.</p>
+            <pre className="p-3 rounded-lg bg-zinc-950 text-zinc-100 overflow-x-auto">
+{`POST /api/v1/integrations/external-agents/webhook
+Authorization: Bearer <octa_mcp_key>
+Content-Type: application/json
+
+{
+  "endpoint_url": "https://your-host/webhook"
+}
+
+OctaOS then POSTs:
+{
+  "event": "agent.message",
+  "payload": {"text": "Message from the OctaOS assistant: hi"}
+}`}
+            </pre>
+          </div>
+
+          <div className="rounded-xl border p-4 bg-muted/20 space-y-2">
+            <h3 className="font-semibold text-sm">3. Universal Media & Document Transfer</h3>
             <p className="text-muted-foreground">Transfer any safe file type (CAD, PDF, audio, video, zip, csv) via the MCP tool gateway.</p>
             <pre className="p-3 rounded-lg bg-zinc-950 text-zinc-100 overflow-x-auto">
 {`// MCP Tool: octaos_upload_media_or_document

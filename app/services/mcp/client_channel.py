@@ -6,6 +6,7 @@ handed to that channel. A queued row is not a claim that the client displayed it
 """
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List
@@ -50,7 +51,111 @@ def queue_client_message(
         "open_streams": pushed,
         "client_name": client_name,
         "text": text,
+        "webhook_status": "absent",
     }
+
+
+def connections_for_client(db: Session, tenant_id: str, client_name: str) -> List[Any]:
+    """Enabled outbound webhooks whose name matches this MCP client."""
+    from app.models.external_agents import ExternalAgentConnection
+
+    needle = (client_name or "").strip().lower()
+    if not needle:
+        return []
+    rows = (
+        db.query(ExternalAgentConnection)
+        .filter(
+            ExternalAgentConnection.tenant_id == tenant_id,
+            ExternalAgentConnection.enabled == True,
+        )
+        .all()
+    )
+    tokens = [token for token in re.findall(r"[a-z0-9]{4,}", needle)]
+    chosen = []
+    for row in rows:
+        blob = (row.name or "").lower()
+        if needle in blob or blob in needle or any(token in blob for token in tokens):
+            chosen.append(row)
+    return chosen
+
+
+async def dispatch_client_message(
+    db: Session,
+    *,
+    tenant_id: str,
+    credential_id: str,
+    client_name: str,
+    text: str,
+) -> Dict[str, Any]:
+    """Queue the message, push an open stream, and POST the saved webhook now."""
+    placed = queue_client_message(
+        db,
+        tenant_id=tenant_id,
+        credential_id=credential_id,
+        client_name=client_name,
+        text=text,
+    )
+    try:
+        connections = connections_for_client(db, tenant_id, client_name)
+    except Exception:
+        return placed
+    if not connections:
+        return placed
+
+    from app.services.webhooks.dispatcher import deliver_webhook, generate_envelope
+
+    attempts = []
+    for connection in connections:
+        envelope = generate_envelope(
+            event_type="agent.message",
+            tenant_id=tenant_id,
+            payload={
+                "text": text,
+                "client_name": client_name,
+                "message_id": placed["id"],
+                "from": "Orchestrator AI",
+            },
+            correlation_id=placed["id"],
+        )
+        try:
+            delivery = await deliver_webhook(connection, envelope, db)
+            attempts.append({
+                "connection": connection.name,
+                "status": delivery.status,
+                "http_status": delivery.last_http_status,
+                "error": delivery.last_error,
+            })
+        except Exception as exc:
+            attempts.append({
+                "connection": connection.name,
+                "status": "failed",
+                "http_status": None,
+                "error": str(exc),
+            })
+
+    posted = next((item for item in attempts if item["status"] == "delivered"), None)
+    if posted:
+        row = db.query(AgentMessage).filter(AgentMessage.id == placed["id"]).first()
+        if row is not None and row.status == "queued":
+            payload = dict(row.payload or {})
+            payload["webhook"] = {
+                "connection": posted["connection"],
+                "http_status": posted["http_status"],
+            }
+            row.payload = payload
+            row.status = "delivered"
+            row.completed_at = datetime.now(timezone.utc)
+            db.commit()
+        placed["status"] = "delivered"
+        placed["webhook_status"] = "delivered"
+        placed["webhook_http_status"] = posted["http_status"]
+        return placed
+
+    failed = attempts[0] if attempts else {}
+    placed["webhook_status"] = "failed"
+    placed["webhook_http_status"] = failed.get("http_status")
+    placed["webhook_error"] = failed.get("error") or "the webhook call failed"
+    return placed
 
 
 def take_pending_messages(db: Session, tenant_id: str, credential_id: str, limit: int = 5) -> List[Dict[str, Any]]:

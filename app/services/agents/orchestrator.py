@@ -88,14 +88,14 @@ def _current_request_text(prompt: str) -> str:
     return match.group(1).strip() if match else (prompt or "")
 
 
-def _message_connected_client(
+async def _message_connected_client(
     agent: "OrchestratorAgent",
     request: str,
     client_hint: str = "",
     text: str = "",
 ) -> str:
-    """Place a message on the named MCP client and return the real handoff."""
-    from app.services.mcp.client_channel import queue_client_message
+    """Place a message on the named MCP client and call its webhook when one is saved."""
+    from app.services.mcp.client_channel import dispatch_client_message
 
     snapshot = load_connected_systems(agent.db, agent.tenant_id)
     lookup = " ".join(part for part in (client_hint, request) if part).strip()
@@ -114,7 +114,7 @@ def _message_connected_client(
         if not client.get("id"):
             lines.append(f"MCP handoff: {client.get('name') or 'MCP client'} has no saved credential id, so nothing was queued.")
             continue
-        placed = queue_client_message(
+        placed = await dispatch_client_message(
             agent.db,
             tenant_id=agent.tenant_id,
             credential_id=str(client["id"]),
@@ -330,7 +330,7 @@ Guidelines:
 2. If the user request requires executing tasks, include them in the "tasks" array. If no execution tasks are needed, leave "tasks" as an empty list [].
 3. Adhere strictly to the company knowledge base and guidelines above. When those excerpts describe the company or its website, answer from them and cite the source URL. Do not say the company knowledge base is empty, and do not ask the user to paste website content that is already in the excerpts. If a specific fact is absent from the excerpts, say that fact was not in the retrieved pages.
 4. Multi-turn conversation context: If previous conversation history is provided, maintain context across turns. For example, if you asked the user clarifying questions about a role, task, campaign, or parameters in previous turns, interpret the user's latest reply in the context of those prior questions. If an earlier turn printed a fixed connection card, do not repeat that card. Answer this turn from the records.
-5. Write the reply in your own words from the connection records. When asked_about is present, answer that system: say whether it is saved or absent. An MCP client and a provider API key are different records. A missing provider key does not make an MCP client one-way and does not block message_mcp_client. inbuilt_model_route is the server model answering this turn; a provider with configured false only means no tenant API key is saved. Do not paste the JSON. Do not answer a question about one system by reciting every other system. Do not say you cannot check connections. Do not claim a client displayed a message.
+5. Write the reply in your own words from the connection records. When asked_about is present, answer that system: say whether it is saved or absent. An MCP client and a provider API key are different records. A missing provider key does not make an MCP client one-way and does not block message_mcp_client. A saved webhook for that client is called immediately when the user asks to message it. inbuilt_model_route is the server model answering this turn; a provider with configured false only means no tenant API key is saved. Do not paste the JSON. Do not answer a question about one system by reciting every other system. Do not say you cannot check connections. Do not claim a client displayed a message.
 6. If the user asks whether the company offers consulting, marketing, hiring, or another service, answer from the knowledge excerpts and cite the page URL. Leave tasks empty for that question.
 7. Say that email or WhatsApp can be sent only when mailbox_connected or whatsapp_configured is true in those records. Otherwise say an unsent draft can be stored.
 
@@ -440,7 +440,7 @@ Format:
                     results.append(res)
                 elif dept == "System" and task.get("action") == "message_mcp_client":
                     params = task.get("parameters") or {}
-                    handoff = _message_connected_client(
+                    handoff = await _message_connected_client(
                         self,
                         current_request,
                         client_hint=str(params.get("client") or ""),

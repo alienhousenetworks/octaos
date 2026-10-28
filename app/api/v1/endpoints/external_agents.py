@@ -16,10 +16,12 @@ from app.models.external_agents import (
     WebhookDelivery,
     ControllerCommand,
 )
+from app.services.agents.tools import SSRFProtectionError, validate_outbound_url
 from app.services.webhooks.dispatcher import (
     test_connection_delivery,
     deliver_webhook,
     enqueue_webhook_event,
+    save_outbound_webhook,
 )
 
 router = APIRouter()
@@ -52,6 +54,15 @@ class ConnectionUpdateRequest(BaseModel):
     subscriptions: Optional[List[str]] = None
 
 
+class WebhookRegisterRequest(BaseModel):
+    endpoint_url: str = Field(..., min_length=7, max_length=500)
+    name: Optional[str] = Field(None, max_length=120)
+    auth_type: str = "bearer"
+    auth_secret: Optional[str] = None
+    custom_header_name: Optional[str] = None
+    subscriptions: List[str] = Field(default_factory=lambda: ["agent.message", "command.issued"])
+
+
 class IssueCommandRequest(BaseModel):
     connection_id: Optional[str] = None
     command: str = Field(..., min_length=1)
@@ -74,6 +85,35 @@ def _serialize_connection(conn: ExternalAgentConnection) -> Dict[str, Any]:
         "created_at": conn.created_at.isoformat() if conn.created_at else None,
         "subscriptions": [s.event_type for s in conn.subscriptions if s.enabled] if conn.subscriptions else [],
     }
+
+
+@router.post("/webhook", status_code=status.HTTP_201_CREATED)
+def register_webhook(
+    req: WebhookRegisterRequest,
+    db: Session = Depends(deps.get_db),
+    principal: deps.AuthPrincipal = Depends(deps.get_current_principal),
+) -> Any:
+    """Save the URL OctaOS calls immediately for this client. An MCP key can call this."""
+    try:
+        validate_outbound_url(req.endpoint_url.strip())
+    except SSRFProtectionError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    name = (req.name or principal.connection_name or principal.key_name or "External agent").strip()
+    try:
+        conn = save_outbound_webhook(
+            db,
+            tenant_id=principal.tenant_id,
+            name=name,
+            endpoint_url=req.endpoint_url,
+            auth_type=req.auth_type,
+            auth_secret=req.auth_secret,
+            custom_header_name=req.custom_header_name,
+            created_by=getattr(principal.user, "id", None) if principal.user else None,
+            subscriptions=req.subscriptions,
+        )
+    except SSRFProtectionError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    return _serialize_connection(conn)
 
 
 @router.get("/connections")

@@ -4,6 +4,7 @@ from app.services.webhooks.dispatcher import (
     sign_webhook_headers,
     deliver_webhook,
     enqueue_webhook_event,
+    save_outbound_webhook,
     test_connection_delivery,
 )
 
@@ -12,5 +13,6 @@ __all__ = [
     "sign_webhook_headers",
     "deliver_webhook",
     "enqueue_webhook_event",
+    "save_outbound_webhook",
     "test_connection_delivery",
 ]

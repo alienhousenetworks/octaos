@@ -120,6 +120,80 @@ def test_handoff_note_does_not_claim_the_client_displayed_it():
     assert "displayed it" in note
     assert "cannot open a new chat" not in note
     assert "Connected systems" not in note
+    absent = mcp_handoff_note({"client_name": "Grok Bot", "webhook_status": "absent", "open_streams": 0})
+    assert "no saved webhook" in absent
+    called = mcp_handoff_note({"client_name": "Grok Bot", "webhook_status": "delivered", "webhook_http_status": 204})
+    assert "HTTP 204" in called
+    assert "did not wait" in called
+
+
+def test_a_saved_webhook_is_called_without_waiting_for_the_client():
+    import asyncio
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    import app.services.webhooks.dispatcher as dispatcher
+    from app.models.base import Tenant
+    from app.models.collaborative_workforce import AgentMessage
+    from app.models.external_agents import ExternalAgentConnection, WebhookDelivery, WebhookSubscription
+    from app.services.mcp.client_channel import dispatch_client_message
+    from app.services.webhooks.dispatcher import save_outbound_webhook
+
+    engine = create_engine("sqlite:///:memory:")
+    for table in (Tenant, ExternalAgentConnection, WebhookSubscription, WebhookDelivery, AgentMessage):
+        table.__table__.create(engine)
+    db = sessionmaker(bind=engine)()
+    db.add(Tenant(id="tenant-1", name="AlienHouse"))
+    db.commit()
+    save_outbound_webhook(
+        db,
+        tenant_id="tenant-1",
+        name="Grok Bot",
+        endpoint_url="https://example.com/grok-webhook",
+    )
+
+    class FakeResponse:
+        status_code = 204
+        text = ""
+
+    class FakeClient:
+        url = ""
+        body = b""
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def post(self, url, content=None, headers=None):
+            FakeClient.url = url
+            FakeClient.body = content or b""
+            return FakeResponse()
+
+    original = dispatcher.httpx.AsyncClient
+    dispatcher.httpx.AsyncClient = FakeClient
+    try:
+        placed = asyncio.run(dispatch_client_message(
+            db,
+            tenant_id="tenant-1",
+            credential_id="grok-credential",
+            client_name="Grok Bot",
+            text="Message from the OctaOS assistant: hi",
+        ))
+    finally:
+        dispatcher.httpx.AsyncClient = original
+
+    assert placed["webhook_status"] == "delivered"
+    assert placed["webhook_http_status"] == 204
+    assert FakeClient.url == "https://example.com/grok-webhook"
+    assert b"hi" in FakeClient.body
+    row = db.query(AgentMessage).filter(AgentMessage.id == placed["id"]).one()
+    assert row.status == "delivered"
+    db.close()
 
 
 def test_queued_mcp_message_is_returned_on_the_client_call():

@@ -195,6 +195,70 @@ async def test_connection_delivery(
     }
 
 
+def save_outbound_webhook(
+    db: Session,
+    *,
+    tenant_id: str,
+    name: str,
+    endpoint_url: str,
+    auth_type: str = "bearer",
+    auth_secret: Optional[str] = None,
+    custom_header_name: Optional[str] = None,
+    created_by: Optional[str] = None,
+    subscriptions: Optional[List[str]] = None,
+) -> ExternalAgentConnection:
+    """Save the URL OctaOS calls immediately when it has a message for this client."""
+    from app.core.security import encrypt_api_key
+
+    safe_url = validate_outbound_url(endpoint_url.strip())
+    clean_name = name.strip()
+    connection = (
+        db.query(ExternalAgentConnection)
+        .filter(
+            ExternalAgentConnection.tenant_id == tenant_id,
+            ExternalAgentConnection.name == clean_name,
+        )
+        .first()
+    )
+    if connection is None:
+        connection = ExternalAgentConnection(
+            tenant_id=tenant_id,
+            name=clean_name,
+            endpoint_url=safe_url,
+            auth_type=auth_type or "bearer",
+            enabled=True,
+            created_by=created_by,
+        )
+        db.add(connection)
+        db.flush()
+    else:
+        connection.endpoint_url = safe_url
+        connection.auth_type = auth_type or connection.auth_type or "bearer"
+        connection.enabled = True
+    if auth_secret:
+        connection.auth_secret_encrypted = encrypt_api_key(auth_secret)
+    if custom_header_name:
+        connection.custom_header_name = custom_header_name
+
+    event_names = subscriptions or ["agent.message", "command.issued"]
+    existing = {
+        row.event_type
+        for row in db.query(WebhookSubscription).filter(WebhookSubscription.connection_id == connection.id).all()
+    }
+    for event_name in {item.strip() for item in event_names if item and item.strip()}:
+        if event_name in existing:
+            continue
+        db.add(WebhookSubscription(
+            connection_id=connection.id,
+            tenant_id=tenant_id,
+            event_type=event_name,
+            enabled=True,
+        ))
+    db.commit()
+    db.refresh(connection)
+    return connection
+
+
 def enqueue_webhook_event(
     db: Session,
     tenant_id: str,
