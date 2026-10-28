@@ -156,3 +156,16 @@ def execute_inbound_collaboration(self, task_id: str, tenant_id: str):
         return {"task_id": task_id, "status": msg.status}
     finally:
         db.close()
+
+@celery_app.task(name="octaos.deliver_collaboration_webhook", bind=True, max_retries=5, default_retry_delay=10)
+def deliver_collaboration_webhook(self, webhook_url: str, payload: dict, signing_secret: str):
+    """Durable webhook delivery with bounded retries; each attempt revalidates the URL."""
+    delivered = asyncio.run(dispatch_signed_webhook(
+        webhook_url=webhook_url,
+        payload=payload,
+        secret=signing_secret,
+        timeout_seconds=10,
+    ))
+    if not delivered:
+        raise self.retry(exc=RuntimeError("Webhook delivery failed or destination was rejected."))
+    return {"delivered": True, "task_id": payload.get("task_id")}
