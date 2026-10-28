@@ -34,12 +34,37 @@ import {
   ShieldAlert,
   Sliders,
   Sparkles,
+  Power,
+  Play,
+  Zap,
+  Activity,
 } from 'lucide-react';
 
 interface SystemMcpViewProps {
   token: string | null;
   API_URL: string;
   fetchWithAuth: (url: string, options?: any) => Promise<Response>;
+}
+
+interface TerminalLogEntry {
+  id: string;
+  timestamp: string;
+  iso_time: string;
+  category: string;
+  level: string;
+  source: string;
+  target: string;
+  message: string;
+  details?: Record<string, any>;
+}
+
+interface ProcessStatusInfo {
+  status: 'RUNNING' | 'STOPPED';
+  is_active: boolean;
+  active_listeners: number;
+  total_events_logged: number;
+  tenant_id: string;
+  last_toggled_at?: string;
 }
 
 interface MCPCredential {
@@ -125,6 +150,15 @@ export default function SystemMcpView({
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ id: string; msg: string; ok: boolean } | null>(null);
 
+  // Live Terminal & Process Controller State
+  const [terminalLogs, setTerminalLogs] = useState<TerminalLogEntry[]>([]);
+  const [processStatus, setProcessStatus] = useState<ProcessStatusInfo | null>(null);
+  const [terminalFilter, setTerminalFilter] = useState<string>('all');
+  const [autoRefreshTerminal, setAutoRefreshTerminal] = useState<boolean>(true);
+  const [togglingProcess, setTogglingProcess] = useState<boolean>(false);
+  const [clearingTerminal, setClearingTerminal] = useState<boolean>(false);
+  const [pingingTerminal, setPingingTerminal] = useState<boolean>(false);
+
   // Notification Toast
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null);
 
@@ -136,12 +170,13 @@ export default function SystemMcpView({
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [credsRes, catRes, connRes, serversRes, collabRes] = await Promise.allSettled([
+      const [credsRes, catRes, connRes, serversRes, collabRes, termRes] = await Promise.allSettled([
         fetchWithAuth(`${API_URL}/mcp/credentials`),
         fetchWithAuth(`${API_URL}/mcp/catalog`),
         fetchWithAuth(`${API_URL}/mcp/connectors`),
         fetchWithAuth(`${API_URL}/mcp/servers`),
         fetchWithAuth(`${API_URL}/plugin/collaboration/providers`),
+        fetchWithAuth(`${API_URL}/plugin/collaboration/terminal/logs?limit=80${terminalFilter !== 'all' ? `&category=${terminalFilter}` : ''}`),
       ]);
 
       if (credsRes.status === 'fulfilled' && credsRes.value.ok) {
@@ -164,14 +199,101 @@ export default function SystemMcpView({
         const d = await collabRes.value.json();
         setCollaborationProviders(Array.isArray(d) ? d : []);
       }
+      if (termRes.status === 'fulfilled' && termRes.value.ok) {
+        const d = await termRes.value.json();
+        setTerminalLogs(d.logs || []);
+        if (d.process) setProcessStatus(d.process);
+      }
     } finally {
       setLoading(false);
     }
-  }, [API_URL, fetchWithAuth]);
+  }, [API_URL, fetchWithAuth, terminalFilter]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Terminal Auto-Poll Effect
+  useEffect(() => {
+    if (!autoRefreshTerminal) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetchWithAuth(
+          `${API_URL}/plugin/collaboration/terminal/logs?limit=80${terminalFilter !== 'all' ? `&category=${terminalFilter}` : ''}`
+        );
+        if (res.ok) {
+          const d = await res.json();
+          setTerminalLogs(d.logs || []);
+          if (d.process) setProcessStatus(d.process);
+        }
+      } catch {
+        // silent catch during background poll
+      }
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [API_URL, fetchWithAuth, terminalFilter, autoRefreshTerminal]);
+
+  const handleToggleProcess = async (newActive: boolean) => {
+    setTogglingProcess(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/plugin/collaboration/process/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: newActive }),
+      });
+      if (res.ok) {
+        const d: ProcessStatusInfo = await res.json();
+        setProcessStatus(d);
+        showToast(
+          newActive
+            ? 'External AI collaboration listener STARTED. Inbound & outbound tasks active.'
+            : 'External AI collaboration listener STOPPED. Inbound traffic paused.',
+          newActive ? 'ok' : 'err'
+        );
+        loadData();
+      } else {
+        showToast('Failed to toggle process status.', 'err');
+      }
+    } catch {
+      showToast('Error toggling collaboration process.', 'err');
+    } finally {
+      setTogglingProcess(false);
+    }
+  };
+
+  const handleClearTerminal = async () => {
+    setClearingTerminal(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/plugin/collaboration/terminal/clear`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        showToast('Terminal logs cleared.', 'ok');
+        loadData();
+      }
+    } catch {
+      showToast('Failed to clear terminal.', 'err');
+    } finally {
+      setClearingTerminal(false);
+    }
+  };
+
+  const handlePingTerminal = async () => {
+    setPingingTerminal(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/plugin/collaboration/terminal/ping`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        showToast('Diagnostic ping received by live listener!', 'ok');
+        loadData();
+      }
+    } catch {
+      showToast('Failed to send diagnostic ping.', 'err');
+    } finally {
+      setPingingTerminal(false);
+    }
+  };
 
   const handleCreateCredential = async () => {
     if (!keyName.trim()) return;
@@ -482,6 +604,177 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
             <Plus className="w-3.5 h-3.5" />
             Connect New AI / Client
           </Button>
+        </div>
+      </div>
+
+      {/* ------------------------------------------------------------- */}
+      {/* External AI & Custom Software Live Terminal & Process Controller */}
+      {/* ------------------------------------------------------------- */}
+      <div className="rounded-xl border border-white/[0.08] bg-[#0c0d12] overflow-hidden shadow-2xl">
+        {/* Terminal Card Header */}
+        <div className="p-4 border-b border-white/[0.08] flex flex-col md:flex-row md:items-center justify-between gap-4 bg-zinc-950/70">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-zinc-900 border border-white/10 text-emerald-400">
+              <Terminal className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h3 className="text-sm font-semibold text-white tracking-tight">
+                  External AI Brain & Connector Live Console
+                </h3>
+                {/* Process Running / Stopped Status Badge */}
+                {processStatus?.is_active ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    RUNNING (Listening)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    STOPPED (Paused)
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-zinc-400 mt-0.5">
+                Live communication, hands-off execution, and safety guardrails for Claude, Grok, ChatGPT, DeepSeek, and custom software.
+              </p>
+            </div>
+          </div>
+
+          {/* Controller Actions */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Process ON/OFF Toggle Button */}
+            {processStatus?.is_active ? (
+              <Button
+                onClick={() => handleToggleProcess(false)}
+                disabled={togglingProcess}
+                size="sm"
+                className="h-8 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/50 text-xs font-medium gap-1.5"
+              >
+                <Power className="w-3.5 h-3.5 text-rose-400" />
+                {togglingProcess ? 'Stopping...' : 'Turn Process OFF'}
+              </Button>
+            ) : (
+              <Button
+                onClick={() => handleToggleProcess(true)}
+                disabled={togglingProcess}
+                size="sm"
+                className="h-8 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium gap-1.5 shadow-lg shadow-emerald-600/20"
+              >
+                <Play className="w-3.5 h-3.5" />
+                {togglingProcess ? 'Starting...' : 'Turn Process ON'}
+              </Button>
+            )}
+
+            {/* Diagnostic Test Ping */}
+            <Button
+              onClick={handlePingTerminal}
+              disabled={pingingTerminal || !processStatus?.is_active}
+              variant="outline"
+              size="sm"
+              className="h-8 border-white/10 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs gap-1.5"
+            >
+              <Zap className={`w-3.5 h-3.5 text-amber-400 ${pingingTerminal ? 'animate-bounce' : ''}`} />
+              Test Ping
+            </Button>
+
+            {/* Clear Logs */}
+            <Button
+              onClick={handleClearTerminal}
+              disabled={clearingTerminal}
+              variant="ghost"
+              size="sm"
+              className="h-8 text-zinc-400 hover:text-white hover:bg-white/5 text-xs gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Clear
+            </Button>
+          </div>
+        </div>
+
+        {/* Filter bar and Window header */}
+        <div className="px-4 py-2 border-b border-white/[0.05] bg-zinc-950/90 flex flex-wrap items-center justify-between gap-3 text-xs">
+          {/* Mac window dots */}
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80 inline-block" />
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block" />
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block" />
+            <span className="ml-2 font-mono text-[11px] text-zinc-500">
+              octaos://stream/collaboration-gateway (buffer: {terminalLogs.length} events)
+            </span>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex items-center gap-1.5">
+            {['all', 'inbound', 'outbound', 'bridge', 'system'].map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setTerminalFilter(cat)}
+                className={`px-2 py-0.5 rounded text-[10px] font-mono capitalize transition-all ${
+                  terminalFilter === cat
+                    ? 'bg-indigo-600 text-white font-semibold'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Terminal Screen */}
+        <div className="p-4 bg-[#07080b] font-mono text-[11px] leading-relaxed max-h-72 overflow-y-auto space-y-1.5 select-text">
+          {terminalLogs.length === 0 ? (
+            <div className="py-8 text-center text-zinc-500">
+              No live collaboration events logged yet. External models or custom software requests will stream here.
+            </div>
+          ) : (
+            terminalLogs.map((entry) => {
+              const categoryColor =
+                entry.category === 'inbound'
+                  ? 'text-cyan-400 border-cyan-500/30 bg-cyan-950/20'
+                  : entry.category === 'outbound'
+                  ? 'text-purple-400 border-purple-500/30 bg-purple-950/20'
+                  : entry.category === 'bridge'
+                  ? 'text-amber-400 border-amber-500/30 bg-amber-950/20'
+                  : entry.level === 'warn' || entry.level === 'error'
+                  ? 'text-rose-400 border-rose-500/30 bg-rose-950/20'
+                  : 'text-emerald-400 border-emerald-500/30 bg-emerald-950/20';
+
+              const levelBadge =
+                entry.level === 'warn'
+                  ? 'text-amber-400'
+                  : entry.level === 'error'
+                  ? 'text-rose-400'
+                  : entry.level === 'success'
+                  ? 'text-emerald-400'
+                  : 'text-zinc-400';
+
+              return (
+                <div key={entry.id} className="flex items-start gap-2.5 py-0.5 group hover:bg-white/[0.02] rounded px-1.5 -mx-1.5">
+                  <span className="text-zinc-500 text-[10px] shrink-0 font-mono select-none">
+                    [{entry.timestamp}]
+                  </span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded text-[9px] uppercase tracking-wider font-semibold border shrink-0 ${categoryColor}`}
+                  >
+                    {entry.category}
+                  </span>
+                  <span className="text-zinc-400 shrink-0 text-[10px]">
+                    {entry.source} <span className="text-zinc-600">→</span> {entry.target}:
+                  </span>
+                  <span className={`flex-1 break-words ${levelBadge}`}>
+                    {entry.message}
+                  </span>
+                  {entry.details && Object.keys(entry.details).length > 0 && (
+                    <span className="text-[10px] text-zinc-600 group-hover:text-zinc-400 transition-colors">
+                      {JSON.stringify(entry.details)}
+                    </span>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 

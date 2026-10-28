@@ -71,6 +71,11 @@ def collab_setup():
             orig_adapters_db[slug] = adapter.db_factory
             adapter.db_factory = TestingSession
 
+    from unittest.mock import MagicMock
+    from app.core.celery_app import celery_app
+    orig_send_task = celery_app.send_task
+    celery_app.send_task = MagicMock(return_value=None)
+
     # Primary Tenant
     tenant_id = f"tenant-{uuid.uuid4().hex[:6]}"
     tenant = Tenant(id=tenant_id, name="Primary Collaboration Tenant", subdomain="primary")
@@ -158,6 +163,7 @@ def collab_setup():
     for slug, orig_db in orig_adapters_db.items():
         if slug in mcp_server.dispatcher._adapters:
             mcp_server.dispatcher._adapters[slug].db_factory = orig_db
+    celery_app.send_task = orig_send_task
     fastapi_app.dependency_overrides.clear()
 
 

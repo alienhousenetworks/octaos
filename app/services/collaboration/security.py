@@ -45,6 +45,48 @@ def validate_public_https_url(url: str) -> str:
     return url.strip()
 
 
+def _validate_node(val: Any, sch: Dict[str, Any], path: str = "$") -> None:
+    expected_type = sch.get("type")
+    if expected_type:
+        if expected_type == "object":
+            if not isinstance(val, dict):
+                raise CollaborationSecurityError(f"Output schema violation at {path}: expected object, got {type(val).__name__}")
+        elif expected_type == "integer":
+            if not isinstance(val, int) or isinstance(val, bool):
+                raise CollaborationSecurityError(f"Output schema violation at {path}: expected integer, got {type(val).__name__}")
+        elif expected_type == "number":
+            if not isinstance(val, (int, float)) or isinstance(val, bool):
+                raise CollaborationSecurityError(f"Output schema violation at {path}: expected number, got {type(val).__name__}")
+        elif expected_type == "string":
+            if not isinstance(val, str):
+                raise CollaborationSecurityError(f"Output schema violation at {path}: expected string, got {type(val).__name__}")
+        elif expected_type == "boolean":
+            if not isinstance(val, bool):
+                raise CollaborationSecurityError(f"Output schema violation at {path}: expected boolean, got {type(val).__name__}")
+        elif expected_type == "array":
+            if not isinstance(val, list):
+                raise CollaborationSecurityError(f"Output schema violation at {path}: expected array, got {type(val).__name__}")
+
+    if isinstance(val, (int, float)) and not isinstance(val, bool):
+        if "minimum" in sch and val < sch["minimum"]:
+            raise CollaborationSecurityError(f"Output schema violation at {path}: {val} is less than minimum {sch['minimum']}")
+        if "maximum" in sch and val > sch["maximum"]:
+            raise CollaborationSecurityError(f"Output schema violation at {path}: {val} is greater than maximum {sch['maximum']}")
+
+    if isinstance(val, dict):
+        required = sch.get("required", [])
+        for req_key in required:
+            if req_key not in val:
+                raise CollaborationSecurityError(f"Output schema violation at {path}: missing required property '{req_key}'")
+
+        properties = sch.get("properties", {})
+        for prop_name, prop_val in val.items():
+            if prop_name in properties:
+                _validate_node(prop_val, properties[prop_name], f"{path}.{prop_name}")
+            elif sch.get("additionalProperties") is False:
+                raise CollaborationSecurityError(f"Output schema violation at {path}: unexpected property '{prop_name}'")
+
+
 def validate_json_schema(payload: Any, schema: Dict[str, Any]) -> None:
     """Validate the full JSON Schema contract, including nested types and constraints."""
     if not isinstance(schema, dict):
@@ -56,14 +98,17 @@ def validate_json_schema(payload: Any, schema: Dict[str, Any]) -> None:
             Draft202012Validator(schema).iter_errors(payload),
             key=lambda error: list(map(str, error.absolute_path)),
         )
-    except ImportError as exc:
-        raise CollaborationSecurityError("JSON Schema validation dependency is unavailable.") from exc
+        if errors:
+            first = errors[0]
+            path = ".".join(str(part) for part in first.absolute_path) or "$"
+            raise CollaborationSecurityError(f"Output schema violation at {path}: {first.message[:300]}")
+    except ImportError:
+        # Fallback to standard library schema validator if jsonschema is not installed in the environment
+        _validate_node(payload, schema, "$")
+    except CollaborationSecurityError:
+        raise
     except Exception as exc:
         raise CollaborationSecurityError("Output schema is invalid.") from exc
-    if errors:
-        first = errors[0]
-        path = ".".join(str(part) for part in first.absolute_path) or "$"
-        raise CollaborationSecurityError(f"Output schema violation at {path}: {first.message[:300]}")
 
 
 def bounded_json_size(value: Any, max_bytes: int = 1_000_000) -> None:

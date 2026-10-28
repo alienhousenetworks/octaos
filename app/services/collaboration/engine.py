@@ -92,6 +92,25 @@ class AICollaborationEngine:
         if not selected_provider and eligible_providers:
             selected_provider = eligible_providers[0]
 
+        # Check if external collaboration process is active
+        from app.services.collaboration.live_terminal import LiveTerminalManager
+        if not LiveTerminalManager.is_process_active(self.db, self.tenant_id):
+            LiveTerminalManager.log_event(
+                tenant_id=self.tenant_id,
+                category="system",
+                level="warn",
+                source=calling_agent,
+                target="external_ai",
+                message="Outbound delegation skipped: External collaboration process is STOPPED. Resumed with internal workforce.",
+            )
+            return {
+                "status": "fallback_local",
+                "message": "External AI collaboration process is currently STOPPED. Resumed with internal workforce.",
+                "calling_agent": calling_agent,
+                "task_id": task_id,
+                "executed_externally": False,
+            }
+
         # 3. Handle Missing Provider Safely (Graceful Fallback)
         if not selected_provider and not constraints.get("_test_mock_response"):
             logger.info("No eligible external AI provider found for capabilities %s in tenant %s", required_capabilities, self.tenant_id)
@@ -143,6 +162,16 @@ class AICollaborationEngine:
         )
         self.db.add(receipt)
         self.db.commit()
+
+        LiveTerminalManager.log_event(
+            tenant_id=self.tenant_id,
+            category="outbound",
+            level="info",
+            source=calling_agent,
+            target=f"{provider_name}:{model_name}",
+            message=f"Dispatched task '{task.get('title') or task_id}' to external {provider_name} ({model_name})",
+            details={"task_id": task_id, "required_capabilities": required_capabilities},
+        )
 
         # 6. Execute Provider Request
         start_time = time.time()
@@ -226,6 +255,16 @@ class AICollaborationEngine:
 
         self.db.commit()
 
+        LiveTerminalManager.log_event(
+            tenant_id=self.tenant_id,
+            category="outbound",
+            level="success" if success else "error",
+            source=f"{provider_name}:{model_name}",
+            target=calling_agent,
+            message=f"External {provider_name} returned response (latency={latency}s, cost=${tokens_info.get('cost', 0.0):.4f})",
+            details={"tokens": tokens_info, "status": "completed" if success else "failed"},
+        )
+
         AuditService.log_event(
             db=self.db,
             action="collaboration.outbound_executed",
@@ -296,6 +335,19 @@ class AICollaborationEngine:
         task_id = str(uuid.uuid4())
         corr_id = request.parent_task_id or str(uuid.uuid4())
         target_emp = request.target_employee or "sales"
+
+        from app.services.collaboration.live_terminal import LiveTerminalManager
+        if not LiveTerminalManager.is_process_active(self.db, self.tenant_id):
+            LiveTerminalManager.log_event(
+                tenant_id=self.tenant_id,
+                category="system",
+                level="warn",
+                source=source_identifier,
+                target=f"octaos:{target_emp}",
+                message="Inbound task rejected: External AI collaboration process is STOPPED.",
+            )
+            raise RuntimeError("OctaOS External AI Collaboration Process is currently STOPPED.")
+
         if request.webhook_url:
             # Validate before persisting/accepting the callback destination.
             validate_public_https_url(request.webhook_url)
@@ -350,6 +402,16 @@ class AICollaborationEngine:
         )
         self.db.add(receipt)
         self.db.commit()
+
+        LiveTerminalManager.log_event(
+            tenant_id=self.tenant_id,
+            category="inbound",
+            level="info",
+            source=source_identifier,
+            target=f"octaos:{target_emp}",
+            message=f"Inbound collaboration task accepted: '{request.task_description[:60]}...'",
+            details={"task_id": task_id, "async": request.async_execution, "timeout_seconds": request.timeout_seconds},
+        )
 
         # 3. Synchronous Execution
         if not request.async_execution:
