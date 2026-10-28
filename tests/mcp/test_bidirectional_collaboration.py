@@ -598,3 +598,65 @@ def test_provider_task_budget_is_not_compared_to_account_ceiling(collab_setup):
         db, tenant_id, required_capabilities=["deep_coding"], max_cost=0.0
     )
     assert all(provider.provider != "anthropic" for provider in no_budget)
+
+
+
+def test_pinned_resolver_rejects_private_dns_answers(monkeypatch):
+    import asyncio
+    import socket
+    from app.services.collaboration.security import PublicPinnedResolver, CollaborationSecurityError
+
+    async def private_getaddrinfo(self, host, port, family=socket.AF_UNSPEC, type=0, proto=0, flags=0):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))]
+
+    monkeypatch.setattr(asyncio.BaseEventLoop, "getaddrinfo", private_getaddrinfo)
+    with pytest.raises(CollaborationSecurityError):
+        asyncio.run(PublicPinnedResolver().resolve("attacker.example", 443))
+
+
+def test_pinned_resolver_returns_numeric_pinned_addresses(monkeypatch):
+    import asyncio
+    import socket
+    from app.services.collaboration.security import PublicPinnedResolver
+
+    async def public_getaddrinfo(self, host, port, family=socket.AF_UNSPEC, type=0, proto=0, flags=0):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
+
+    monkeypatch.setattr(asyncio.BaseEventLoop, "getaddrinfo", public_getaddrinfo)
+    resolved = asyncio.run(PublicPinnedResolver().resolve("example.com", 443))
+    assert resolved[0]["host"] == "93.184.216.34"
+    assert resolved[0]["hostname"] == "example.com"
+
+
+def test_webhook_outbox_is_idempotent_and_tenant_scoped(collab_setup):
+    from app.services.collaboration.outbox import persist_webhook_outbox
+    db = collab_setup["db"]
+    tenant_a = collab_setup["tenant_id"]
+    tenant_b = collab_setup["tenant2_id"]
+    kwargs = {
+        "task_id": "task-outbox-regression",
+        "webhook_url": "https://example.com/hook",
+        "callback_payload": {"task_id": "task-outbox-regression", "status": "completed"},
+        "credential_id": "credential-id",
+    }
+    first = persist_webhook_outbox(db, tenant_id=tenant_a, **kwargs)
+    db.commit()
+    duplicate = persist_webhook_outbox(db, tenant_id=tenant_a, **kwargs)
+    db.commit()
+    other_tenant = persist_webhook_outbox(db, tenant_id=tenant_b, **kwargs)
+    db.commit()
+    assert duplicate.id == first.id
+    assert other_tenant.id != first.id
+    assert first.tenant_id == tenant_a
+    assert other_tenant.tenant_id == tenant_b
+
+
+def test_celery_registers_collaboration_worker_tasks():
+    from app.core.celery_app import celery_app
+    celery_app.loader.import_default_modules()
+    expected = {
+        "octaos.execute_inbound_collaboration",
+        "octaos.deliver_collaboration_webhook",
+        "octaos.drain_collaboration_webhook_outbox",
+    }
+    assert expected.issubset(set(celery_app.tasks.keys()))
