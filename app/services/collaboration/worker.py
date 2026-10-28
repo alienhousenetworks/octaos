@@ -144,15 +144,16 @@ def execute_inbound_collaboration(self, task_id: str, tenant_id: str):
 
         webhook_url = payload.get("webhook_url")
         if webhook_url:
-            # The credential hash is the stable shared signing key; a client holding
-            # the API token can derive the same SHA-256 digest for signature checks.
-            delivered = asyncio.run(dispatch_signed_webhook(
-                webhook_url=webhook_url,
-                payload={"task_id": task_id, "status": msg.status, "result": result},
-                secret=credential.key_hash,
-            ))
-            if not delivered:
-                logger.warning("Webhook delivery failed for collaboration task %s", task_id)
+            # Durable delivery is a separate Celery job so retries never rerun the employee action.
+            try:
+                celery_app.send_task(
+                    "octaos.deliver_collaboration_webhook",
+                    args=[webhook_url, {"task_id": task_id, "status": msg.status, "result": result},
+                          credential.key_hash],
+                    queue="main-queue",
+                )
+            except Exception as exc:
+                logger.error("Webhook enqueue failed for task %s (%s)", task_id, type(exc).__name__)
         return {"task_id": task_id, "status": msg.status}
     finally:
         db.close()
