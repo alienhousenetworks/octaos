@@ -360,14 +360,33 @@ class AICollaborationEngine:
                 "instructions": request.task_description,
             }
 
-            tool_result = await asyncio.wait_for(
-                mcp_server.registry.call_tool(
-                    credential=mcp_credential,
-                    tool_name="octaos_delegate_ai_employee",
-                    arguments=tool_args,
-                ),
-                timeout=max(1, min(int(request.timeout_seconds), 300)),
-            )
+            try:
+                tool_result = await asyncio.wait_for(
+                    mcp_server.registry.call_tool(
+                        credential=mcp_credential,
+                        tool_name="octaos_delegate_ai_employee",
+                        arguments=tool_args,
+                    ),
+                    timeout=max(1, min(int(request.timeout_seconds), 300)),
+                )
+            except asyncio.TimeoutError:
+                now = datetime.now(timezone.utc)
+                msg.status = "failed"
+                msg.error_code = "EXECUTION_TIMEOUT"
+                msg.completed_at = now
+                receipt.status = "failed"
+                receipt.verification_errors = ["Employee execution exceeded the configured timeout."]
+                self.db.commit()
+                return TaskStatusResponse(
+                    task_id=task_id, parent_task_id=request.parent_task_id,
+                    correlation_id=corr_id, tenant_id=self.tenant_id,
+                    source_agent=source_identifier, target_employee=target_emp,
+                    target_capability=request.target_capability,
+                    task_description=request.task_description, status="failed",
+                    lineage=updated_lineage, depth=new_depth,
+                    error_details="EXECUTION_TIMEOUT", evidence=[],
+                    created_at=msg.created_at.isoformat(), completed_at=now.isoformat(),
+                )
 
             content_text = "".join(getattr(c, "text", str(c)) for c in tool_result.content)
             try:
