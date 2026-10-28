@@ -298,6 +298,9 @@ class AICollaborationEngine:
         if request.webhook_url:
             # Validate before persisting/accepting the callback destination.
             validate_public_https_url(request.webhook_url)
+        for reference in request.input_references:
+            if reference.url:
+                validate_public_https_url(reference.url)
         if request.timeout_seconds < 1 or request.timeout_seconds > 300:
             raise ValueError("timeout_seconds must be between 1 and 300.")
         if request.cost_limit_usd <= 0:
@@ -396,18 +399,19 @@ class AICollaborationEngine:
             receipt.evidence = [evidence_item]
             self.db.commit()
 
-            # Do not use a process-local fire-and-forget task: await delivery here.
-            # The dispatcher has strict URL validation, no redirects, and a bounded timeout.
+            # Publish a durable, retryable webhook task after the result is committed.
             if request.webhook_url:
-                secret = getattr(mcp_credential, "webhook_secret", None)
-                if not secret:
-                    logger.warning("Webhook requested for task %s but no dedicated webhook secret is configured", task_id)
-                else:
-                    await dispatch_signed_webhook(
-                        webhook_url=request.webhook_url,
-                        payload={"task_id": task_id, "status": msg.status, "result": parsed_res},
-                        secret=secret,
+                from app.core.celery_app import celery_app
+                try:
+                    celery_app.send_task(
+                        "octaos.deliver_collaboration_webhook",
+                        args=[request.webhook_url,
+                              {"task_id": task_id, "status": msg.status, "result": parsed_res},
+                              mcp_credential.key_hash],
+                        queue="main-queue",
                     )
+                except Exception as exc:
+                    logger.error("Webhook enqueue failed for task %s (%s)", task_id, type(exc).__name__)
 
             return TaskStatusResponse(
                 task_id=task_id,
