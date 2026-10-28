@@ -89,3 +89,18 @@ File magic-byte validation is useful but does not by itself protect URL ingestio
 ## Important scope note
 
 This branch is a targeted security remediation, not a claim that every collaboration gap above is already fixed. The durable async worker handoff and live provider health verification require integration with the actual runtime and deployment configuration; they should not be simulated or declared complete without evidence.
+
+
+## Follow-up remediation (2026-10-28)
+
+- **Async handoff:** committed inbound task/receipt rows are dispatched to the existing Celery `main-queue`; worker imports are registered in the existing Celery app. Failed enqueue is persisted as `DURABLE_HANDOFF_FAILED`, not left queued.
+- **Worker lifecycle:** the worker reloads the credential with matching tenant scope, applies a bounded timeout, writes result/evidence to the existing collaboration records, and checks cancellation before finalizing. Cancellation also attempts to revoke the Celery task.
+- **Provider status:** a decryptable credential is labelled `configured`, not `connected`; `is_connected` remains false until live reachability is actually established. Configured providers can be selected as candidates, but the real dispatch must succeed to prove connectivity.
+- **Budget semantics:** task spend budget is no longer compared to the provider account ceiling. The dimensions are treated separately; provider account ceilings at or below zero are not a usable dispatch budget.
+- **Output contract:** full JSON Schema Draft 2020-12 validation (including nested types, constraints, required properties and additional properties) plus a 1 MB response cap are applied to outbound and inbound results. The `jsonschema` dependency is declared.
+- **Timeout/cancellation:** provider calls and employee calls are bounded. Synchronous timeout is persisted as `EXECUTION_TIMEOUT`; late worker completion does not overwrite a cancelled status.
+- **Webhook delivery:** the process-local `asyncio.create_task` path was removed. Webhook delivery is a separate Celery task with retries so a callback retry does not rerun the employee action.
+- **SSRF controls:** callback and input-reference URLs must be HTTPS, reject embedded credentials/non-default ports/local/private/link-local/reserved destinations, disable redirects, and bypass environment proxies. Every webhook retry revalidates the destination.
+- **Tests added/updated:** provider configuration-vs-connectivity expectations, SSRF rejection cases, and nested JSON Schema validation cases.
+
+**Verification caveat:** these changes were committed remotely through GitHub APIs. Tests have not been executed in a local runner in this session, and no passing CI result has been observed. DNS resolution is validated before requests but the implementation does not pin the resolved address to the socket, so production-grade DNS-rebinding resistance should be completed at the HTTP transport/network egress layer. Webhook delivery is queued durably after task completion; a broker outage at the exact moment of enqueue is logged and needs operational monitoring/reconciliation for guaranteed delivery.
