@@ -304,3 +304,117 @@ def test_collaboration_providers_accepts_workspace_login(test_setup):
     )
     assert with_mcp_key.status_code == 200
     assert isinstance(with_mcp_key.json(), list)
+
+
+def test_api_key_can_draft_outreach_without_sending(test_setup, monkeypatch):
+    from app.models.verticals import Lead
+    from app.services.verticals.sales import SalesService
+
+    setup = test_setup
+    lead = Lead(
+        tenant_id=setup["tenant"].id,
+        name="Harish Iyer",
+        email="harish.iyer@interactiveavenues.com",
+        company="Interactive Avenues",
+        status="captured",
+    )
+    setup["db"].add(lead)
+    setup["db"].commit()
+
+    async def fake_outreach(self, lead_id, instructions=""):
+        return "Hello Interactive Avenues.\nhttps://interactiveavenues.com"
+
+    monkeypatch.setattr(SalesService, "generate_outreach", fake_outreach)
+    res = setup["client"].post(
+        f"/api/v1/leads/{lead.id}/outreach/draft",
+        headers={"Authorization": f"Bearer {setup['raw_key']}"},
+        json={"instructions": "Keep it specific"},
+    )
+    assert res.status_code == 200
+    assert res.json()["body"] == "Hello Interactive Avenues.\nhttps://interactiveavenues.com"
+    setup["db"].expire_all()
+    saved = setup["db"].query(Lead).filter(Lead.id == lead.id).one()
+    assert saved.data["draft_body"]
+    assert saved.status == "captured"
+
+
+@pytest.mark.asyncio
+async def test_sales_delegate_does_not_invent_a_placeholder_lead(test_setup, monkeypatch):
+    """A sales job uses a real CRM lead and drafts. It must not insert lead@example.com."""
+    from app.models.verticals import Lead
+    from app.services.sales.discovery_service import DiscoveryService
+    from app.services.verticals.sales import SalesService
+
+    setup = test_setup
+    lead = Lead(
+        tenant_id=setup["tenant"].id,
+        name="Business Development",
+        email="info@webenza.com",
+        company="Webenza",
+        status="captured",
+        data={"tags": ["AHN ICP"]},
+    )
+    setup["db"].add(lead)
+    setup["db"].commit()
+
+    async def fake_outreach(self, lead_id, instructions=""):
+        return "Hello Webenza.\nhttps://webenza.com"
+
+    async def fail_research(self, params):
+        raise AssertionError("web research should not run when a real lead is already on file")
+
+    monkeypatch.setattr(SalesService, "generate_outreach", fake_outreach)
+    monkeypatch.setattr(DiscoveryService, "generate_leads", fail_research)
+
+    res = setup["client"].post(
+        "/api/v1/plugin/workforce/delegate",
+        headers={"Authorization": f"Bearer {setup['raw_key']}"},
+        json={"employee": "sales", "task_type": "outreach_draft", "parameters": {}, "instructions": "Draft the AHN ICP emails"},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["result"]["sent"] is False
+    assert body["result"]["drafted_count"] == 1
+    assert body["result"]["created_count"] == 0
+
+    setup["db"].expire_all()
+    emails = [row.email for row in setup["db"].query(Lead).all()]
+    assert "lead@example.com" not in emails
+    saved = setup["db"].query(Lead).filter(Lead.email == "info@webenza.com").one()
+    assert "webenza.com" not in saved.data["draft_body"]
+
+
+def test_api_key_can_read_mail_status_and_is_blocked_from_sending_without_a_mailbox(test_setup):
+    setup = test_setup
+    headers = {"Authorization": f"Bearer {setup['raw_key']}"}
+    status_res = setup["client"].get("/api/v1/unified-mail/status", headers=headers)
+    assert status_res.status_code == 200
+    assert status_res.json()["configured"] is False
+
+    send_res = setup["client"].post(
+        "/api/v1/unified-mail/send",
+        headers=headers,
+        json={"to_email": "info@webenza.com", "subject": "Hello", "body": "Draft only."},
+    )
+    assert send_res.status_code == 502
+    assert send_res.json()["detail"]
+    assert "sent" not in send_res.json() or send_res.json().get("sent") is not True
+
+
+def test_read_only_api_key_cannot_send_mail(test_setup):
+    from app.services.mcp.auth.credentials import create_credential_with_grants
+
+    setup = test_setup
+    _cred, raw_key = create_credential_with_grants(
+        db=setup["db"],
+        tenant_id=setup["tenant"].id,
+        name="Read only",
+        user_id=setup["user"].id,
+        role="read_only",
+    )
+    res = setup["client"].post(
+        "/api/v1/unified-mail/send",
+        headers={"Authorization": f"Bearer {raw_key}"},
+        json={"to_email": "info@webenza.com", "subject": "Hello", "body": "Do not send."},
+    )
+    assert res.status_code == 403

@@ -8,6 +8,14 @@ from app.services.agents.sales import SalesAgent
 from app.services.agents.support import SupportAgent
 from app.services.agents.finance import FinanceAgent
 from app.services.agents.hr import HRAgent
+from app.services.agents.connected_systems import (
+    clients_addressed_by,
+    connection_facts,
+    correct_assistant_reply,
+    ensure_mcp_message_task,
+    load_connected_systems,
+    mcp_handoff_note,
+)
 
 from app.models.base import APICredential
 
@@ -78,6 +86,43 @@ def _current_request_text(prompt: str) -> str:
     """Ignore quoted conversation history when resolving provider intent."""
     match = re.search(r"current user request:\s*(.*)\Z", prompt or "", re.IGNORECASE | re.DOTALL)
     return match.group(1).strip() if match else (prompt or "")
+
+
+def _message_connected_client(
+    agent: "OrchestratorAgent",
+    request: str,
+    client_hint: str = "",
+    text: str = "",
+) -> str:
+    """Place a message on the named MCP client and return the real handoff."""
+    from app.services.mcp.client_channel import queue_client_message
+
+    snapshot = load_connected_systems(agent.db, agent.tenant_id)
+    lookup = " ".join(part for part in (client_hint, request) if part).strip()
+    clients = clients_addressed_by(snapshot, lookup or request)
+    if not clients:
+        known = ", ".join(
+            str(client.get("name") or "unnamed")
+            for client in (snapshot.get("mcp_clients") or [])
+        ) or "none"
+        return f"MCP handoff: no saved client matched that request. Saved MCP clients: {known}."
+    body = (text or request).strip()
+    if not body.lower().startswith("message from the octaos assistant"):
+        body = f"Message from the OctaOS assistant: {body}"
+    lines = []
+    for client in clients:
+        if not client.get("id"):
+            lines.append(f"MCP handoff: {client.get('name') or 'MCP client'} has no saved credential id, so nothing was queued.")
+            continue
+        placed = queue_client_message(
+            agent.db,
+            tenant_id=agent.tenant_id,
+            credential_id=str(client["id"]),
+            client_name=str(client.get("name") or "MCP client"),
+            text=body,
+        )
+        lines.append(mcp_handoff_note(placed))
+    return "\n".join(lines)
 
 
 def knowledge_query_for_turn(prompt: str, messages: Optional[List[Dict[str, Any]]] = None) -> str:
@@ -197,16 +242,45 @@ class OrchestratorAgent(BaseAgent):
         try:
             cand_count = self.db.query(Candidate).filter_by(tenant_id=self.tenant_id).count()
             lead_count = self.db.query(Lead).filter_by(tenant_id=self.tenant_id).count()
-            operational_stats = f"Live Database Counts: {cand_count} Candidate(s)/Resume(s) currently on file; {lead_count} Lead(s) in CRM."
+            recent_leads = (
+                self.db.query(Lead.company, Lead.email)
+                .filter(Lead.tenant_id == self.tenant_id, Lead.email.isnot(None))
+                .order_by(Lead.created_at.desc())
+                .limit(12)
+                .all()
+            )
+            shown = [
+                f"{company} ({email})"
+                for company, email in recent_leads
+                if company and email and "example.com" not in email.lower()
+            ]
+            sample = f" Named sample, not the full CRM: {'; '.join(shown)}." if shown else ""
+            operational_stats = (
+                f"Live Database Counts: {cand_count} Candidate(s)/Resume(s) currently on file; "
+                f"{lead_count} Lead(s) in the CRM. {sample} "
+                "Do not describe the sample size as the number of leads."
+            )
         except Exception:
             operational_stats = "Live Database Counts: 0 Candidate(s)/Resume(s) on file; 0 Lead(s) in CRM."
 
         # Search the tenant library with the user's question. The task label
         # "orchestrator" matches none of the crawled website pages.
-        company_knowledge = self.get_knowledge_context(
-            knowledge_query_for_turn(current_request, messages) or current_request,
-            "General",
-        )
+        knowledge_query = knowledge_query_for_turn(current_request, messages) or current_request
+        try:
+            company_knowledge = self.get_knowledge_context(knowledge_query, "General")
+        except Exception as knowledge_error:
+            logger.warning("Company knowledge lookup failed: %s", knowledge_error)
+            company_knowledge = ""
+        try:
+            from app.services.rag.hybrid_engine import HybridRAGEngine
+            knowledge_hits = HybridRAGEngine(self.db, self.tenant_id).retrieve(
+                knowledge_query, department="general", top_k=6,
+            )
+        except Exception as knowledge_error:
+            logger.warning("Company knowledge hits failed: %s", knowledge_error)
+            knowledge_hits = []
+        connection_snapshot = load_connected_systems(self.db, self.tenant_id)
+        connected_systems = connection_facts(connection_snapshot, current_request)
 
         system_prompt = f"""You are the Orchestrator AI, the central coordination brain of OctaOS.
 Your job is to assist company leadership, answer questions about operations, and coordinate specialized department agents (Marketing, Sales, Support, HR, Finance).
@@ -230,20 +304,35 @@ Available Agents & Actions:
       - Do not tell the user that web search, Firecrawl, Apify, or public web discovery is unavailable when handling lead research.
       - For public social, hiring, directory, or signal research, use web_search unless the user explicitly requests a configured Apify/source provider. Respect robots, terms, privacy, and login/access boundaries; do not claim a contact is verified unless the source supports it.
       - For local brick-and-mortar business searches, web_search may be used unless the user explicitly requests Google Places.
+  - "draft_outreach": parameters: {{"query": str, "count": int, "tag": str, "company": str, "email": str, "instructions": str}}
+    * Use this when the user asks Sales to email, draft, qualify, or reach leads already in the CRM, including leads tagged AHN ICP.
+    * It reads those real leads, researches the public web only when the user asks for new companies or the CRM has no real match, fills real contact details, and stores an unsent draft.
+    * It must not invent a person or company, must not use lead@example.com, and must not send.
   - "sales_outreach": parameters: {{"channel": "smtp" | "gmail" | "whatsapp", "subject": str, "body_template": str}}
+    * This sends mail. Use it only when the user explicitly says to send and a mailbox is already connected. Otherwise use "draft_outreach".
   - "schedule_meeting": parameters: {{"tool": "google_calendar", "count": int}}
 - HR:
   - "source_candidates": parameters: {{"role": str, "requirements": str, "salary": str, "count": int}}
   - "candidate_outreach": parameters: {{"channel": "smtp" | "gmail", "subject": str, "body_template": str, "candidate_id": str | None}}
   - "schedule_interview": parameters: {{"tool": "google_calendar", "candidate_id": str | None}}
 - System:
+  - "message_mcp_client": parameters: {{"client": str, "text": str}}
+    * Use this only when the user asks to message, tell, text, notify, or ping a saved MCP client.
+    * client is the name or type from the records. text is the message to place.
+    * Do not use it when the user only asks whether a system can be reached.
   - "request_key": parameters: {{"provider": str}} - use this to ask the user for a missing key.
+
+Connection records for this turn. This JSON is a lookup of what is saved and what is absent. It is not an answer to copy:
+{connected_systems}
 
 Guidelines:
 1. If the user asks a conversational question, operational inquiry, or asks for advice, provide a clear, helpful response in the "message" field. (Use the operational database counts above if asked about candidate, resume, or lead counts).
 2. If the user request requires executing tasks, include them in the "tasks" array. If no execution tasks are needed, leave "tasks" as an empty list [].
 3. Adhere strictly to the company knowledge base and guidelines above. When those excerpts describe the company or its website, answer from them and cite the source URL. Do not say the company knowledge base is empty, and do not ask the user to paste website content that is already in the excerpts. If a specific fact is absent from the excerpts, say that fact was not in the retrieved pages.
-4. Multi-turn conversation context: If previous conversation history is provided, maintain context across turns. For example, if you asked the user clarifying questions about a role, task, campaign, or parameters in previous turns, interpret the user's latest reply in the context of those prior questions.
+4. Multi-turn conversation context: If previous conversation history is provided, maintain context across turns. For example, if you asked the user clarifying questions about a role, task, campaign, or parameters in previous turns, interpret the user's latest reply in the context of those prior questions. If an earlier turn printed a fixed connection card, do not repeat that card. Answer this turn from the records.
+5. Write the reply in your own words from the connection records. When asked_about is present, answer that system: say whether it is saved or absent. An MCP client and a provider API key are different records. A missing provider key does not make an MCP client one-way and does not block message_mcp_client. inbuilt_model_route is the server model answering this turn; a provider with configured false only means no tenant API key is saved. Do not paste the JSON. Do not answer a question about one system by reciting every other system. Do not say you cannot check connections. Do not claim a client displayed a message.
+6. If the user asks whether the company offers consulting, marketing, hiring, or another service, answer from the knowledge excerpts and cite the page URL. Leave tasks empty for that question.
+7. Say that email or WhatsApp can be sent only when mailbox_connected or whatsapp_configured is true in those records. Otherwise say an unsent draft can be stored.
 
 Output MUST be valid JSON only.
 Format:
@@ -275,10 +364,14 @@ Format:
                 conv_resp = await self.llm.complete(
                     prompt=effective_prompt,
                     system_prompt=(
-                        "You are the Orchestrator AI for OctaOS. Assist the user with their request. "
+                        "You are the Orchestrator AI for OctaOS. Answer in your own words. "
                         "When the company knowledge excerpts answer the question, use them and cite the source URL. "
-                        "Do not claim the knowledge base has no information about the company when those excerpts are present.\n\n"
-                        f"{company_knowledge}\n\n{operational_stats}"
+                        "Do not claim the knowledge base has no information about the company when those excerpts are present. "
+                        "The connection JSON is a lookup of what is saved and what is absent. "
+                        "Answer the system the user asked about. Do not paste the JSON or recite every system. "
+                        "An MCP client and a provider API key are different. A missing key does not make an MCP client one-way. "
+                        "If an earlier turn printed a fixed connection card, do not repeat it.\n\n"
+                        f"{company_knowledge}\n\n{connected_systems}\n\n{operational_stats}"
                     ),
                     provider=provider,
                     model=model
@@ -289,12 +382,25 @@ Format:
                 logger.error(f"[Orchestrator] Conversational fallback error: {ce}")
                 plan = {"message": "I processed your request, but could not reach the language model provider. Please check your API key in Settings.", "tasks": []}
 
+        corrected = correct_assistant_reply(
+            plan.get("message") or "",
+            current_request,
+            knowledge_hits,
+            connection_snapshot,
+        )
+        plan["message"] = corrected["message"]
+        if corrected["drop_tasks"]:
+            plan["tasks"] = []
+        else:
+            plan["tasks"] = ensure_mcp_message_task(plan.get("tasks"), current_request)
+
         self.log_activity("Delegate Tasks", f"Delegated goal: '{prompt}'")
         
         results = []
         if plan.get("message"):
             results.append({"status": "success", "message": plan["message"]})
 
+        current_request = _current_request_text(prompt)
         for task in plan.get("tasks", []):
             dept = task.get("department")
             try:
@@ -305,11 +411,13 @@ Format:
                 if dept == "Sales" and task.get("action") == "generate_leads":
                     params = task.setdefault("parameters", {})
                     requested_provider = params.get("provider")
-                    current_request = _current_request_text(prompt)
                     if not _lead_provider_was_explicitly_requested(current_request):
                         params["provider"] = "web_search"
                     else:
                         params["provider"] = infer_lead_provider(current_request, requested_provider)
+                if dept == "Sales" and task.get("action") in ("draft_outreach", "qualify_leads", "outreach_draft", "research_and_draft"):
+                    params = task.setdefault("parameters", {})
+                    params.setdefault("instructions", current_request)
                 if dept == "Marketing":
                     agent = MarketingAgent(self.db, self.tenant_id)
                     res = await agent.execute_task(task)
@@ -330,6 +438,16 @@ Format:
                     agent = HRAgent(self.db, self.tenant_id)
                     res = await agent.execute_task(task)
                     results.append(res)
+                elif dept == "System" and task.get("action") == "message_mcp_client":
+                    params = task.get("parameters") or {}
+                    handoff = _message_connected_client(
+                        self,
+                        current_request,
+                        client_hint=str(params.get("client") or ""),
+                        text=str(params.get("text") or ""),
+                    )
+                    self.log_activity("Message MCP Client", handoff.split("\n", 1)[0])
+                    results.append({"status": "success", "message": handoff})
                 elif dept == "System" and task.get("action") == "request_key":
                     provider = task.get("parameters", {}).get("provider", "unknown")
                     if provider == "smtp":

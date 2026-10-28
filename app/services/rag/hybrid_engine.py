@@ -83,10 +83,69 @@ def _query_wants_jobs(query: str) -> bool:
     return any(re.search(rf"\b{term}\b", lowered) for term in _JOB_TERMS)
 
 
+def _near(left: str, right: str, limit: int = 2) -> bool:
+    """True when two short tokens are the same or within a small edit distance."""
+    if left == right:
+        return True
+    if abs(len(left) - len(right)) > limit:
+        return False
+    previous = list(range(len(right) + 1))
+    for index, char in enumerate(left, 1):
+        current = [index]
+        smallest = index
+        for other_index, other in enumerate(right, 1):
+            cost = 0 if char == other else 1
+            current.append(min(
+                previous[other_index] + 1,
+                current[other_index - 1] + 1,
+                previous[other_index - 1] + cost,
+            ))
+            smallest = min(smallest, current[-1])
+        if smallest > limit:
+            return False
+        previous = current
+    return previous[-1] <= limit
+
+
+# Misspellings such as "cosnultant" and "hirnng" still have to open the service page.
+_SERVICE_STEMS = (
+    ("consulting", "consult"),
+    ("consultant", "consult"),
+    ("consultancy", "consult"),
+    ("marketing", "market"),
+    ("hiring", "hiring"),
+    ("recruitment", "hiring"),
+    ("recruiting", "hiring"),
+    ("software", "software"),
+    ("cloud", "cloud"),
+)
+_SERVICE_NEEDLES = {
+    "consult": "business-consulting",
+    "market": "/services/marketing",
+    "hiring": "hiring-solution",
+    "software": "software-development",
+    "cloud": "cloud-solutions",
+}
+
+
+def service_terms_in_query(query: str) -> List[str]:
+    """Service-page keys mentioned in the question, including close misspellings."""
+    found: List[str] = []
+    for token in re.findall(r"[a-z0-9]{4,}", (query or "").lower()):
+        for stem, canon in _SERVICE_STEMS:
+            if token == stem or token.startswith(stem[:5]) or _near(token, stem):
+                if canon not in found:
+                    found.append(canon)
+                break
+    return found
+
+
 def query_requests_company_knowledge(query: str, source_urls: Optional[List[str]] = None) -> bool:
     """True when the user is asking who the company is or to use the crawled site."""
     lowered = (query or "").lower()
     if any(cue in lowered for cue in _SITE_LOOKUP_CUES):
+        return True
+    if re.search(r"\bai\s*house\b|\balien\s*house\b", lowered):
         return True
     identity = bool(re.search(r"\b(what|who|describe|explain)\b", lowered) or "tell me about" in lowered)
     if not identity:
@@ -211,6 +270,7 @@ class HybridRAGEngine:
                 results.append(self._hit_from_chunk(chunk, round(fused_scores[cid], 4), citation))
 
         results = self._prefer_company_profile(query, chunks, results, top_k)
+        results = self._prefer_service_pages(query, chunks, results, top_k)
         source_urls = [chunk.source_url for chunk in chunks if chunk.source_url]
         profile_requested = query_requests_company_knowledge(query, source_urls)
         has_profile = any(_is_profile_url(hit.get("source_url") or "") for hit in results)
@@ -284,6 +344,51 @@ class HybridRAGEngine:
             used.add(chunk.id)
         for hit in results:
             if hit.get("chunk_id") in used:
+                continue
+            merged.append(hit)
+            if len(merged) >= top_k:
+                break
+        return merged[:top_k]
+
+    def _prefer_service_pages(
+        self,
+        query: str,
+        chunks: List[KnowledgeChunk],
+        results: List[Dict[str, Any]],
+        top_k: int,
+    ) -> List[Dict[str, Any]]:
+        """Open the consulting, marketing, and hiring pages even when the words are misspelled."""
+        terms = service_terms_in_query(query)
+        if not terms:
+            return results
+        chosen: List[KnowledgeChunk] = []
+        used_urls = set()
+        for term in terms:
+            needle = _SERVICE_NEEDLES.get(term)
+            if not needle:
+                continue
+            matches = [
+                chunk for chunk in chunks
+                if needle in (chunk.source_url or "").lower()
+                and not _is_application_form(chunk.content or "")
+            ]
+            matches.sort(key=lambda chunk: self._profile_quality(chunk, query), reverse=True)
+            for chunk in matches:
+                url = chunk.source_url or ""
+                if url in used_urls:
+                    continue
+                used_urls.add(url)
+                chosen.append(chunk)
+                break
+        if not chosen:
+            return results
+        merged: List[Dict[str, Any]] = []
+        used_ids = set()
+        for chunk in chosen:
+            merged.append(self._hit_from_chunk(chunk, 1.0))
+            used_ids.add(chunk.id)
+        for hit in results:
+            if hit.get("chunk_id") in used_ids:
                 continue
             merged.append(hit)
             if len(merged) >= top_k:

@@ -270,7 +270,7 @@ DOMAIN_WRAPPERS_SPEC: List[Dict[str, Any]] = [
     },
     {
         "name": "octaos_delegate_ai_employee",
-        "description": "Delegate a high-level goal or task to an autonomous OctaOS AI Employee (marketing, sales, support, hr, or ceo).",
+        "description": "Delegate a goal to an OctaOS AI Employee (marketing, sales, support, hr, or ceo). A sales job reads real CRM leads, researches the public web when new companies are requested or none are on file, and stores unsent email drafts. It does not invent placeholder contacts and it does not send.",
         "inputSchema": {
             "type": "object",
             "properties": {

@@ -195,8 +195,9 @@ async def receive_unified_email_webhook(
 def create_connect_session(
     payload: ConnectSessionRequest,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
-    current_user: User = Depends(deps.get_current_user),
+    tenant_id: str = Depends(deps.get_current_tenant_id_or_api_key),
+    current_user: User = Depends(deps.get_current_user_or_api_key),
+    _: None = Depends(deps.require_api_key_write),
 ) -> Dict[str, Any]:
     """
     Generates a 1-click hosted onboarding URL (via Unipile or EmailEngine)
@@ -231,8 +232,8 @@ def create_connect_session(
 @router.get("/status")
 def get_universal_mailbox_status(
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
-    current_user: User = Depends(deps.get_current_user),
+    tenant_id: str = Depends(deps.get_current_tenant_id_or_api_key),
+    current_user: User = Depends(deps.get_current_user_or_api_key),
 ) -> Dict[str, Any]:
     """Returns current connection status and active provider for the tenant."""
     provider = get_universal_mailbox_provider(db, tenant_id)
@@ -266,8 +267,9 @@ def get_universal_mailbox_status(
 def send_outbound_email(
     payload: OutboundSendRequest,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
-    current_user: User = Depends(deps.get_current_user),
+    tenant_id: str = Depends(deps.get_current_tenant_id_or_api_key),
+    current_user: User = Depends(deps.get_current_user_or_api_key),
+    _: None = Depends(deps.require_api_key_write),
 ) -> Dict[str, Any]:
     """
     Directly dispatches an email through the tenant's universal connected mailbox

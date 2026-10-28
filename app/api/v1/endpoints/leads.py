@@ -228,8 +228,8 @@ def update_whatsapp_opt_in(
 async def generate_outreach(
     lead_id: str,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
-    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE)),
+    tenant_id: str = Depends(deps.get_current_tenant_id_or_api_key),
+    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE, allow_api_key=True)),
 ) -> Any:
     service = SalesService(db, tenant_id)
     try:
@@ -1067,8 +1067,8 @@ async def generate_outreach_draft(
     lead_id: str,
     payload: dict = None,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
-    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE)),
+    tenant_id: str = Depends(deps.get_current_tenant_id_or_api_key),
+    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE, allow_api_key=True)),
 ) -> Any:
     """Generate an editable outreach draft (not sent). Optional payload.instructions steers tone/angle."""
     lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
@@ -1090,8 +1090,8 @@ def save_follow_up_schedule(
     lead_id: str,
     payload: dict,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
-    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE)),
+    tenant_id: str = Depends(deps.get_current_tenant_id_or_api_key),
+    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE, allow_api_key=True)),
 ) -> Any:
     lead = db.query(models.Lead).filter(models.Lead.id == lead_id, models.Lead.tenant_id == tenant_id).first()
     if not lead:
@@ -1109,8 +1109,8 @@ async def send_outreach_smart(
     lead_id: str,
     payload: dict = None,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
-    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE)),
+    tenant_id: str = Depends(deps.get_current_tenant_id_or_api_key),
+    _: User = Depends(require_permission(Resource.LEADS, Action.UPDATE, allow_api_key=True)),
 ) -> Any:
     """Send a reviewed draft through the central policy-gated dispatcher."""
     from app.services.email.sender import check_smtp_configured, check_gmail_configured

@@ -22,6 +22,25 @@ from app.services.mcp.connectors.base import (
 
 logger = logging.getLogger(__name__)
 
+# These outreach fields are stored on the lead JSON payload. They are not columns.
+_LEAD_DATA_KEYS = ("draft_subject", "draft_body", "tags", "website", "outreach_draft")
+
+
+def _lead_data_extras(values: Dict[str, Any]) -> Dict[str, Any]:
+    extras: Dict[str, Any] = {}
+    if isinstance(values.get("data"), dict):
+        extras.update(values["data"])
+    for key in _LEAD_DATA_KEYS:
+        if key not in values:
+            continue
+        value = values[key]
+        if value in (None, "", [], {}):
+            continue
+        if key == "tags" and isinstance(value, str):
+            value = [part.strip() for part in value.split(",") if part.strip()]
+        extras[key] = value
+    return extras
+
 # Registry of supported internal model mappings
 CORE_OCTAOS_MODELS: Dict[str, Dict[str, Any]] = {
     "lead": {
@@ -341,9 +360,14 @@ class OctaOSInternalAdapter(ConnectorAdapter):
         db: Session = self.db_factory()
         try:
             tenant_token = tenant_context.set(ctx.tenant_id)
-            # Filter values to recognized columns
+            # Filter values to recognized columns. Drafts and tags live in lead.data.
+            payload = dict(values)
+            if object_name.lower() == "lead":
+                extras = _lead_data_extras(payload)
+                if extras:
+                    payload["data"] = extras
             valid_cols = {col.name for col in model.__table__.columns}
-            filtered_values = {k: v for k, v in values.items() if k in valid_cols and k != "id"}
+            filtered_values = {k: v for k, v in payload.items() if k in valid_cols and k != "id"}
             filtered_values["tenant_id"] = ctx.tenant_id
 
             new_instance = model(**filtered_values)
@@ -402,8 +426,19 @@ class OctaOSInternalAdapter(ConnectorAdapter):
 
             valid_cols = {col.name for col in model.__table__.columns}
             for k, v in values.items():
-                if k in valid_cols and k not in ("id", "tenant_id", "created_at"):
+                if k in valid_cols and k not in ("id", "tenant_id", "created_at", "data"):
                     setattr(rec, k, v)
+            if object_name.lower() == "lead":
+                extras = _lead_data_extras(values)
+                if extras:
+                    merged = dict(rec.data or {})
+                    for key, value in extras.items():
+                        if key in ("draft_body", "draft_subject") and not str(value or "").strip():
+                            continue
+                        merged[key] = value
+                    rec.data = merged
+            elif isinstance(values.get("data"), dict) and "data" in valid_cols:
+                rec.data = values["data"]
 
             db.commit()
             db.refresh(rec)

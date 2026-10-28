@@ -148,11 +148,23 @@ def has_permission(user_role: str, resource: str, action: str) -> bool:
     return False
 
 
-def require_permission(resource: Resource, action: Action):
+def require_permission(resource: Resource, action: Action, *, allow_api_key: bool = False):
+    user_dependency = deps.get_current_user_or_api_key if allow_api_key else deps.get_current_user
+
     def dependency(
-        current_user: User = Depends(deps.get_current_user),
+        current_user: User = Depends(user_dependency),
         db: Session = Depends(deps.get_db),
     ) -> User:
+        if allow_api_key:
+            write = getattr(current_user, "_octaos_api_key_write", None)
+            if write is not None:
+                if action != Action.READ and not write:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="This API key is read-only. Outreach and mail need an operator or admin API key.",
+                    )
+                return current_user
+
         if getattr(current_user, "is_system_admin", False) or getattr(current_user, "is_superuser", False):
             return current_user
 
