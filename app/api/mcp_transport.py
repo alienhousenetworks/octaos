@@ -4,7 +4,7 @@ The existing versioned management API remains under /api/v1/mcp. MCP clients
 should use this protocol-only endpoint at /mcp, avoiding accidental exposure
 of management routes on the public MCP transport path.
 """
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -23,6 +23,19 @@ async def streamable_http_mcp(
     db: Session = Depends(deps.get_db),
 ):
     """MCP Streamable HTTP transport (JSON-RPC over POST)."""
+    content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if content_type != "application/json":
+        raise HTTPException(status_code=415, detail="MCP POST requests must use Content-Type: application/json.")
+
+    accept = request.headers.get("accept", "*/*")
+    accepted_types = {
+        item.split(";", 1)[0].strip().lower()
+        for item in accept.split(",")
+        if item.strip()
+    }
+    if not ({"application/json", "*/*", "application/*"} & accepted_types):
+        raise HTTPException(status_code=406, detail="This stateless MCP endpoint returns application/json.")
+
     credential = extract_credential_from_request(request, db)
     return await handle_streamable_http(request, credential)
 
