@@ -13,6 +13,7 @@ from app.api import deps
 from app.services.mcp.transport_http import (
     extract_credential_from_request,
     handle_streamable_http,
+    validate_mcp_origin,
 )
 
 router = APIRouter(tags=["mcp-protocol"])
@@ -24,17 +25,7 @@ async def streamable_http_mcp(
     db: Session = Depends(deps.get_db),
 ):
     """MCP Streamable HTTP transport (JSON-RPC over POST)."""
-    origin = request.headers.get("origin")
-    if origin:
-        allowed_origins = {
-            value.strip().rstrip("/")
-            for value in os.getenv("MCP_ALLOWED_ORIGINS", "").split(",")
-            if value.strip()
-        }
-        # Browser-originated requests fail closed unless deployment operators
-        # explicitly configure trusted origins (DNS-rebinding mitigation).
-        if origin.rstrip("/") not in allowed_origins:
-            raise HTTPException(status_code=403, detail="Origin is not allowed for the MCP endpoint.")
+    validate_mcp_origin(request)
 
     content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
     if content_type != "application/json":
