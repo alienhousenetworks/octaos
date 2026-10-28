@@ -87,3 +87,19 @@ async def test_confirmation_marker_is_not_forwarded_to_remote_server(monkeypatch
         {"value": "x", "__octaos_confirm_side_effects": True},
     )
     assert client.called == ("write_record", {"value": "x"})
+
+
+def test_stdio_is_disabled_by_default_for_tenant_configured_servers(monkeypatch):
+    from app.services.mcp.external_client import validate_external_mcp_config
+
+    monkeypatch.delenv("OCTAOS_MCP_ALLOW_UNSANDBOXED_STDIO", raising=False)
+    with pytest.raises(ValueError, match="disabled by default"):
+        validate_external_mcp_config({"transport": "stdio", "command": "python"})
+
+
+def test_stdio_requires_explicit_unsafe_opt_in(monkeypatch):
+    from app.services.mcp.external_client import validate_external_mcp_config
+
+    monkeypatch.setenv("OCTAOS_MCP_ALLOW_UNSANDBOXED_STDIO", "true")
+    config = validate_external_mcp_config({"transport": "stdio", "command": "python"})
+    assert config["transport"] == "stdio"
