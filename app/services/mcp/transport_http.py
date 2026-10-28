@@ -135,14 +135,23 @@ async def handle_sse_message(
 ) -> JSONResponse:
     """Receives JSON-RPC messages for an active SSE session."""
     queue = _ACTIVE_SSE_SESSIONS.get(session_id)
+    credential_sessions = _SESSIONS_BY_CREDENTIAL.get(str(credential.id), {})
+    # A session ID is a bearer-like capability: it must be bound to the same
+    # authenticated credential that opened the stream. Never execute a request
+    # with credential A and route its response into credential B's stream.
+    if queue is None or credential_sessions.get(session_id) is not queue:
+        raise HTTPException(status_code=404, detail="MCP session not found.")
+
     try:
         body = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload.")
 
-    res = await mcp_server.handle_message(credential, body)
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Expected a single JSON-RPC object.")
 
-    if queue and res is not None:
+    res = await mcp_server.handle_message(credential, body)
+    if res is not None:
         await queue.put(res)
 
     return JSONResponse(status_code=202, content={"status": "accepted", "id": body.get("id")})
