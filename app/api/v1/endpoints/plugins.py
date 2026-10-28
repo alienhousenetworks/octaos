@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.core.config import settings
 from app.models.base import tenant_context
+from jose import jwt
+from app.models.base import User, tenant_context
 from app.models.mcp import SystemMCPCredential
 from app.services.mcp.registry.capability_registry import UNIVERSAL_TOOLS_SPEC, DOMAIN_WRAPPERS_SPEC
 from app.services.mcp.server import mcp_server
@@ -26,12 +28,48 @@ from app.services.collaboration import (
     CollaborationTaskSubmitRequest,
     ExecutionBridge,
     ExecutionBridgeRequest,
+    LiveTerminalManager,
+    TerminalLogEntry,
+    ProcessStatusResponse,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 root_router = APIRouter()
+
+
+class ProcessToggleRequest(BaseModel):
+    active: bool = Field(description="True to start/resume the external collaboration listener, False to stop/pause it.")
+
+
+def resolve_tenant_id_from_request(request: Request, db: Session) -> str:
+    """
+    Resolves tenant_id whether called from:
+    1. Frontend dashboard (User JWT Bearer token)
+    2. External AI model or custom script (octa_mcp_... key)
+    3. Query parameter ?api_key=...
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token_str = auth_header[7:].strip()
+        if not token_str.startswith("octa_mcp_"):
+            try:
+                payload = jwt.decode(token_str, settings.SECRET_KEY, algorithms=["HS256"])
+                t_id = payload.get("tenant_id")
+                if t_id:
+                    return str(t_id)
+                user_id = payload.get("sub")
+                if user_id:
+                    user = db.query(User).filter(User.id == user_id).first()
+                    if user and user.tenant_id:
+                        return str(user.tenant_id)
+            except Exception:
+                pass
+
+    # Fallback to MCP key authentication
+    cred = extract_credential_from_request(request, db)
+    return cred.tenant_id
 
 
 # -------------------------------------------------------------
@@ -175,10 +213,33 @@ async def execute_plugin_action(
     """
     credential = extract_credential_from_request(request, db)
 
+    if not LiveTerminalManager.is_process_active(db, credential.tenant_id):
+        LiveTerminalManager.log_event(
+            tenant_id=credential.tenant_id,
+            category="system",
+            level="warn",
+            source=credential.name or "external_connector",
+            target="action_dispatcher",
+            message=f"REJECTED: Action '{tool_name}' blocked because external collaboration process is STOPPED.",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OctaOS External AI Collaboration Process is currently STOPPED. Enable the process in System MCP Hub to resume incoming requests.",
+        )
+
     try:
         body = await request.json()
     except Exception:
         body = {}
+
+    LiveTerminalManager.log_event(
+        tenant_id=credential.tenant_id,
+        category="inbound",
+        level="info",
+        source=credential.name or "external_ai",
+        target=tool_name,
+        message=f"Direct action execution requested: '{tool_name}'",
+    )
 
     tool_result = await mcp_server.registry.call_tool(
         credential=credential,
@@ -197,6 +258,16 @@ async def execute_plugin_action(
         parsed_data = {"result": content_text}
 
     status_code = 400 if tool_result.isError else 200
+
+    LiveTerminalManager.log_event(
+        tenant_id=credential.tenant_id,
+        category="inbound",
+        level="success" if not tool_result.isError else "error",
+        source=tool_name,
+        target=credential.name or "external_ai",
+        message=f"Action '{tool_name}' finished with status {status_code}",
+    )
+
     return JSONResponse(status_code=status_code, content=parsed_data)
 
 
@@ -222,6 +293,20 @@ async def universal_gateway_execute(
     2. Multipart Form-Data with direct binary Video/Image/Document attachments
     """
     credential = extract_credential_from_request(request, db)
+
+    if not LiveTerminalManager.is_process_active(db, credential.tenant_id):
+        LiveTerminalManager.log_event(
+            tenant_id=credential.tenant_id,
+            category="system",
+            level="warn",
+            source=credential.name or "external_connector",
+            target="gateway_execute",
+            message="REJECTED: Universal gateway execution blocked because external collaboration process is STOPPED.",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OctaOS External AI Collaboration Process is currently STOPPED. Enable the process in System MCP Hub to resume incoming requests.",
+        )
 
     content_type = request.headers.get("content-type", "")
 
@@ -262,6 +347,15 @@ async def universal_gateway_execute(
             if is_video:
                 arguments["media_type"] = "video"
 
+        LiveTerminalManager.log_event(
+            tenant_id=credential.tenant_id,
+            category="inbound",
+            level="info",
+            source=credential.name or "external_model",
+            target=str(tool_name),
+            message=f"Gateway execution: '{tool_name}' (multipart attachment)",
+        )
+
         tool_result = await mcp_server.registry.call_tool(
             credential=credential,
             tool_name=str(tool_name),
@@ -288,6 +382,15 @@ async def universal_gateway_execute(
         if not tool_name:
             raise HTTPException(status_code=400, detail="Missing 'tool' or 'name' parameter.")
 
+        LiveTerminalManager.log_event(
+            tenant_id=credential.tenant_id,
+            category="inbound",
+            level="info",
+            source=credential.name or "external_model",
+            target=str(tool_name),
+            message=f"Gateway execution: '{tool_name}' (JSON payload)",
+        )
+
         tool_result = await mcp_server.registry.call_tool(
             credential=credential,
             tool_name=str(tool_name),
@@ -301,6 +404,16 @@ async def universal_gateway_execute(
         parsed_data = {"result": content_text}
 
     status_code = 400 if tool_result.isError else 200
+
+    LiveTerminalManager.log_event(
+        tenant_id=credential.tenant_id,
+        category="inbound",
+        level="success" if not tool_result.isError else "error",
+        source=str(tool_name),
+        target=credential.name or "external_model",
+        message=f"Gateway execution '{tool_name}' finished ({'FAILED' if tool_result.isError else 'SUCCESS'})",
+    )
+
     return JSONResponse(status_code=status_code, content=parsed_data)
 
 
@@ -326,6 +439,30 @@ async def delegate_to_ai_employee(
     """
     credential = extract_credential_from_request(request, db)
 
+    if not LiveTerminalManager.is_process_active(db, credential.tenant_id):
+        LiveTerminalManager.log_event(
+            tenant_id=credential.tenant_id,
+            category="system",
+            level="warn",
+            source=credential.name or "external_connector",
+            target=f"{req.employee}_ai",
+            message=f"REJECTED: Delegation to {req.employee.upper()} AI blocked because collaboration process is STOPPED.",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OctaOS External AI Collaboration Process is currently STOPPED. Enable the process in System MCP Hub to resume incoming requests.",
+        )
+
+    LiveTerminalManager.log_event(
+        tenant_id=credential.tenant_id,
+        category="inbound",
+        level="info",
+        source=credential.name or "external_model",
+        target=f"{req.employee}_ai",
+        message=f"Workforce delegation: '{req.task_type}' assigned to {req.employee.upper()} AI",
+        details=req.parameters,
+    )
+
     tool_result = await mcp_server.registry.call_tool(
         credential=credential,
         tool_name="octaos_delegate_ai_employee",
@@ -337,6 +474,15 @@ async def delegate_to_ai_employee(
         parsed = json.loads(content_text)
     except Exception:
         parsed = {"result": content_text}
+
+    LiveTerminalManager.log_event(
+        tenant_id=credential.tenant_id,
+        category="inbound",
+        level="success" if not tool_result.isError else "error",
+        source=f"{req.employee}_ai",
+        target=credential.name or "external_model",
+        message=f"Workforce task '{req.task_type}' executed by {req.employee.upper()} AI ({'FAILED' if tool_result.isError else 'SUCCESS'})",
+    )
 
     return JSONResponse(status_code=400 if tool_result.isError else 200, content=parsed)
 
@@ -385,6 +531,21 @@ async def submit_collaboration_task(
     Supports both synchronous direct execution and asynchronous job queuing.
     """
     credential = extract_credential_from_request(request, db)
+
+    if not LiveTerminalManager.is_process_active(db, credential.tenant_id):
+        LiveTerminalManager.log_event(
+            tenant_id=credential.tenant_id,
+            category="system",
+            level="warn",
+            source=f"external:{credential.name or 'client'}",
+            target=req.target_employee or "octaos_workforce",
+            message="REJECTED: Task submission blocked because external collaboration process is STOPPED.",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OctaOS External AI Collaboration Process is currently STOPPED. Enable the process in System MCP Hub to resume incoming requests.",
+        )
+
     engine = AICollaborationEngine(db, tenant_id=credential.tenant_id)
     source_agent = f"external:{credential.name or 'client'}"
 
@@ -451,6 +612,29 @@ async def execute_bridge_action(
     """
     credential = extract_credential_from_request(request, db)
 
+    if not LiveTerminalManager.is_process_active(db, credential.tenant_id):
+        LiveTerminalManager.log_event(
+            tenant_id=credential.tenant_id,
+            category="system",
+            level="warn",
+            source=credential.name or "external_ai",
+            target=req.proposed_tool,
+            message=f"REJECTED: Execution bridge action '{req.proposed_tool}' blocked because external collaboration process is STOPPED.",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OctaOS External AI Collaboration Process is currently STOPPED. Enable the process in System MCP Hub to resume incoming requests.",
+        )
+
+    LiveTerminalManager.log_event(
+        tenant_id=credential.tenant_id,
+        category="bridge",
+        level="info",
+        source=credential.name or "external_ai",
+        target=req.proposed_tool,
+        message=f"Execution bridge evaluation requested: '{req.proposed_tool}'",
+    )
+
     try:
         bridge_res = await ExecutionBridge.process_proposed_action(
             db=db,
@@ -458,6 +642,17 @@ async def execute_bridge_action(
             request=req,
             mcp_credential=credential,
         )
+
+        LiveTerminalManager.log_event(
+            tenant_id=credential.tenant_id,
+            category="bridge",
+            level="success" if bridge_res.status != "failed" else "error",
+            source=req.proposed_tool,
+            target=credential.name or "external_ai",
+            message=f"Execution bridge action '{req.proposed_tool}' finished with status: {bridge_res.status}",
+            details={"status": bridge_res.status, "evidence_count": len(bridge_res.evidence)},
+        )
+
         return JSONResponse(
             status_code=200 if bridge_res.status != "failed" else 400,
             content=bridge_res.model_dump(),
@@ -465,4 +660,80 @@ async def execute_bridge_action(
     except Exception as e:
         logger.error("Execution bridge error: %s", e)
         return JSONResponse(status_code=400, content={"error": str(e)})
+
+
+# -------------------------------------------------------------
+# 7. Live Terminal & Process Monitor Endpoints
+# -------------------------------------------------------------
+
+@router.get("/collaboration/terminal/logs")
+def get_collaboration_terminal_logs(
+    request: Request,
+    limit: int = 100,
+    category: Optional[str] = None,
+    db: Session = Depends(deps.get_db),
+) -> JSONResponse:
+    """
+    Returns real-time streaming terminal logs and current process status (RUNNING / STOPPED)
+    for external AI connectors and custom software.
+    """
+    tenant_id = resolve_tenant_id_from_request(request, db)
+    process_status = LiveTerminalManager.get_process_status(db, tenant_id)
+    logs = LiveTerminalManager.get_logs(tenant_id, limit=limit, category=category)
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "process": process_status.model_dump(),
+            "logs": [entry.model_dump() for entry in logs],
+        },
+    )
+
+
+@router.post("/collaboration/process/toggle")
+def toggle_collaboration_process(
+    req: ProcessToggleRequest,
+    request: Request,
+    db: Session = Depends(deps.get_db),
+) -> JSONResponse:
+    """
+    Turns the external AI collaboration & custom software listener process ON or OFF.
+    When OFF, external inbound traffic is rejected and outbound tasks run internally.
+    """
+    tenant_id = resolve_tenant_id_from_request(request, db)
+    status_resp = LiveTerminalManager.set_process_active(db, tenant_id, req.active)
+    return JSONResponse(status_code=200, content=status_resp.model_dump())
+
+
+@router.post("/collaboration/terminal/clear")
+def clear_collaboration_terminal(
+    request: Request,
+    db: Session = Depends(deps.get_db),
+) -> JSONResponse:
+    """
+    Clears the active live terminal log ring-buffer for this tenant.
+    """
+    tenant_id = resolve_tenant_id_from_request(request, db)
+    LiveTerminalManager.clear_logs(tenant_id)
+    return JSONResponse(status_code=200, content={"status": "cleared", "tenant_id": tenant_id})
+
+
+@router.post("/collaboration/terminal/ping")
+def ping_collaboration_terminal(
+    request: Request,
+    db: Session = Depends(deps.get_db),
+) -> JSONResponse:
+    """
+    Sends a diagnostic ping event into the live terminal to test active streaming and latency.
+    """
+    tenant_id = resolve_tenant_id_from_request(request, db)
+    entry = LiveTerminalManager.log_event(
+        tenant_id=tenant_id,
+        category="system",
+        level="info",
+        source="operator_console",
+        target="collaboration_gateway",
+        message="Diagnostic ping received from operator console. All listeners active.",
+    )
+    return JSONResponse(status_code=200, content={"status": "pong", "entry": entry.model_dump()})
 

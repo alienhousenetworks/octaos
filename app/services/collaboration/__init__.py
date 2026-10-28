@@ -16,6 +16,7 @@ from app.services.collaboration.orchestrator import (
     dispatch_signed_webhook,
 )
 from app.services.collaboration.execution_bridge import ExecutionBridge
+from app.services.collaboration.live_terminal import LiveTerminalManager, TerminalLogEntry, ProcessStatusResponse
 
 __all__ = [
     "AICollaborationEngine",
@@ -32,4 +33,7 @@ __all__ = [
     "compute_task_fingerprint",
     "dispatch_signed_webhook",
     "ExecutionBridge",
+    "LiveTerminalManager",
+    "TerminalLogEntry",
+    "ProcessStatusResponse",
 ]
