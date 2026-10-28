@@ -660,3 +660,112 @@ def test_celery_registers_collaboration_worker_tasks():
         "octaos.drain_collaboration_webhook_outbox",
     }
     assert expected.issubset(set(celery_app.tasks.keys()))
+
+
+
+def _insert_worker_task(db, tenant_id, task_id, *, status="queued", payload=None):
+    from app.models.collaborative_workforce import AgentMessage, DelegationReceipt
+    message = AgentMessage(
+        id=task_id,
+        tenant_id=tenant_id,
+        correlation_id=task_id,
+        idempotency_key=f"worker-test:{task_id}",
+        from_agent="external:test",
+        to_agent="octaos:sales",
+        message_type="inbound_collaboration",
+        status=status,
+        payload=payload or {},
+    )
+    db.add(message)
+    db.flush()
+    db.add(DelegationReceipt(
+        tenant_id=tenant_id,
+        task_id=task_id,
+        parent_agent="external:test",
+        child_agent="octaos:sales",
+        request_message_id=task_id,
+        status="requested",
+        acceptance_criteria=[],
+        evidence=[],
+    ))
+    db.commit()
+    return message
+
+
+def test_collaboration_worker_cancelled_task_never_calls_employee(collab_setup, monkeypatch):
+    from app.services.collaboration import worker
+    db = collab_setup["db"]
+    tenant_id = collab_setup["tenant_id"]
+    task_id = f"cancelled-{uuid.uuid4()}"
+    _insert_worker_task(db, tenant_id, task_id, status="cancelled")
+    monkeypatch.setattr(worker, "SessionLocal", collab_setup["Session"])
+
+    async def unexpected_call(**kwargs):
+        raise AssertionError("cancelled task must not call the employee")
+
+    monkeypatch.setattr(worker.mcp_server.registry, "call_tool", unexpected_call)
+    result = worker.execute_inbound_collaboration.run(task_id, tenant_id)
+    assert result["status"] == "cancelled"
+
+
+def test_collaboration_worker_tenant_mismatch_is_not_found(collab_setup, monkeypatch):
+    from app.services.collaboration import worker
+    db = collab_setup["db"]
+    tenant_a = collab_setup["tenant_id"]
+    tenant_b = collab_setup["tenant2_id"]
+    task_id = f"tenant-boundary-{uuid.uuid4()}"
+    _insert_worker_task(db, tenant_a, task_id)
+    monkeypatch.setattr(worker, "SessionLocal", collab_setup["Session"])
+
+    async def unexpected_call(**kwargs):
+        raise AssertionError("cross-tenant task must not call the employee")
+
+    monkeypatch.setattr(worker.mcp_server.registry, "call_tool", unexpected_call)
+    result = worker.execute_inbound_collaboration.run(task_id, tenant_b)
+    assert result["status"] == "not_found"
+
+
+def test_collaboration_worker_timeout_persists_error_and_requests_retry(collab_setup, monkeypatch):
+    import asyncio
+    from app.models.mcp import SystemMCPCredential
+    from app.models.collaborative_workforce import AgentMessage
+    from app.services.collaboration import worker
+
+    db = collab_setup["db"]
+    tenant_id = collab_setup["tenant_id"]
+    user_id = db.query(User).filter(User.tenant_id == tenant_id).first().id
+    credential = SystemMCPCredential(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        name="worker-timeout-test",
+        client_type="generic",
+        key_hash=f"hash-{uuid.uuid4()}",
+        key_prefix="test",
+        role="admin",
+        is_active=True,
+    )
+    db.add(credential)
+    db.commit()
+    task_id = f"timeout-{uuid.uuid4()}"
+    _insert_worker_task(
+        db, tenant_id, task_id,
+        payload={"credential_id": credential.id, "timeout_seconds": 1,
+                 "target_capability": "execute_task", "context": {}, "description": "timeout test"},
+    )
+    monkeypatch.setattr(worker, "SessionLocal", collab_setup["Session"])
+
+    async def slow_call(**kwargs):
+        await asyncio.sleep(1.2)
+        return None
+
+    monkeypatch.setattr(worker.mcp_server.registry, "call_tool", slow_call)
+
+    def stop_after_retry_request(*args, **kwargs):
+        raise RuntimeError("retry requested by worker")
+
+    monkeypatch.setattr(worker.execute_inbound_collaboration, "retry", stop_after_retry_request)
+    with pytest.raises(RuntimeError, match="retry requested"):
+        worker.execute_inbound_collaboration.run(task_id, tenant_id)
+    persisted = db.query(AgentMessage).filter(AgentMessage.id == task_id).one()
+    assert persisted.status == "queued"
+    assert persisted.error_code == "EXECUTION_TIMEOUT"
