@@ -581,3 +581,20 @@ def test_output_schema_validation_checks_nested_types_and_constraints():
         validate_json_schema({"lead": {"score": 120}}, schema)
     with pytest.raises(CollaborationSecurityError):
         validate_json_schema({"lead": {"score": 75}, "extra": True}, schema)
+
+
+def test_provider_task_budget_is_not_compared_to_account_ceiling(collab_setup):
+    db = collab_setup["db"]
+    tenant_id = collab_setup["tenant_id"]
+
+    # Anthropic's account ceiling is $50. A $100 per-task cap is a different
+    # dimension and must not incorrectly exclude it from provider eligibility.
+    eligible = AIProviderRegistry.get_eligible_providers_for_task(
+        db, tenant_id, required_capabilities=["deep_coding"], max_cost=100.0
+    )
+    assert any(provider.provider == "anthropic" for provider in eligible)
+
+    no_budget = AIProviderRegistry.get_eligible_providers_for_task(
+        db, tenant_id, required_capabilities=["deep_coding"], max_cost=0.0
+    )
+    assert all(provider.provider != "anthropic" for provider in no_budget)
