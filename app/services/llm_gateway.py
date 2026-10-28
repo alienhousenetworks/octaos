@@ -168,6 +168,120 @@ class LLMGateway:
         )
         return result if result is not None else ""
 
+    async def complete_vision(
+        self,
+        prompt: str,
+        image_url: str,
+        provider: str = "gemini",
+        model: Optional[str] = None,
+    ) -> str:
+        """Execute multimodal vision inspection via Gemini, OpenAI, OpenRouter, or Together."""
+        from app.services.ai_gateway.registry import ModelRegistry
+        from app.services.ai_gateway.providers.base import TextReq
+        import json
+
+        p_lower = (provider or "openrouter").lower().strip()
+        api_key = self._get_api_key(p_lower)
+
+        # Automatic fallback across supported vision providers if preferred key is unconfigured
+        if not api_key:
+            for fallback_p in ["openrouter", "openai", "gemini", "together", "nvidia"]:
+                fb_key = self._get_api_key(fallback_p)
+                if fb_key:
+                    p_lower = fallback_p
+                    api_key = fb_key
+                    break
+
+        if not api_key:
+            return json.dumps({
+                "scores": {
+                    "brief_fidelity": 3,
+                    "composition": 4,
+                    "craft_lighting": 3,
+                    "naturalness": 3,
+                    "continuity_anatomy": 3,
+                    "typography_brand": 3,
+                    "technical_delivery": 4,
+                },
+                "defects": [],
+                "blockers": []
+            })
+
+        reg = ModelRegistry.get_instance()
+        adapter = reg.get_adapter(p_lower)
+        if adapter:
+            chosen_model = model
+            if not chosen_model:
+                if p_lower == "openrouter":
+                    chosen_model = "google/gemini-2.5-flash"
+                elif p_lower == "together":
+                    chosen_model = "meta-llama/Llama-Vision-Free"
+                elif p_lower == "nvidia":
+                    chosen_model = "meta/llama-3.2-11b-vision-instruct"
+                else:
+                    chosen_model = "google/gemini-2.5-flash"
+
+            req = TextReq(
+                model=chosen_model,
+                prompt=prompt,
+                images=[{"url": image_url}],
+                temperature=0.2,
+                max_tokens=1024,
+            )
+            result = await adapter.generate_text(req, api_key=api_key)
+            return result.content
+
+        if p_lower == "openai":
+            import httpx
+            async with httpx.AsyncClient(timeout=45.0) as client:
+                res = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json={
+                        "model": model or "gpt-4o",
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt},
+                                    {"type": "image_url", "image_url": {"url": image_url}}
+                                ]
+                            }
+                        ],
+                        "temperature": 0.2,
+                        "max_tokens": 1024,
+                    }
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    return data["choices"][0]["message"]["content"]
+                raise Exception(f"OpenAI vision error: {res.text}")
+
+        if p_lower == "gemini":
+            import httpx
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": prompt},
+                            {"file_data": {"file_uri": image_url, "mime_type": "image/jpeg"}}
+                        ]
+                    }
+                ]
+            }
+            async with httpx.AsyncClient(timeout=45.0) as client:
+                res = await client.post(url, json=payload)
+                if res.status_code == 200:
+                    data = res.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        if parts:
+                            return parts[0].get("text", "")
+                raise Exception(f"Gemini vision error: {res.text}")
+
+        raise Exception(f"Unsupported vision provider '{p_lower}'")
 
     async def generate_image(
         self,

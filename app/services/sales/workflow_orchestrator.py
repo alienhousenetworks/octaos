@@ -419,24 +419,35 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
                             fetch_extra["analyst_prompt"] = analyst_instructions(effective_context)
                             fetch_extra["on_progress"] = lambda msg: emit_activity(2, msg.split("]")[-1].strip() if "]" in msg else msg, f"{log_prefix} {msg}")
                             fetch_extra["freshness_window"] = freshness_window
-                        companies_data = await self._fetch_real_leads(
+                        found_batch = await self._fetch_real_leads(
                             fallback_provider,
                             available_providers[fallback_provider],
                             search_query,
-                            count=count,
+                            count=max(1, count - len(companies_data)),
                             freshness=freshness_window,
                             **fetch_extra,
                         )
-                        if companies_data:
+                        if found_batch:
                             routing_choice = fallback_provider
-                            break
-                        error_log.append(f"{fallback_provider}: returned no leads")
-                        update_status(
-                            2,
-                            "executing",
-                            f"{fallback_provider} returned no leads. Trying the next source.",
-                            f"{fallback_provider} returned no leads.",
-                        )
+                            for item in found_batch:
+                                c_name = (item.get("company") or "").lower()
+                                c_email = (item.get("email") or "").lower()
+                                if not any(
+                                    (c_email and (x.get("email") or "").lower() == c_email)
+                                    or (c_name and (x.get("company") or "").lower() == c_name)
+                                    for x in companies_data
+                                ):
+                                    companies_data.append(item)
+                            if len(companies_data) >= count:
+                                break
+                        else:
+                            error_log.append(f"{fallback_provider}: returned no leads")
+                            update_status(
+                                2,
+                                "executing",
+                                f"{fallback_provider} returned no leads. Trying the next source.",
+                                f"{fallback_provider} returned no leads.",
+                            )
                     except Exception as e:
                         error_msg = str(e)
                         error_log.append(f"{fallback_provider}: {error_msg}")
@@ -453,8 +464,9 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
             if not companies_data:
                 error_details = " | ".join(error_log) if error_log else "No exact error provided."
                 raise Exception(
-                    f"All available discovery providers failed to return leads. Errors: {error_details}. "
-                    f"Parallel search: {search_report}"
+                    f"No leads could be discovered across available channels. Errors: {error_details}. "
+                    f"Parallel search: {search_report}. "
+                    f"Tip: Add API credentials for Apollo, Apify, Hunter, Google Places, or Brave Search under API Settings to expand lead coverage."
                 )
 
             companies = []

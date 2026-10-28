@@ -137,24 +137,36 @@ class EnterpriseWebResearchService:
         contacts = []
         extras = []
         for candidate in batch.candidates:
+            if candidate.assessment and candidate.assessment.decision == "reject":
+                continue
             record = candidate.record
+            company = record.company_name or record.company_domain or ""
+            name = record.contact_name or ""
+            email = record.contact_email or ""
             item = {
-                "company": record.company_name or record.company_domain or "",
-                "name": record.contact_name or "",
-                "email": record.contact_email or "",
+                "company": company,
+                "name": name or company or "Business Contact",
+                "email": email,
                 "title": record.title,
                 "url": record.original_url,
                 "source": f"{record.method}/{record.provider}",
-                "intent": candidate.assessment.intent.value,
-                "decision": candidate.assessment.decision,
-                "verification_state": candidate.evidence.verification_state,
+                "intent": candidate.assessment.intent.value if candidate.assessment and candidate.assessment.intent else "unclear",
+                "decision": candidate.assessment.decision if candidate.assessment else "accept",
+                "verification_state": candidate.evidence.verification_state if candidate.evidence else "unverified",
                 "published_at": record.published_at.isoformat() if record.published_at else None,
-                "reason": candidate.assessment.rationale,
+                "reason": candidate.assessment.rationale if candidate.assessment else "",
             }
-            if record.contact_email and record.contact_name:
+            if email and name:
                 contacts.append(item)
-            else:
+            elif company or email or record.original_url:
                 extras.append(item)
+
+        # When direct executive contacts are fewer than count, promote company leads from extras
+        # so callers and agents receive actionable target accounts rather than an empty list
+        if len(contacts) < count and extras:
+            needed = count - len(contacts)
+            contacts.extend(extras[:needed])
+
         return {
             "job_id": batch.job_id,
             "status": batch.status,

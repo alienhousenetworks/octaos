@@ -101,7 +101,11 @@ class VisualCritic:
             if hasattr(gateway, "complete_vision") and asset_url.startswith("http"):
                 resp = await gateway.complete_vision(prompt, image_url=asset_url, provider="gemini")
                 import json
-                parsed = json.loads(resp)
+                import re
+                cleaned_resp = resp.strip()
+                match = re.search(r"(\{.*\})", cleaned_resp, re.DOTALL)
+                raw_json = match.group(1) if match else cleaned_resp
+                parsed = json.loads(raw_json)
                 scores = parsed.get("scores", {})
                 for d in parsed.get("defects", []):
                     defects.append({"defect": d, "severity": "minor"})

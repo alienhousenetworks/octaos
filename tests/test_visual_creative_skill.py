@@ -201,3 +201,84 @@ async def test_full_orchestrator_pipeline():
         assert record.quality_review.weighted_score >= 70.0
         assert record.creative_brief is not None
         assert "espresso" in record.creative_brief.focal_subject.lower()
+
+
+@pytest.mark.asyncio
+async def test_multimodal_vision_critic_parsing():
+    """Verify visual critic processes multimodal vision model responses with markdown fences."""
+    mock_db = MagicMock()
+    critic = VisualCritic(mock_db, "test-tenant")
+    intent = VisualIntentAnalyzer.analyze("Commercial photo of an executive laptop")
+    brief = DynamicCreativeDirector.create_brief(intent)
+
+    mock_vision_json = """```json
+    {
+      "scores": {
+        "brief_fidelity": 4,
+        "composition": 4,
+        "craft_lighting": 4,
+        "naturalness": 3,
+        "continuity_anatomy": 4,
+        "typography_brand": 3,
+        "technical_delivery": 4
+      },
+      "defects": ["Minor reflection softness on bezel"],
+      "blockers": []
+    }
+    ```"""
+
+    with patch("app.services.llm_gateway.LLMGateway.complete_vision", new_callable=AsyncMock, return_value=mock_vision_json):
+        scorecard = await critic.inspect(
+            asset_url="https://cdn.octaos.ai/img/test_laptop.png",
+            intent=intent,
+            brief=brief,
+        )
+        assert scorecard.inspected is True
+        assert scorecard.passed is True
+        assert scorecard.weighted_score > 85.0
+        assert len(scorecard.defects) == 1
+        assert "bezel" in scorecard.defects[0]["defect"].lower()
+
+
+def test_model_router_provider_key_fallback():
+    """Verify router falls back to available configured provider when preferred lacks key."""
+    intent = VisualIntentAnalyzer.analyze("Editorial poster with bold typography")
+    brief = DynamicCreativeDirector.create_brief(intent)
+
+    mock_db = MagicMock()
+    # Mock LLMGateway._get_api_key so openrouter has no key, but together has key
+    def fake_get_key(provider):
+        return "fake-together-key" if provider == "together" else ""
+
+    with patch("app.services.llm_gateway.LLMGateway._get_api_key", side_effect=fake_get_key):
+        provider, model = VisualModelRouter.select_model(
+            intent=intent,
+            brief=brief,
+            db_session=mock_db,
+            tenant_id="test-tenant",
+        )
+        # Should fallback from openrouter/ideogram to together/flux
+        assert provider == "together"
+        assert "flux" in model.lower()
+
+
+@pytest.mark.asyncio
+async def test_skill_synthesizer_execute_bridge():
+    """Verify skill synthesizer provides direct executable runner for visual skill."""
+    mock_db = MagicMock()
+    with patch(
+        "app.services.marketing.visual_creative.asset_generator.AssetGenerator.execute_generation",
+        new_callable=AsyncMock,
+        return_value={"success": True, "url": "https://cdn.octaos.ai/img/bridge_asset.png", "error": None}
+    ):
+        result = await skill_synthesizer.execute_skill(
+            "creative.universal_visual_director",
+            db_session=mock_db,
+            tenant_id="test-tenant",
+            raw_prompt="Portrait of a founder",
+            deliverable="image",
+            inspect_quality=False,
+        )
+        assert result.status == "completed"
+        assert result.primary_asset_url == "https://cdn.octaos.ai/img/bridge_asset.png"
+

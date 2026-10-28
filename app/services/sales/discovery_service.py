@@ -44,7 +44,13 @@ class DiscoveryService:
         ).first()
 
         if provider != "web_search" and (not cred or "your_api_key" in (cred.encrypted_key or "") or not cred.encrypted_key.strip()):
-            raise ValueError(f"No API credentials found for {provider}. Please configure your API credentials under Platform Setup -> API Settings.")
+            self._log_activity(
+                "API Setup Recommendation",
+                f"No API credentials configured for '{provider}'. Falling back to multi-channel open-web discovery. "
+                f"To connect {provider}, configure your API key under Platform Setup -> API Settings.",
+                "warning",
+            )
+            provider = "web_search"
 
         research_summary = None
         try:
@@ -62,46 +68,46 @@ class DiscoveryService:
                         "buyer_roles": profile_row.target_decision_makers,
                     }
 
-                if provider == "web_search":
-                    # The assistant-neutral enterprise pipeline searches
-                    # multiple public channels in one governed run. Keep the
-                    # older direct web extractor as a bounded fallback for
-                    # pages whose contact details need deeper extraction.
-                    from app.services.research import EnterpriseWebResearchService
+                from app.services.research import EnterpriseWebResearchService
 
-                    researcher = EnterpriseWebResearchService(self.db, self.tenant_id)
-                    batch = await researcher.run(
-                        query,
-                        count=count,
-                        freshness=freshness,
-                        geography=research_dimensions.get("geography"),
-                        industries=research_dimensions.get("industries"),
-                        buyer_roles=research_dimensions.get("buyer_roles"),
-                        offer=getattr(profile_row, "service_description", "") if profile_row else "",
-                    )
-                    research_summary = researcher.summarize(batch, count=count)
-                    leads_data = research_summary["contacts"]
-                    if not leads_data:
-                        leads_data = await self.fetch_real_leads(
-                            provider,
-                            "",
-                            query,
-                            count,
-                            freshness_window=freshness,
-                            **fetch_extra,
-                        )
-                        research_summary["contacts"].extend(leads_data[:count])
-                else:
-                    leads_data = await self.fetch_real_leads(
+                researcher = EnterpriseWebResearchService(self.db, self.tenant_id)
+                batch = await researcher.run(
+                    query,
+                    count=count,
+                    freshness=freshness,
+                    geography=research_dimensions.get("geography"),
+                    industries=research_dimensions.get("industries"),
+                    buyer_roles=research_dimensions.get("buyer_roles"),
+                    offer=getattr(profile_row, "service_description", "") if profile_row else "",
+                )
+                research_summary = researcher.summarize(batch, count=count)
+                leads_data = list(research_summary["contacts"])
+                if not leads_data or len(leads_data) < count:
+                    fallback_leads = await self.fetch_real_leads(
                         provider,
-                        decrypt_api_key(cred.encrypted_key) if cred else "",
+                        "",
                         query,
-                        count,
+                        count - len(leads_data),
+                        freshness_window=freshness,
                         **fetch_extra,
                     )
-            if provider == "web_search" and not leads_data:
-                message = "Open-web discovery found no verifiable contacts after multiple search rounds."
-                self._log_activity("API Error", message, "failed")
+                    leads_data.extend(fallback_leads)
+                    research_summary["contacts"] = leads_data[:count]
+            else:
+                leads_data = await self.fetch_real_leads(
+                    provider,
+                    decrypt_api_key(cred.encrypted_key) if cred else "",
+                    query,
+                    count,
+                    **fetch_extra,
+                )
+            if not leads_data:
+                message = (
+                    f"No leads could be discovered for query '{query}'. "
+                    f"Tip: Connect dedicated lead connectors like Apollo, Apify, Hunter, Google Places, or Brave Search "
+                    f"under Settings -> API Settings to find verified company lists and direct decision-maker emails."
+                )
+                self._log_activity("API Warning", message, "failed")
                 return {"status": "error", "message": message}
         except Exception as e:
             self._log_activity("API Error", f"Failed fetching from {provider}: {str(e)}.", "failed")

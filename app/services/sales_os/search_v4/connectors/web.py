@@ -21,6 +21,8 @@ class WebSearchConnector:
                 return await self._brave(task, client)
             if task.provider == "tavily":
                 return await self._tavily(task, client)
+            if task.provider == "firecrawl":
+                return await self._firecrawl(task, client)
             return await self._duckduckgo(task, client)
         except httpx.TimeoutException:
             return ConnectorResult(status="failed", failure_class="transient", reason="The web search timed out.")
@@ -68,17 +70,37 @@ class WebSearchConnector:
         hits = await self._enrich(client, hits)
         return self._done(hits, task.estimated_cost_inr, billable=True)
 
+    async def _firecrawl(self, task: SearchTask, client: httpx.AsyncClient) -> ConnectorResult:
+        import asyncio
+        key = self.credentials.get("firecrawl") or ""
+        if not key:
+            return await self._duckduckgo(task, client)
+        try:
+            from firecrawl import FirecrawlApp
+            app = FirecrawlApp(api_key=key)
+            res = await asyncio.to_thread(app.search, task.query, limit=5)
+            items = getattr(res, "web", None) or getattr(res, "data", None) or []
+            hits = []
+            for item in items:
+                u = getattr(item, "url", None) or (item.get("url") if isinstance(item, dict) else None)
+                t = getattr(item, "title", None) or (item.get("title") if isinstance(item, dict) else "") or ""
+                s = getattr(item, "description", None) or getattr(item, "markdown", None) or (item.get("description") if isinstance(item, dict) else "") or ""
+                if u:
+                    hits.append(Hit(url=u, title=t, snippet=s[:500], provider_native_id=u))
+            if hits:
+                hits = await self._enrich(client, hits)
+                return self._done(hits, task.estimated_cost_inr, billable=True)
+        except Exception:
+            pass
+        return await self._duckduckgo(task, client)
+
     async def _duckduckgo(self, task: SearchTask, client: httpx.AsyncClient) -> ConnectorResult:
         from app.services.sales_os.discovery.web_discovery import _search
-
         from app.services.sales_os.discovery.web_discovery import calculate_freshness_window_days
 
         max_days = calculate_freshness_window_days(task.freshness_window)
         df_param = "w" if max_days <= 14 else ("m" if max_days <= 30 else None)
         query = task.query
-        if max_days < 9999:
-            cutoff = datetime.now(timezone.utc) - timedelta(days=max_days)
-            query = f"{query} after:{cutoff.date().isoformat()}"
         urls = await _search(client, query, 5, df_param=df_param)
         hits = [Hit(url=url, provider_native_id=url) for url in urls]
         hits = await self._enrich(client, hits)

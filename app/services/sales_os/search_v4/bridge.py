@@ -56,15 +56,22 @@ def _lead_from_candidate(candidate: QualifiedCandidate) -> dict | None:
     record = candidate.record
     email = (record.contact_email or "").strip().lower()
     name = (record.contact_name or "").strip()
-    if not email or "@" not in email or not name:
+    company = (record.company_name or record.company_domain or "").strip()
+    website = (record.company_domain or "").strip()
+
+    # Must have either a valid contact email/name OR a valid company/domain
+    if not (email and "@" in email and name) and not (company or website):
         return None
+
+    display_name = name or company or "Business Contact"
+
     return {
-        "name": name,
-        "email": email,
-        "company": record.company_name or record.company_domain or "",
-        "website": record.company_domain or "",
-        "title": "",
-        "phone": "",
+        "name": display_name,
+        "email": email or None,
+        "company": company or display_name,
+        "website": website or (record.original_url if "://" in (record.original_url or "") else ""),
+        "title": record.title or "",
+        "phone": getattr(record, "phone", "") or "",
         "source": f"search_v4:{record.method}/{record.provider}",
         "evidence_url": record.original_url,
         "freshness": {
@@ -72,17 +79,20 @@ def _lead_from_candidate(candidate: QualifiedCandidate) -> dict | None:
             "freshness_label": candidate.evidence.verification_state,
             "event_date": record.published_at.isoformat() if record.published_at else None,
         },
-        "intent": candidate.assessment.intent.value,
-        "qualification_reason": candidate.assessment.rationale,
+        "intent": candidate.assessment.intent.value if candidate.assessment and candidate.assessment.intent else "unclear",
+        "qualification_reason": candidate.assessment.rationale if candidate.assessment else "",
     }
 
 
 def merge_connector_leads(existing: list[dict] | None, batch: SearchBatch | None) -> tuple[list[dict], str]:
-    """Keep every connector lead. Attach evidence, and add a row only when the page printed a name and email."""
+    """Keep every connector lead. Attach evidence, and add a row when qualified candidate is accepted."""
     rows = [dict(row) for row in (existing or [])]
     if batch is None:
         return rows, "Parallel search did not return a batch."
     seen_emails = {(row.get("email") or "").strip().lower() for row in rows if row.get("email")}
+    seen_domains = {d for row in rows for d in _domains(row)}
+    seen_companies = {(row.get("company") or "").strip().lower() for row in rows if row.get("company")}
+
     for candidate in batch.candidates:
         if candidate.assessment.decision == "reject":
             continue
@@ -93,11 +103,27 @@ def merge_connector_leads(existing: list[dict] | None, batch: SearchBatch | None
                 matched = True
         if matched:
             continue
-        lead = _lead_from_candidate(candidate)
-        if lead is None or lead["email"] in seen_emails:
-            continue
         if candidate.assessment.decision != "accept":
             continue
+        lead = _lead_from_candidate(candidate)
+        if lead is None:
+            continue
+        email = lead.get("email")
+        domain = (lead.get("website") or "").lower().removeprefix("www.")
+        comp = (lead.get("company") or "").lower()
+
+        if email and email in seen_emails:
+            continue
+        if domain and domain in seen_domains:
+            continue
+        if comp and comp not in _GENERIC_MATCH_COMPANIES and comp in seen_companies:
+            continue
+
         rows.append(lead)
-        seen_emails.add(lead["email"])
+        if email:
+            seen_emails.add(email)
+        if domain:
+            seen_domains.add(domain)
+        if comp:
+            seen_companies.add(comp)
     return rows, batch.report

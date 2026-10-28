@@ -155,6 +155,7 @@ class ProgressiveSkillSynthesizer:
                 "disclosure": disclosure,
                 "version": "1.0.0",
                 "authorized": True,
+                "executable": True,
             }
 
         try:
@@ -162,5 +163,13 @@ class ProgressiveSkillSynthesizer:
             return resolve_request(request, granted_permissions or [], level=level)
         except Exception:
             return {"matched": False, "request": request}
+
+    async def execute_skill(self, skill_id: str, db_session, tenant_id: str, **kwargs) -> Any:
+        """Execute a registered skill directly if an executable runner exists."""
+        if skill_id in ("creative.universal_visual_director", "universal_visual_creative_director"):
+            from app.services.marketing.visual_creative.orchestrator import VisualCreativeOrchestrator
+            orch = VisualCreativeOrchestrator(db_session, tenant_id)
+            return await orch.execute(**kwargs)
+        raise ValueError(f"Skill '{skill_id}' has no direct orchestrator runner.")
 
 skill_synthesizer = ProgressiveSkillSynthesizer()

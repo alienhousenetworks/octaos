@@ -282,42 +282,68 @@ class MarketingAgent(BaseAgent):
                 used_model: Optional[str] = None
 
                 if generate_media:
-                    if active_media_type == "video":
-                        vid_prompt = brief.video_prompt or brief.hook
-                        vid_provider = params.get("video_provider") or brief.video_provider
-                        vid_model = params.get("video_model") or brief.video_model
+                    use_skill = params.get("creative_mode", "visual_director") == "visual_director"
+                    if use_skill:
                         try:
-                            v_raw = await self.llm.generate_video(
-                                prompt=vid_prompt,
-                                provider=vid_provider,
-                                model=vid_model,
+                            from app.services.marketing.visual_creative.orchestrator import VisualCreativeOrchestrator
+                            orch = VisualCreativeOrchestrator(self.db, self.tenant_id)
+                            m_prompt = (brief.video_prompt or brief.hook) if active_media_type == "video" else (brief.image_prompt or brief.hook)
+                            rec = await orch.execute(
+                                raw_prompt=m_prompt,
+                                deliverable=active_media_type,
+                                platform=platform,
+                                preferred_provider=params.get("video_provider" if active_media_type == "video" else "image_provider"),
+                                preferred_model=params.get("video_model" if active_media_type == "video" else "image_model"),
+                                inspect_quality=False,
                             )
-                            if v_raw and not str(v_raw).startswith("error:"):
-                                video_url = await ensure_public_url(
-                                    v_raw, prefix="vid", default_mime="video/mp4"
+                            if rec.primary_asset_url:
+                                if active_media_type == "video":
+                                    video_url = rec.primary_asset_url
+                                else:
+                                    image_url = rec.primary_asset_url
+                                used_model = f"{rec.selected_adapter}/{rec.selected_model or 'default'}"
+                        except Exception as skill_err:
+                            logger.warning(
+                                f"[AutoPulse] Visual creative director skill failed, falling back to direct gateway: {skill_err}"
+                            )
+
+                    if not (video_url if active_media_type == "video" else image_url):
+                        if active_media_type == "video":
+                            vid_prompt = brief.video_prompt or brief.hook
+                            vid_provider = params.get("video_provider") or brief.video_provider
+                            vid_model = params.get("video_model") or brief.video_model
+                            try:
+                                v_raw = await self.llm.generate_video(
+                                    prompt=vid_prompt,
+                                    provider=vid_provider,
+                                    model=vid_model,
                                 )
-                                used_model = f"{vid_provider}/{vid_model or 'default'}"
-                        except Exception as vid_err:
-                            logger.warning(
-                                f"[AutoPulse] Video generation failed gracefully for {platform}: {vid_err}"
-                            )
-                    else:
-                        img_prompt = brief.image_prompt or brief.hook
-                        img_provider = params.get("image_provider") or brief.image_provider
-                        img_model = params.get("image_model") or brief.image_model
-                        try:
-                            raw = await self.llm.generate_image(
-                                prompt=img_prompt,
-                                provider=img_provider,
-                                model=img_model,
-                            )
-                            if raw and not str(raw).startswith("error:"):
-                                image_url = await ensure_public_url(raw, prefix="img")
-                                used_model = f"{img_provider}/{img_model or 'default'}"
-                        except Exception as img_err:
-                            logger.warning(
-                                f"[AutoPulse] Image generation failed gracefully for {platform}: {img_err}"
-                            )
+                                if v_raw and not str(v_raw).startswith("error:"):
+                                    video_url = await ensure_public_url(
+                                        v_raw, prefix="vid", default_mime="video/mp4"
+                                    )
+                                    used_model = f"{vid_provider}/{vid_model or 'default'}"
+                            except Exception as vid_err:
+                                logger.warning(
+                                    f"[AutoPulse] Video generation failed gracefully for {platform}: {vid_err}"
+                                )
+                        else:
+                            img_prompt = brief.image_prompt or brief.hook
+                            img_provider = params.get("image_provider") or brief.image_provider
+                            img_model = params.get("image_model") or brief.image_model
+                            try:
+                                raw = await self.llm.generate_image(
+                                    prompt=img_prompt,
+                                    provider=img_provider,
+                                    model=img_model,
+                                )
+                                if raw and not str(raw).startswith("error:"):
+                                    image_url = await ensure_public_url(raw, prefix="img")
+                                    used_model = f"{img_provider}/{img_model or 'default'}"
+                            except Exception as img_err:
+                                logger.warning(
+                                    f"[AutoPulse] Image generation failed gracefully for {platform}: {img_err}"
+                                )
 
                 # 3d. Autonomous Scheduling
                 scheduled_time = (

@@ -24,22 +24,40 @@ def title_of(raw_html: str) -> str:
 
 
 def contact_from_text(text: str, page_url: str) -> tuple[str, str]:
-    """Return a name and email only when both are substrings of the page text."""
+    """Return a name and email found in the retrieved text."""
     host = host_of(page_url)
+    best_name = ""
+    best_email = ""
+
     for match in EMAIL_RE.finditer(text or ""):
-        email = match.group(0).lower().strip(".,;:")
+        email = match.group(0).lower().strip(".,;:\"'<>(){}[]")
         if "@" not in email or is_fabricated_contact({"email": email, "name": ""}):
             continue
         domain = email.split("@", 1)[1]
         if host and domain != host and not domain.endswith("." + host) and not host.endswith("." + domain):
             continue
-        window = (text or "")[max(0, match.start() - 80):match.start()]
+
+        window_before = (text or "")[max(0, match.start() - 100):match.start()]
+        window_after = (text or "")[match.end():min(len(text or ""), match.end() + 80)]
         name = ""
-        found = list(_NAME_RE.finditer(window))
+        found = list(_NAME_RE.finditer(window_before))
         if found:
             candidate = found[-1].group(1).strip()
             if candidate.lower() not in _NAME_STOP:
                 name = candidate
+        if not name:
+            found_after = list(_NAME_RE.finditer(window_after))
+            if found_after:
+                candidate = found_after[0].group(1).strip()
+                if candidate.lower() not in _NAME_STOP:
+                    name = candidate
+
         if name and email and email in (text or "").lower():
             return name, email
+        if email and not best_email:
+            best_email = email
+            best_name = name
+
+    if best_email:
+        return best_name, best_email
     return "", ""

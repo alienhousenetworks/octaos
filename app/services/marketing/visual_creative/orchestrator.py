@@ -71,6 +71,8 @@ class VisualCreativeOrchestrator:
             brief=brief,
             preferred_provider=preferred_provider,
             preferred_model=preferred_model,
+            db_session=self.db,
+            tenant_id=self.tenant_id,
         )
         compiled_payload = VisualModelRouter.compile_payload(
             intent=intent,

@@ -12,6 +12,7 @@ SEARCH_METHODS = ("web", "news", "jobs", "company", "social_reddit", "social_x")
 # Paid web providers. DuckDuckGo remains the free path already used by web_search.
 BRAVE_INR = 0.45
 TAVILY_INR = 0.80
+FIRECRAWL_INR = 0.50
 
 PARALLEL_EXISTING_NOTE = (
     "Existing lead connectors keep running on the Sales AI provider loop. "
@@ -53,6 +54,8 @@ def web_cost(provider: str) -> float:
         return BRAVE_INR
     if provider == "tavily":
         return TAVILY_INR
+    if provider == "firecrawl":
+        return FIRECRAWL_INR
     return 0.0
 
 
@@ -67,6 +70,8 @@ def choose_web_provider(
         options.append(("brave", BRAVE_INR))
     if credentials.get("tavily") and health.allows("tavily"):
         options.append(("tavily", TAVILY_INR))
+    if credentials.get("firecrawl") and health.allows("firecrawl"):
+        options.append(("firecrawl", FIRECRAWL_INR))
     if not options:
         return (
             "duckduckgo",
@@ -102,6 +107,7 @@ def credential_map(overrides: dict[str, str] | None = None) -> dict[str, str]:
     merged = {
         "brave_search": os.getenv("BRAVE_SEARCH_API_KEY") or "",
         "tavily": os.getenv("TAVILY_API_KEY") or "",
+        "firecrawl": os.getenv("FIRECRAWL_API_KEY") or "",
         "reddit": os.getenv("REDDIT_CLIENT_CREDENTIALS") or "",
         "x_search": os.getenv("X_BEARER_TOKEN") or "",
     }

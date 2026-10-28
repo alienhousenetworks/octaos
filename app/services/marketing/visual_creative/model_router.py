@@ -25,8 +25,10 @@ class VisualModelRouter:
         brief: CreativeBrief,
         preferred_provider: Optional[str] = None,
         preferred_model: Optional[str] = None,
+        db_session: Optional[Any] = None,
+        tenant_id: Optional[str] = None,
     ) -> Tuple[str, str]:
-        """Select provider and model slug matching capability requirements."""
+        """Select provider and model slug matching capability requirements with key fallbacks."""
         is_video = intent.deliverable in ("video", "reel", "short")
         has_ref = len(intent.reference_assets) > 0
 
@@ -34,11 +36,22 @@ class VisualModelRouter:
         if is_video:
             provider = (preferred_provider or "together").lower()
             if preferred_model:
-                return provider, preferred_model
-            if provider == "together":
+                model = preferred_model
+            elif provider == "together":
                 model = "Wan-AI/Wan2.1-I2V-14B" if has_ref else "minimax/video-01"
             else:
                 model = "kling-ai/kling-v1.5"
+
+            # Provider fallback if selected provider is not configured
+            if db_session and tenant_id and not preferred_provider:
+                from app.services.llm_gateway import LLMGateway
+                gw = LLMGateway(db_session, tenant_id)
+                if not gw._get_api_key(provider):
+                    for alt in ["together", "openrouter", "heygen"]:
+                        if gw._get_api_key(alt):
+                            provider = alt
+                            model = "Wan-AI/Wan2.1-I2V-14B" if has_ref else "minimax/video-01" if alt == "together" else "kling-ai/kling-v1.5"
+                            break
             return provider, model
 
         # Image Routing
@@ -49,22 +62,38 @@ class VisualModelRouter:
         # Check for typography/poster requirement
         lowered = f"{intent.subject} {brief.concept}".lower()
         if "poster" in lowered or "typography" in lowered or "headline" in lowered:
-            return "openrouter", "ideogram/ideogram-v2"
-
+            provider, model = "openrouter", "ideogram/ideogram-v2"
         # Check for vector/graphic design
-        if "vector" in lowered or "icon" in lowered or "illustration" in lowered:
-            return "openrouter", "recraft/recraft-v3"
-
+        elif "vector" in lowered or "icon" in lowered or "illustration" in lowered:
+            provider, model = "openrouter", "recraft/recraft-v3"
         # Photorealistic / Standard
-        if provider == "openai":
-            return "openai", "dall-e-3"
+        elif provider == "openai":
+            provider, model = "openai", "dall-e-3"
         elif provider == "gemini":
-            return "gemini", "imagen-3.0-generate-002"
+            provider, model = "gemini", "imagen-3.0-generate-002"
         elif provider == "together":
             model = "black-forest-labs/FLUX.1-canny" if has_ref else "black-forest-labs/FLUX.1-dev"
-            return "together", model
+            provider, model = "together", model
+        else:
+            provider, model = provider, "black-forest-labs/FLUX.1-dev"
 
-        return provider, "black-forest-labs/FLUX.1-dev"
+        # Provider fallback if selected provider is not configured
+        if db_session and tenant_id and not preferred_provider:
+            from app.services.llm_gateway import LLMGateway
+            gw = LLMGateway(db_session, tenant_id)
+            if not gw._get_api_key(provider):
+                for alt in ["together", "openai", "openrouter"]:
+                    if gw._get_api_key(alt):
+                        provider = alt
+                        if alt == "together":
+                            model = "black-forest-labs/FLUX.1-canny" if has_ref else "black-forest-labs/FLUX.1-dev"
+                        elif alt == "openai":
+                            model = "dall-e-3"
+                        else:
+                            model = "recraft/recraft-v3"
+                        break
+
+        return provider, model
 
     @classmethod
     def compile_payload(

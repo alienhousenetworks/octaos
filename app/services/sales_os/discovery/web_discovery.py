@@ -382,14 +382,17 @@ def _followup_queries(urls: List[str], tried: List[str]) -> List[str]:
 
 
 async def _search(client: httpx.AsyncClient, query: str, limit: int, df_param: Optional[str] = None) -> List[str]:
+    import os
+    clean_query = re.sub(r"\bafter:\d{4}-\d{2}-\d{2}\b", "", query).strip() or query
+
     # 1. Try Firecrawl search if configured
     try:
         from app.core.config import settings
         from firecrawl import FirecrawlApp
-        key = getattr(settings, "FIRECRAWL_API_KEY", None)
+        key = getattr(settings, "FIRECRAWL_API_KEY", None) or os.getenv("FIRECRAWL_API_KEY")
         if key:
             app = FirecrawlApp(api_key=key)
-            res = await asyncio.to_thread(app.search, query, limit=limit)
+            res = await asyncio.to_thread(app.search, clean_query, limit=limit)
             urls = []
             items = getattr(res, "web", None) or getattr(res, "data", None) or []
             for item in items:
@@ -401,9 +404,9 @@ async def _search(client: httpx.AsyncClient, query: str, limit: int, df_param: O
     except Exception as fe:
         logger.debug(f"Firecrawl search fallback: {fe}")
 
-    # 2. DuckDuckGo fallback with temporal operator support
+    # 2. DuckDuckGo HTML fallback
     try:
-        data_payload = {"q": query}
+        data_payload = {"q": clean_query}
         if df_param:
             data_payload["df"] = df_param  # 'w' for week, 'm' for month
 
@@ -430,7 +433,7 @@ async def _search(client: httpx.AsyncClient, query: str, limit: int, df_param: O
         if df_param:
             resp_broad = await client.post(
                 "https://html.duckduckgo.com/html/",
-                data={"q": query},
+                data={"q": clean_query},
                 headers=HEADERS,
                 timeout=15.0,
             )
@@ -448,6 +451,29 @@ async def _search(client: httpx.AsyncClient, query: str, limit: int, df_param: O
                     return urls_broad
     except Exception as de:
         logger.debug(f"DuckDuckGo search error: {de}")
+
+    # 3. DuckDuckGo Lite fallback (extremely lightweight, resistant to blocks)
+    try:
+        lite_resp = await client.post(
+            "https://lite.duckduckgo.com/lite/",
+            data={"q": clean_query},
+            headers=HEADERS,
+            timeout=12.0,
+        )
+        if lite_resp.status_code == 200:
+            lite_urls: List[str] = []
+            for href in re.findall(r'href="([^"]+)"[^>]*class="result-link"', lite_resp.text) + re.findall(r'class="result-link"[^>]*href="([^"]+)"', lite_resp.text):
+                href = html_lib.unescape(href)
+                if "uddg=" in href:
+                    href = unquote(parse_qs(urlparse(href).query).get("uddg", [""])[0])
+                if _usable_result(href) and href not in lite_urls:
+                    lite_urls.append(href)
+                if len(lite_urls) >= limit:
+                    break
+            if lite_urls:
+                return lite_urls
+    except Exception as le:
+        logger.debug(f"DuckDuckGo Lite search error: {le}")
 
     return []
 
