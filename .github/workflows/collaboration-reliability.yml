@@ -1,0 +1,69 @@
+name: Bidirectional Collaboration Reliability
+on:
+  pull_request:
+    paths:
+      - "app/services/collaboration/**"
+      - "app/core/celery_app.py"
+      - "app/api/v1/endpoints/plugins.py"
+      - "requirements.txt"
+      - "tests/mcp/test_bidirectional_collaboration.py"
+      - "tests/mcp/test_universal_plugin_gateway.py"
+      - ".github/workflows/collaboration-reliability.yml"
+  push:
+    branches:
+      - "fix/collaboration-ci-pinned-webhooks"
+    paths:
+      - "app/services/collaboration/**"
+      - "app/core/celery_app.py"
+      - "requirements.txt"
+      - "tests/mcp/test_bidirectional_collaboration.py"
+      - ".github/workflows/collaboration-reliability.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: collaboration-reliability-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  collaboration-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      DEV: "true"
+      ENVIRONMENT: "test"
+      TESTING: "true"
+      SECRET_KEY: "test-only-secret-key-32-characters-minimum"
+      SQLALCHEMY_DATABASE_URI: "sqlite:///./test_collaboration.db"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Compile collaboration and worker modules
+        run: |
+          python -m compileall -q app/services/collaboration app/core/celery_app.py app/api/v1/endpoints/plugins.py
+      - name: Verify Celery worker task registration
+        run: |
+          python - <<'PY'
+          from app.core.celery_app import celery_app
+          celery_app.loader.import_default_modules()
+          required = {
+              "octaos.execute_inbound_collaboration",
+              "octaos.deliver_collaboration_webhook",
+              "octaos.drain_collaboration_webhook_outbox",
+          }
+          missing = required.difference(celery_app.tasks.keys())
+          assert not missing, f"Celery tasks not registered: {sorted(missing)}"
+          print("Registered collaboration tasks:", ", ".join(sorted(required)))
+          PY
+      - name: Run collaboration and MCP regression tests
+        run: |
+          pytest -q             tests/mcp/test_bidirectional_collaboration.py             tests/mcp/test_universal_plugin_gateway.py

@@ -34,6 +34,8 @@ celery_app.conf.task_routes = {
     "app.worker.tasks.*": "main-queue",
     "octaos.execute_autonomous_task": "main-queue",
     "octaos.execute_inbound_collaboration": "main-queue",
+    "octaos.deliver_collaboration_webhook": "main-queue",
+    "octaos.drain_collaboration_webhook_outbox": "main-queue",
 }
 
 from celery.schedules import crontab
@@ -49,6 +51,10 @@ celery_app.conf.beat_schedule = {
     },
     "drain-hr-outbox": {
         "task": "drain_hr_outbox",
+        "schedule": crontab(minute="*"),
+    },
+    "drain-collaboration-webhook-outbox": {
+        "task": "octaos.drain_collaboration_webhook_outbox",
         "schedule": crontab(minute="*"),
     },
     "expire-hr-approvals": {
