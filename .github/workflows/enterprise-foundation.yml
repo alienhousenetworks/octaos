@@ -24,6 +24,10 @@ on:
       - "tests/test_tenant_middleware_context.py"
       - "tests/test_production_config.py"
       - "tests/test_health_response_sanitization.py"
+      - "app/api/mcp_transport.py"
+      - "app/api/v1/endpoints/mcp.py"
+      - "app/services/mcp/**"
+      - "tests/mcp/**"
       - "tests/test_webhook_security.py"
       - ".github/workflows/enterprise-foundation.yml"
 
@@ -37,7 +41,7 @@ concurrency:
 jobs:
   foundation-security:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       PYTHONPATH: ${{ github.workspace }}
       DEV: "true"
@@ -69,4 +73,8 @@ jobs:
             tests/test_autonomous_runtime_idempotency.py \
             tests/test_durable_workflow_tenant_safety.py \
             tests/test_workforce_event_service.py \
-            tests/test_workforce_event_runtime_bridge.py
+            tests/test_workforce_event_runtime_bridge.py \
+            tests/mcp/test_api_endpoints.py \
+            tests/mcp/test_dynamic_mcp.py \
+            tests/mcp/test_external_mcp_config.py \
+            tests/mcp/test_external_mcp_interoperability.py
