@@ -4,10 +4,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import uuid
 from typing import Any, AsyncGenerator, Dict, Optional
 from fastapi import Request, HTTPException, status
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
@@ -20,6 +21,20 @@ logger = logging.getLogger(__name__)
 # In-memory session registry for SSE connections
 _ACTIVE_SSE_SESSIONS: Dict[str, asyncio.Queue] = {}
 _SESSIONS_BY_CREDENTIAL: Dict[str, Dict[str, asyncio.Queue]] = {}
+
+
+def validate_mcp_origin(request: Request) -> None:
+    """Fail closed for browser-originated MCP requests unless explicitly trusted."""
+    origin = request.headers.get("origin")
+    if not origin:
+        return
+    allowed_origins = {
+        value.strip().rstrip("/")
+        for value in os.getenv("MCP_ALLOWED_ORIGINS", "").split(",")
+        if value.strip()
+    }
+    if origin.rstrip("/") not in allowed_origins:
+        raise HTTPException(status_code=403, detail="Origin is not allowed for the MCP endpoint.")
 
 
 def extract_credential_from_request(request: Request, db: Session) -> SystemMCPCredential:
@@ -65,27 +80,23 @@ async def handle_streamable_http(request: Request, credential: SystemMCPCredenti
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload.")
 
+    # MCP uses individual JSON-RPC messages; JSON-RPC batch requests are
+    # not part of the MCP transport contract.
     if isinstance(body, list):
-        # Batch requests
-        responses = []
-        for req in body:
-            res = await mcp_server.handle_message(credential, req)
-            if res is not None:
-                responses.append(res)
-        return JSONResponse(content=responses)
-    else:
-        # Single request
-        res = await mcp_server.handle_message(credential, body)
-        if res is None:
-            return JSONResponse(status_code=204, content=None)
-        from app.services.mcp.client_channel import attach_pending_messages
-        from app.db.session import SessionLocal
-        attach_db = SessionLocal()
-        try:
-            res = attach_pending_messages(attach_db, credential, res)
-        finally:
-            attach_db.close()
-        return JSONResponse(content=res)
+        raise HTTPException(status_code=400, detail="MCP does not support JSON-RPC batch requests.")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Expected a single JSON-RPC object.")
+
+    res = await mcp_server.handle_message(credential, body)
+    if res is None:
+        return Response(status_code=202)
+    from app.services.mcp.client_channel import attach_pending_messages
+    attach_db = SessionLocal()
+    try:
+        res = attach_pending_messages(attach_db, credential, res)
+    finally:
+        attach_db.close()
+    return JSONResponse(content=res)
 
 
 async def sse_event_generator(session_id: str, queue: asyncio.Queue) -> AsyncGenerator[str, None]:
@@ -135,14 +146,23 @@ async def handle_sse_message(
 ) -> JSONResponse:
     """Receives JSON-RPC messages for an active SSE session."""
     queue = _ACTIVE_SSE_SESSIONS.get(session_id)
+    credential_sessions = _SESSIONS_BY_CREDENTIAL.get(str(credential.id), {})
+    # A session ID is a bearer-like capability: it must be bound to the same
+    # authenticated credential that opened the stream. Never execute a request
+    # with credential A and route its response into credential B's stream.
+    if queue is None or credential_sessions.get(session_id) is not queue:
+        raise HTTPException(status_code=404, detail="MCP session not found.")
+
     try:
         body = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload.")
 
-    res = await mcp_server.handle_message(credential, body)
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Expected a single JSON-RPC object.")
 
-    if queue and res is not None:
+    res = await mcp_server.handle_message(credential, body)
+    if res is not None:
         await queue.put(res)
 
     return JSONResponse(status_code=202, content={"status": "accepted", "id": body.get("id")})

@@ -33,6 +33,7 @@ from app.services.mcp.transport_http import (
     handle_streamable_http,
     initiate_sse_session,
     handle_sse_message,
+    validate_mcp_origin,
 )
 from app.services.mcp.server import mcp_server
 
@@ -54,6 +55,7 @@ async def mcp_stream_endpoint(
     Primary MCP Streamable HTTP transport endpoint.
     Processes JSON-RPC 2.0 requests over HTTP.
     """
+    validate_mcp_origin(request)
     credential = extract_credential_from_request(request, db)
     return await handle_streamable_http(request, credential)
 
@@ -66,6 +68,7 @@ async def mcp_sse_endpoint(
     """
     Legacy Server-Sent Events stream initialization.
     """
+    validate_mcp_origin(request)
     credential = extract_credential_from_request(request, db)
     return initiate_sse_session(request, credential)
 
@@ -79,6 +82,7 @@ async def mcp_sse_message_endpoint(
     """
     Message receiver for an active SSE stream session.
     """
+    validate_mcp_origin(request)
     credential = extract_credential_from_request(request, db)
     return await handle_sse_message(session_id, request, credential)
 
@@ -112,6 +116,13 @@ class AddExternalMCPServerRequest(BaseModel):
     headers: Dict[str, str] = Field(default_factory=dict)
     env: Dict[str, str] = Field(default_factory=dict)
     timeout_seconds: float = 30.0
+
+class CallExternalMCPToolRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    arguments: Dict[str, Any] = Field(default_factory=dict)
+    # Remote tools can trigger external side effects. Require an explicit
+    # acknowledgement unless the remote server marks the tool read-only.
+    confirm_side_effects: bool = False
 
 
 def _mcp_slug(value: str) -> str:
@@ -411,6 +422,101 @@ async def test_external_mcp_server(
         raise HTTPException(status_code=502, detail="MCP connection failed.") from exc
 
 
+@router.get("/servers/{server_id}/tools")
+async def list_external_mcp_server_tools(
+    server_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """Discover live tools from a configured external MCP server."""
+    connector = (
+        _external_mcp_servers_query(db, current_user.tenant_id)
+        .filter(DynamicConnector.id == server_id)
+        .first()
+    )
+    if not connector:
+        raise HTTPException(status_code=404, detail="MCP server not found.")
+    if connector.status == "suspended":
+        raise HTTPException(status_code=409, detail="MCP server is disabled.")
+    if not connector.encrypted_config:
+        raise HTTPException(status_code=422, detail="MCP server has no connection configuration.")
+    try:
+        config = json.loads(decrypt_api_key(connector.encrypted_config))
+        tools = await ExternalMCPClient(config).list_tools()
+        return {
+            "server_id": connector.id,
+            "server_name": connector.name,
+            "tools": tools.get("tools", []) if isinstance(tools, dict) else [],
+        }
+    except (ExternalMCPError, ValueError, json.JSONDecodeError) as exc:
+        connector.status = "degraded"
+        db.commit()
+        raise HTTPException(status_code=502, detail="Unable to discover tools from the external MCP server.") from exc
+
+
+@router.post("/servers/{server_id}/tools/call")
+async def call_external_mcp_server_tool(
+    server_id: str,
+    req: CallExternalMCPToolRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """Invoke a discovered remote MCP tool with tenant-scoped configuration.
+
+    Read-only tools can be called directly. Tools without an explicit
+    readOnlyHint require confirm_side_effects=true in the request.
+    """
+    connector = (
+        _external_mcp_servers_query(db, current_user.tenant_id)
+        .filter(DynamicConnector.id == server_id)
+        .first()
+    )
+    if not connector:
+        raise HTTPException(status_code=404, detail="MCP server not found.")
+    if connector.status == "suspended":
+        raise HTTPException(status_code=409, detail="MCP server is disabled.")
+    if not connector.encrypted_config:
+        raise HTTPException(status_code=422, detail="MCP server has no connection configuration.")
+
+    try:
+        config = json.loads(decrypt_api_key(connector.encrypted_config))
+        client = ExternalMCPClient(config)
+        discovery = await client.list_tools()
+        available_tools = discovery.get("tools", []) if isinstance(discovery, dict) else []
+        selected = next((tool for tool in available_tools if tool.get("name") == req.name), None)
+        if selected is None:
+            raise HTTPException(status_code=404, detail="Tool was not advertised by the remote MCP server.")
+
+        annotations = selected.get("annotations") or {}
+        is_read_only = annotations.get("readOnlyHint") is True
+        if not is_read_only and not req.confirm_side_effects:
+            raise HTTPException(
+                status_code=409,
+                detail="Remote tool may have side effects. Review its schema and retry with confirm_side_effects=true.",
+            )
+
+        result = await client.call_tool(req.name, req.arguments)
+        connector.last_synced_at = datetime.now(timezone.utc)
+        connector.status = "active"
+        db.commit()
+        return {
+            "status": "success",
+            "server_id": connector.id,
+            "tool_name": req.name,
+            "result": result,
+        }
+    except HTTPException:
+        raise
+    except (ExternalMCPError, ValueError, json.JSONDecodeError) as exc:
+        connector.status = "degraded"
+        db.commit()
+        raise HTTPException(status_code=502, detail="Remote MCP tool invocation failed.") from exc
+    except Exception as exc:
+        connector.status = "degraded"
+        db.commit()
+        raise HTTPException(status_code=502, detail="Remote MCP tool invocation failed.") from exc
+
+
 @router.delete("/servers/{server_id}")
 def delete_external_mcp_server(
     server_id: str,
@@ -498,17 +604,32 @@ async def test_connection(
             )
             .first()
         )
+        # Selecting a credential by ID does not run key authentication, so
+        # explicitly update the connection heartbeat after tenant-scoped lookup.
+        if cred and cred.is_active:
+            cred.last_used_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(cred)
 
-    if not cred:
+    if not cred or not cred.is_active or cred.tenant_id != current_user.tenant_id:
         return {"status": "error", "message": "Credential could not be authenticated."}
 
-    # Execute a safe ping and tools/list check
+    # Exercise the protocol ping as well as the tenant-scoped authorization
+    # registry. A credential lookup alone is not proof that MCP is responsive.
+    ping = await mcp_server.handle_message(
+        cred,
+        {"jsonrpc": "2.0", "id": "connection-test", "method": "ping", "params": {}},
+    )
+    if not isinstance(ping, dict) or "result" not in ping:
+        raise HTTPException(status_code=502, detail="MCP protocol ping failed.")
+
     tools = mcp_server.registry.get_authorized_tools(db, cred)
     return {
         "status": "success",
+        "protocol_ping": "success",
         "credential_name": cred.name,
         "role": cred.role,
         "authorized_tools_count": len(tools),
         "sample_tools": [t["name"] for t in tools[:5]],
-        "message": f"Connection verified. Client is authorized for {len(tools)} tools.",
+        "message": f"Connection verified. MCP ping succeeded; client is authorized for {len(tools)} tools.",
     }
