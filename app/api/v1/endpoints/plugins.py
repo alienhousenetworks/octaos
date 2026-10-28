@@ -268,7 +268,12 @@ async def execute_plugin_action(
         message=f"Action '{tool_name}' finished with status {status_code}",
     )
 
-    return JSONResponse(status_code=status_code, content=parsed_data)
+    from app.services.mcp.client_channel import attach_pending_messages
+
+    return JSONResponse(
+        status_code=status_code,
+        content=attach_pending_messages(db, credential, parsed_data),
+    )
 
 
 # -------------------------------------------------------------
@@ -414,7 +419,12 @@ async def universal_gateway_execute(
         message=f"Gateway execution '{tool_name}' finished ({'FAILED' if tool_result.isError else 'SUCCESS'})",
     )
 
-    return JSONResponse(status_code=status_code, content=parsed_data)
+    from app.services.mcp.client_channel import attach_pending_messages
+
+    return JSONResponse(
+        status_code=status_code,
+        content=attach_pending_messages(db, credential, parsed_data),
+    )
 
 
 # -------------------------------------------------------------

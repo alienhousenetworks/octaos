@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 # In-memory session registry for SSE connections
 _ACTIVE_SSE_SESSIONS: Dict[str, asyncio.Queue] = {}
+_SESSIONS_BY_CREDENTIAL: Dict[str, Dict[str, asyncio.Queue]] = {}
 
 
 def extract_credential_from_request(request: Request, db: Session) -> SystemMCPCredential:
@@ -77,6 +78,13 @@ async def handle_streamable_http(request: Request, credential: SystemMCPCredenti
         res = await mcp_server.handle_message(credential, body)
         if res is None:
             return JSONResponse(status_code=204, content=None)
+        from app.services.mcp.client_channel import attach_pending_messages
+        from app.db.session import SessionLocal
+        attach_db = SessionLocal()
+        try:
+            res = attach_pending_messages(attach_db, credential, res)
+        finally:
+            attach_db.close()
         return JSONResponse(content=res)
 
 
@@ -96,6 +104,10 @@ async def sse_event_generator(session_id: str, queue: asyncio.Queue) -> AsyncGen
         logger.info(f"SSE connection closed for session {session_id}")
     finally:
         _ACTIVE_SSE_SESSIONS.pop(session_id, None)
+        for credential_id, sessions in list(_SESSIONS_BY_CREDENTIAL.items()):
+            sessions.pop(session_id, None)
+            if not sessions:
+                _SESSIONS_BY_CREDENTIAL.pop(credential_id, None)
 
 
 def initiate_sse_session(request: Request, credential: SystemMCPCredential) -> StreamingResponse:
@@ -103,6 +115,7 @@ def initiate_sse_session(request: Request, credential: SystemMCPCredential) -> S
     session_id = str(uuid.uuid4())
     queue: asyncio.Queue = asyncio.Queue()
     _ACTIVE_SSE_SESSIONS[session_id] = queue
+    _SESSIONS_BY_CREDENTIAL.setdefault(str(credential.id), {})[session_id] = queue
 
     return StreamingResponse(
         sse_event_generator(session_id, queue),
@@ -133,3 +146,21 @@ async def handle_sse_message(
         await queue.put(res)
 
     return JSONResponse(status_code=202, content={"status": "accepted", "id": body.get("id")})
+
+
+def push_to_open_streams(credential_id: str, payload: Dict[str, Any]) -> int:
+    """Place one server message on every stream this MCP client currently holds."""
+    sessions = _SESSIONS_BY_CREDENTIAL.get(str(credential_id), {})
+    pushed = 0
+    notice = {
+        "jsonrpc": "2.0",
+        "method": "notifications/message",
+        "params": {"level": "info", "logger": "octaos", "data": payload},
+    }
+    for queue in list(sessions.values()):
+        try:
+            queue.put_nowait(notice)
+            pushed += 1
+        except Exception:
+            logger.debug("Could not push to an MCP stream", exc_info=True)
+    return pushed

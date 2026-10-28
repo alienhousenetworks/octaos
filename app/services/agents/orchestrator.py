@@ -9,10 +9,12 @@ from app.services.agents.support import SupportAgent
 from app.services.agents.finance import FinanceAgent
 from app.services.agents.hr import HRAgent
 from app.services.agents.connected_systems import (
+    clients_addressed_by,
     correct_assistant_reply,
     format_connection_report,
     load_connected_systems,
     request_asks_about_connections,
+    request_asks_to_message_connection,
 )
 
 from app.models.base import APICredential
@@ -86,6 +88,46 @@ def _current_request_text(prompt: str) -> str:
     return match.group(1).strip() if match else (prompt or "")
 
 
+def _message_connected_client(agent: "OrchestratorAgent", request: str) -> str:
+    """Place the user's message on the named MCP client and report the real handoff."""
+    from app.services.mcp.client_channel import queue_client_message
+
+    snapshot = load_connected_systems(agent.db, agent.tenant_id)
+    clients = clients_addressed_by(snapshot, request)
+    if not clients:
+        known = ", ".join(
+            str(client.get("name") or "unnamed")
+            for client in (snapshot.get("mcp_clients") or [])
+        ) or "none"
+        return (
+            "No connected MCP client matched that request. "
+            f"Saved MCP clients: {known}."
+        )
+    text = f"Message from the OctaOS assistant: {request.strip()}"
+    lines = []
+    for client in clients:
+        if not client.get("id"):
+            lines.append(f"{client.get('name') or 'MCP client'} has no saved credential id, so no message was queued.")
+            continue
+        placed = queue_client_message(
+            agent.db,
+            tenant_id=agent.tenant_id,
+            credential_id=str(client["id"]),
+            client_name=str(client.get("name") or "MCP client"),
+            text=text,
+        )
+        streams = int(placed.get("open_streams") or 0)
+        if streams:
+            handoff = f"pushed onto {streams} open MCP stream(s) and kept for the next call"
+        else:
+            handoff = "no stream is open right now, so it is waiting for the client's next OctaOS call"
+        lines.append(
+            f"Placed a message for {placed['client_name']} on the two-way MCP channel ({handoff}). "
+            "This does not by itself mean the client has displayed it."
+        )
+    return "\n".join(lines)
+
+
 def knowledge_query_for_turn(prompt: str, messages: Optional[List[Dict[str, Any]]] = None) -> str:
     """Build the company-knowledge search from this turn and earlier user turns.
 
@@ -146,6 +188,15 @@ class OrchestratorAgent(BaseAgent):
             save_credential(self.db, self.tenant_id, provider, key)
             self.log_activity("Configuration", f"Saved {provider} API key.")
             return {"plan": {}, "results": [{"status": "success", "message": f"I've saved your {provider} configuration. What task should I execute next?"}]}
+
+        if request_asks_to_message_connection(current_request):
+            report = _message_connected_client(self, current_request)
+            self.log_activity("Message MCP Client", report.split("\n", 1)[0])
+            return {
+                "mode": "execution",
+                "plan": {"message": report, "tasks": []},
+                "results": [{"status": "success", "message": report}],
+            }
 
         if request_asks_about_connections(current_request):
             report = format_connection_report(load_connected_systems(self.db, self.tenant_id))

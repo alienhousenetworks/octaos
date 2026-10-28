@@ -46,6 +46,37 @@ _MCP_DENIALS = (
 )
 
 
+def request_asks_to_message_connection(text: str) -> bool:
+    """True when the user wants a message placed on a connected MCP client."""
+    lowered = (text or "").lower()
+    if not re.search(r"\b(message|tell|text|notify|ping)\w*", lowered):
+        return False
+    if "mcp" in lowered:
+        return True
+    tokens = re.findall(r"[a-z0-9]{4,}", lowered)
+    for token in tokens:
+        for stem in ("grok", "claude", "cursor", "deepseek"):
+            if _near(token, stem):
+                return True
+    return bool(re.search(r"\b(bot|client)\b", lowered))
+
+
+def clients_addressed_by(snapshot: Dict[str, Any], request: str) -> List[Dict[str, Any]]:
+    """Pick the MCP clients named in the request. One saved client matches a generic ask."""
+    clients = [client for client in (snapshot.get("mcp_clients") or []) if client.get("active", True)]
+    lowered = (request or "").lower()
+    tokens = re.findall(r"[a-z0-9]{3,}", lowered)
+    chosen = []
+    for client in clients:
+        blob = f"{client.get('name') or ''} {client.get('client_type') or ''}".lower()
+        parts = re.findall(r"[a-z0-9]{3,}", blob)
+        if any(token in blob or any(_near(token, part) for part in parts) for token in tokens):
+            chosen.append(client)
+    if not chosen and len(clients) == 1 and re.search(r"\b(mcp|bot|client)\b", lowered):
+        return clients
+    return chosen
+
+
 def request_asks_about_connections(text: str) -> bool:
     """True when this turn is asking to inspect MCP, Grok, or connected systems."""
     lowered = (text or "").lower()
@@ -112,6 +143,7 @@ def load_connected_systems(db: Session, tenant_id: str) -> Dict[str, Any]:
         )
         snapshot["mcp_clients"] = [
             {
+                "id": row.id,
                 "name": row.name,
                 "client_type": row.client_type,
                 "role": row.role,
@@ -182,7 +214,7 @@ def format_connection_report(snapshot: Dict[str, Any]) -> str:
     lines: List[str] = ["Connected systems for this workspace:"]
     clients = snapshot.get("mcp_clients") or []
     if clients:
-        lines.append("MCP clients that can call OctaOS:")
+        lines.append("MCP clients on the two-way channel:")
         for client in clients:
             state = "active" if client.get("active") else "inactive"
             used = client.get("last_used_at") or "never"
@@ -190,7 +222,7 @@ def format_connection_report(snapshot: Dict[str, Any]) -> str:
                 f"- {client.get('name')} ({client.get('client_type')}, role {client.get('role')}, {state}, last used {used})"
             )
     else:
-        lines.append("MCP clients that can call OctaOS: none saved.")
+        lines.append("MCP clients on the two-way channel: none saved.")
 
     connectors = snapshot.get("connectors") or []
     if connectors:
@@ -209,17 +241,21 @@ def format_connection_report(snapshot: Dict[str, Any]) -> str:
     else:
         lines.append("Outbound AI keys saved: none. This assistant still uses the server's inbuilt model route.")
 
-    grok_inbound = any(str(client.get("name") or "").lower().find("grok") >= 0 or str(client.get("client_type") or "").lower().find("grok") >= 0 for client in clients)
-    grok_outbound = "grok" in outbound
-    if grok_inbound and not grok_outbound:
+    linked = [
+        client for client in clients
+        if "grok" in str(client.get("name") or "").lower() or "grok" in str(client.get("client_type") or "").lower()
+    ]
+    if linked:
+        names = ", ".join(str(client.get("name") or "MCP client") for client in linked)
         lines.append(
-            "Grok Bot is connected as an inbound MCP client, so Grok can call OctaOS tools. "
-            "No outbound Grok API key is saved, so this assistant cannot open a new chat inside the Grok app."
+            f"{names} is connected on the two-way MCP channel. "
+            "That client can call OctaOS, and OctaOS can place a message on the same channel. "
+            "The message is pushed when the client's stream is open and is included in the client's next OctaOS call."
         )
-    elif grok_outbound:
-        lines.append("An outbound Grok key is saved. A request to reach Grok uses that key and reports the provider result.")
-    else:
-        lines.append("Grok is not connected in either direction.")
+    if "grok" in outbound:
+        lines.append("An xAI API key is also saved. That is a separate call to api.x.ai, not the MCP channel.")
+    elif not linked:
+        lines.append("No Grok MCP client is saved.")
 
     if snapshot.get("mailbox_connected"):
         lines.append("Mailbox: connected. Email send is available when you explicitly ask to send.")
