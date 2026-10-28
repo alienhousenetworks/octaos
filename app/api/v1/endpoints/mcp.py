@@ -600,17 +600,32 @@ async def test_connection(
             )
             .first()
         )
+        # Selecting a credential by ID does not run key authentication, so
+        # explicitly update the connection heartbeat after tenant-scoped lookup.
+        if cred and cred.is_active:
+            cred.last_used_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(cred)
 
-    if not cred:
+    if not cred or not cred.is_active or cred.tenant_id != current_user.tenant_id:
         return {"status": "error", "message": "Credential could not be authenticated."}
 
-    # Execute a safe ping and tools/list check
+    # Exercise the protocol ping as well as the tenant-scoped authorization
+    # registry. A credential lookup alone is not proof that MCP is responsive.
+    ping = await mcp_server.handle_message(
+        cred,
+        {"jsonrpc": "2.0", "id": "connection-test", "method": "ping", "params": {}},
+    )
+    if not isinstance(ping, dict) or "result" not in ping:
+        raise HTTPException(status_code=502, detail="MCP protocol ping failed.")
+
     tools = mcp_server.registry.get_authorized_tools(db, cred)
     return {
         "status": "success",
+        "protocol_ping": "success",
         "credential_name": cred.name,
         "role": cred.role,
         "authorized_tools_count": len(tools),
         "sample_tools": [t["name"] for t in tools[:5]],
-        "message": f"Connection verified. Client is authorized for {len(tools)} tools.",
+        "message": f"Connection verified. MCP ping succeeded; client is authorized for {len(tools)} tools.",
     }
