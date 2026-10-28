@@ -69,6 +69,11 @@ UNIVERSAL_TOOLS_SPEC: List[Dict[str, Any]] = [
                     "type": "object",
                     "description": "Arguments accepted by the external MCP tool.",
                 },
+                "confirm_side_effects": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Set true only after reviewing the remote tool schema when the tool is not explicitly marked read-only.",
+                },
             },
             "required": ["source", "tool_name"],
         },
@@ -538,6 +543,7 @@ class CapabilityRegistry:
                 parameters={
                     "action_name": external_tool_name,
                     "arguments": arguments.get("arguments") or {},
+                    "confirm_side_effects": arguments.get("confirm_side_effects", False),
                 },
                 idempotency_key=idempotency_key,
             )
