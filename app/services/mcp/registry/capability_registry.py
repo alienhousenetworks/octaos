@@ -71,7 +71,7 @@ UNIVERSAL_TOOLS_SPEC: List[Dict[str, Any]] = [
                 },
                 "confirm_side_effects": {
                     "type": "boolean",
-                    "default": false,
+                    "default": False,
                     "description": "Set true only after reviewing the remote tool schema when the tool is not explicitly marked read-only.",
                 },
             },
