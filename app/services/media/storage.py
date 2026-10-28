@@ -6,7 +6,7 @@ import mimetypes
 import re
 import uuid
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlparse
 
 import httpx
