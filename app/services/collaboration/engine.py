@@ -295,6 +295,13 @@ class AICollaborationEngine:
         task_id = str(uuid.uuid4())
         corr_id = request.parent_task_id or str(uuid.uuid4())
         target_emp = request.target_employee or "sales"
+        if request.webhook_url:
+            # Validate before persisting/accepting the callback destination.
+            validate_public_https_url(request.webhook_url)
+        if request.timeout_seconds < 1 or request.timeout_seconds > 300:
+            raise ValueError("timeout_seconds must be between 1 and 300.")
+        if request.cost_limit_usd <= 0:
+            raise ValueError("cost_limit_usd must be greater than zero.")
 
         # 2. Loop & Limit Prevention Check
         new_depth, updated_lineage = validate_delegation_safety(
@@ -350,9 +357,6 @@ class AICollaborationEngine:
                 "instructions": request.task_description,
             }
 
-            if request.webhook_url:
-                # Validate before accepting a task that could later send a callback.
-                validate_public_https_url(request.webhook_url)
             tool_result = await asyncio.wait_for(
                 mcp_server.registry.call_tool(
                     credential=mcp_credential,
@@ -368,7 +372,15 @@ class AICollaborationEngine:
             except Exception:
                 parsed_res = {"result": content_text}
 
-            is_error = tool_result.isError
+            is_error = bool(tool_result.isError)
+            try:
+                bounded_json_size(parsed_res)
+                if request.output_schema:
+                    validate_json_schema(parsed_res, request.output_schema)
+            except Exception as exc:
+                is_error = True
+                msg.error_code = "OUTPUT_VALIDATION_FAILED"
+                receipt.verification_errors = [str(exc)[:500]]
             msg.status = "completed" if not is_error else "failed"
             msg.response = parsed_res
             msg.completed_at = datetime.now(timezone.utc)
@@ -530,4 +542,12 @@ class AICollaborationEngine:
             receipt.status = "cancelled"
 
         self.db.commit()
+        # Revoke the matching Celery delivery as a best-effort interruption.
+        # The worker also re-checks persisted cancellation before writing a result.
+        if msg.message_type == "inbound_collaboration":
+            try:
+                from app.core.celery_app import celery_app
+                celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
+            except Exception as exc:
+                logger.warning("Could not signal cancellation for task %s (%s)", task_id, type(exc).__name__)
         return True
