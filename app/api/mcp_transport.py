@@ -4,6 +4,7 @@ The existing versioned management API remains under /api/v1/mcp. MCP clients
 should use this protocol-only endpoint at /mcp, avoiding accidental exposure
 of management routes on the public MCP transport path.
 """
+import os
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
