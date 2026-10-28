@@ -27,6 +27,7 @@ from app.services.collaboration.orchestrator import (
 )
 from app.services.collaboration.provider_registry import AIProviderRegistry, ProviderDescriptor
 from app.services.collaboration.security import validate_json_schema, bounded_json_size, validate_public_https_url
+from app.services.collaboration.outbox import persist_webhook_outbox
 
 logger = logging.getLogger(__name__)
 
@@ -416,21 +417,17 @@ class AICollaborationEngine:
             receipt.status = "verified" if not is_error else "failed"
             receipt.result = parsed_res
             receipt.evidence = [evidence_item]
-            self.db.commit()
-
-            # Publish a durable, retryable webhook task after the result is committed.
             if request.webhook_url:
-                from app.core.celery_app import celery_app
-                try:
-                    celery_app.send_task(
-                        "octaos.deliver_collaboration_webhook",
-                        args=[request.webhook_url,
-                              {"task_id": task_id, "status": msg.status, "result": parsed_res},
-                              mcp_credential.key_hash],
-                        queue="main-queue",
-                    )
-                except Exception as exc:
-                    logger.error("Webhook enqueue failed for task %s (%s)", task_id, type(exc).__name__)
+                persist_webhook_outbox(
+                    self.db,
+                    tenant_id=self.tenant_id,
+                    task_id=task_id,
+                    webhook_url=request.webhook_url,
+                    callback_payload={"task_id": task_id, "status": msg.status, "result": parsed_res},
+                    credential_id=str(mcp_credential.id),
+                )
+            # Result and callback intent commit atomically; a broker outage cannot lose the callback.
+            self.db.commit()
 
             return TaskStatusResponse(
                 task_id=task_id,
