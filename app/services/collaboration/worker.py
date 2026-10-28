@@ -169,7 +169,7 @@ def drain_collaboration_webhook_outbox():
             AgentMessage.tenant_id.isnot(None),
             (
                 (AgentMessage.status == "queued") |
-                ((AgentMessage.status == "dispatching") & (AgentMessage.updated_at < stale_before))
+                (((AgentMessage.status == "dispatching") | (AgentMessage.status == "retry_wait")) & (AgentMessage.updated_at < stale_before))
             ),
         ).order_by(AgentMessage.created_at.asc()).limit(100).all()
         scheduled = 0
