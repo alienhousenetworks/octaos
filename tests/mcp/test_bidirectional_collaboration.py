@@ -769,3 +769,57 @@ def test_collaboration_worker_timeout_persists_error_and_requests_retry(collab_s
     persisted = db.query(AgentMessage).filter(AgentMessage.id == task_id).one()
     assert persisted.status == "queued"
     assert persisted.error_code == "EXECUTION_TIMEOUT"
+
+
+
+def test_cancellation_during_provider_call_wins_over_late_result(collab_setup, monkeypatch):
+    import asyncio
+    import json
+    from types import SimpleNamespace
+    from app.models.mcp import SystemMCPCredential
+    from app.models.collaborative_workforce import AgentMessage
+    from app.services.collaboration import worker
+
+    db = collab_setup["db"]
+    tenant_id = collab_setup["tenant_id"]
+    user_id = db.query(User).filter(User.tenant_id == tenant_id).first().id
+    credential = SystemMCPCredential(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        name="worker-cancel-race-test",
+        client_type="generic",
+        key_hash=f"hash-{uuid.uuid4()}",
+        key_prefix="test",
+        role="admin",
+        is_active=True,
+    )
+    db.add(credential)
+    db.commit()
+    task_id = f"cancel-race-{uuid.uuid4()}"
+    _insert_worker_task(
+        db, tenant_id, task_id,
+        payload={"credential_id": credential.id, "timeout_seconds": 10,
+                 "target_capability": "execute_task", "context": {}, "description": "cancel race"},
+    )
+    monkeypatch.setattr(worker, "SessionLocal", collab_setup["Session"])
+
+    async def complete_after_cancel(**kwargs):
+        other = collab_setup["Session"]()
+        try:
+            row = other.query(AgentMessage).filter(AgentMessage.id == task_id).one()
+            row.status = "cancelled"
+            other.commit()
+        finally:
+            other.close()
+        return SimpleNamespace(
+            content=[SimpleNamespace(text=json.dumps({"should_not_commit": True}))],
+            isError=False,
+        )
+
+    monkeypatch.setattr(worker.mcp_server.registry, "call_tool", complete_after_cancel)
+    result = worker.execute_inbound_collaboration.run(task_id, tenant_id)
+    assert result["status"] == "cancelled"
+    db.expire_all()
+    persisted = db.query(AgentMessage).filter(AgentMessage.id == task_id).one()
+    assert persisted.status == "cancelled"
+    assert persisted.response is None
