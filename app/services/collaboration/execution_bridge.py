@@ -74,6 +74,7 @@ class ExecutionBridge:
             resource_type="collaboration_task",
             resource_id=request.task_id,
             requested_by="execution_bridge",
+            confidence=request.confidence,
         )
 
         decision = eval_result.get("decision", "allow_auto")

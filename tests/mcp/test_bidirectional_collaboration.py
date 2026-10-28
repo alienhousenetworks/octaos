@@ -428,10 +428,49 @@ def test_execution_bridge_policy_and_evidence(collab_setup):
     Requirement 8: Result-to-Execution Bridge enforces policy checks and ensures
     external AI proposals are never reported as executed without verified evidence.
     """
+    from app.models.collaborative_workforce import AgentMessage, DelegationReceipt
+    from app.models.enterprise import TenantPolicy
+
     client = collab_setup["client"]
     raw_key = collab_setup["raw_key"]
+    db = collab_setup["db"]
+    tenant_id = collab_setup["tenant_id"]
 
     task_id = str(uuid.uuid4())
+
+    db.add(AgentMessage(
+        id=task_id,
+        tenant_id=tenant_id,
+        correlation_id=f"corr-{task_id}",
+        idempotency_key=f"idem-{task_id}",
+        from_agent="external:claude",
+        to_agent="Sales AI",
+        message_type="result",
+        status="completed",
+        payload={},
+    ))
+    db.add(DelegationReceipt(
+        tenant_id=tenant_id,
+        task_id=task_id,
+        parent_agent="Sales AI",
+        child_agent="external:claude",
+        request_message_id=task_id,
+        status="in_progress",
+        acceptance_criteria=[],
+        evidence=[],
+    ))
+    db.add(TenantPolicy(
+        tenant_id=tenant_id,
+        default_mode="auto_with_rules",
+        min_confidence=0.85,
+        max_auto_amount=0.0,
+        require_brand_pass=True,
+        always_approve=["first_touch_email", "public_post", "price_quote", "refund", "linkedin_dm"],
+        allowed_channels=["email"],
+        channel_kill_switches={},
+        agent_kill_switches={},
+    ))
+    db.commit()
 
     # Execute a verified bridge action
     bridge_payload = {
@@ -444,6 +483,7 @@ def test_execution_bridge_policy_and_evidence(collab_setup):
             "company": "Collaboration Corp",
         },
         "intent_description": "Execute partner lead creation proposed by external Claude analysis",
+        "confidence": 0.95,
     }
 
     res = client.post(
@@ -452,9 +492,9 @@ def test_execution_bridge_policy_and_evidence(collab_setup):
         json=bridge_payload,
     )
 
-    assert res.status_code == 200
+    assert res.status_code == 200, res.text
     data = res.json()
-    assert data["verified"] is True
+    assert data["verified"] is True, data
     assert data["status"] == "executed"
     assert "tool_executed" in data["evidence"]
     assert data["evidence"]["tool_executed"] == "octaos_create_lead"

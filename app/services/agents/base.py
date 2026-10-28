@@ -3,7 +3,7 @@ from app.services.llm_gateway import LLMGateway
 from app.models.agents import KnowledgeDocument, ActivityLog
 from app.services.memory_service import MemoryService
 from app.services.learning_loop import LearningLoop
-from typing import Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 class BaseAgent:
     def __init__(self, db: Session, tenant_id: str, agent_name: str, department: str = "general"):

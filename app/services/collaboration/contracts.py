@@ -118,6 +118,7 @@ class ExecutionBridgeRequest(BaseModel):
     action_type: str = Field(default="tool_execution", description="Policy action category")
     arguments: Dict[str, Any] = Field(default_factory=dict, description="Action arguments")
     intent_description: str = Field(description="Why this action is proposed")
+    confidence: Optional[float] = Field(default=None, description="Caller confidence scored against the tenant auto-execution policy")
     idempotency_key: Optional[str] = None
 
 
