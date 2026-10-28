@@ -247,3 +247,38 @@ def test_mcp_server_rejects_invalid_jsonrpc_version(api_test_data):
         payload = response.json()
         assert payload["error"]["code"] == -32600
         assert payload["id"] == "bad-version"
+
+
+def test_canonical_mcp_endpoint_rejects_unconfigured_browser_origin(api_test_data, monkeypatch):
+    monkeypatch.delenv("MCP_ALLOWED_ORIGINS", raising=False)
+    raw_key = api_test_data["raw_mcp_key"]
+    with TestClient(app) as client:
+        response = client.post(
+            "/mcp",
+            headers={
+                "Authorization": f"Bearer {raw_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Origin": "https://untrusted.example",
+            },
+            json={"jsonrpc": "2.0", "id": "origin-test", "method": "ping"},
+        )
+        assert response.status_code == 403
+
+
+def test_canonical_mcp_endpoint_accepts_configured_browser_origin(api_test_data, monkeypatch):
+    monkeypatch.setenv("MCP_ALLOWED_ORIGINS", "https://client.example, https://chatgpt.com")
+    raw_key = api_test_data["raw_mcp_key"]
+    with TestClient(app) as client:
+        response = client.post(
+            "/mcp",
+            headers={
+                "Authorization": f"Bearer {raw_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Origin": "https://client.example",
+            },
+            json={"jsonrpc": "2.0", "id": "origin-test", "method": "ping"},
+        )
+        assert response.status_code == 200
+        assert response.json()["result"] == {}
