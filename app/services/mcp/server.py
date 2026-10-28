@@ -41,12 +41,19 @@ class MCPServer:
         """
         if not isinstance(message, dict):
             return make_rpc_error(None, RPCErrorCode.INVALID_REQUEST, "Message must be a JSON object.")
+        if message.get("jsonrpc") != "2.0":
+            return make_rpc_error(message.get("id"), RPCErrorCode.INVALID_REQUEST, "jsonrpc must be '2.0'.")
 
         msg_id = message.get("id")
+        # JSON-RPC request IDs are strings or numbers; booleans are not valid IDs.
+        if isinstance(msg_id, bool) or not (msg_id is None or isinstance(msg_id, (str, int, float))):
+            return make_rpc_error(None, RPCErrorCode.INVALID_REQUEST, "Invalid JSON-RPC request id.")
         method = message.get("method")
         params = message.get("params") or {}
+        if not isinstance(params, dict):
+            return make_rpc_error(msg_id, RPCErrorCode.INVALID_PARAMS, "params must be an object.")
 
-        if not method:
+        if not isinstance(method, str) or not method.strip():
             return make_rpc_error(msg_id, RPCErrorCode.INVALID_REQUEST, "Missing 'method' field.")
 
         # Notification handling (no response expected for notifications)
@@ -56,8 +63,15 @@ class MCPServer:
             # 1. Initialization Handshake
             if method == "initialize":
                 client_version = params.get("protocolVersion", LATEST_PROTOCOL_VERSION)
+                # Negotiate a version both peers understand. Never echo an
+                # arbitrary client value or silently claim unsupported features.
+                selected_version = (
+                    client_version
+                    if client_version in {"2024-11-05", "2024-10-07"}
+                    else LATEST_PROTOCOL_VERSION
+                )
                 res = {
-                    "protocolVersion": LATEST_PROTOCOL_VERSION,
+                    "protocolVersion": selected_version,
                     "capabilities": {
                         "tools": {"listChanged": False},
                         "resources": {"subscribe": False, "listChanged": False},
@@ -135,11 +149,13 @@ class MCPServer:
                 return None
             return make_rpc_error(msg_id, RPCErrorCode.METHOD_NOT_FOUND, f"Method '{method}' is not implemented.")
 
-        except Exception as e:
-            logger.exception(f"Error handling MCP message: {e}")
+        except Exception:
+            # Keep diagnostics in server logs; protocol clients must not receive
+            # database details, internal paths, secrets, or raw exception text.
+            logger.exception("Unhandled MCP request failure (method=%s)", method)
             if is_notification:
                 return None
-            return make_rpc_error(msg_id, RPCErrorCode.INTERNAL_ERROR, f"Internal error: {str(e)}")
+            return make_rpc_error(msg_id, RPCErrorCode.INTERNAL_ERROR, "Internal MCP server error.")
 
 
 mcp_server = MCPServer()
