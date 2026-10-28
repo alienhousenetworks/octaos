@@ -282,3 +282,22 @@ def test_canonical_mcp_endpoint_accepts_configured_browser_origin(api_test_data,
         )
         assert response.status_code == 200
         assert response.json()["result"] == {}
+
+
+def test_streamable_http_rejects_jsonrpc_batches(api_test_data):
+    raw_key = api_test_data["raw_mcp_key"]
+    with TestClient(app) as client:
+        response = client.post(
+            "/mcp",
+            headers={
+                "Authorization": f"Bearer {raw_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            json=[
+                {"jsonrpc": "2.0", "id": 1, "method": "ping"},
+                {"jsonrpc": "2.0", "id": 2, "method": "ping"},
+            ],
+        )
+        assert response.status_code == 400
+        assert "batch" in response.json()["detail"].lower()
