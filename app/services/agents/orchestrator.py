@@ -8,6 +8,12 @@ from app.services.agents.sales import SalesAgent
 from app.services.agents.support import SupportAgent
 from app.services.agents.finance import FinanceAgent
 from app.services.agents.hr import HRAgent
+from app.services.agents.connected_systems import (
+    correct_assistant_reply,
+    format_connection_report,
+    load_connected_systems,
+    request_asks_about_connections,
+)
 
 from app.models.base import APICredential
 
@@ -141,6 +147,15 @@ class OrchestratorAgent(BaseAgent):
             self.log_activity("Configuration", f"Saved {provider} API key.")
             return {"plan": {}, "results": [{"status": "success", "message": f"I've saved your {provider} configuration. What task should I execute next?"}]}
 
+        if request_asks_about_connections(current_request):
+            report = format_connection_report(load_connected_systems(self.db, self.tenant_id))
+            self.log_activity("Connected Systems", f"Reported live connections for '{current_request}'")
+            return {
+                "mode": "execution",
+                "plan": {"message": report, "tasks": []},
+                "results": [{"status": "success", "message": report}],
+            }
+
         # Build structured multi-turn conversation history
         conversation_context = ""
         if messages:
@@ -209,25 +224,40 @@ class OrchestratorAgent(BaseAgent):
                 for company, email in recent_leads
                 if company and email and "example.com" not in email.lower()
             ]
-            sample = f" Recent real CRM leads: {'; '.join(shown)}." if shown else ""
+            sample = f" Named sample, not the full CRM: {'; '.join(shown)}." if shown else ""
             operational_stats = (
                 f"Live Database Counts: {cand_count} Candidate(s)/Resume(s) currently on file; "
-                f"{lead_count} Lead(s) in CRM.{sample}"
+                f"{lead_count} Lead(s) in the CRM. {sample} "
+                "Do not describe the sample size as the number of leads."
             )
         except Exception:
             operational_stats = "Live Database Counts: 0 Candidate(s)/Resume(s) on file; 0 Lead(s) in CRM."
 
         # Search the tenant library with the user's question. The task label
         # "orchestrator" matches none of the crawled website pages.
-        company_knowledge = self.get_knowledge_context(
-            knowledge_query_for_turn(current_request, messages) or current_request,
-            "General",
-        )
+        knowledge_query = knowledge_query_for_turn(current_request, messages) or current_request
+        try:
+            company_knowledge = self.get_knowledge_context(knowledge_query, "General")
+        except Exception as knowledge_error:
+            logger.warning("Company knowledge lookup failed: %s", knowledge_error)
+            company_knowledge = ""
+        try:
+            from app.services.rag.hybrid_engine import HybridRAGEngine
+            knowledge_hits = HybridRAGEngine(self.db, self.tenant_id).retrieve(
+                knowledge_query, department="general", top_k=6,
+            )
+        except Exception as knowledge_error:
+            logger.warning("Company knowledge hits failed: %s", knowledge_error)
+            knowledge_hits = []
+        connection_snapshot = load_connected_systems(self.db, self.tenant_id)
+        connected_systems = format_connection_report(connection_snapshot)
 
         system_prompt = f"""You are the Orchestrator AI, the central coordination brain of OctaOS.
 Your job is to assist company leadership, answer questions about operations, and coordinate specialized department agents (Marketing, Sales, Support, HR, Finance).
 
 {company_knowledge}
+
+{connected_systems}
 
 Currently configured API keys/credentials: {configured_providers}.
 {operational_stats}
@@ -265,6 +295,9 @@ Guidelines:
 2. If the user request requires executing tasks, include them in the "tasks" array. If no execution tasks are needed, leave "tasks" as an empty list [].
 3. Adhere strictly to the company knowledge base and guidelines above. When those excerpts describe the company or its website, answer from them and cite the source URL. Do not say the company knowledge base is empty, and do not ask the user to paste website content that is already in the excerpts. If a specific fact is absent from the excerpts, say that fact was not in the retrieved pages.
 4. Multi-turn conversation context: If previous conversation history is provided, maintain context across turns. For example, if you asked the user clarifying questions about a role, task, campaign, or parameters in previous turns, interpret the user's latest reply in the context of those prior questions.
+5. The connected-systems list above is live. If it names an MCP client, say so. Do not say you cannot check MCP or that Grok is unreachable when that list shows the client. An inbound MCP client can call OctaOS. An outbound message to Grok requires an outbound Grok key in that list.
+6. If the user asks whether the company offers consulting, marketing, hiring, or another service, answer from the knowledge excerpts and cite the page URL. Leave tasks empty for that question.
+7. Say that email or WhatsApp can be sent only when the connected-systems list says that channel is connected. Otherwise say an unsent draft can be stored.
 
 Output MUST be valid JSON only.
 Format:
@@ -298,8 +331,9 @@ Format:
                     system_prompt=(
                         "You are the Orchestrator AI for OctaOS. Assist the user with their request. "
                         "When the company knowledge excerpts answer the question, use them and cite the source URL. "
-                        "Do not claim the knowledge base has no information about the company when those excerpts are present.\n\n"
-                        f"{company_knowledge}\n\n{operational_stats}"
+                        "Do not claim the knowledge base has no information about the company when those excerpts are present. "
+                        "If the connected-systems list names an MCP client, report that client. Do not say MCP cannot be checked.\n\n"
+                        f"{company_knowledge}\n\n{connected_systems}\n\n{operational_stats}"
                     ),
                     provider=provider,
                     model=model
@@ -309,6 +343,16 @@ Format:
             except Exception as ce:
                 logger.error(f"[Orchestrator] Conversational fallback error: {ce}")
                 plan = {"message": "I processed your request, but could not reach the language model provider. Please check your API key in Settings.", "tasks": []}
+
+        corrected = correct_assistant_reply(
+            plan.get("message") or "",
+            current_request,
+            knowledge_hits,
+            connection_snapshot,
+        )
+        plan["message"] = corrected["message"]
+        if corrected["drop_tasks"]:
+            plan["tasks"] = []
 
         self.log_activity("Delegate Tasks", f"Delegated goal: '{prompt}'")
         

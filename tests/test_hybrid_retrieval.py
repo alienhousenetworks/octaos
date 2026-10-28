@@ -281,6 +281,45 @@ def test_assistant_knowledge_query_uses_the_user_question(hybrid_db):
     assert "technology solutions company" in runtime_context
 
 
+def test_misspelled_service_check_opens_consulting_marketing_and_hiring(hybrid_db):
+    tenant_id = "tenant-hybrid-1"
+    pages = [
+        ("chunk-consult", "https://alienhousenetworks.com/services/business-consulting/",
+         "Business Consulting. We advise leadership teams on operating models and growth plans."),
+        ("chunk-market", "https://alienhousenetworks.com/services/marketing/",
+         "Marketing. Strategic digital marketing services including content and campaigns."),
+        ("chunk-hiring", "https://alienhousenetworks.com/services/hiring-solution/",
+         "Hiring Solution. We help organizations hire and onboard the roles they need."),
+        ("chunk-training", "https://alienhousenetworks.com/training/",
+         "Digital Marketing Training. Content marketing exercises for students."),
+    ]
+    hybrid_db.add_all([
+        KnowledgeChunk(
+            id=chunk_id,
+            tenant_id=tenant_id,
+            document_id=chunk_id,
+            title=chunk_id,
+            department="General",
+            content=content,
+            source_url=url,
+            is_active=True,
+            version=1,
+        )
+        for chunk_id, url, content in pages
+    ])
+    hybrid_db.commit()
+
+    hits = HybridRAGEngine(hybrid_db, tenant_id).retrieve(
+        "check ai house do buisnedd cosnultant ,marketing,hirnng too",
+        department="general",
+        top_k=4,
+    )
+    urls = [hit["source_url"] for hit in hits]
+    assert "https://alienhousenetworks.com/services/business-consulting/" in urls
+    assert "https://alienhousenetworks.com/services/marketing/" in urls
+    assert "https://alienhousenetworks.com/services/hiring-solution/" in urls
+
+
 def test_company_page_is_used_when_only_the_document_was_stored(hybrid_db):
     tenant_id = "tenant-hybrid-1"
     hybrid_db.add(KnowledgeDocument(
