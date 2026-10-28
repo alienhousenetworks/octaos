@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.core.celery_app import celery_app
 from app.db.session import SessionLocal
@@ -12,6 +12,7 @@ from app.models.collaborative_workforce import AgentMessage, DelegationReceipt
 from app.models.mcp import SystemMCPCredential
 from app.services.collaboration.orchestrator import dispatch_signed_webhook
 from app.services.collaboration.security import bounded_json_size, validate_json_schema
+from app.services.collaboration.outbox import persist_webhook_outbox
 from app.services.mcp.server import mcp_server
 
 logger = logging.getLogger(__name__)
@@ -140,33 +141,115 @@ def execute_inbound_collaboration(self, task_id: str, tenant_id: str):
             receipt.evidence = evidence
             if not succeeded:
                 receipt.verification_errors = ["Employee tool returned an error."]
-        db.commit()
-
         webhook_url = payload.get("webhook_url")
         if webhook_url:
-            # Durable delivery is a separate Celery job so retries never rerun the employee action.
-            try:
-                celery_app.send_task(
-                    "octaos.deliver_collaboration_webhook",
-                    args=[webhook_url, {"task_id": task_id, "status": msg.status, "result": result},
-                          credential.key_hash],
-                    queue="main-queue",
-                )
-            except Exception as exc:
-                logger.error("Webhook enqueue failed for task %s (%s)", task_id, type(exc).__name__)
+            persist_webhook_outbox(
+                db,
+                tenant_id=tenant_id,
+                task_id=task_id,
+                webhook_url=webhook_url,
+                callback_payload={"task_id": task_id, "status": msg.status, "result": result},
+                credential_id=str(credential.id),
+            )
+        # Result and callback intent are committed in one transaction.
+        db.commit()
         return {"task_id": task_id, "status": msg.status}
     finally:
         db.close()
 
+@celery_app.task(name="octaos.drain_collaboration_webhook_outbox")
+def drain_collaboration_webhook_outbox():
+    """Reconcile queued/stale webhook outbox rows after broker or worker outages."""
+    db = SessionLocal()
+    now = datetime.now(timezone.utc)
+    stale_before = now - timedelta(minutes=5)
+    try:
+        rows = db.query(AgentMessage).filter(
+            AgentMessage.message_type == "webhook_outbox",
+            AgentMessage.tenant_id.isnot(None),
+            (
+                (AgentMessage.status == "queued") |
+                (((AgentMessage.status == "dispatching") | (AgentMessage.status == "retry_wait")) & (AgentMessage.updated_at < stale_before))
+            ),
+        ).order_by(AgentMessage.created_at.asc()).limit(100).all()
+        scheduled = 0
+        for row in rows:
+            payload = dict(row.payload or {})
+            tenant_id = row.tenant_id
+            row.status = "dispatching"
+            row.error_code = None
+            db.commit()
+            try:
+                celery_app.send_task(
+                    "octaos.deliver_collaboration_webhook",
+                    args=[row.id, tenant_id],
+                    queue="main-queue",
+                    task_id=f"webhook-{row.id}",
+                )
+                scheduled += 1
+            except Exception as exc:
+                db.rollback()
+                current = db.query(AgentMessage).filter(
+                    AgentMessage.id == row.id, AgentMessage.tenant_id == tenant_id
+                ).first()
+                if current:
+                    current.status = "queued"
+                    current.error_code = "WEBHOOK_BROKER_UNAVAILABLE"
+                    db.commit()
+                logger.warning("Webhook outbox enqueue failed (%s)", type(exc).__name__)
+        return {"scheduled": scheduled}
+    finally:
+        db.close()
+
+
 @celery_app.task(name="octaos.deliver_collaboration_webhook", bind=True, max_retries=5, default_retry_delay=10)
-def deliver_collaboration_webhook(self, webhook_url: str, payload: dict, signing_secret: str):
-    """Durable webhook delivery with bounded retries; each attempt revalidates the URL."""
-    delivered = asyncio.run(dispatch_signed_webhook(
-        webhook_url=webhook_url,
-        payload=payload,
-        secret=signing_secret,
-        timeout_seconds=10,
-    ))
-    if not delivered:
-        raise self.retry(exc=RuntimeError("Webhook delivery failed or destination was rejected."))
-    return {"delivered": True, "task_id": payload.get("task_id")}
+def deliver_collaboration_webhook(self, outbox_id: str, tenant_id: str):
+    """Deliver a tenant-scoped outbox row; retries never rerun the employee action."""
+    db = SessionLocal()
+    try:
+        row = db.query(AgentMessage).filter(
+            AgentMessage.id == outbox_id,
+            AgentMessage.tenant_id == tenant_id,
+            AgentMessage.message_type == "webhook_outbox",
+        ).first()
+        if not row:
+            return {"outbox_id": outbox_id, "status": "not_found"}
+        if row.status == "completed":
+            return {"outbox_id": outbox_id, "status": "completed"}
+        payload = dict(row.payload or {})
+        credential = db.query(SystemMCPCredential).filter(
+            SystemMCPCredential.id == payload.get("credential_id"),
+            SystemMCPCredential.tenant_id == tenant_id,
+            SystemMCPCredential.is_active.is_(True),
+        ).first()
+        if not credential:
+            row.status = "retry_wait" if self.request.retries < self.max_retries else "queued"
+            row.error_code = "WEBHOOK_CREDENTIAL_UNAVAILABLE"
+            db.commit()
+            if self.request.retries < self.max_retries:
+                raise self.retry(exc=RuntimeError("Webhook signing credential unavailable."))
+            return {"outbox_id": outbox_id, "status": "queued", "error_code": row.error_code}
+        row.status = "processing"
+        db.commit()
+        delivered = asyncio.run(dispatch_signed_webhook(
+            webhook_url=payload.get("webhook_url", ""),
+            payload=payload.get("callback_payload") or {},
+            secret=credential.key_hash,
+            timeout_seconds=10,
+        ))
+        if delivered:
+            row.status = "completed"
+            row.error_code = None
+            db.commit()
+            return {"outbox_id": outbox_id, "status": "completed"}
+        row.status = "retry_wait" if self.request.retries < self.max_retries else "queued"
+        row.error_code = "WEBHOOK_DELIVERY_FAILED"
+        db.commit()
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=RuntimeError("Webhook delivery failed or destination was rejected."))
+        return {"outbox_id": outbox_id, "status": "queued", "error_code": "WEBHOOK_DELIVERY_FAILED"}
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()

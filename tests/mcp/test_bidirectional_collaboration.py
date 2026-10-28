@@ -638,3 +638,228 @@ def test_provider_task_budget_is_not_compared_to_account_ceiling(collab_setup):
         db, tenant_id, required_capabilities=["deep_coding"], max_cost=0.0
     )
     assert all(provider.provider != "anthropic" for provider in no_budget)
+
+
+
+def test_pinned_resolver_rejects_private_dns_answers(monkeypatch):
+    import asyncio
+    import socket
+    from app.services.collaboration.security import PublicPinnedResolver, CollaborationSecurityError
+
+    async def private_getaddrinfo(self, host, port, family=socket.AF_UNSPEC, type=0, proto=0, flags=0):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))]
+
+    monkeypatch.setattr(asyncio.BaseEventLoop, "getaddrinfo", private_getaddrinfo)
+    with pytest.raises(CollaborationSecurityError):
+        asyncio.run(PublicPinnedResolver().resolve("attacker.example", 443))
+
+
+def test_pinned_resolver_returns_numeric_pinned_addresses(monkeypatch):
+    import asyncio
+    import socket
+    from app.services.collaboration.security import PublicPinnedResolver
+
+    async def public_getaddrinfo(self, host, port, family=socket.AF_UNSPEC, type=0, proto=0, flags=0):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
+
+    monkeypatch.setattr(asyncio.BaseEventLoop, "getaddrinfo", public_getaddrinfo)
+    resolved = asyncio.run(PublicPinnedResolver().resolve("example.com", 443))
+    assert resolved[0]["host"] == "93.184.216.34"
+    assert resolved[0]["hostname"] == "example.com"
+
+
+def test_webhook_outbox_is_idempotent_and_tenant_scoped(collab_setup):
+    from app.services.collaboration.outbox import persist_webhook_outbox
+    db = collab_setup["db"]
+    tenant_a = collab_setup["tenant_id"]
+    tenant_b = collab_setup["tenant2_id"]
+    kwargs = {
+        "task_id": "task-outbox-regression",
+        "webhook_url": "https://example.com/hook",
+        "callback_payload": {"task_id": "task-outbox-regression", "status": "completed"},
+        "credential_id": "credential-id",
+    }
+    first = persist_webhook_outbox(db, tenant_id=tenant_a, **kwargs)
+    db.commit()
+    duplicate = persist_webhook_outbox(db, tenant_id=tenant_a, **kwargs)
+    db.commit()
+    other_tenant = persist_webhook_outbox(db, tenant_id=tenant_b, **kwargs)
+    db.commit()
+    assert duplicate.id == first.id
+    assert other_tenant.id != first.id
+    assert first.tenant_id == tenant_a
+    assert other_tenant.tenant_id == tenant_b
+
+
+def test_celery_registers_collaboration_worker_tasks():
+    from app.core.celery_app import celery_app
+    celery_app.loader.import_default_modules()
+    expected = {
+        "octaos.execute_inbound_collaboration",
+        "octaos.deliver_collaboration_webhook",
+        "octaos.drain_collaboration_webhook_outbox",
+    }
+    assert expected.issubset(set(celery_app.tasks.keys()))
+
+
+
+def _insert_worker_task(db, tenant_id, task_id, *, status="queued", payload=None):
+    from app.models.collaborative_workforce import AgentMessage, DelegationReceipt
+    message = AgentMessage(
+        id=task_id,
+        tenant_id=tenant_id,
+        correlation_id=task_id,
+        idempotency_key=f"worker-test:{task_id}",
+        from_agent="external:test",
+        to_agent="octaos:sales",
+        message_type="inbound_collaboration",
+        status=status,
+        payload=payload or {},
+    )
+    db.add(message)
+    db.flush()
+    db.add(DelegationReceipt(
+        tenant_id=tenant_id,
+        task_id=task_id,
+        parent_agent="external:test",
+        child_agent="octaos:sales",
+        request_message_id=task_id,
+        status="requested",
+        acceptance_criteria=[],
+        evidence=[],
+    ))
+    db.commit()
+    return message
+
+
+def test_collaboration_worker_cancelled_task_never_calls_employee(collab_setup, monkeypatch):
+    from app.services.collaboration import worker
+    db = collab_setup["db"]
+    tenant_id = collab_setup["tenant_id"]
+    task_id = f"cancelled-{uuid.uuid4()}"
+    _insert_worker_task(db, tenant_id, task_id, status="cancelled")
+    monkeypatch.setattr(worker, "SessionLocal", collab_setup["Session"])
+
+    async def unexpected_call(**kwargs):
+        raise AssertionError("cancelled task must not call the employee")
+
+    monkeypatch.setattr(worker.mcp_server.registry, "call_tool", unexpected_call)
+    result = worker.execute_inbound_collaboration.run(task_id, tenant_id)
+    assert result["status"] == "cancelled"
+
+
+def test_collaboration_worker_tenant_mismatch_is_not_found(collab_setup, monkeypatch):
+    from app.services.collaboration import worker
+    db = collab_setup["db"]
+    tenant_a = collab_setup["tenant_id"]
+    tenant_b = collab_setup["tenant2_id"]
+    task_id = f"tenant-boundary-{uuid.uuid4()}"
+    _insert_worker_task(db, tenant_a, task_id)
+    monkeypatch.setattr(worker, "SessionLocal", collab_setup["Session"])
+
+    async def unexpected_call(**kwargs):
+        raise AssertionError("cross-tenant task must not call the employee")
+
+    monkeypatch.setattr(worker.mcp_server.registry, "call_tool", unexpected_call)
+    result = worker.execute_inbound_collaboration.run(task_id, tenant_b)
+    assert result["status"] == "not_found"
+
+
+def test_collaboration_worker_timeout_persists_error_and_requests_retry(collab_setup, monkeypatch):
+    import asyncio
+    from app.models.mcp import SystemMCPCredential
+    from app.models.collaborative_workforce import AgentMessage
+    from app.services.collaboration import worker
+
+    db = collab_setup["db"]
+    tenant_id = collab_setup["tenant_id"]
+    user_id = db.query(User).filter(User.tenant_id == tenant_id).first().id
+    credential = SystemMCPCredential(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        name="worker-timeout-test",
+        client_type="generic",
+        key_hash=f"hash-{uuid.uuid4()}",
+        key_prefix="test",
+        role="admin",
+        is_active=True,
+    )
+    db.add(credential)
+    db.commit()
+    task_id = f"timeout-{uuid.uuid4()}"
+    _insert_worker_task(
+        db, tenant_id, task_id,
+        payload={"credential_id": credential.id, "timeout_seconds": 1,
+                 "target_capability": "execute_task", "context": {}, "description": "timeout test"},
+    )
+    monkeypatch.setattr(worker, "SessionLocal", collab_setup["Session"])
+
+    async def slow_call(**kwargs):
+        await asyncio.sleep(1.2)
+        return None
+
+    monkeypatch.setattr(worker.mcp_server.registry, "call_tool", slow_call)
+
+    def stop_after_retry_request(*args, **kwargs):
+        raise RuntimeError("retry requested by worker")
+
+    monkeypatch.setattr(worker.execute_inbound_collaboration, "retry", stop_after_retry_request)
+    with pytest.raises(RuntimeError, match="retry requested"):
+        worker.execute_inbound_collaboration.run(task_id, tenant_id)
+    persisted = db.query(AgentMessage).filter(AgentMessage.id == task_id).one()
+    assert persisted.status == "queued"
+    assert persisted.error_code == "EXECUTION_TIMEOUT"
+
+
+
+def test_cancellation_during_provider_call_wins_over_late_result(collab_setup, monkeypatch):
+    import asyncio
+    import json
+    from types import SimpleNamespace
+    from app.models.mcp import SystemMCPCredential
+    from app.models.collaborative_workforce import AgentMessage
+    from app.services.collaboration import worker
+
+    db = collab_setup["db"]
+    tenant_id = collab_setup["tenant_id"]
+    user_id = db.query(User).filter(User.tenant_id == tenant_id).first().id
+    credential = SystemMCPCredential(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        name="worker-cancel-race-test",
+        client_type="generic",
+        key_hash=f"hash-{uuid.uuid4()}",
+        key_prefix="test",
+        role="admin",
+        is_active=True,
+    )
+    db.add(credential)
+    db.commit()
+    task_id = f"cancel-race-{uuid.uuid4()}"
+    _insert_worker_task(
+        db, tenant_id, task_id,
+        payload={"credential_id": credential.id, "timeout_seconds": 10,
+                 "target_capability": "execute_task", "context": {}, "description": "cancel race"},
+    )
+    monkeypatch.setattr(worker, "SessionLocal", collab_setup["Session"])
+
+    async def complete_after_cancel(**kwargs):
+        other = collab_setup["Session"]()
+        try:
+            row = other.query(AgentMessage).filter(AgentMessage.id == task_id).one()
+            row.status = "cancelled"
+            other.commit()
+        finally:
+            other.close()
+        return SimpleNamespace(
+            content=[SimpleNamespace(text=json.dumps({"should_not_commit": True}))],
+            isError=False,
+        )
+
+    monkeypatch.setattr(worker.mcp_server.registry, "call_tool", complete_after_cancel)
+    result = worker.execute_inbound_collaboration.run(task_id, tenant_id)
+    assert result["status"] == "cancelled"
+    db.expire_all()
+    persisted = db.query(AgentMessage).filter(AgentMessage.id == task_id).one()
+    assert persisted.status == "cancelled"
+    assert persisted.response is None
