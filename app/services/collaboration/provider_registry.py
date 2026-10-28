@@ -277,6 +277,8 @@ class AIProviderRegistry:
             # The actual dispatch is the reachability check and must fail closed.
             if not p.is_configured:
                 continue
+            if p.cost_ceiling_usd <= 0:
+                continue
             has_capabilities = all(cap in p.supported_capabilities for cap in required_capabilities)
             if not has_capabilities:
                 continue
