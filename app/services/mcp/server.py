@@ -9,6 +9,7 @@ from app.db.session import SessionLocal
 from app.models.mcp import SystemMCPCredential
 from app.services.mcp.protocol import (
     LATEST_PROTOCOL_VERSION,
+    SUPPORTED_PROTOCOL_VERSIONS,
     RPCErrorCode,
     make_rpc_error,
     make_rpc_success,
@@ -67,7 +68,7 @@ class MCPServer:
                 # arbitrary client value or silently claim unsupported features.
                 selected_version = (
                     client_version
-                    if client_version in {"2024-11-05", "2024-10-07"}
+                    if client_version in SUPPORTED_PROTOCOL_VERSIONS
                     else LATEST_PROTOCOL_VERSION
                 )
                 res = {
