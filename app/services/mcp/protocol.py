@@ -4,9 +4,14 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
-# MCP Protocol Version supported
-LATEST_PROTOCOL_VERSION = "2024-11-05"
+# MCP protocol versions implemented by the stateless tools/resources surface.
+# Prefer the current stable protocol while negotiating older versions for clients
+# that have not yet upgraded.
+LATEST_PROTOCOL_VERSION = "2025-11-25"
 SUPPORTED_PROTOCOL_VERSIONS = [
+    "2025-11-25",
+    "2025-06-18",
+    "2025-03-26",
     "2024-11-05",
     "2024-10-07",
 ]
