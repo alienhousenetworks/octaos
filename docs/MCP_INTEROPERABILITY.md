@@ -17,6 +17,13 @@ The versioned compatibility endpoint remains at
 `/api/v1/mcp/stream`. The legacy SSE endpoints remain under
 `/api/v1/mcp/sse` and `/api/v1/mcp/messages`.
 
+If a browser-based MCP client sends an `Origin` header, set `MCP_ALLOWED_ORIGINS`
+to a comma-separated list of exact trusted origins (for example,
+`https://chatgpt.com,https://your-approved-client.example`). Requests with an
+unlisted origin are rejected. Server-to-server MCP clients that do not send an
+`Origin` header are unaffected. Do not configure wildcard origins for an
+authenticated endpoint.
+
 The server supports JSON-RPC initialization, ping, tool discovery, tool calls,
 and the currently implemented resources surface. It negotiates supported protocol
 versions and returns generic internal errors to clients while retaining diagnostic
