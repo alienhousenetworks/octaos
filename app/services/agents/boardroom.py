@@ -872,51 +872,84 @@ class BoardroomService:
         result_payload: dict = {}
 
         try:
-            # 1. Sales AI - Create Lead
+            # 1. Sales AI - Create a lead only when the meeting already has a real contact.
             if "sales" in assigned and ("lead" in desc or "create" in desc):
-                customer_email = "lead@example.com"
+                from app.services.sales.contact_quality import is_invented_email
+
+                customer_email = None
                 customer_phone = None
-                customer_name = "Interested Prospect"
-                company = "Unknown Corp"
+                customer_name = None
+                company = None
 
                 ctx_lines = (meeting.context_summary or "").split("\n")
                 for line in ctx_lines:
                     if line.startswith("Customer:"):
                         contact = line.replace("Customer:", "").strip()
-                        if "@" in contact:
+                        if "@" in contact and not is_invented_email(contact):
                             customer_email = contact
-                        else:
+                            customer_name = contact.split("@", 1)[0]
+                        elif contact:
                             customer_phone = contact
-                            customer_email = f"{contact}@whatsapp.com"
                     elif line.startswith("Subject:"):
                         subj = line.replace("Subject:", "").strip()
-                        company_match = [w for w in subj.split() if w[0].isupper() and w not in ["New", "WhatsApp", "Email", "Lead", "Ticket"]]
+                        company_match = [w for w in subj.split() if w and w[0].isupper() and w not in ["New", "WhatsApp", "Email", "Lead", "Ticket"]]
                         if company_match:
                             company = company_match[0]
 
-                new_lead = Lead(
-                    tenant_id=self.tenant_id,
-                    name=customer_name,
-                    email=customer_email,
-                    phone=customer_phone,
-                    company=company,
-                    source=meeting.trigger_type,
-                    status="captured"
-                )
-                self.db.add(new_lead)
-                self.db.commit()
+                if not customer_email and not customer_phone:
+                    log = ActivityLog(
+                        tenant_id=self.tenant_id,
+                        agent_name="Sales AI",
+                        action="Lead Not Created",
+                        description="Boardroom sales action had no real email or phone. No placeholder lead was created.",
+                        status="pending",
+                    )
+                    self.db.add(log)
+                    self.db.commit()
+                    result_payload = {"created": False, "reason": "no_real_contact"}
+                    success = False
+                else:
+                    new_lead = Lead(
+                        tenant_id=self.tenant_id,
+                        name=customer_name or company or "Contact",
+                        email=customer_email,
+                        phone=customer_phone,
+                        company=company,
+                        source=meeting.trigger_type,
+                        status="captured",
+                    )
+                    self.db.add(new_lead)
+                    self.db.commit()
 
-                log = ActivityLog(
-                    tenant_id=self.tenant_id,
-                    agent_name="Sales AI",
-                    action="Lead Captured",
-                    description=f"Autonomously created lead for '{customer_email}' from boardroom directive.",
-                    status="success"
-                )
-                self.db.add(log)
-                self.db.commit()
-                result_payload = {"lead_id": new_lead.id, "email": customer_email, "company": company}
-                success = True
+                    draft_result = {}
+                    if customer_email:
+                        from app.services.sales.employee_job import run_sales_employee_job
+                        draft_result = await run_sales_employee_job(
+                            self.db,
+                            self.tenant_id,
+                            task_type="outreach_draft",
+                            params={"email": customer_email},
+                            instructions="Draft one unsent email for this contact only.",
+                        )
+
+                    log = ActivityLog(
+                        tenant_id=self.tenant_id,
+                        agent_name="Sales AI",
+                        action="Lead Captured",
+                        description=f"Created a lead for '{customer_email or customer_phone}' from the boardroom. Nothing was sent.",
+                        status="success",
+                    )
+                    self.db.add(log)
+                    self.db.commit()
+                    result_payload = {
+                        "lead_id": new_lead.id,
+                        "email": customer_email,
+                        "phone": customer_phone,
+                        "company": company,
+                        "sent": False,
+                        "draft": draft_result,
+                    }
+                    success = True
 
             # 2. Support AI - Notify Customer / Ticket Reply
             elif "support" in assigned and ("notify" in desc or "send" in desc or "reply" in desc or "ticket" in desc):

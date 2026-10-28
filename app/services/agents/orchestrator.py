@@ -197,7 +197,23 @@ class OrchestratorAgent(BaseAgent):
         try:
             cand_count = self.db.query(Candidate).filter_by(tenant_id=self.tenant_id).count()
             lead_count = self.db.query(Lead).filter_by(tenant_id=self.tenant_id).count()
-            operational_stats = f"Live Database Counts: {cand_count} Candidate(s)/Resume(s) currently on file; {lead_count} Lead(s) in CRM."
+            recent_leads = (
+                self.db.query(Lead.company, Lead.email)
+                .filter(Lead.tenant_id == self.tenant_id, Lead.email.isnot(None))
+                .order_by(Lead.created_at.desc())
+                .limit(12)
+                .all()
+            )
+            shown = [
+                f"{company} ({email})"
+                for company, email in recent_leads
+                if company and email and "example.com" not in email.lower()
+            ]
+            sample = f" Recent real CRM leads: {'; '.join(shown)}." if shown else ""
+            operational_stats = (
+                f"Live Database Counts: {cand_count} Candidate(s)/Resume(s) currently on file; "
+                f"{lead_count} Lead(s) in CRM.{sample}"
+            )
         except Exception:
             operational_stats = "Live Database Counts: 0 Candidate(s)/Resume(s) on file; 0 Lead(s) in CRM."
 
@@ -230,7 +246,12 @@ Available Agents & Actions:
       - Do not tell the user that web search, Firecrawl, Apify, or public web discovery is unavailable when handling lead research.
       - For public social, hiring, directory, or signal research, use web_search unless the user explicitly requests a configured Apify/source provider. Respect robots, terms, privacy, and login/access boundaries; do not claim a contact is verified unless the source supports it.
       - For local brick-and-mortar business searches, web_search may be used unless the user explicitly requests Google Places.
+  - "draft_outreach": parameters: {{"query": str, "count": int, "tag": str, "company": str, "email": str, "instructions": str}}
+    * Use this when the user asks Sales to email, draft, qualify, or reach leads already in the CRM, including leads tagged AHN ICP.
+    * It reads those real leads, researches the public web only when the user asks for new companies or the CRM has no real match, fills real contact details, and stores an unsent draft.
+    * It must not invent a person or company, must not use lead@example.com, and must not send.
   - "sales_outreach": parameters: {{"channel": "smtp" | "gmail" | "whatsapp", "subject": str, "body_template": str}}
+    * This sends mail. Use it only when the user explicitly says to send and a mailbox is already connected. Otherwise use "draft_outreach".
   - "schedule_meeting": parameters: {{"tool": "google_calendar", "count": int}}
 - HR:
   - "source_candidates": parameters: {{"role": str, "requirements": str, "salary": str, "count": int}}
@@ -295,6 +316,7 @@ Format:
         if plan.get("message"):
             results.append({"status": "success", "message": plan["message"]})
 
+        current_request = _current_request_text(prompt)
         for task in plan.get("tasks", []):
             dept = task.get("department")
             try:
@@ -305,11 +327,13 @@ Format:
                 if dept == "Sales" and task.get("action") == "generate_leads":
                     params = task.setdefault("parameters", {})
                     requested_provider = params.get("provider")
-                    current_request = _current_request_text(prompt)
                     if not _lead_provider_was_explicitly_requested(current_request):
                         params["provider"] = "web_search"
                     else:
                         params["provider"] = infer_lead_provider(current_request, requested_provider)
+                if dept == "Sales" and task.get("action") in ("draft_outreach", "qualify_leads", "outreach_draft", "research_and_draft"):
+                    params = task.setdefault("parameters", {})
+                    params.setdefault("instructions", current_request)
                 if dept == "Marketing":
                     agent = MarketingAgent(self.db, self.tenant_id)
                     res = await agent.execute_task(task)

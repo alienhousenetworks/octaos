@@ -51,6 +51,16 @@ class SalesAgent(BaseAgent):
 
         if action == "generate_leads":
             return await self._generate_leads(params)
+        elif action in ("draft_outreach", "qualify_leads", "outreach_draft", "research_and_draft"):
+            from app.services.sales.employee_job import run_sales_employee_job
+
+            return await run_sales_employee_job(
+                self.db,
+                self.tenant_id,
+                task_type=action,
+                params=params,
+                instructions=str(params.get("instructions") or params.get("query") or ""),
+            )
         elif action == "sales_outreach":
             return await self._sales_outreach(params)
         elif action == "schedule_meeting":

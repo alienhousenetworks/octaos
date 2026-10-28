@@ -59,6 +59,7 @@ class SalesService:
         from app.models.verticals import BusinessProfile
         bp = self.db.query(BusinessProfile).filter_by(tenant_id=self.tenant_id).first()
         company_name = bp.company_name if (bp and bp.company_name) else "our company"
+        sender_website = (bp.website or "").strip() if bp and bp.website else ""
         user = self.db.query(User).filter_by(tenant_id=self.tenant_id).order_by(User.is_superuser.desc(), User.id.asc()).first()
         employee_name = user.name.strip() if (user and user.name and user.name.strip()) else None
 
@@ -66,6 +67,11 @@ class SalesService:
             sender_rule = f"Write on behalf of {employee_name} at {company_name}. Sign off with: Best regards, {employee_name}, {company_name}."
         else:
             sender_rule = f"Write on behalf of {company_name}. Do NOT invent any employee or sender name. Sign off strictly with: Best regards, The {company_name} Team."
+        if sender_website:
+            sender_rule += f" The only website in the signature is {sender_website}."
+        else:
+            sender_rule += " Do not invent a website."
+        sender_rule += " Never end the email with the prospect's own website or email domain."
 
         prompt = (
             f"Write a personalized short outreach email (under 120 words, body only, no placeholders, no clichés) "
@@ -82,4 +88,10 @@ class SalesService:
         
         raw_message = await self.llm.complete(prompt, model="claude-3-sonnet-20240229")
         cleaned_body = PreSendGatekeeper.strip_html(raw_message or "")
-        return cleaned_body
+        from app.services.sales.contact_quality import correct_sender_signature, prospect_hosts
+
+        return correct_sender_signature(
+            cleaned_body,
+            prospect_hosts=prospect_hosts(lead),
+            sender_website=sender_website or None,
+        )

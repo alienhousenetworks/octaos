@@ -51,8 +51,8 @@ def list_sales_threads(
     channel: Optional[str] = Query(None, description="Filter by channel: email, whatsapp, linkedin"),
     search: Optional[str] = Query(None, description="Search by name, company, or email"),
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
-    current_user: User = Depends(deps.get_current_user),
+    tenant_id: str = Depends(deps.get_current_tenant_id_or_api_key),
+    current_user: User = Depends(deps.get_current_user_or_api_key),
 ) -> List[Dict[str, Any]]:
     """Lists aggregated omnichannel conversation threads for the tenant."""
     query = db.query(Lead).filter(Lead.tenant_id == tenant_id)
@@ -135,8 +135,8 @@ def list_sales_threads(
 def get_thread_messages(
     lead_id: str,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
-    current_user: User = Depends(deps.get_current_user),
+    tenant_id: str = Depends(deps.get_current_tenant_id_or_api_key),
+    current_user: User = Depends(deps.get_current_user_or_api_key),
 ) -> Dict[str, Any]:
     """Fetches chronological messages and cadence schedule for a thread."""
     lead = db.query(Lead).filter(Lead.id == lead_id, Lead.tenant_id == tenant_id).first()
@@ -194,8 +194,9 @@ def send_thread_reply(
     lead_id: str,
     payload: OutboundReplyRequest,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
-    current_user: User = Depends(deps.get_current_user),
+    tenant_id: str = Depends(deps.get_current_tenant_id_or_api_key),
+    current_user: User = Depends(deps.get_current_user_or_api_key),
+    _: None = Depends(deps.require_api_key_write),
 ) -> Dict[str, Any]:
     """Sends a real outbound reply across Email, WhatsApp, or LinkedIn via the unified touch dispatcher."""
     lead = db.query(Lead).filter(Lead.id == lead_id, Lead.tenant_id == tenant_id).first()
@@ -251,8 +252,9 @@ def get_ai_suggested_replies(
     lead_id: str,
     payload: AISuggestRequest,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
-    current_user: User = Depends(deps.get_current_user),
+    tenant_id: str = Depends(deps.get_current_tenant_id_or_api_key),
+    current_user: User = Depends(deps.get_current_user_or_api_key),
+    _: None = Depends(deps.require_api_key_write),
 ) -> Dict[str, Any]:
     """Generates 3 tailored AI copilot reply options for the current lead thread."""
     lead = db.query(Lead).filter(Lead.id == lead_id, Lead.tenant_id == tenant_id).first()
@@ -296,8 +298,9 @@ def get_ai_suggested_replies(
 def pause_lead_cadence(
     lead_id: str,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
-    current_user: User = Depends(deps.get_current_user),
+    tenant_id: str = Depends(deps.get_current_tenant_id_or_api_key),
+    current_user: User = Depends(deps.get_current_user_or_api_key),
+    _: None = Depends(deps.require_api_key_write),
 ) -> Dict[str, Any]:
     """Pauses automated cadence execution for a specific lead."""
     lead = db.query(Lead).filter(Lead.id == lead_id, Lead.tenant_id == tenant_id).first()
@@ -319,8 +322,9 @@ def pause_lead_cadence(
 def resume_lead_cadence(
     lead_id: str,
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
-    current_user: User = Depends(deps.get_current_user),
+    tenant_id: str = Depends(deps.get_current_tenant_id_or_api_key),
+    current_user: User = Depends(deps.get_current_user_or_api_key),
+    _: None = Depends(deps.require_api_key_write),
 ) -> Dict[str, Any]:
     """Resumes automated cadence execution for a specific lead."""
     lead = db.query(Lead).filter(Lead.id == lead_id, Lead.tenant_id == tenant_id).first()
@@ -339,8 +343,9 @@ def resume_lead_cadence(
 def trigger_cadence_run(
     max_touches: int = Query(50, ge=1, le=200),
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
-    current_user: User = Depends(deps.get_current_user),
+    tenant_id: str = Depends(deps.get_current_tenant_id_or_api_key),
+    current_user: User = Depends(deps.get_current_user_or_api_key),
+    _: None = Depends(deps.require_api_key_write),
 ) -> Dict[str, Any]:
     """Manually triggers immediate durable cadence execution for this tenant."""
     runner = DurableCadenceRunner(db, tenant_id)
@@ -350,8 +355,8 @@ def trigger_cadence_run(
 @router.get("/cadence/stats")
 def get_cadence_stats(
     db: Session = Depends(deps.get_db),
-    tenant_id: str = Depends(deps.get_current_tenant_id),
-    current_user: User = Depends(deps.get_current_user),
+    tenant_id: str = Depends(deps.get_current_tenant_id_or_api_key),
+    current_user: User = Depends(deps.get_current_user_or_api_key),
 ) -> Dict[str, Any]:
     """Returns live cadence enrollment and execution metrics."""
     runner = DurableCadenceRunner(db, tenant_id)

@@ -16,7 +16,7 @@ from app.services.integrations.analytics_connectors import AnalyticsConnectorsSe
 from app.services.ai_employee_service import AIEmployeeService
 from app.services.social.publisher import SocialPublisher
 from app.services.verticals.marketing import MarketingService
-from app.models.verticals import ContentPost, Lead, Ticket, TicketMessage
+from app.models.verticals import ContentPost, Ticket, TicketMessage
 from app.services.media.storage import (
     ensure_public_url,
     validate_and_quarantine_media,
@@ -432,20 +432,15 @@ class MarketingIntegrationsAdapter(ConnectorAdapter):
                         }
 
                 elif emp_role == "sales":
-                    lead_name = params.get("name") or "Inbound Lead"
-                    lead_email = params.get("email") or "lead@example.com"
-                    new_lead = Lead(
-                        tenant_id=ctx.tenant_id,
-                        name=lead_name,
-                        email=lead_email,
-                        company=params.get("company"),
-                        status="captured",
-                        need_of_what=instructions or params.get("need_of_what"),
+                    from app.services.sales.employee_job import run_sales_employee_job
+
+                    execution_result = await run_sales_employee_job(
+                        db,
+                        ctx.tenant_id,
+                        task_type=str(task_type or "execute_task"),
+                        params=params if isinstance(params, dict) else {},
+                        instructions=str(instructions or ""),
                     )
-                    db.add(new_lead)
-                    db.commit()
-                    db.refresh(new_lead)
-                    execution_result = {"status": "success", "lead_id": new_lead.id, "lead_name": new_lead.name}
 
                 elif emp_role == "support":
                     ticket_id = params.get("ticket_id")

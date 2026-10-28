@@ -112,6 +112,9 @@ class DiscoveryService:
         new_lead_ids = []
         for data in leads_data:
             email_value = data.get("email") or data.get("personal_email") or data.get("company_email")
+            from app.services.sales.contact_quality import is_invented_email
+            if is_invented_email(email_value):
+                email_value = None
             phone_value = data.get("phone") or data.get("mobile_no") or data.get("company_contact_no")
             company_value = data.get("company") or data.get("company_name")
             display_name = data.get("name") or data.get("contact_name") or company_value
@@ -187,7 +190,12 @@ class DiscoveryService:
             enrich_lead_task.delay(self.tenant_id, lead_id)
 
         self._log_activity("Lead Generation Complete", f"Successfully captured {created_count} new leads in the DB.", "success")
-        result = {"status": "success", "generated_leads": created_count, "provider": provider}
+        result = {
+            "status": "success",
+            "generated_leads": created_count,
+            "provider": provider,
+            "lead_ids": new_lead_ids,
+        }
         if research_summary is not None:
             result["research"] = research_summary
             result["message"] = (
