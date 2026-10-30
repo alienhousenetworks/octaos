@@ -67,6 +67,62 @@ def _pack(
 
 
 PACKS: Dict[str, Dict[str, Any]] = {
+    # ── 0. Real Estate & Property Development ─────────────────────────────────
+    "real_estate": _pack(
+        "real_estate",
+        "Real Estate & Property Development",
+        "Luxury residential, commercial towers, RERA-governed launches, site visits, and property investment campaigns.",
+        campaign="Property Launch Campaign",
+        post="Project Showcase",
+        asset="Brochure & Floor Plan",
+        offer="Exclusive Payment Plan",
+        cta="Book Private Site Tour",
+        audience="High-Net-Worth Buyers, Property Investors, Home Seekers",
+        representative=True,
+        domain_status="available",
+        funnel_stages=[
+            {"id": "teaser", "label": "Architectural Teaser & Location Prestige", "channels": ["instagram", "linkedin"]},
+            {"id": "launch", "label": "Master Plan & Tower Unveiling", "channels": ["linkedin", "facebook", "instagram"]},
+            {"id": "amenities_showcase", "label": "Luxury Amenities & Interior Walkthrough", "channels": ["instagram", "facebook"]},
+            {"id": "site_visit", "label": "VIP Site Tour & Booking Appointments", "channels": ["linkedin", "facebook"]},
+        ],
+        content_pillars=[
+            {
+                "id": "luxury_amenities",
+                "label": "Curated Amenities & Lifestyle",
+                "description": "Showcasing signature architectural details, sky decks, wellness spas, and concierge service.",
+                "hooks": ["Panoramic skyline vistas meet bespoke architectural luxury.", "Step inside the sky residences redefining urban living."],
+            },
+            {
+                "id": "investment_roi",
+                "label": "Asset Appreciation & Rental Yield",
+                "description": "Highlighting infrastructure connectivity, upcoming metro lines, and historical precinct capital gains.",
+                "hooks": ["Why premium commercial corridors are driving 14% annual capital growth.", "Infrastructure milestone: 15-minute airport connectivity unlocking prime valuation."],
+            },
+        ],
+        prohibited_guarantees=[
+            r"(?i)\bguaranteed\s+(appreciation|returns|rental\s+yield|roi)\b",
+            r"(?i)\brisk-free\s+property\s+investment\b",
+            r"(?i)\b(no\s+children|couples\s+only|bachelors?\s+prohibited|no\s+pets|religious\s+only|hindu\s+only|muslim\s+only|christian\s+only)\b",
+        ],
+        taboo_words=["guaranteed appreciation", "risk-free property", "100% assured return"],
+        required_disclosures=[
+            "RERA Registration Number and authorized project license must be prominently displayed.",
+            "Subject to developer terms and market fluctuation risks; not financial advice.",
+        ],
+        visual_tokens={
+            "aesthetic": "Architectural elegance, sunlit luxury interiors, drone skyline views",
+            "lighting": "Golden hour exterior illumination, warm interior ambient fill",
+            "color_palette": ["#0F172A", "#D97706", "#F59E0B", "#F8FAFC"],
+            "camera_framing": "Wide architectural elevation, slow cinematic tracking through floor-to-ceiling windows",
+            "motion_pace": "Grand, poised, premium architectural pacing",
+        },
+        industry_calendar_events=[
+            {"month": "October", "name": "Festive Homebuying Season", "hook": "Exclusive festive launch benefits on luxury 3 & 4 BHK residences."},
+            {"month": "May", "name": "Global NRI Property Expo", "hook": "Prime residential investments offering high rental yields and capital appreciation."},
+        ],
+    ),
+
     # ── 1. Banking ────────────────────────────────────────────────────────────
     "banking": _pack(
         "banking",

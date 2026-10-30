@@ -94,11 +94,31 @@ def check_gmail_configured(db: Session, tenant_id: str) -> bool:
     return bool(cred and cred.encrypted_key)
 
 
+def get_system_smtp_credentials() -> Optional[Dict[str, Any]]:
+    from app.core.config import settings
+    if (
+        getattr(settings, "SMTP_USER", None)
+        and "your_smtp_user" not in settings.SMTP_USER
+        and getattr(settings, "SMTP_PASSWORD", None)
+        and "your_smtp_password" not in settings.SMTP_PASSWORD
+    ):
+        return {
+            "username": settings.SMTP_USER,
+            "password": settings.SMTP_PASSWORD,
+            "host": getattr(settings, "SMTP_HOST", "smtp.gmail.com") or "smtp.gmail.com",
+            "port": int(getattr(settings, "SMTP_PORT", 587) or 587),
+            "from_addr": getattr(settings, "SMTP_FROM", None) or settings.SMTP_USER,
+            "use_tls": getattr(settings, "EMAIL_USE_TLS", True),
+        }
+    return None
+
+
 def check_smtp_configured(db: Session, tenant_id: str) -> bool:
     cred = get_credential(db, tenant_id, "smtp")
-    if not cred or not cred.encrypted_key:
-        return False
-    return bool(parse_smtp_credentials(decrypt_api_key(cred.encrypted_key)))
+    if cred and cred.encrypted_key:
+        if bool(parse_smtp_credentials(decrypt_api_key(cred.encrypted_key))):
+            return True
+    return bool(get_system_smtp_credentials())
 
 
 def send_email(
@@ -127,11 +147,16 @@ def send_email(
         except Exception as e:
             return {"sent": False, "reason": str(e)}
 
-    if not check_smtp_configured(db, tenant_id):
+    smtp = None
+    cred = get_credential(db, tenant_id, "smtp")
+    if cred and cred.encrypted_key:
+        smtp = parse_smtp_credentials(decrypt_api_key(cred.encrypted_key))
+    if not smtp:
+        smtp = get_system_smtp_credentials()
+
+    if not smtp:
         return {"sent": False, "reason": "SMTP not configured"}
     
-    cred = get_credential(db, tenant_id, "smtp")
-    smtp = parse_smtp_credentials(decrypt_api_key(cred.encrypted_key))
     try:
         send_smtp_email(smtp, to_email, subject, body)
         return {"sent": True}
@@ -213,8 +238,12 @@ def send_email_with_status(
     # 3. Try SMTP fallback
     if smtp_ok:
         try:
+            smtp = None
             cred = get_credential(db, tenant_id, "smtp")
-            smtp = parse_smtp_credentials(decrypt_api_key(cred.encrypted_key))
+            if cred and cred.encrypted_key:
+                smtp = parse_smtp_credentials(decrypt_api_key(cred.encrypted_key))
+            if not smtp:
+                smtp = get_system_smtp_credentials()
             if smtp and send_smtp_email(smtp, to_email, subject, body):
                 return {"sent": True, "channel": "smtp", "reason": "success", "message": "Sent via SMTP"}
         except Exception as e:

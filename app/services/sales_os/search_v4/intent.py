@@ -7,6 +7,18 @@ _BUYING = re.compile(
     r"\b(looking for|seeking|need a vendor|request for proposal|\brfp\b|who should we use|recommendations for)\b",
     re.IGNORECASE,
 )
+_PROCUREMENT = re.compile(
+    r"\b(request for proposal|\brfp\b|tender notice|invitation to bid|call for proposals|seeking vendor proposals|expression of interest)\b",
+    re.IGNORECASE,
+)
+_SELLER_CTA = re.compile(
+    r"\b(are you looking for|if you are looking for|looking for (?:a |the )?(?:best|top|leading|reliable|affordable)?\s*(?:agency|company|developer|firm|team|service|vendor)\??|contact us for|hire (?:us|our|dedicated)|get a free quote)\b",
+    re.IGNORECASE,
+)
+_SELLER_IDENTITY = re.compile(
+    r"\b(we (?:are a|offer|provide|specialize in|build|develop)|our (?:services|solutions|agency|developers|team)|leading (?:web|software|seo|marketing|design) (?:agency|company)|hire web developers|website design services at|web development company|software development company)\b",
+    re.IGNORECASE,
+)
 _EVALUATION = re.compile(
     r"\b(comparing|alternatives to|shortlist|vendor evaluation|evaluating)\b",
     re.IGNORECASE,
@@ -41,8 +53,19 @@ def classify_intent(record: DiscoveryRecord, query_tokens: set[str]) -> tuple[In
     if not text:
         return IntentCategory.INSUFFICIENT_EVIDENCE, "", False, ["No source text was retrieved."]
 
+    procurement = _span(_PROCUREMENT, text)
+    if procurement:
+        notes.append("Explicit public procurement or RFP language detected.")
+        return IntentCategory.DIRECT_BUYING_INTENT, procurement, True, notes
+
+    # Check for seller / agency promotional rhetoric before flagging generic "looking for" phrases
+    is_seller = bool(_SELLER_CTA.search(text) or _SELLER_IDENTITY.search(text))
+
     buying = _span(_BUYING, text)
     if buying:
+        if is_seller and not _PROCUREMENT.search(buying):
+            notes.append("Source contains vendor/agency promotional rhetoric rather than independent buyer intent.")
+            return IntentCategory.GENERAL_INTEREST, buying, False, notes
         notes.append("Budget, authority, and purchase timing are not established by this passage.")
         return IntentCategory.DIRECT_BUYING_INTENT, buying, True, notes
     evaluation = _span(_EVALUATION, text)
@@ -61,3 +84,4 @@ def classify_intent(record: DiscoveryRecord, query_tokens: set[str]) -> tuple[In
     if query_tokens and query_tokens & tokens:
         return IntentCategory.GENERAL_INTEREST, text[:180], False, ["Overlap with the campaign query is not a buying signal."]
     return IntentCategory.IRRELEVANT, "", False, ["The source does not match the campaign query or a commercial phrase."]
+

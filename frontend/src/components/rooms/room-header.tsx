@@ -93,36 +93,36 @@ export default function RoomHeader({
 
   return (
     <>
-      <div className="bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 py-3 sm:px-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="border-b border-border/70 bg-card/60 px-4 py-2 sm:px-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           {/* Left: Folder Breadcrumb & Info */}
-          <div className="flex items-start sm:items-center gap-3">
-            <div className={`p-2.5 rounded-xl border flex items-center justify-center shrink-0 shadow-sm ${theme.iconBg}`}>
-              <FolderOpen className="w-5 h-5" />
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`p-1.5 rounded-lg border flex items-center justify-center shrink-0 shadow-xs ${theme.iconBg}`}>
+              <FolderOpen className="w-4 h-4" />
             </div>
 
-            <div>
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={onOpenDirectory}
-                  className="text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1"
+                  className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
                 >
                   {sectionTitle} Folders
                 </button>
-                <span className="text-slate-600 text-xs">/</span>
+                <span className="text-muted-foreground/60 text-xs">/</span>
 
                 {/* Switcher Dropdown */}
                 <DropdownMenu>
-                  <DropdownMenuTrigger className="group flex items-center gap-1.5 text-base sm:text-lg font-bold text-slate-100 hover:text-indigo-400 transition-colors cursor-pointer outline-none">
-                    <span>{activeRoom.name}</span>
-                    <ChevronDown className="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition-transform" />
+                  <DropdownMenuTrigger className="group flex items-center gap-1.5 text-sm sm:text-base font-semibold text-foreground hover:text-primary transition-colors cursor-pointer outline-none">
+                    <span className="truncate">{activeRoom.name}</span>
+                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-transform shrink-0" />
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-64 bg-slate-900 border-slate-800 text-slate-200 shadow-2xl">
-                    <DropdownMenuLabel className="text-[11px] text-slate-400 uppercase tracking-wider">
+                  <DropdownMenuContent align="start" className="w-64 bg-popover border-border text-foreground shadow-xl">
+                    <DropdownMenuLabel className="text-[11px] text-muted-foreground uppercase tracking-wider">
                       Switch {sectionTitle} Room
                     </DropdownMenuLabel>
-                    <DropdownMenuSeparator className="bg-slate-800" />
+                    <DropdownMenuSeparator className="bg-border" />
                     {allRooms.map((room) => (
                       <DropdownMenuItem
                         key={room.id}
@@ -238,9 +238,9 @@ export default function RoomHeader({
               variant="outline"
               size="sm"
               onClick={() => setIsShareOpen(true)}
-              className="h-8 px-3 text-xs gap-1.5 bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800 hover:text-white"
+              className="h-7 px-2.5 text-xs gap-1.5"
             >
-              <Share2 className="w-3.5 h-3.5 text-indigo-400" />
+              <Share2 className="w-3.5 h-3.5 text-primary" />
               <span>Share & Access</span>
             </Button>
 
@@ -249,7 +249,7 @@ export default function RoomHeader({
               variant="ghost"
               size="sm"
               onClick={onOpenDirectory}
-              className="h-8 px-3 text-xs gap-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-slate-800"
+              className="h-7 px-2.5 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
             >
               <LayoutGrid className="w-3.5 h-3.5" />
               <span>All Folders</span>

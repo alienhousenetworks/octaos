@@ -525,13 +525,21 @@ Output JSON format:
   "camera_movement": "precise camera movement description",
   "focal_motion": "subtle motion within the scene",
   "atmosphere_notes": "lighting and atmospheric details",
-  "aspect_ratio": "{ar}"
+  "aspect_ratio": "{ar}",
+  "hook_3s": "High-impact 1.5s visual pattern interrupt text overlay",
+  "voiceover_script": "Punchy spoken narration sentence delivering the core insight",
+  "caption_style": "kinetic_bold_center",
+  "audio_direction": "upbeat_tech_electronic"
 }}"""
 
         try:
             resp = await self.llm.complete(prompt, system_prompt=system_prompt, provider=provider, model=model)
             data = extract_json_safe(resp)
             if isinstance(data, dict) and data.get("scene_description"):
+                if not data.get("hook_3s"):
+                    data["hook_3s"] = draft.hook[:50]
+                if not data.get("voiceover_script"):
+                    data["voiceover_script"] = draft.hook[:100]
                 return VideoShotPlan(**data)
         except Exception as e:
             logger.warning(f"[VideoShotPlanner] LLM call failed ({e}), creating contextual plan from hook.")
@@ -548,6 +556,10 @@ Output JSON format:
                 focal_motion="natural subtle head movement and realistic articulation",
                 atmosphere_notes=f"studio 3-point key light with subtle {visual_tokens.accent_color} edge accent",
                 aspect_ratio=ar,
+                hook_3s=draft.hook[:50],
+                voiceover_script=draft.hook[:120],
+                caption_style="kinetic_bold_center",
+                audio_direction="calm_confident_corporate",
             )
 
         return VideoShotPlan(
@@ -557,6 +569,10 @@ Output JSON format:
             focal_motion="ambient dynamic lighting reflecting modern workspace analytics",
             atmosphere_notes=f"volumetric lighting complementing {visual_tokens.aesthetic_mood}",
             aspect_ratio=ar,
+            hook_3s=draft.hook[:50],
+            voiceover_script=draft.hook[:100],
+            caption_style="kinetic_bold_center",
+            audio_direction="upbeat_tech_electronic",
         )
 
 
@@ -1022,31 +1038,42 @@ Output JSON format:
         provider: Optional[str] = None,
         model: Optional[str] = None,
     ) -> HookAngleVariant:
-        """Agent 9: Crafts 3 calibrated opening hooks (contrarian, proof-backed, curiosity gap) and selects the winning hook."""
+        """Agent 9: Crafts high-retention viral opening hooks that stop the scroll and eliminate corporate throat-clearing."""
         system_prompt = (
             "You are the Viral Hook & Headline Engineer (Agent 9 of 15). "
-            "Craft 3 high-impact opening hooks designed to stop the scroll and maximize dwell time. "
+            "Your job is to stop the mobile scroll in the first 1.5 seconds. "
+            "Eliminate all corporate throat-clearing ('In today's fast-paced world...', 'In the era of...', 'Unlock the power of...'). "
             "Output valid JSON only."
+        )
+        persona_title = getattr(brand_anchor.audience_persona, "target_persona", "Decision Makers")
+        acute_pain = (
+            brand_anchor.audience_persona.acute_pain_points[0]
+            if getattr(brand_anchor.audience_persona, "acute_pain_points", None)
+            else "coordination bottlenecks"
         )
         prompt = f"""Platform: {slot.platform}
 Narrative Theme: {slot.thematic_angle}
-Audience Persona: {brand_anchor.audience_persona.target_persona}
-Acute Pain Point: {brand_anchor.audience_persona.acute_pain_points[0] if brand_anchor.audience_persona.acute_pain_points else 'Operational bottlenecks'}
-Current Draft Hook: {post_draft.hook}
+Target Persona: {persona_title}
+Acute Pain Point: {acute_pain}
+Current Draft Opening: {post_draft.hook}
 
-Generate 3 distinct hook variants:
-1. contrarian_insight: Challenges conventional industry dogma.
-2. proof_metric: Leads with concrete, defensible numbers or transformation.
-3. curiosity_gap: Poses an irresistible operational question.
+Generate 4 high-retention hook variants using these exact proven viral frameworks:
+1. negative_curiosity: "Stop doing [common habit] if you want to avoid [acute pain]..."
+2. counter_intuitive_truth: "Why the top 1% of {persona_title} are doing the exact opposite of [common advice]..."
+3. behind_the_curtain: "We audited 100+ {brand_anchor.industry} workflows. Here is the unvarnished truth about [topic]..."
+4. visceral_friction: Name the single most exhausting bottleneck {persona_title} faces daily.
+
+Select the winning hook with the highest 1.5-second retention probability.
 
 Output JSON format:
 {{
-  "winning_hook": "The single highest-converting opening line",
-  "angle_type": "contrarian_insight",
+  "winning_hook": "The single most gripping, scroll-stopping opening line (under 14 words)",
+  "angle_type": "counter_intuitive_truth",
   "hook_variants": [
-    {{"type": "contrarian_insight", "text": "Hook 1"}},
-    {{"type": "proof_metric", "text": "Hook 2"}},
-    {{"type": "curiosity_gap", "text": "Hook 3"}}
+    {{"type": "negative_curiosity", "text": "Hook 1"}},
+    {{"type": "counter_intuitive_truth", "text": "Hook 2"}},
+    {{"type": "behind_the_curtain", "text": "Hook 3"}},
+    {{"type": "visceral_friction", "text": "Hook 4"}}
   ]
 }}"""
         try:
@@ -1057,13 +1084,18 @@ Output JSON format:
         except Exception:
             pass
 
+        # Smart fallback picking a punchy counter-intuitive hook over corporate throat-clearing
+        fallback_hook = post_draft.hook
+        if any(fluff in fallback_hook.lower() for fluff in ["in today's", "in an era", "unlock the", "welcome to", "transform your"]):
+            fallback_hook = f"Why leading {brand_anchor.industry} teams are quietly ditching {acute_pain.lower()}."
+
         return HookAngleVariant(
-            winning_hook=post_draft.hook,
-            angle_type="contrarian_insight",
+            winning_hook=fallback_hook,
+            angle_type="counter_intuitive_truth",
             hook_variants=[
-                {"type": "contrarian_insight", "text": post_draft.hook},
-                {"type": "proof_metric", "text": f"Why leading {brand_anchor.industry} teams are re-evaluating workflow speed this quarter."},
-                {"type": "curiosity_gap", "text": f"What actually breaks when manual coordination meets enterprise scale?"},
+                {"type": "counter_intuitive_truth", "text": fallback_hook},
+                {"type": "negative_curiosity", "text": f"Stop scaling {brand_anchor.industry} operations before fixing {acute_pain.lower()}."},
+                {"type": "behind_the_curtain", "text": f"The hidden cost of manual {acute_pain.lower()} that nobody tracks."},
             ],
         )
 

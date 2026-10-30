@@ -35,6 +35,10 @@ class VideoShotPlan(BaseModel):
     focal_motion: str = "subject subtly turns gaze toward window"
     atmosphere_notes: str = "subtle ambient dust motes catching backlighting"
     aspect_ratio: str = "16:9"
+    hook_3s: Optional[str] = None
+    voiceover_script: Optional[str] = None
+    caption_style: Optional[str] = "kinetic_bold_center"
+    audio_direction: Optional[str] = "ambient_tech_rise"
 
 
 class MediaPromptCompiler:
@@ -204,7 +208,7 @@ class MediaPromptCompiler:
         shot_plan: VideoShotPlan,
         seed_key: str = "default_video_seed",
     ) -> Dict[str, Any]:
-        """Compile cinematic video prompt for Pika, Veo, Sora, or Runway."""
+        """Compile cinematic video prompt and Reel production metadata for Pika, Wan2.1, MiniMax, or Kling."""
         lexicon = sample_lexicon(seed_key)
         lighting = lexicon["lighting"]
 
@@ -222,6 +226,53 @@ class MediaPromptCompiler:
             "duration": shot_plan.duration_seconds,
             "aspect_ratio": shot_plan.aspect_ratio,
             "negative_prompt": TARGET_NEGATIVE_PROMPTS["video"],
+            "hook_3s": shot_plan.hook_3s,
+            "voiceover_script": shot_plan.voiceover_script,
+            "caption_style": shot_plan.caption_style or "kinetic_bold_center",
+            "audio_direction": shot_plan.audio_direction or "ambient_tech_rise",
+        }
+
+    @classmethod
+    def compile_carousel_slides(
+        cls,
+        headline: str,
+        takeaways: List[str],
+        brand_colors: Optional[List[str]] = None,
+        cta: str = "Save & Share this framework",
+    ) -> Dict[str, Any]:
+        """Compile a 5-slide high-retention carousel blueprint for LinkedIn and Instagram document posts."""
+        colors = brand_colors or ["#0F172A", "#38BDF8", "#FFFFFF"]
+        slides = [
+            {
+                "slide_number": 1,
+                "role": "hook_cover",
+                "title": headline,
+                "subtitle": "Swipe for the complete breakdown →",
+                "bg_color": colors[0],
+                "accent_color": colors[1] if len(colors) > 1 else "#38BDF8",
+            }
+        ]
+        for idx, point in enumerate(takeaways[:4], start=2):
+            slides.append({
+                "slide_number": idx,
+                "role": "content_pillar",
+                "step_label": f"0{idx - 1} / 0{min(4, len(takeaways))}",
+                "body": point,
+                "bg_color": "#F8FAFC",
+                "text_color": "#0F172A",
+            })
+        slides.append({
+            "slide_number": len(slides) + 1,
+            "role": "save_cta",
+            "title": "Save this breakdown for your next strategy session.",
+            "subtitle": cta,
+            "bg_color": colors[0],
+            "accent_color": colors[1] if len(colors) > 1 else "#38BDF8",
+        })
+        return {
+            "format": "carousel_pdf",
+            "slide_count": len(slides),
+            "slides": slides,
         }
 
     @classmethod

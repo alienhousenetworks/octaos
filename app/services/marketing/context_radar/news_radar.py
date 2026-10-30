@@ -72,6 +72,28 @@ _UNIVERSAL_SIGNALS: List[Dict[str, Any]] = [
 ]
 
 
+_VIRAL_REEL_FORMATS: List[Dict[str, Any]] = [
+    {
+        "format": "counter_intuitive_truth",
+        "hook_template": "Why the top 1% of {industry} teams are quietly stopping {common_habit}...",
+        "structure": "0-1.5s: Bold contrarian claim | 1.5-6s: The fatal flaw in common practice | 6-12s: The modern playbook | 12-15s: Save for later",
+        "retention_type": "high_watch_time",
+    },
+    {
+        "format": "workflow_teardown",
+        "hook_template": "We tested 50+ {industry} tools so you don't have to. Here are the only 3 that matter...",
+        "structure": "0-2s: Tool interface teaser | 2-8s: Rapid-fire pros & cons | 8-13s: Winning stack | 13-15s: Comment for full breakdown",
+        "retention_type": "high_save_rate",
+    },
+    {
+        "format": "behind_the_scenes_audit",
+        "hook_template": "The single most expensive bottleneck {industry} companies ignore until it's too late...",
+        "structure": "0-2s: Shocking cost stat | 2-7s: Where the leak actually happens | 7-12s: The automated fix | 12-15s: Save this for your team",
+        "retention_type": "high_share_rate",
+    },
+]
+
+
 class NewsRadar:
     """
     Fetches and scores industry news and innovation signals for the tenant.
@@ -83,6 +105,29 @@ class NewsRadar:
     def __init__(self, db: Session, tenant_id: str):
         self.db = db
         self.tenant_id = tenant_id
+
+    def get_viral_reel_hooks(self, industry: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Return structured high-retention video frameworks tailored for modern short-form algorithms."""
+        ind_clean = (industry or "technology").capitalize()
+        habits = {
+            "technology": "manual task switching",
+            "saas": "per-seat billing expansion",
+            "fintech": "legacy T+2 settlement",
+            "health": "reactive episodic care",
+            "retail": "blanket discounts",
+            "education": "rigid static courses",
+            "real estate": "cold portal outreach",
+        }
+        habit = habits.get((industry or "").lower(), "manual repetitive work")
+        return [
+            {
+                "format": fmt["format"],
+                "hook": fmt["hook_template"].format(industry=ind_clean, common_habit=habit),
+                "structure": fmt["structure"],
+                "retention_type": fmt["retention_type"],
+            }
+            for fmt in _VIRAL_REEL_FORMATS
+        ]
 
     def get_signals(
         self,
@@ -101,7 +146,11 @@ class NewsRadar:
         Returns:
             List of NewsSignal dicts with topic, signal, and relevance_score.
         """
-        candidates = self._get_industry_signals(industry)
+        # Prioritize fresh live news when available
+        live_news = self.get_live_news(industry=industry, limit=max(2, limit // 2))
+        candidates = list(live_news)
+
+        candidates.extend(self._get_industry_signals(industry))
         candidates.extend(_UNIVERSAL_SIGNALS)
 
         # Score each signal for brand relevance

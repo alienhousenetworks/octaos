@@ -63,10 +63,15 @@ class ConversationAgent(BaseSalesAgent):
         if detected in ("unsubscribe", "out_of_office", "decline", "wrong_person", "timing_later"):
             intent = detected
             parsed = {"intent": detected}
-        elif any(w in lower_inbound for w in ["expensive", "cost", "pricing", "budget"]):
+        is_pricing_inquiry = any(p in lower_inbound for p in ["send pricing", "share pricing", "what is the price", "what is the pricing", "pricing options", "pricing sheet", "how much does it cost", "how much is", "what does it cost", "rate card", "quote for"])
+        is_cost_objection = any(w in lower_inbound for w in ["too expensive", "over budget", "no budget", "tight budget", "out of budget", "cannot afford", "can't afford", "cost prohibitive", "pricing is high"])
+        if is_cost_objection:
             intent = "objection"
             parsed = {"intent": "objection", "objection_category": "pricing"}
-        elif any(w in lower_inbound for w in ["competitor", "already using", "alternative"]):
+        elif is_pricing_inquiry:
+            intent = "question"
+            parsed = {"intent": "question", "question_category": "pricing"}
+        elif any(w in lower_inbound for w in ["competitor", "already using", "alternative", "using another vendor"]):
             intent = "objection"
             parsed = {"intent": "objection", "objection_category": "competitor"}
         else:
@@ -189,8 +194,24 @@ class ConversationAgent(BaseSalesAgent):
             )
 
         elif intent == "interested":
-            deal_room.stage = "replied"
+            transition = apply_transition(
+                deal_room,
+                "reply_received",
+                actor="sales.conversation",
+                reason="Positive interest detected from inbound prospect.",
+            )
+            if not transition.get("applied"):
+                deal_room.stage = "replied"
             self.db.commit()
+
+            from app.models.verticals import BusinessProfile
+            bp = self.db.query(BusinessProfile).filter_by(tenant_id=self.tenant_id).first()
+            calendar_link = (bp.calendars or [{}])[0].get("booking_url") if bp and bp.calendars else None
+            if calendar_link:
+                meeting_draft = f"Thanks for getting back to me! You can book a time directly here: {calendar_link}, or let me know a couple of slots that work for you."
+            else:
+                meeting_draft = "Thanks for getting back to me! Would you have 15 minutes early next week for a brief conversation? Let me know what days work best on your side."
+
             return AgentResult(
                 agent_id=self.agent_id,
                 tenant_id=self.tenant_id,
@@ -202,7 +223,8 @@ class ConversationAgent(BaseSalesAgent):
                 recommended_next_step="schedule_calendar_meeting",
                 data={
                     "intent": "interested",
-                    "draft_reply": "Thanks for getting back to me! What does your calendar look like this Thursday or Friday for a brief call?",
+                    "draft_reply": meeting_draft,
+                    "transition": transition,
                 },
                 execution_time_ms=int((time.time() - start_time) * 1000),
             )
@@ -210,6 +232,24 @@ class ConversationAgent(BaseSalesAgent):
         else:
             # Query hybrid RAG to answer technical or product question
             rag_context = self.rag.assemble_context(inbound_text, top_k=2)
+            context_text = rag_context.get("context") or ""
+            citations = rag_context.get("citations", [])
+
+            draft_answer = parsed.get("suggested_reply")
+            if not draft_answer and context_text and self.llm:
+                try:
+                    q_prompt = (
+                        f"Prospect Question: \"{inbound_text}\"\n"
+                        f"Verified Knowledge:\n{context_text}\n\n"
+                        f"Draft a helpful, 2-sentence response answering the question based strictly on verified documentation. Offer a brief discovery call."
+                    )
+                    draft_answer = await self.llm.complete(q_prompt)
+                except Exception:
+                    draft_answer = None
+
+            if not draft_answer:
+                draft_answer = "Thanks for reaching out! I've noted your question and am reviewing with our team to get you a detailed answer."
+
             return AgentResult(
                 agent_id=self.agent_id,
                 tenant_id=self.tenant_id,
@@ -221,8 +261,8 @@ class ConversationAgent(BaseSalesAgent):
                 recommended_next_step="send_answer_and_re_engage",
                 data={
                     "intent": intent,
-                    "draft_reply": parsed.get("suggested_reply", "Here is the information you requested."),
-                    "citations": rag_context.get("citations", []),
+                    "draft_reply": draft_answer,
+                    "citations": citations,
                 },
                 execution_time_ms=int((time.time() - start_time) * 1000),
             )

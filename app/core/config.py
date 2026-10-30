@@ -71,7 +71,9 @@ class Settings(BaseSettings):
     PILOT_BUDGET_LIMIT: float = 7000.0  # in INR
 
     # Product feature flags (user-facing)
-    ENABLE_IN_APP_VIDEO: bool = False  # hide Video Studio + campaign video gen until ready
+    ENABLE_IN_APP_VIDEO: bool = True
+    DEFAULT_IMAGE_PROVIDER: Optional[str] = "openrouter"
+    DEFAULT_VIDEO_PROVIDER: Optional[str] = "openrouter"
     # High global API rate limits (per tenant+IP+path / minute) for exploration
     TENANT_API_RATE_LIMIT_PER_MINUTE: int = 300
 

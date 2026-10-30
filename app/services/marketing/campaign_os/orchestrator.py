@@ -50,7 +50,11 @@ def _persist_execution_failure(method):
 
 
 class FinalCopyComposer:
-    """Deterministic final-copy composer merging selected hook, body, CTA, and disclosures."""
+    """Deterministic final-copy composer merging selected hook, body, CTA, and disclosures.
+    
+    Protects algorithmic distribution by stripping naked outbound URLs from LinkedIn and
+    Instagram captions and replacing them with native first-comment or DM conversion patterns.
+    """
 
     @staticmethod
     def compose(
@@ -64,6 +68,7 @@ class FinalCopyComposer:
         h = (hook or "").strip()
         b = (body or "").strip()
         c = (cta or "").strip()
+        plat = (platform or "linkedin").lower()
 
         # Remove duplicate hook at start of body if already present
         if h and b.lower().startswith(h.lower()):
@@ -72,6 +77,22 @@ class FinalCopyComposer:
         # Remove duplicate CTA at end of body if already present
         if c and b.lower().endswith(c.lower()):
             b = b[:-len(c)].strip()
+
+        # Algorithmic Link Optimization: Naked URLs in LinkedIn/Instagram captions penalize reach
+        import re
+        url_pattern = r"https?://[^\s]+"
+        extracted_urls = re.findall(url_pattern, f"{b} {c}")
+        if extracted_urls and plat in ("linkedin", "instagram"):
+            b = re.sub(url_pattern, "", b).strip()
+            c = re.sub(url_pattern, "", c).strip()
+            # Clean up residual artifacts like "at: " or "link: "
+            c = re.sub(r"(?i)\b(link|url|website|at)\s*:\s*$", "", c).strip()
+            if plat == "linkedin":
+                link_notice = "🔗 Direct resource link is pinned in the first comment below."
+            else:
+                link_notice = "💬 Comment below and we'll DM you the complete access link."
+            if link_notice not in c:
+                c = f"{c}\n\n{link_notice}" if c else link_notice
 
         paragraphs = []
         if h:

@@ -95,19 +95,25 @@ class ProposalCPQAgent(BaseSalesAgent):
             payment_terms=payment_terms,
         )
 
-        effective_discount = requested_discount if policy_decision.status != "ESCALATE_L0" else 20.0
+        # Policy decision enforcement: if escalated, clamp to policy allowed max instead of inflating
+        max_policy_discount = float(self.policy_engine.rules.get("max_discount_pct", 20.0)) if hasattr(self.policy_engine, "rules") else 20.0
+        effective_discount = requested_discount if policy_decision.status != "ESCALATE_L0" else min(requested_discount, max_policy_discount)
         net_total = round(gross_total * (1.0 - (effective_discount / 100.0)), 2)
         quote_no = f"Q-{uuid.uuid4().hex[:6].upper()}"
 
         # Projected ROI Model
         annual_labor_saved = round(gross_total * 3.4, 2)
-        payback_months = round((net_total / (annual_labor_saved / 12.0)), 1)
+        payback_months = round((net_total / max(1.0, (annual_labor_saved / 12.0))), 1)
         roi_model = {
             "projected_annual_labor_savings_usd": annual_labor_saved,
             "payback_period_months": payback_months,
-            "projected_roi_pct": round(((annual_labor_saved - net_total) / net_total) * 100.0, 1),
+            "projected_roi_pct": round(((annual_labor_saved - net_total) / max(1.0, net_total)) * 100.0, 1),
             "estimated_hours_saved_per_month": 160,
         }
+
+        # Resolve vendor branding
+        vendor_name = (ctx.company_overview.get("name") if ctx and ctx.company_overview else None) or "Enterprise Solutions"
+        vendor_usp = (ctx.company_overview.get("usp") if ctx and ctx.company_overview else None) or "delivers an intelligent operational platform designed to eliminate workflow friction"
 
         # Proposal Markdown
         proposal_md = f"""# Commercial Proposal for {deal_room.company_name}
@@ -119,7 +125,7 @@ class ProposalCPQAgent(BaseSalesAgent):
 ---
 
 ### Executive Summary
-OctaOS delivers an autonomous multi-agent intelligence layer designed to eliminate operational friction and accelerate pipeline execution across {deal_room.company_name}'s go-to-market teams.
+{vendor_name} {vendor_usp} across {deal_room.company_name}'s go-to-market and operational teams.
 
 ### Commercial Investment Breakdown
 | Solution Component | SKU | List Price | Applied Discount | Net Investment |

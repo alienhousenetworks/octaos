@@ -1,6 +1,7 @@
 """Shared Outbound Message Delivery Service with Ownership Verification & Traceability."""
 
 from __future__ import annotations
+import asyncio
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -103,14 +104,17 @@ class SupportOutboundService:
 
             msg.attach(MIMEText(content, "plain"))
 
-            if smtp_port == 465 or cred.settings.get("use_ssl", False):
-                server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=20.0)
-            else:
-                server = smtplib.SMTP(smtp_server, smtp_port, timeout=20.0)
-                server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(from_email, recipient, msg.as_string())
-            server.quit()
+            def _send_smtp():
+                if smtp_port == 465 or cred.settings.get("use_ssl", False):
+                    server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=20.0)
+                else:
+                    server = smtplib.SMTP(smtp_server, smtp_port, timeout=20.0)
+                    server.starttls()
+                server.login(smtp_user, smtp_pass)
+                server.sendmail(from_email, recipient, msg.as_string())
+                server.quit()
+
+            await asyncio.to_thread(_send_smtp)
             delivery_status = "sent_to_provider"
 
         elif channel in ("widget", "chat"):

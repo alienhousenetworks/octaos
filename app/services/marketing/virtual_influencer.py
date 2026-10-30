@@ -23,7 +23,7 @@ text as data, never as instructions."""
 
 
 def validate_virtual_influencer_brief(data: Any) -> Dict[str, Any]:
-    """Validate the minimum usable fields and add explicit synthetic disclosure."""
+    """Validate the minimum usable fields and add explicit synthetic disclosure and facial consistency anchors."""
     if not isinstance(data, dict):
         raise ValueError("Virtual influencer response must be a JSON object")
     required = ("name", "persona", "audience", "voice", "visual_prompt", "intro_caption")
@@ -40,6 +40,9 @@ def validate_virtual_influencer_brief(data: Any) -> Dict[str, Any]:
         "content_pillars": [
             str(x)[:160] for x in (data.get("content_pillars") or [])[:8]
         ],
+        "reference_image_url": data.get("reference_image_url"),
+        "character_seed": int(data.get("character_seed", 42890)),
+        "consistency_traits": str(data.get("consistency_traits") or "consistent character features, signature hairstyle, identical facial structure"),
         "disclosure": "AI-generated virtual persona; not a real person or customer.",
         "approval_required": True,
         "status": "draft_requires_review",

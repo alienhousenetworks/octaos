@@ -100,12 +100,15 @@ class DealDeskAgent(BaseSalesAgent):
         elif action_type == "security_questionnaire":
             # Auto-fill security questions from verified evidence
             question = params.get("question", "How is customer data encrypted?")
+            from sqlalchemy import or_
+            import re
+            compliance_patterns = ["%encrypt%", "%security%", "%soc%", "%gdpr%", "%hipaa%", "%iso%", "%backup%", "%sla%", "%privacy%", "%access%"]
+            q_terms = [f"%{w.lower()}%" for w in re.findall(r"\w{4,}", question) if w.lower() not in ("what", "where", "when", "does", "have", "with", "from", "your", "this", "that", "customer", "data")]
+            all_patterns = list(dict.fromkeys(compliance_patterns + q_terms[:4]))
+            filters = [EvidenceRecord.claim.ilike(p) for p in all_patterns]
             evidence = (
                 self.db.query(EvidenceRecord)
-                .filter(
-                    EvidenceRecord.tenant_id == self.tenant_id,
-                    EvidenceRecord.claim.ilike("%encrypt%") | EvidenceRecord.claim.ilike("%security%") | EvidenceRecord.claim.ilike("%soc%"),
-                )
+                .filter(EvidenceRecord.tenant_id == self.tenant_id, or_(*filters))
                 .all()
             )
             ev_text = "\n".join([f"- [{e.location_reference}]: {e.claim}" for e in evidence]) if evidence else "No verified evidence records match this question."

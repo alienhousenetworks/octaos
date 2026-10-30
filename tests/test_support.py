@@ -10,8 +10,8 @@ import uuid
 from datetime import datetime, timedelta
 
 from app.main import app
-from app.api.deps import get_db, get_current_tenant_id
-from app.models.base import Base, APICredential
+from app.api.deps import get_db, get_current_tenant_id, get_current_user
+from app.models.base import Base, APICredential, Tenant, User
 from app.models.verticals import Ticket, TicketMessage
 from app.services.agents.support import SupportAgent
 
@@ -21,6 +21,7 @@ engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 tenant_id_override_store = {"tenant_id": None}
+test_user_id = str(uuid.uuid4())
 
 @pytest.fixture(scope="function")
 def db():
@@ -40,9 +41,29 @@ def client(db):
             
     def override_get_current_tenant_id():
         return tenant_id_override_store["tenant_id"] or "test-tenant-id"
+
+    def override_get_current_user():
+        tid = tenant_id_override_store["tenant_id"] or "test-tenant-id"
+        u = db.query(User).filter(User.tenant_id == tid).first()
+        if not u:
+            u = User(
+                id=test_user_id,
+                tenant_id=tid,
+                email="admin@example.com",
+                name="Admin User",
+                hashed_password="pw",
+                role="admin",
+                is_active=True,
+                is_verified=True,
+            )
+            db.add(u)
+            db.commit()
+            db.refresh(u)
+        return u
         
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_tenant_id] = override_get_current_tenant_id
+    app.dependency_overrides[get_current_user] = override_get_current_user
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
@@ -53,6 +74,10 @@ def client(db):
 async def test_incoming_webhook_missing_credentials(client, db):
     tenant_id = "test-tenant"
     tenant_id_override_store["tenant_id"] = tenant_id
+    from app.models.base import Tenant
+    if not db.query(Tenant).filter(Tenant.id == tenant_id).first():
+        db.add(Tenant(id=tenant_id, name="Test Tenant", is_active=True))
+        db.commit()
     
     # Webhook should fail because Meta credentials are not configured
     response = client.post(
@@ -71,6 +96,10 @@ async def test_incoming_webhook_missing_credentials(client, db):
 async def test_auto_reply_queued(mock_send_task, client, db):
     tenant_id = "test-tenant"
     tenant_id_override_store["tenant_id"] = tenant_id
+    from app.models.base import Tenant
+    if not db.query(Tenant).filter(Tenant.id == tenant_id).first():
+        db.add(Tenant(id=tenant_id, name="Test Tenant", is_active=True))
+        db.commit()
     
     # Add dummy credentials
     from app.models.base import APICredential
@@ -89,7 +118,7 @@ async def test_auto_reply_queued(mock_send_task, client, db):
     args = auto_reply_calls[0][1]
     kwargs = auto_reply_calls[0][2]
     assert args[0] == "auto_reply_task"
-    assert "countdown" not in kwargs
+    assert kwargs.get("countdown") == 270
         
     mock_send_task.reset_mock()
     
@@ -100,7 +129,7 @@ async def test_auto_reply_queued(mock_send_task, client, db):
     args = auto_reply_calls[0][1]
     kwargs = auto_reply_calls[0][2]
     assert args[0] == "auto_reply_task"
-    assert "countdown" not in kwargs
+    assert kwargs.get("countdown") == 1200
 
 @pytest.mark.asyncio
 @patch("app.services.llm_gateway.LLMGateway.complete")
@@ -146,3 +175,72 @@ async def test_collision_prevention_agent_replied(mock_complete, client, db):
     assert messages[0].sender == "customer"
     assert messages[1].sender == "agent"
     assert messages[1].content == "I am a human assisting you."
+
+
+@pytest.mark.asyncio
+@patch("app.services.llm_gateway.LLMGateway.complete")
+async def test_ai_draft_and_triage_endpoints(mock_complete, client, db):
+    tenant_id = "test-tenant-copilot"
+    tenant_id_override_store["tenant_id"] = tenant_id
+
+    from app.models.base import Tenant
+    if not db.query(Tenant).filter(Tenant.id == tenant_id).first():
+        db.add(Tenant(id=tenant_id, name="Copilot Tenant", is_active=True))
+        db.commit()
+
+    ticket = Ticket(
+        tenant_id=tenant_id,
+        subject="Payment failed on renewal",
+        description="My card was charged twice but account says expired",
+        status="open",
+        channel="widget",
+        customer_name="Alice",
+        customer_contact="alice@example.com",
+    )
+    db.add(ticket)
+    db.commit()
+    db.refresh(ticket)
+
+    msg = TicketMessage(
+        ticket_id=ticket.id,
+        sender="customer",
+        content="Please help resolve my payment issue ASAP!",
+    )
+    db.add(msg)
+    db.commit()
+
+    # 1. Test AI Draft
+    mock_complete.return_value = "Hello Alice, I see your double charge inquiry. We have reversed the duplicate transaction."
+    draft_res = client.post(f"/api/v1/support/tickets/{ticket.id}/ai-draft")
+    assert draft_res.status_code == 200
+    draft_data = draft_res.json()
+    assert draft_data["status"] == "success"
+    assert "reversed the duplicate" in draft_data["draft"]
+
+    # 2. Test AI Triage
+    mock_complete.return_value = '{"sentiment": "urgent", "urgency": "P1", "category": "Billing & Payments", "summary": "Customer charged twice on renewal", "suggested_action": "Check Stripe charge and refund"}'
+    triage_res = client.post(f"/api/v1/support/tickets/{ticket.id}/ai-triage")
+    assert triage_res.status_code == 200
+    triage_data = triage_res.json()
+    assert triage_data["status"] == "success"
+    assert triage_data["ai_insights"]["urgency"] == "P1"
+    assert triage_data["ai_insights"]["category"] == "Billing & Payments"
+
+    # 3. Test ticket list includes unassigned tickets in default room
+    from app.models.rooms import SectionRoom
+    room = SectionRoom(
+        tenant_id=tenant_id,
+        section="support",
+        name="Default Support Queue",
+        slug="default",
+    )
+    db.add(room)
+    db.commit()
+
+    list_res = client.get("/api/v1/support/tickets?room_slug=default")
+    assert list_res.status_code == 200
+    tickets_list = list_res.json()
+    assert len(tickets_list) >= 1
+    assert any(t["id"] == ticket.id for t in tickets_list)
+    found = next(t for t in tickets_list if t["id"] == ticket.id)
+    assert found["extra_data"]["ai_insights"]["urgency"] == "P1"

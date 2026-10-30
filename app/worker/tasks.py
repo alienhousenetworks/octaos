@@ -399,7 +399,7 @@ def publish_scheduled_posts():
     db = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
-        posts = (
+        query = (
             db.query(ContentPost)
             .filter(
                 ContentPost.approval_status == "approved",
@@ -407,9 +407,10 @@ def publish_scheduled_posts():
                 ContentPost.status.notin_(["published", "needs_configuration", "publish_uncertain", "buffer_scheduling"]),
                 ContentPost.external_post_id.is_(None),
             )
-            .with_for_update(skip_locked=True)
-            .all()
         )
+        if db.bind and getattr(db.bind.dialect, "name", "") != "sqlite":
+            query = query.with_for_update(skip_locked=True)
+        posts = query.all()
 
         for post in posts:
             publish_post_sync(db, post)

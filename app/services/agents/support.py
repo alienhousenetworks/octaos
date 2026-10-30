@@ -454,7 +454,7 @@ class SupportAgent(BaseAgent):
         reply_content = await self.llm.complete(
             prompt=prompt,
             model=None,
-            provider="gemini",
+            provider=None,
             system_prompt=system_prompt,
         )
         if citations:

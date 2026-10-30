@@ -94,6 +94,9 @@ class AccountResearcherAgent(BaseSalesAgent):
         committee_text = ", ".join([f"{m.name} ({m.title}, {m.role_type})" for m in committee]) if committee else "Committee not yet mapped."
         offer_usp = ctx.company_overview.get("usp", "Enterprise automation platform") if ctx else "Sales Intelligence Platform"
         proof_points = ctx.proof_points if ctx else []
+        if proof_points:
+            pp_str = "; ".join([str(p.get("claim") if isinstance(p, dict) else p) for p in proof_points[:3]])
+            offer_usp = f"{offer_usp}. Evidence & Proof Points: {pp_str}"
 
         rendered = render_prompts(
             "sales.account_researcher",
@@ -122,6 +125,7 @@ class AccountResearcherAgent(BaseSalesAgent):
         except Exception:
             brief_data = None
 
+        import re
         hypotheses = []
         if isinstance(brief_data, dict):
             raw_hypotheses = brief_data.get("pain_hypotheses") or []
@@ -129,9 +133,20 @@ class AccountResearcherAgent(BaseSalesAgent):
                 for item in raw_hypotheses:
                     if not isinstance(item, dict):
                         continue
-                    signal = str(item.get("signal") or "")
-                    if signal and signal.lower() in signals_text.lower():
+                    signal = str(item.get("signal") or "").strip()
+                    if not signal:
+                        continue
+                    if signal.lower() in signals_text.lower():
                         hypotheses.append(item)
+                        continue
+                    # Match on significant token overlap with any logged signal headline
+                    sig_tokens = {w for w in re.findall(r"\w{4,}", signal.lower())}
+                    if sig_tokens and any(
+                        len(sig_tokens & {w for w in re.findall(r"\w{4,}", s.headline.lower())}) >= 1
+                        for s in signals
+                    ):
+                        hypotheses.append(item)
+
             brief_data["pain_hypotheses"] = hypotheses
             brief_data["company_name"] = deal_room.company_name
 

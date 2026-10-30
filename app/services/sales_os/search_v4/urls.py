@@ -9,6 +9,7 @@ _DROP_PARAMS = {
     "mc_eid",
 }
 _BOARD_HOSTS = (
+    # Search engines and social
     "news.google.com",
     "news.ycombinator.com",
     "reddit.com",
@@ -21,6 +22,36 @@ _BOARD_HOSTS = (
     "google.com",
     "wikipedia.org",
     "youtube.com",
+    "pinterest.com",
+    "tiktok.com",
+    # Tender aggregators, portals & bid tools (directories, not buyer accounts)
+    "indiatenders.in",
+    "indiatenders.com",
+    "tendersinfo.com",
+    "bidassist.com",
+    "tenderdetail.com",
+    "tendertiger.com",
+    "tender247.com",
+    "etenders.gov.in",
+    "eprocure.gov.in",
+    "gem.gov.in",
+    "cppp.gov.in",
+    "quickbid.ai",
+    # B2B data vendors, scrapers & directories
+    "outscraper.com",
+    "revenuebase.ai",
+    "apollo.io",
+    "zoominfo.com",
+    "lusha.com",
+    "cognism.com",
+    "hunter.io",
+    # Developer platforms & registries
+    "github.com",
+    "gitlab.com",
+    "npmjs.com",
+    "pypi.org",
+    "stackoverflow.com",
+    "rapidapi.com",
 )
 
 

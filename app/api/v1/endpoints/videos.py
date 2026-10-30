@@ -73,7 +73,15 @@ def create_video_project(
     
     # Trigger Celery workflow for video generation here
     from app.worker.tasks import plan_video_task
-    plan_video_task.delay(tenant_id, project.id)
+    try:
+        plan_video_task.delay(tenant_id, project.id)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Celery dispatch failed, falling back to direct execution: {e}")
+        try:
+            plan_video_task(tenant_id, project.id)
+        except Exception as sync_e:
+            logging.getLogger(__name__).warning(f"Direct video planning failed: {sync_e}")
     
     return project
 
@@ -103,7 +111,11 @@ def trigger_video_render(
     db.commit()
     
     from app.worker.tasks import render_video_task
-    render_video_task.delay(tenant_id, project.id)
+    try:
+        render_video_task.delay(tenant_id, project.id)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Celery dispatch failed for render: {e}")
     
     return {"status": "processing", "message": "Render task queued"}
 

@@ -73,8 +73,8 @@ async def execute_command(
     from app.services.agents.intent_router import IntentRouter
     intent_mode, _ = IntentRouter.classify(request.prompt, messages=request.messages)
 
-    # 2. If no key, intercept the prompt (allow pasting key, or let analytics proceed with deterministic core)
-    if not has_valid_key and intent_mode not in ["analytics", "hybrid"]:
+    # 2. If no key, intercept the prompt (allow pasting key, or let analytics/conversational proceed)
+    if not has_valid_key and intent_mode not in ["analytics", "hybrid", "conversational"]:
         # Check if the user is pasting a key
         p_lower = request.prompt.lower()
         if any(prefix in p_lower for prefix in ["sk-or-", "sk-ant", "sk-proj", "sk-", "xai-", "gsk_"]):

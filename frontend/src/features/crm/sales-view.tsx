@@ -1076,8 +1076,7 @@ export default function SalesView({
         }}
       />
 
-      <div className="p-4 md:p-6 min-h-[calc(100vh-3rem)]">
-        <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      <div className="w-full space-y-6 pt-2 pb-12">
         {/* Top Header & Executive KPI Ribbon */}
         {!(activeSalesTab === 'pipeline' && selectedLead) ? (
         <SalesHeader
@@ -1357,7 +1356,6 @@ export default function SalesView({
         onUpload={handleUploadLeads}
         loading={uploadingLeads}
       />
-        </div>
       </div>
     </div>
   );

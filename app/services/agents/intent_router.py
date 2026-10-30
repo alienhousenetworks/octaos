@@ -12,6 +12,12 @@ from typing import Dict, Any, List, Literal, Optional, Tuple
 class IntentRouter:
     """Classifies user prompts into execution, analytics, or hybrid intent."""
 
+    CONVERSATIONAL_PATTERNS = [
+        r"^(hi|hello|hey|greetings|howdy|good\s+(morning|afternoon|evening)|sup|what's\s+up)[!.,\s]*$",
+        r"^(who\s+are\s+you|what\s+can\s+you\s+do|help|what\s+are\s+your\s+capabilities|introduce\s+yourself)[?!\s]*$",
+        r"^(thanks|thank\s+you|ok|okay|cool|great|got\s+it|nice|awesome)[!.,\s]*$",
+    ]
+
     EXECUTION_PATTERNS = [
         r"\b(create|draft|generate|launch|write)\b.*?\b(posts?|campaigns?|listings?|articles?|blogs?|content|outlines?)\b",
         r"\b(source|find|gather|scrape|enrich)\b.*?\b(leads?|candidates?|developers?|engineers?|accounts?|ctos?|ceos?)\b",
@@ -39,13 +45,17 @@ class IntentRouter:
         cls,
         prompt: str,
         messages: Optional[List[Dict[str, Any]]] = None,
-    ) -> Tuple[Literal["execution", "analytics", "hybrid"], float]:
+    ) -> Tuple[Literal["execution", "analytics", "hybrid", "conversational"], float]:
         """
         Fast-path classifier returning (mode, confidence).
         Rules fast-path completes in sub-millisecond time.
         When prompt confidence is low, uses recent conversation messages as context.
         """
         p = prompt.strip().lower()
+
+        # Check pure conversational fast-path first: greetings, identity, acknowledgments
+        if any(re.search(pat, p) for pat in cls.CONVERSATIONAL_PATTERNS):
+            return "conversational", 0.95
 
         has_remedy = any(re.search(pat, p) for pat in cls.REMEDY_PATTERNS)
         exec_matches = sum(1 for pat in cls.EXECUTION_PATTERNS if re.search(pat, p))

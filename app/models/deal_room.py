@@ -53,6 +53,7 @@ class DealRoom(Base):
     industry = Column(String, nullable=True)
     employee_count = Column(Integer, nullable=True)
     annual_revenue_usd = Column(Float, nullable=True)
+    contract_value_usd = Column(Float, nullable=True)
     country = Column(String, nullable=True)
     city = Column(String, nullable=True)
     tech_stack = Column(JSON, default=list)

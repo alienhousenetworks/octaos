@@ -93,6 +93,8 @@ def plan_tasks(
             configured_options.append(("brave", web_cost("brave"), "Configured Brave Search provides an independent web result set."))
         if credentials.get("tavily") and health.allows("tavily"):
             configured_options.append(("tavily", web_cost("tavily"), "Configured Tavily provides an independent web result set."))
+        if credentials.get("firecrawl") and health.allows("firecrawl"):
+            configured_options.append(("firecrawl", web_cost("firecrawl"), "Configured Firecrawl provides deep web extraction."))
         # Use the yield-selected provider first, then diversify later queries only
         # when another provider is configured and the budget ledger can reserve it.
         web_options = [next((item for item in configured_options if item[0] == provider), (provider, cost, why))]
@@ -132,27 +134,56 @@ def plan_tasks(
             for role in roles:
                 add_coverage(industry, geography, role)
 
+    raw_query = spec.query or ""
+    clean_topic = re.sub(
+        r"\b(find|get|show|give me|\d+|leads?(?: for me)?|companies|businesses|looking for|leads who need|businesses needing|clients for|find leads for|who need a?|looking for)\b",
+        "",
+        raw_query,
+        flags=re.IGNORECASE,
+    )
+    clean_topic = " ".join(clean_topic.split())
+    core_topic = (clean_topic or (spec.industries[0] if spec.industries else "") or raw_query or "service").strip()
+
+    SERVICE_KEYWORDS = {"website", "web design", "web development", "web app", "software development", "seo", "digital marketing", "mobile app", "branding"}
+    is_service_search = any(kw in core_topic.lower() for kw in SERVICE_KEYWORDS)
+
+    # When searching for clients who need a service (e.g. websites), target client verticals and RFPs,
+    # NEVER search for agency directories (e.g. site:linkedin.com/company/ website development).
+    if is_service_search:
+        target_client_verticals = spec.industries if spec.industries else ["manufacturing", "healthcare clinic", "local business", "retail", "logistics"]
+        buyer_phrases = [
+            f"{target_client_verticals[0]} companies contact email",
+            f"{target_client_verticals[1 % len(target_client_verticals)]} businesses website",
+            f"RFP {core_topic}",
+            f"tender {core_topic}",
+            f"{target_client_verticals[2 % len(target_client_verticals)]} commercial contact",
+        ]
+        social_target = target_client_verticals[0] if target_client_verticals else "business"
+    else:
+        buyer_phrases = [
+            f"looking for {core_topic}",
+            f"recommendations for {core_topic}",
+            f"RFP {core_topic}",
+            f"vendor for {core_topic}",
+            f"hiring {core_topic}",
+        ]
+        social_target = core_topic
+
     base_provider, base_cost, base_reason = web_route(0)
+    base_query = (
+        f"{target_client_verticals[0]} SMB companies {geographies[0]} contact".strip()
+        if is_service_search
+        else " ".join(part for part in (spec.query, geographies[0], roles[0], "looking for") if part)
+    )
     proposals = [
         _task(
             spec, "web", base_provider, "search",
-            " ".join(part for part in (spec.query, geographies[0], roles[0], "looking for") if part),
+            base_query,
             "Baseline explicit-buying-intent query for compatibility and campaign-level discovery.",
             base_cost, base_reason, 5,
         )
     ]
 
-    # Explicit buyer-language searches are more useful than broad industry
-    # terms for web discovery. Keep the set bounded, and rotate the requested
-    # geography so the first region is searched first while other regions are
-    # still covered in the same run.
-    buyer_phrases = [
-        "looking for a developer",
-        "need an e-commerce website",
-        "RFP website redesign",
-        "custom CRM proposal",
-        "ERP implementation tender",
-    ]
     for index, phrase in enumerate(buyer_phrases):
         geography = geographies[index % len(geographies)]
         proposals.append(
@@ -161,7 +192,7 @@ def plan_tasks(
                 "web",
                 base_provider,
                 "buyer_phrase_search",
-                " ".join(part for part in (phrase, spec.query, geography) if part),
+                " ".join(part for part in (phrase, geography) if part),
                 "Search for an explicit public request for the service rather than inferring demand from a generic company profile.",
                 base_cost,
                 base_reason,
@@ -169,32 +200,39 @@ def plan_tasks(
             )
         )
 
-    # Publicly indexed social pages are read-only research evidence. They are
-    # never treated as verified contacts unless a separate public company page
-    # supplies the contact details.
-    for index, phrase in enumerate(("looking for app developer", "need a website")):
-        geography = geographies[index % len(geographies)]
+    role_target = roles[0] if (roles and roles[0]) else "Founder OR CEO"
+    social_templates = [
+        f"site:linkedin.com/in/ {role_target} {social_target} {geographies[0]}".strip(),
+        f"site:linkedin.com/company/ {social_target} {geographies[0]}".strip(),
+        f"site:twitter.com {role_target} {social_target} {geographies[0]}".strip(),
+    ]
+    for index, q_str in enumerate(social_templates):
         proposals.append(
             _task(
                 spec,
                 "web",
                 base_provider,
                 "public_social_search",
-                f"site:linkedin.com/posts {phrase} {geography}".strip(),
-                "Find publicly indexed LinkedIn posts; profile-only results remain research extras without fabricated email addresses.",
+                q_str,
+                "Find publicly indexed executive and company profiles across LinkedIn and Twitter.",
                 base_cost,
                 base_reason,
                 12 + index,
             )
         )
 
+    procurement_query = (
+        f"RFP tender {core_topic} website redesign portal {geographies[0]}".strip()
+        if is_service_search
+        else " ".join(part for part in (spec.query, "RFP tender proposal", "NGO nonprofit university research institute government", geographies[0]) if part)
+    )
     proposals.append(
         _task(
             spec,
             "web",
             base_provider,
             "procurement_search",
-            " ".join(part for part in (spec.query, "RFP tender proposal", "NGO nonprofit university research institute government", geographies[0]) if part),
+            procurement_query,
             "Search public procurement and RFP pages, including nonprofit, education, research, and government buyers.",
             base_cost,
             base_reason,
@@ -257,7 +295,7 @@ def plan_tasks(
             61,
         ),
     ])
-    for index, phrase in enumerate(("need a website", "looking for app developer")):
+    for index, phrase in enumerate([f"looking for {core_topic}", f"need {core_topic}"]):
         proposals.append(
             _task(
                 spec,

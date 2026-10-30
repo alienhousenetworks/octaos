@@ -285,6 +285,19 @@ class OrchestratorAgent(BaseAgent):
         from app.services.agents.intent_router import IntentRouter
         mode, confidence = IntentRouter.classify(prompt, messages=messages)
 
+        if mode == "conversational":
+            greeting = (
+                "Hello! I am OctaOS Orchestrator, your autonomous enterprise manager. "
+                "I can coordinate specialized agents across Marketing, Sales, Support, HR, and Finance, "
+                "generate executive intelligence briefings, or execute business workflows. "
+                "What would you like to achieve today?"
+            )
+            return {
+                "mode": "conversational",
+                "plan": {},
+                "results": [{"status": "success", "message": greeting}],
+            }
+
         if mode in ["analytics", "hybrid"]:
             from app.services.agents.executive_swarm import ExecutiveSwarmCoordinator
             coordinator = ExecutiveSwarmCoordinator(self.db, self.tenant_id)

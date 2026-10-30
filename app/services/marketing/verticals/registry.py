@@ -43,8 +43,6 @@ def resolve_marketing_pack_id(pack_id: Optional[str]) -> Optional[str]:
     if not pack_id:
         return None
     normalized = pack_id.lower().strip().replace(" ", "_").replace("-", "_")
-    if normalized in DISABLED_LEGACY_PACK_IDS:
-        return None
     if normalized in PACKS:
         return normalized
     if normalized in PACK_ALIASES:

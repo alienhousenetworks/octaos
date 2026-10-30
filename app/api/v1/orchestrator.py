@@ -108,10 +108,18 @@ async def execute_manager_goal(
             provider="auto",
             messages=history or None,
         )
-    except Exception:
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error(f"[Orchestrator] Execution failed: {exc}", exc_info=True)
+        err_msg = str(exc)
+        if "API key" in err_msg or "provider" in err_msg.lower():
+            raise HTTPException(
+                status_code=502,
+                detail=f"AI model provider error: {err_msg}",
+            )
         raise HTTPException(
-            status_code=502,
-            detail="The assistant could not reach a language model. Check the configured AI provider and try again.",
+            status_code=500,
+            detail=f"Orchestration error: {err_msg}",
         )
 
     if not isinstance(result, dict):

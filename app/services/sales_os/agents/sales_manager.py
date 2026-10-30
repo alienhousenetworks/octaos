@@ -43,15 +43,51 @@ class SalesManagerAgent(BaseSalesAgent):
         from app.services.sales_os.aso.state_machine import STAGE_WIN_PROBABILITIES
         STAGE_BASELINES = STAGE_WIN_PROBABILITIES
 
+        # Batch prefetch committee and objection counts to prevent N+1 query storm
+        room_ids = [r.id for r in rooms]
+        committee_counts: Dict[str, int] = {}
+        objection_counts: Dict[str, int] = {}
+        if room_ids:
+            try:
+                from sqlalchemy import func
+                cm_rows = (
+                    self.db.query(BuyingCommitteeMember.deal_room_id, func.count(BuyingCommitteeMember.id))
+                    .filter(BuyingCommitteeMember.deal_room_id.in_(room_ids))
+                    .group_by(BuyingCommitteeMember.deal_room_id)
+                    .all()
+                )
+                committee_counts = {row[0]: row[1] for row in cm_rows}
+            except Exception:
+                committee_counts = {}
+
+            try:
+                from sqlalchemy import func
+                obj_rows = (
+                    self.db.query(DealObjection.deal_room_id, func.count(DealObjection.id))
+                    .filter(DealObjection.deal_room_id.in_(room_ids), DealObjection.status == "open")
+                    .group_by(DealObjection.deal_room_id)
+                    .all()
+                )
+                objection_counts = {row[0]: row[1] for row in obj_rows}
+            except Exception:
+                objection_counts = {}
+
         for r in rooms:
             flags = []
             
             # Check committee coverage
-            committee_count = (
-                self.db.query(BuyingCommitteeMember)
-                .filter(BuyingCommitteeMember.deal_room_id == r.id)
-                .count()
-            )
+            if r.id in committee_counts:
+                committee_count = committee_counts[r.id]
+            else:
+                try:
+                    committee_count = (
+                        self.db.query(BuyingCommitteeMember)
+                        .filter(BuyingCommitteeMember.deal_room_id == r.id)
+                        .count()
+                    )
+                except Exception:
+                    committee_count = 0
+
             if committee_count <= 1 and r.stage in ("in_cadence", "replied", "meeting_booked"):
                 flags.append("single_threaded")
                 single_threaded_deals.append(r.company_name)
@@ -68,11 +104,18 @@ class SalesManagerAgent(BaseSalesAgent):
                     stalled_deals.append(r.company_name)
 
             # Check open objections
-            open_objections = (
-                self.db.query(DealObjection)
-                .filter(DealObjection.deal_room_id == r.id, DealObjection.status == "open")
-                .count()
-            )
+            if r.id in objection_counts:
+                open_objections = objection_counts[r.id]
+            else:
+                try:
+                    open_objections = (
+                        self.db.query(DealObjection)
+                        .filter(DealObjection.deal_room_id == r.id, DealObjection.status == "open")
+                        .count()
+                    )
+                except Exception:
+                    open_objections = 0
+
             if open_objections > 0:
                 flags.append(f"{open_objections}_unresolved_objections")
 
@@ -89,8 +132,8 @@ class SalesManagerAgent(BaseSalesAgent):
             calibrated_prob = max(0.02, min(0.95, round(baseline + multi_thread_bonus + stall_penalty + timing_boost, 3)))
             r.calibrated_win_prob = calibrated_prob
 
-            # Pipeline calculation
-            est_value = r.annual_revenue_usd or 25000.0  # default contract value
+            # Pipeline calculation: use explicit contract value or ACV
+            est_value = float(getattr(r, "contract_value_usd", None) or r.annual_revenue_usd or 25000.0)
             deal_expected_value = est_value * calibrated_prob
             total_calibrated_pipeline += deal_expected_value
 

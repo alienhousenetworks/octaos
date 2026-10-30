@@ -28,7 +28,9 @@ import {
   ShieldAlert,
   Sliders,
   History,
-  X
+  X,
+  Search,
+  Filter
 } from 'lucide-react';
 import SupportWidget from '@/components/support-widget';
 import RoomFolderExplorer from '@/components/rooms/room-folder-explorer';
@@ -57,10 +59,12 @@ export default function SupportView({
   const [roomsLoading, setRoomsLoading] = useState(false);
   const [currentRoomSlug, setCurrentRoomSlug] = useState<string | null>(initialRoomSlug || null);
   const [currentRoom, setCurrentRoom] = useState<SectionRoomData | null>(null);
-  const [isDirectoryView, setIsDirectoryView] = useState(!initialRoomSlug);
+  const [isDirectoryView, setIsDirectoryView] = useState(false);
 
   const [activeMainTab, setActiveMainTab] = useState<'tickets' | 'widget' | 'studio'>('tickets');
   const [ticketFilter, setTicketFilter] = useState<'all' | 'pending_human' | 'human_handling' | 'resolved'>('all');
+  const [channelFilter, setChannelFilter] = useState<'all' | 'widget' | 'whatsapp' | 'email'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Support states
   const [tickets, setTickets] = useState<any[]>([]);
@@ -69,6 +73,8 @@ export default function SupportView({
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const [actionInProgress, setActionInProgress] = useState(false);
+  const [draftingReply, setDraftingReply] = useState(false);
+  const [triagingTicket, setTriagingTicket] = useState(false);
 
   // Agent Presence States
   const [isAgentOnline, setIsAgentOnline] = useState<boolean>(true);
@@ -118,6 +124,20 @@ export default function SupportView({
     }
   }, [token]);
 
+  // When selected ticket changes, immediately fetch its messages
+  useEffect(() => {
+    if (selectedTicketId) {
+      fetchMessages(selectedTicketId);
+    }
+  }, [selectedTicketId]);
+
+  // Auto-select first ticket if none currently selected
+  useEffect(() => {
+    if (tickets.length > 0 && !selectedTicketId) {
+      setSelectedTicketId(tickets[0].id);
+    }
+  }, [tickets, selectedTicketId]);
+
   // Heartbeat interval for Agent Presence (every 45s when online)
   useEffect(() => {
     if (!token || !isAgentOnline) return;
@@ -131,16 +151,19 @@ export default function SupportView({
     return () => clearInterval(interval);
   }, [token, isAgentOnline, API_URL]);
 
-  // Auto-refresh rooms & tickets
+  // Auto-refresh rooms, tickets, and active conversation stream
   useEffect(() => {
     if (!token) return;
     fetchRooms();
     fetchTickets();
     const interval = setInterval(() => {
       fetchTickets();
-    }, 6000);
+      if (selectedTicketId) {
+        fetchMessages(selectedTicketId);
+      }
+    }, 5000);
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, selectedTicketId, currentRoomSlug]);
 
   const fetchRooms = async () => {
     if (!token) return;
@@ -155,7 +178,7 @@ export default function SupportView({
           if (match) {
             setCurrentRoom(match);
           }
-        } else if (data.length > 0 && !isDirectoryView) {
+        } else if (data.length > 0) {
           const defaultRoom = data.find((r: any) => r.slug === 'default') || data[0];
           setCurrentRoom(defaultRoom);
           setCurrentRoomSlug(defaultRoom.slug);
@@ -413,11 +436,64 @@ export default function SupportView({
     }
   };
 
-  // Filtered tickets
+  const handleGenerateAiDraft = async () => {
+    if (!selectedTicketId) return;
+    setDraftingReply(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/support/tickets/${selectedTicketId}/ai-draft`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.draft) {
+          setReplyText(data.draft);
+          notify('AI Copilot drafted a grounded reply with Knowledge Base context.');
+        }
+      } else {
+        const err = await res.json().catch(() => ({}));
+        notify(err.detail || 'Failed to generate AI Draft.');
+      }
+    } catch (e) {
+      console.error(e);
+      notify('AI draft generation failed.');
+    } finally {
+      setDraftingReply(false);
+    }
+  };
+
+  const handleRunAiTriage = async () => {
+    if (!selectedTicketId) return;
+    setTriagingTicket(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/support/tickets/${selectedTicketId}/ai-triage`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        notify(`AI Triage: ${data.ai_insights?.category || 'Analyzed'} (${data.ai_insights?.urgency || 'P2'})`);
+        fetchTickets();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTriagingTicket(false);
+    }
+  };
+
+  // Filtered tickets with channel & text search support
   const filteredTickets = tickets.filter(t => {
-    if (ticketFilter === 'pending_human') return t.status === 'pending_human';
-    if (ticketFilter === 'human_handling') return t.status === 'human_handling';
-    if (ticketFilter === 'resolved') return t.status === 'resolved' || t.status === 'closed';
+    if (ticketFilter === 'pending_human' && t.status !== 'pending_human') return false;
+    if (ticketFilter === 'human_handling' && t.status !== 'human_handling') return false;
+    if (ticketFilter === 'resolved' && (t.status !== 'resolved' && t.status !== 'closed')) return false;
+    if (channelFilter !== 'all' && t.channel !== channelFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchesSubject = (t.subject || '').toLowerCase().includes(q);
+      const matchesContact = (t.customer_contact || '').toLowerCase().includes(q);
+      const matchesName = (t.customer_name || '').toLowerCase().includes(q);
+      const matchesEmail = (t.customer_email || '').toLowerCase().includes(q);
+      if (!matchesSubject && !matchesContact && !matchesName && !matchesEmail) return false;
+    }
     return true;
   });
 
@@ -439,7 +515,7 @@ export default function SupportView({
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
-  if (isDirectoryView || !currentRoom) {
+  if (isDirectoryView && rooms.length > 0) {
     return (
       <RoomFolderExplorer
         section="support"
@@ -454,11 +530,19 @@ export default function SupportView({
     );
   }
 
+  const activeRoomData: SectionRoomData = currentRoom || rooms[0] || ({
+    id: 'default-support-room',
+    name: 'General Support Queue',
+    slug: 'default',
+    description: 'Active support workspace',
+    section: 'support',
+  } as SectionRoomData);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300 pb-16">
       <RoomHeader
         sectionTitle="Support & Queues"
-        activeRoom={currentRoom}
+        activeRoom={activeRoomData}
         allRooms={rooms}
         onSelectRoom={handleSelectRoom}
         onOpenDirectory={() => setIsDirectoryView(true)}
@@ -471,7 +555,7 @@ export default function SupportView({
         }}
       />
 
-      <div className="space-y-6 max-w-7xl mx-auto h-[calc(100vh-12rem)] flex flex-col px-4 sm:px-6">
+      <div className="w-full space-y-6 min-h-[calc(100vh-12rem)] flex flex-col">
       
       {/* Header Panel with Live Presence, Mode & Navigation */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-4">
@@ -559,6 +643,20 @@ export default function SupportView({
           
           {/* 1. Ticket List - 4 Cols */}
           <Card className="lg:col-span-4 flex flex-col h-full overflow-hidden glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl p-2 shadow-2xl relative">
+            {/* Search Input */}
+            <div className="p-2 border-b border-gray-800/80">
+              <div className="relative">
+                <Search size={13} className="absolute left-2.5 top-2.5 text-gray-500" />
+                <Input
+                  type="text"
+                  placeholder="Search subject, name, contact..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="bg-gray-900/90 border-gray-800 text-white pl-8 pr-3 h-8 text-xs rounded-xl focus:border-blue-500"
+                />
+              </div>
+            </div>
+
             {/* Filter Pills */}
             <div className="p-2 border-b border-gray-800/80 flex flex-wrap gap-1.5">
               <button
@@ -599,6 +697,23 @@ export default function SupportView({
               </button>
             </div>
 
+            {/* Channel Filters */}
+            <div className="px-2 py-1.5 border-b border-gray-800/80 flex items-center gap-1 overflow-x-auto">
+              {(['all', 'widget', 'whatsapp', 'email'] as const).map(ch => (
+                <button
+                  key={ch}
+                  onClick={() => setChannelFilter(ch)}
+                  className={`px-2 py-0.5 text-[10px] font-semibold rounded-md transition-colors uppercase ${
+                    channelFilter === ch
+                      ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40 font-bold'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  {ch === 'all' ? 'All Channels' : ch}
+                </button>
+              ))}
+            </div>
+
             {/* Ticket Cards Stream */}
             <div className="flex-1 overflow-y-auto p-2 space-y-2">
               {filteredTickets.length === 0 && (
@@ -616,11 +731,15 @@ export default function SupportView({
 
                 const isPendingHuman = t.status === "pending_human";
                 const isHumanHandling = t.status === "human_handling";
+                const insights = t.extra_data?.ai_insights;
 
                 return (
                   <div
                     key={t.id}
-                    onClick={() => setSelectedTicketId(t.id)}
+                    onClick={() => {
+                      setSelectedTicketId(t.id);
+                      fetchMessages(t.id);
+                    }}
                     className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all ${
  isSelected 
  ? 'bg-blue-600/10 border-blue-500/50 shadow-lg glow-support' 
@@ -653,9 +772,36 @@ export default function SupportView({
                     <h4 className="font-bold text-xs text-white truncate mb-1">{t.subject}</h4>
                     
                     {/* Customer Info Snippet */}
-                    <div className="text-xs text-gray-400 truncate mb-2">
+                    <div className="text-xs text-gray-400 truncate mb-1.5">
                       {t.customer_name ? `${t.customer_name} · ` : ''}{t.customer_contact || t.customer_email || 'Visitor'}
                     </div>
+
+                    {/* AI Insights Badges */}
+                    {insights && (
+                      <div className="flex flex-wrap items-center gap-1 mb-2">
+                        {insights.sentiment && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium capitalize ${
+                            insights.sentiment === 'frustrated' || insights.sentiment === 'urgent'
+                              ? 'bg-rose-500/15 text-rose-300 border border-rose-500/20'
+                              : insights.sentiment === 'positive'
+                              ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20'
+                              : 'bg-gray-800 text-gray-300'
+                          }`}>
+                            {insights.sentiment}
+                          </span>
+                        )}
+                        {insights.urgency && insights.urgency !== 'P3' && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                            {insights.urgency}
+                          </span>
+                        )}
+                        {insights.category && (
+                          <span className="text-[10px] text-gray-400 truncate max-w-[130px] bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
+                            {insights.category}
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between pt-1 border-t border-white/5">
                       <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${
@@ -787,6 +933,44 @@ export default function SupportView({
                       </div>
                     );
                   })}
+                </div>
+
+                {/* AI Copilot & Suggested Reply Bar */}
+                <div className="px-4 py-2 bg-gradient-to-r from-blue-950/30 via-indigo-950/20 to-transparent border-t border-gray-800 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleGenerateAiDraft}
+                      disabled={draftingReply}
+                      className="h-7 px-3 text-xs font-bold text-blue-300 hover:text-white bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-lg flex items-center gap-1.5 transition-all shadow-sm"
+                    >
+                      {draftingReply ? <Loader2 size={12} className="animate-spin text-blue-400" /> : <Sparkles size={12} className="text-amber-400" />}
+                      {draftingReply ? 'Drafting grounded reply...' : 'AI Copilot Draft'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleRunAiTriage}
+                      disabled={triagingTicket}
+                      className="h-7 px-2.5 text-xs font-bold text-gray-300 hover:text-white bg-gray-900 border border-gray-800 rounded-lg flex items-center gap-1.5 transition-all"
+                    >
+                      {triagingTicket ? <Loader2 size={12} className="animate-spin text-gray-400" /> : <Bot size={12} className="text-cyan-400" />}
+                      {triagingTicket ? 'Analyzing...' : 'AI Triage'}
+                    </Button>
+                  </div>
+
+                  {selectedTicket.extra_data?.ai_insights && (
+                    <div className="hidden sm:flex items-center gap-2 text-[11px]">
+                      <span className="text-gray-400 font-medium">
+                        Sentiment: <strong className="text-white capitalize">{selectedTicket.extra_data.ai_insights.sentiment}</strong>
+                      </span>
+                      <span className="text-gray-600">·</span>
+                      <span className="text-gray-400 font-medium">
+                        Category: <strong className="text-white">{selectedTicket.extra_data.ai_insights.category}</strong>
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Reply Input Box */}

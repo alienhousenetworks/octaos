@@ -1722,7 +1722,7 @@ export default function CampaignsView({
         }}
       />
 
-      <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6">
+      <div className="w-full space-y-6">
       <PageHeader
         title="Campaigns"
         description="Plan and manage campaigns across Buffer-connected social networks. Actual publishing depends on connected channels and each network’s media rules."
@@ -1730,7 +1730,7 @@ export default function CampaignsView({
           <>
             <button
               type="button"
-              onClick={() => window.location.assign('/settings/integrations')}
+              onClick={() => window.location.assign('/app/settings/integrations')}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
               title="Connect Buffer or map social channels"
             >

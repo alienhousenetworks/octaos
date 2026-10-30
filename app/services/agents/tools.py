@@ -220,6 +220,8 @@ class ToolRegistry:
             return await self._exec_knowledge_live_fetch(payload, db, tenant_id, context)
         elif name == "knowledge.get_execution_status":
             return await self._exec_knowledge_get_execution_status(payload, db, tenant_id, context)
+        elif name == "agent.consult":
+            return await self._exec_agent_consult(payload, db, tenant_id, context)
         else:
             raise NotImplementedError(f"Tool '{name}' execution handler not implemented.")
 
@@ -249,6 +251,49 @@ class ToolRegistry:
             "methods": summary["methods"],
             "report": summary["report"],
             "status": batch.status,
+        }
+
+    async def _exec_agent_consult(
+        self,
+        payload: Dict[str, Any],
+        db: Session,
+        tenant_id: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        target_agent = str(payload.get("target_agent") or "").strip().lower()
+        task = str(payload.get("task") or payload.get("query") or "").strip()
+        if not target_agent or not task:
+            raise ValueError("Missing 'target_agent' or 'task' in agent.consult payload.")
+
+        ctx = context or {}
+        caller_slug = str(ctx.get("agent_slug") or ctx.get("agent_id") or "").lower()
+        target_slug = target_agent.replace(" ", "_")
+
+        # Cycle & self-consultation check
+        if caller_slug and (caller_slug == target_slug or caller_slug.replace("_ai", "") == target_slug.replace("_ai", "")):
+            raise ValueError(f"Agent '{caller_slug}' cannot consult itself.")
+
+        current_depth = int(ctx.get("depth", 0))
+        if current_depth >= 2:
+            raise ValueError(f"Maximum inter-agent consultation depth (2) reached. Cannot chain further to '{target_agent}'.")
+
+        from app.services.agents.runtime import agent_runtime
+        res = await agent_runtime.execute(
+            agent_id=target_slug,
+            input_context={
+                "prompt": task,
+                "depth": current_depth + 1,
+                "caller_agent": caller_slug,
+            },
+            db=db,
+            tenant_id=tenant_id,
+            dry_run=False,
+        )
+        return {
+            "target_agent": target_slug,
+            "status": "completed",
+            "response": res.get("output", ""),
+            "tool_calls": len(res.get("tool_calls") or []),
         }
 
     async def _exec_email_send(self, payload: Dict[str, Any], db: Session, tenant_id: str) -> Dict[str, Any]:
@@ -778,6 +823,207 @@ class ToolRegistry:
                 required_scopes=["knowledge:read"],
                 risk_level="LOW",
                 side_effect="READ",
+                approval_required=False,
+            )
+        )
+
+        # 12. agent.consult (Governed Inter-Agent Cross-Department Communication)
+        self.register(
+            ToolDefinition(
+                name="agent.consult",
+                description="Consults another OctaOS specialist AI agent ('sales_ai', 'marketing_ai', 'support_ai', 'finance_ai', 'hr_ai', 'ceo_ai') for cross-department expertise without overstepping role boundaries.",
+                input_schema={
+                    "type": "object",
+                    "required": ["target_agent", "task"],
+                    "properties": {
+                        "target_agent": {
+                            "type": "string",
+                            "description": "Target agent slug, e.g. 'sales_ai', 'marketing_ai', 'support_ai', 'finance_ai', 'hr_ai', 'ceo_ai'",
+                        },
+                        "task": {
+                            "type": "string",
+                            "description": "The specific inquiry, question, or request to consult the specialist on",
+                        },
+                    },
+                },
+                output_schema={
+                    "type": "object",
+                    "properties": {
+                        "target_agent": {"type": "string"},
+                        "status": {"type": "string"},
+                        "response": {"type": "string"},
+                    },
+                },
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                timeout_seconds=60,
+            )
+        )
+
+        # 13. post.create (Marketing Social Post & Visual Spot Creation)
+        self.register(
+            ToolDefinition(
+                name="post.create",
+                description="Creates a marketing content post draft with copy, hashtags, and optional AI visual creative image generation.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "platform": {"type": "string", "description": "Target platform (e.g. 'instagram', 'linkedin', 'twitter', 'facebook')", "default": "instagram"},
+                        "content": {"type": "string", "description": "Full post content including copy and hashtags"},
+                        "caption": {"type": "string", "description": "Direct promotional caption or hook"},
+                        "hashtags": {"type": "array", "items": {"type": "string"}, "description": "List of hashtags (e.g. ['#AlienhouseDiwali', '#FestiveVibes'])"},
+                        "image_prompt": {"type": "string", "description": "Detailed visual creative prompt to synthesize the campaign image asset"},
+                        "generate_image": {"type": "boolean", "default": True, "description": "Whether to generate an AI visual image for this post"},
+                        "image_url": {"type": "string", "description": "Optional pre-existing image URL"},
+                        "topic": {"type": "string", "description": "Campaign theme or subject topic"},
+                    },
+                },
+                output_schema={
+                    "type": "object",
+                    "properties": {
+                        "success": {"type": "boolean"},
+                        "post_id": {"type": "string"},
+                        "platform": {"type": "string"},
+                        "image_url": {"type": "string"},
+                        "caption": {"type": "string"},
+                        "hashtags": {"type": "array"},
+                        "status": {"type": "string"},
+                        "approval_status": {"type": "string"},
+                    },
+                },
+                required_scopes=["marketing:write"],
+                risk_level="LOW",
+                side_effect="WRITE",
+                approval_required=False,
+            )
+        )
+
+        # 14. post.publish (Marketing Post Publishing to Social Channels)
+        self.register(
+            ToolDefinition(
+                name="post.publish",
+                description="Publishes an approved marketing content post to the live social platform.",
+                input_schema={
+                    "type": "object",
+                    "required": ["post_id"],
+                    "properties": {
+                        "post_id": {"type": "string", "description": "ID of the ContentPost to publish"},
+                        "platform": {"type": "string", "description": "Target platform name"},
+                    },
+                },
+                output_schema={"type": "object", "properties": {"success": {"type": "boolean"}, "post_id": {"type": "string"}}},
+                required_scopes=["marketing:write"],
+                risk_level="HIGH",
+                side_effect="WRITE",
+                approval_required=True,
+            )
+        )
+
+        # 15. lead.score (Sales Lead Scoring)
+        self.register(
+            ToolDefinition(
+                name="lead.score",
+                description="Scores and qualifies a CRM sales lead based on firmographic fit and engagement.",
+                input_schema={
+                    "type": "object",
+                    "required": ["lead_id"],
+                    "properties": {
+                        "lead_id": {"type": "string"},
+                        "score": {"type": "number", "minimum": 0, "maximum": 100},
+                    },
+                },
+                output_schema={"type": "object", "properties": {"success": {"type": "boolean"}}},
+                required_scopes=["sales:write"],
+                risk_level="LOW",
+                side_effect="WRITE",
+                approval_required=False,
+            )
+        )
+
+        # 16. ticket.create (Customer Support Ticket Creation)
+        self.register(
+            ToolDefinition(
+                name="ticket.create",
+                description="Creates a new customer support ticket in the Support Helpdesk.",
+                input_schema={
+                    "type": "object",
+                    "required": ["subject"],
+                    "properties": {
+                        "subject": {"type": "string"},
+                        "description": {"type": "string"},
+                        "customer_email": {"type": "string"},
+                        "priority": {"type": "string", "default": "medium"},
+                    },
+                },
+                output_schema={"type": "object", "properties": {"success": {"type": "boolean"}, "ticket_id": {"type": "string"}}},
+                required_scopes=["support:write"],
+                risk_level="LOW",
+                side_effect="WRITE",
+                approval_required=False,
+            )
+        )
+
+        # 17. ticket.close (Customer Support Ticket Closure)
+        self.register(
+            ToolDefinition(
+                name="ticket.close",
+                description="Closes an identified customer support ticket upon resolution.",
+                input_schema={
+                    "type": "object",
+                    "required": ["ticket_id"],
+                    "properties": {
+                        "ticket_id": {"type": "string"},
+                    },
+                },
+                output_schema={"type": "object", "properties": {"success": {"type": "boolean"}}},
+                required_scopes=["support:write"],
+                risk_level="LOW",
+                side_effect="WRITE",
+                approval_required=False,
+            )
+        )
+
+        # 18. applicant.create (HR Talent Acquisition)
+        self.register(
+            ToolDefinition(
+                name="applicant.create",
+                description="Creates a candidate profile in HR applicant tracking.",
+                input_schema={
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": {
+                        "name": {"type": "string"},
+                        "email": {"type": "string"},
+                        "role": {"type": "string"},
+                    },
+                },
+                output_schema={"type": "object", "properties": {"success": {"type": "boolean"}, "candidate_id": {"type": "string"}}},
+                required_scopes=["hr:write"],
+                risk_level="LOW",
+                side_effect="WRITE",
+                approval_required=False,
+            )
+        )
+
+        # 19. applicant.score (HR Applicant Scorecard Evaluation)
+        self.register(
+            ToolDefinition(
+                name="applicant.score",
+                description="Evaluates candidate competency and updates applicant scorecard.",
+                input_schema={
+                    "type": "object",
+                    "required": ["candidate_id"],
+                    "properties": {
+                        "candidate_id": {"type": "string"},
+                        "scorecard": {"type": "object"},
+                    },
+                },
+                output_schema={"type": "object", "properties": {"success": {"type": "boolean"}}},
+                required_scopes=["hr:write"],
+                risk_level="LOW",
+                side_effect="WRITE",
                 approval_required=False,
             )
         )

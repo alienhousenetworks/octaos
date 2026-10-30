@@ -50,19 +50,37 @@ class TerritoryRoutePlannerAgent(BaseSalesAgent):
             .all()
         )
 
+        from app.models.deal_room import BuyingCommitteeMember
         candidates: List[Dict[str, Any]] = []
         for idx, r in enumerate(rooms):
-            # Coordinates from metadata or default scatter around start point
-            lat = start_lat + ((idx % 5 - 2) * 0.04)
-            lon = start_lon + (((idx // 5) % 5 - 2) * 0.04)
+            brief = r.account_brief or {}
+            lat = brief.get("latitude")
+            lon = brief.get("longitude")
+            if lat is None or lon is None:
+                lat = start_lat + ((idx % 5 - 2) * 0.04)
+                lon = start_lon + (((idx // 5) % 5 - 2) * 0.04)
+
+            contact = None
+            try:
+                contact = (
+                    self.db.query(BuyingCommitteeMember)
+                    .filter(BuyingCommitteeMember.deal_room_id == r.id)
+                    .first()
+                )
+            except Exception:
+                contact = None
+
+            c_name = contact.name if contact else f"{r.company_name} Lead"
+            c_phone = contact.phone if (contact and contact.phone) else ""
+
             candidates.append({
                 "account_id": r.id,
                 "company_name": r.company_name,
                 "address": f"{r.city or 'Financial District'}, {r.country or 'USA'}",
-                "latitude": lat,
-                "longitude": lon,
-                "contact_name": "Executive Contact",
-                "contact_phone": "+1-555-0199",
+                "latitude": float(lat),
+                "longitude": float(lon),
+                "contact_name": c_name,
+                "contact_phone": c_phone,
                 "priority_score": float(r.priority_index or r.timing_score or 0.75),
                 "timing_score": float(r.timing_score or 0.5),
             })

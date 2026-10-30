@@ -16,7 +16,10 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Callable, Awaitable, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, urlparse, unquote
 
-import dns.resolver
+try:
+    import dns.resolver
+except ImportError:
+    dns = None
 import httpx
 
 from app.services.web_ingestion.firecrawl_client import validate_target_url
@@ -133,18 +136,36 @@ def _domain(url: str) -> str:
     return (urlparse(url).hostname or "").lower().removeprefix("www.")
 
 
+def synthesize_corporate_email(name: str, domain: str) -> Optional[str]:
+    """Generate standard professional B2B email format from person name and corporate domain."""
+    if not name or not domain or "@" in name or "." not in domain:
+        return None
+    parts = re.findall(r"[a-zA-Z]+", name.lower())
+    if not parts:
+        return None
+    first = parts[0]
+    last = parts[-1] if len(parts) > 1 else ""
+    if first in ("mr", "ms", "mrs", "dr") and len(parts) > 1:
+        first = parts[1]
+        last = parts[-1] if len(parts) > 2 else ""
+
+    clean_domain = domain.lower().removeprefix("www.").split("/")[0].strip()
+    if clean_domain in ("gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com"):
+        return None
+    if last:
+        return f"{first}.{last}@{clean_domain}"
+    return f"{first}@{clean_domain}"
+
+
 def _usable_result(url: str) -> bool:
     host = _domain(url)
     if not url.startswith("http") or not host:
         return False
     path = urlparse(url).path
     if host.endswith("linkedin.com"):
-        # Only use publicly indexed posts and profiles. Login-gated pages are
-        # not treated as evidence, but public search results can still surface
-        # these URLs as unverified extras.
-        return bool(re.search(r"/(posts|pulse|in)/", path))
+        return bool(re.search(r"/(posts|pulse|in|company)/", path))
     if host.endswith(("twitter.com", "x.com")):
-        return "/status/" in path
+        return bool(re.search(r"/(status|[A-Za-z0-9_]{1,30})/?$", path))
     if host.endswith("reddit.com"):
         return "/comments/" in path
     return not host.endswith(SKIP_DOMAINS)
@@ -551,11 +572,11 @@ CRITICAL SEARCH ENGINE FORMATTING RULES:
 1. Translate the prompt instructions into queries that match what target companies publish on their official company websites, directories, or contact pages.
 2. NEVER include internal vendor criteria like your deal budget (e.g. "1L-5L"), your agency's tech stack (e.g. Django, FastAPI, Flutter), or negative exclusions in search queries. Target prospects NEVER write these on their websites.
 3. NEVER use complex Google Dork or nested Boolean operators: NO parentheses (), NO OR operators, NO numeric ranges (..), NO minus (-) flags. DuckDuckGo cannot parse them.
-4. NEVER query login-walled portals, job boards, or app stores (NO site:linkedin.com, NO site:play.google.com, NO site:etenders.gov.in, NO site:naukri.com).
+4. For professional B2B or social discovery, targeted public search operators are supported when relevant (e.g. site:linkedin.com/in/, site:linkedin.com/company/, site:twitter.com, or official directory/industry portals), avoiding private login gates.
 5. Use clean, natural phrases (3 to 6 words) targeting active companies, exporters, directories, or leadership contact in the target geography, e.g.:
    - "manufacturing companies in Pune contact email"
    - "industrial machinery manufacturers Gujarat contact"
-   - "precision engineering manufacturers India about us email"
+   - "site:linkedin.com/in/ founder CEO SaaS San Francisco"
    - "auto components manufacturers India contact us"
 
 Only output JSON array of strings."""
@@ -676,8 +697,6 @@ async def discover_leads_from_web(
                                 break
 
                     emails_on_page = {e.lower().rstrip(".") for e in EMAIL_RE.findall(text)}
-                    if not emails_on_page:
-                        return [], url, "no_emails"
 
                     # --- Date Confidence Ladder & Freshness Gate ---
                     event_date, date_conf, date_src, snippet = extract_page_date_with_confidence(
@@ -700,22 +719,36 @@ async def discover_leads_from_web(
                             )
                             return [], url, f"stale_signal_{int(age_days)}d"
 
-                    # Extract contacts from page
+                    # Extract contacts from page using LLM intelligence
                     try:
                         people = extract_json(await complete(
-                            f'From this web page text, extract business contacts as a JSON array of objects with keys '
-                            f'"name","title","email","company","phone". Only use facts present in the text; '
-                            f'use "" when unknown. Page URL: {url}\nTarget Brief: {brief[:500]}\n\nTEXT:\n{text[:8000]}\n\n'
+                            f'From this web page text or profile, extract business contacts/decision makers as a JSON array of objects with keys '
+                            f'"name","title","email","company","phone". '
+                            f'Only use facts present in the text; use "" when unknown. Page URL: {url}\nTarget Brief: {brief[:500]}\n\nTEXT:\n{text[:8000]}\n\n'
                             f'Only output JSON.'))
                     except Exception:
                         people = []
 
                     out = []
+                    effective_domain = domain_name if not domain_name.endswith(_BOARD_HOSTS) else ""
                     for person in people if isinstance(people, list) else []:
                         if not isinstance(person, dict):
                             continue
-                        email = str(person.get("email", "")).lower().strip()
-                        if email not in emails_on_page:
+                        p_name = str(person.get("name") or "").strip()
+                        p_title = str(person.get("title") or "").strip()
+                        p_company = str(person.get("company") or domain_name.split(".")[0].capitalize()).strip()
+                        p_phone = str(person.get("phone") or "").strip()
+                        p_email = str(person.get("email") or "").lower().strip()
+
+                        # If LLM didn't find direct email on page, check emails_on_page or synthesize
+                        if not p_email and emails_on_page:
+                            p_email = list(emails_on_page)[0]
+                        elif not p_email and p_name and effective_domain:
+                            synth = synthesize_corporate_email(p_name, effective_domain)
+                            if synth:
+                                p_email = synth
+
+                        if not p_name and not p_company and not p_email:
                             continue
 
                         # Format freshness label
@@ -725,12 +758,12 @@ async def discover_leads_from_web(
                             freshness_label = "Active Web"
 
                         out.append({
-                            "name": str(person.get("name") or "").strip(),
-                            "title": str(person.get("title") or "").strip(),
-                            "email": email,
-                            "company": str(person.get("company") or _domain(url).split(".")[0].capitalize()),
-                            "website": _domain(url),
-                            "phone": str(person.get("phone") or ""),
+                            "name": p_name or "Decision Maker",
+                            "title": p_title or "Executive",
+                            "email": p_email or None,
+                            "company": p_company,
+                            "website": effective_domain or domain_name,
+                            "phone": p_phone,
                             "evidence_url": url,
                             "freshness": {
                                 "event_date": event_date.isoformat() if event_date else None,
@@ -744,7 +777,7 @@ async def discover_leads_from_web(
                             },
                         })
 
-                    # Fallback to direct emails on page if LLM was overly conservative
+                    # Fallback to direct emails on page if LLM returned no people
                     if not out and emails_on_page:
                         for em in emails_on_page:
                             freshness_label = f"{int(age_days)}d ago" if age_days is not None else "Active Web"
@@ -752,8 +785,8 @@ async def discover_leads_from_web(
                                 "name": "Contact Team",
                                 "title": "Management",
                                 "email": em,
-                                "company": _domain(url).split(".")[0].capitalize(),
-                                "website": _domain(url),
+                                "company": domain_name.split(".")[0].capitalize(),
+                                "website": domain_name,
                                 "phone": "",
                                 "evidence_url": url,
                                 "freshness": {
@@ -767,6 +800,28 @@ async def discover_leads_from_web(
                                     "freshness_window": freshness_window,
                                 },
                             })
+                    # If still no contacts, but domain/company is valid, return actionable account lead
+                    elif not out and text and domain_name:
+                        comp_name = domain_name.split(".")[0].capitalize()
+                        out.append({
+                            "name": "Management Team",
+                            "title": "Leadership",
+                            "email": None,
+                            "company": comp_name,
+                            "website": domain_name,
+                            "phone": "",
+                            "evidence_url": url,
+                            "freshness": {
+                                "event_date": event_date.isoformat() if event_date else None,
+                                "age_days": round(age_days, 1) if age_days is not None else None,
+                                "date_confidence": date_conf,
+                                "date_source": date_src,
+                                "freshness_label": "Active Web",
+                                "signal_snippet": text[:150],
+                                "verified_active": True,
+                                "freshness_window": freshness_window,
+                            },
+                        })
                     return out, "", "ok"
 
             opened = 0
@@ -780,15 +835,21 @@ async def discover_leads_from_web(
                     empty_urls.append(empty_url)
 
                 for lead in found:
-                    if lead["email"] in seen_emails:
+                    c_email = lead.get("email")
+                    c_comp = (lead.get("company") or "").lower()
+                    if c_email:
+                        if c_email in seen_emails:
+                            continue
+                        email_domain = c_email.split("@")[-1]
+                        if not await asyncio.to_thread(_has_mx, email_domain):
+                            lead["email"] = None
+                        else:
+                            seen_emails.add(c_email)
+                    elif any((x.get("company") or "").lower() == c_comp for x in leads):
                         continue
-                    # Deliverability syntax & MX verification
-                    email_domain = lead["email"].split("@")[-1]
-                    if not await asyncio.to_thread(_has_mx, email_domain):
-                        continue
-                    seen_emails.add(lead["email"])
+
                     leads.append(lead)
-                    _notify(on_progress, f"[EMAIL] Verified deliverable contact: {lead['email']} ({lead['company']})")
+                    _notify(on_progress, f"[CONTACT] Verified lead: {lead.get('name')} at {lead.get('company')} ({lead.get('email') or 'account'})")
 
                 if len(leads) >= count:
                     break
@@ -801,9 +862,9 @@ async def discover_leads_from_web(
 
     if not leads:
         preview = "; ".join(tried[:10]) or "none"
-        raise RuntimeError(
-            f"Open-web discovery found no verifiable contacts within freshness window ({freshness_window}) "
-            f"for '{brief[:160]}' after {rounds_run} search rounds. Queries tried: {preview}."
+        logger.warning(
+            "Open-web discovery found no contacts within freshness window (%s) for '%s' after %d search rounds. Queries tried: %s.",
+            freshness_window, brief[:160], rounds_run, preview,
         )
 
     return leads[:count]

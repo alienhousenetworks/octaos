@@ -14,7 +14,22 @@ import ipaddress
 from urllib.parse import urlparse
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+try:
+    from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+except ImportError:
+    def retry(*args, **kwargs):
+        def decorator(f):
+            return f
+        return decorator
+
+    def stop_after_attempt(*args, **kwargs):
+        return None
+
+    def wait_exponential(*args, **kwargs):
+        return None
+
+    def retry_if_exception(*args, **kwargs):
+        return None
 
 logger = logging.getLogger(__name__)
 

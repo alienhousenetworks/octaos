@@ -43,7 +43,27 @@ class DiscoveryService:
             tenant_id=self.tenant_id, provider=provider
         ).first()
 
-        if provider != "web_search" and (not cred or "your_api_key" in (cred.encrypted_key or "") or not cred.encrypted_key.strip()):
+        provider_api_key = ""
+        if cred and cred.encrypted_key and "your_api_key" not in cred.encrypted_key:
+            try:
+                provider_api_key = decrypt_api_key(cred.encrypted_key)
+            except Exception:
+                provider_api_key = ""
+
+        # Check server environment fallback when DB credential is not set
+        if not provider_api_key and provider != "web_search":
+            env_map = {
+                "apollo": os.getenv("APOLLO_API_KEY"),
+                "firecrawl": os.getenv("FIRECRAWL_API_KEY"),
+                "hunter": os.getenv("HUNTER_API_KEY"),
+                "apify": os.getenv("APIFY_API_KEY"),
+                "google_places": os.getenv("GOOGLE_PLACES_API_KEY") or os.getenv("GOOGLE_MAPS_API_KEY"),
+                "brave_search": os.getenv("BRAVE_SEARCH_API_KEY"),
+                "tavily": os.getenv("TAVILY_API_KEY"),
+            }
+            provider_api_key = (env_map.get(provider) or "").strip()
+
+        if provider != "web_search" and not provider_api_key:
             self._log_activity(
                 "API Setup Recommendation",
                 f"No API credentials configured for '{provider}'. Falling back to multi-channel open-web discovery. "
@@ -96,11 +116,25 @@ class DiscoveryService:
             else:
                 leads_data = await self.fetch_real_leads(
                     provider,
-                    decrypt_api_key(cred.encrypted_key) if cred else "",
+                    provider_api_key,
                     query,
                     count,
                     **fetch_extra,
                 )
+                if not leads_data:
+                    self._log_activity(
+                        "Fallback Search",
+                        f"{provider} returned 0 leads. Falling back to multi-source web discovery...",
+                        "warning",
+                    )
+                    leads_data = await self.fetch_real_leads(
+                        "web_search",
+                        "",
+                        query,
+                        count,
+                        freshness_window=freshness,
+                        **fetch_extra,
+                    )
             if not leads_data:
                 message = (
                     f"No leads could be discovered for query '{query}'. "
@@ -329,7 +363,7 @@ Only output valid JSON. No other text."""
 
                 payload = {
                     "api_key": api_key,
-                    "page": random.randint(1, 5),
+                    "page": 1,
                     "per_page": count,
                     **parsed_query,
                 }
@@ -338,22 +372,34 @@ Only output valid JSON. No other text."""
                     data = response.json()
                     people = data.get("people", [])
                     if not people:
-                        safe_payload = {k: v for k, v in payload.items() if k != "api_key"}
-                        raise Exception(f"Apollo returned 0 people for payload: {safe_payload}. Full response: {response.text}")
+                        logger.info("Apollo returned 0 people for query '%s'; falling back to web_search.", query)
+                        return await self.fetch_real_leads("web_search", "", query, count, **fetch_extra)
                     for p in people[:count]:
                         org = p.get("organization", {})
                         first = p.get("first_name", "")
                         last = p.get("last_name", "")
-                        if not first or not last or "***" in last:
-                            continue
-                        full_name = f"{first} {last}".strip()
+                        org_name = org.get("name") or "Target Corp"
                         website = org.get("primary_domain", "") or org.get("website_url", "")
+                        title = p.get("title") or ""
+                        if not first and not last and not org_name:
+                            continue
+                        if "***" in (last or "") or not last:
+                            full_name = f"{first} ({title})".strip() if (first and title) else (first or title or "Business Leader")
+                            email = p.get("email") or ""
+                            if not email and first and website:
+                                email = f"{first.lower()}@{website.lower().removeprefix('www.')}"
+                        else:
+                            full_name = f"{first} {last}".strip()
+                            email = p.get("email") or ""
+                            if not email and website:
+                                email = f"{first.lower()}.{last.lower()}@{website.lower().removeprefix('www.')}"
                         leads.append({
-                            "name": full_name or "Unknown Contact",
-                            "email": p.get("email", ""),
-                            "company": org.get("name", "Target Corp"),
+                            "name": full_name or "Business Contact",
+                            "email": email,
+                            "company": org_name,
                             "website": website,
-                            "phone": p.get("primary_phone", ""),
+                            "phone": p.get("primary_phone", "") or p.get("sanitized_phone", ""),
+                            "title": title,
                         })
                 else:
                     raise Exception(f"Apollo API Error: {response.status_code} - {response.text}")
@@ -408,7 +454,6 @@ Only output valid JSON. No other text."""
                 if not domains:
                     raise Exception(f"Hunter could not find any valid domains for query: {query}")
 
-                random.shuffle(domains)
                 for domain in domains:
                     if len(leads) >= count:
                         break

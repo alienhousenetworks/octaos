@@ -11,12 +11,12 @@ from pydantic import BaseModel, Field
 
 
 PROHIBITED_GUARANTEES = [
-    r"(?i)\bguarantee(d)?\b.*?\b(100%|roi|financial|wealth|success|returns)",
+    r"(?i)\bguarantee(d)?\b.*?\b(100%|\d+%\s*|roi|financial|wealth|success|return(s)?|profit(s)?|yield|appreciation)",
     r"(?i)\brisk-free\s+(investment|profits|returns)",
     r"(?i)\bget\s+rich\s+quick\b",
     r"(?i)\b10x\s+overnight\b",
     r"(?i)\bdouble\s+your\s+money\b",
-    r"(?i)\bzero\s+risk\s+guarantee\b",
+    r"(?i)\bzero\s+risk(\s+guarantee)?\b",
 ]
 
 TABOO_WORDS = [

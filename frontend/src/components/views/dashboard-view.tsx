@@ -287,7 +287,7 @@ export default function DashboardView({
   ];
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 animate-in fade-in duration-300">
+    <div className="w-full max-w-[1600px] space-y-6 animate-in fade-in duration-300">
       {/* Header with Quick Actions & Live Indicator */}
           <PageHeader
         title="Enterprise Intelligence Cockpit"

@@ -29,12 +29,19 @@ def contact_from_text(text: str, page_url: str) -> tuple[str, str]:
     best_name = ""
     best_email = ""
 
+    # Platforms and directories where contact emails naturally differ from page domain
+    platform_hosts = (
+        "linkedin.com", "twitter.com", "x.com", "reddit.com", "github.com",
+        "producthunt.com", "clutch.co", "ycombinator.com", "medium.com", "substack.com",
+    )
+    is_platform = any(host.endswith(ph) for ph in platform_hosts)
+
     for match in EMAIL_RE.finditer(text or ""):
         email = match.group(0).lower().strip(".,;:\"'<>(){}[]")
         if "@" not in email or is_fabricated_contact({"email": email, "name": ""}):
             continue
         domain = email.split("@", 1)[1]
-        if host and domain != host and not domain.endswith("." + host) and not host.endswith("." + domain):
+        if host and not is_platform and domain != host and not domain.endswith("." + host) and not host.endswith("." + domain):
             continue
 
         window_before = (text or "")[max(0, match.start() - 100):match.start()]
@@ -58,6 +65,13 @@ def contact_from_text(text: str, page_url: str) -> tuple[str, str]:
             best_email = email
             best_name = name
 
-    if best_email:
-        return best_name, best_email
-    return "", ""
+    if not best_name:
+        # Fallback to general name regex match in lead paragraph if no email was adjacent
+        found_names = list(_NAME_RE.finditer((text or "")[:500]))
+        for fn in found_names:
+            c = fn.group(1).strip()
+            if c.lower() not in _NAME_STOP:
+                best_name = c
+                break
+
+    return best_name, best_email

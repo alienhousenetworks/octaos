@@ -291,8 +291,10 @@ class LLMGateway:
         reference_image_url: Optional[str] = None,
         aspect_ratio: str = "1:1",
     ) -> str:
+        default_p = getattr(settings, "DEFAULT_IMAGE_PROVIDER", None) or "openrouter"
+        provider = provider or default_p
         # Normalize provider aliases
-        p_lower = (provider or "together").lower()
+        p_lower = (provider or default_p).lower()
         if p_lower in ("dalle", "dall-e", "dall-e-3"):
             provider = "openai"
         elif p_lower in ("claude",):
@@ -303,6 +305,15 @@ class LLMGateway:
             provider = "together"
 
         api_key = self._get_api_key(provider)
+        
+        # If preferred provider key is missing, fall back to any configured image provider
+        if not api_key:
+            for fallback_candidate in ["openrouter", "openai", "anthropic", "gemini", "grok", "stability", "together"]:
+                fb_key = self._get_api_key(fallback_candidate)
+                if fb_key:
+                    provider = fallback_candidate
+                    api_key = fb_key
+                    break
         
         if not api_key:
             error_msg = (
@@ -580,11 +591,22 @@ class LLMGateway:
         reference_image_url: Optional[str] = None,
         aspect_ratio: str = "16:9",
     ) -> str:
-        p_lower = (provider or "together").lower()
+        default_vp = getattr(settings, "DEFAULT_VIDEO_PROVIDER", None) or "openrouter"
+        provider = provider or default_vp
+        p_lower = (provider or default_vp).lower()
         if p_lower in ("togetherai", "together_ai", "togetherapi"):
             provider = "together"
 
         api_key = self._get_api_key(provider)
+
+        # If preferred provider key is missing, fall back to any configured video provider
+        if not api_key:
+            for fallback_candidate in ["openrouter", "heygen", "pika", "veo", "grok", "stability", "together"]:
+                fb_key = self._get_api_key(fallback_candidate)
+                if fb_key:
+                    provider = fallback_candidate
+                    api_key = fb_key
+                    break
         if not api_key:
             error_msg = (
                 f"error:No API key configured for video provider '{provider}'. "

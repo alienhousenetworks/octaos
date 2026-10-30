@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import List, Optional, Any
 from datetime import datetime, timezone
+import re
 from pydantic import BaseModel
 
 from app.api import deps
@@ -103,6 +105,7 @@ def _ticket_to_dict(t: Ticket) -> dict:
         "mode": t.mode or "ai",
         "approval_status": t.approval_status,
         "created_at": _iso(t.created_at),
+        "extra_data": t.extra_data or {},
     }
 
 
@@ -128,7 +131,7 @@ def get_tickets(
     room_slug: Optional[str] = None,
 ) -> Any:
     q = db.query(Ticket).filter(Ticket.tenant_id == tenant_id)
-    if room_slug:
+    if room_slug and room_slug.lower() not in ("all", "all_rooms", "*"):
         from app.models.rooms import SectionRoom
         rm = db.query(SectionRoom).filter(
             SectionRoom.tenant_id == tenant_id,
@@ -136,8 +139,15 @@ def get_tickets(
             SectionRoom.slug == room_slug.lower(),
         ).first()
         if rm:
-            room_id = rm.id
-    if room_id:
+            # When viewing the default room, include unassigned tickets (room_id IS NULL)
+            # so web widget & webhook tickets are always visible to support agents
+            if rm.slug == "default":
+                q = q.filter(or_(Ticket.room_id == rm.id, Ticket.room_id.is_(None)))
+            else:
+                q = q.filter(Ticket.room_id == rm.id)
+        elif room_id:
+            q = q.filter(Ticket.room_id == room_id)
+    elif room_id:
         q = q.filter(Ticket.room_id == room_id)
     tickets = q.order_by(Ticket.created_at.desc()).all()
     return [_ticket_to_dict(t) for t in tickets]
@@ -162,6 +172,7 @@ async def manual_reply(
     db: Session = Depends(deps.get_db),
     tenant_id: str = Depends(deps.get_current_tenant_id),
     user: User = Depends(deps.get_current_user),
+    _: User = Depends(require_permission(Resource.TICKETS, Action.UPDATE)),
 ) -> Any:
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id, Ticket.tenant_id == tenant_id).first()
     if not ticket:
@@ -211,6 +222,124 @@ async def manual_reply(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/tickets/{ticket_id}/ai-draft")
+async def generate_ai_draft(
+    ticket_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.TICKETS, Action.READ)),
+) -> Any:
+    """Generate a high-quality, KB-grounded response suggestion for human support reps."""
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id, Ticket.tenant_id == tenant_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    messages = db.query(TicketMessage).filter(TicketMessage.ticket_id == ticket_id).order_by(TicketMessage.created_at.asc()).all()
+    
+    last_customer_msg = ""
+    history_str = ""
+    for m in messages:
+        history_str += f"{m.sender.upper()}: {m.content}\n"
+        if m.sender == "customer" and m.content:
+            last_customer_msg = m.content
+
+    query_text = last_customer_msg or ticket.subject or ticket.description or "Customer inquiry"
+
+    from app.services.kb_rag import KnowledgeRAGService
+    from app.services.llm_gateway import LLMGateway
+
+    rag = KnowledgeRAGService(db, tenant_id)
+    kb_result = rag.answer_context(query_text, department="Support")
+    knowledge_context = kb_result.get("context", "") if kb_result.get("answer_allowed") else ""
+    citations = kb_result.get("citations", [])
+
+    llm = LLMGateway(db, tenant_id)
+    system_prompt = (
+        "You are an expert customer support agent copilot. "
+        "Draft a helpful, polite, and accurate response to the customer. "
+        "Base your answer on the provided Company Knowledge Base when available. "
+        "Keep the reply concise, professional, empathetic, and ready to send. "
+        "Do not include placeholders like [Your Name] or mention that you are an AI assistant."
+    )
+    prompt = (
+        f"Conversation History:\n{history_str or 'Customer opened ticket: ' + (ticket.description or ticket.subject or '')}\n\n"
+        f"Knowledge Base Context:\n{knowledge_context or 'Rely on standard customer support best practices.'}\n\n"
+        f"Customer Inquiry: {query_text}\n\n"
+        "Draft the exact response for the human agent to send to the customer:"
+    )
+
+    try:
+        draft = await llm.complete(
+            prompt=prompt,
+            model=None,
+            provider=None,
+            system_prompt=system_prompt,
+        )
+    except Exception as e:
+        draft = f"Thank you for reaching out regarding '{ticket.subject}'. We are reviewing your request and will assist you right away."
+
+    return {
+        "status": "success",
+        "ticket_id": ticket.id,
+        "draft": (draft or "").strip(),
+        "citations": citations[:3] if citations else [],
+    }
+
+
+@router.post("/tickets/{ticket_id}/ai-triage")
+async def triage_ticket(
+    ticket_id: str,
+    db: Session = Depends(deps.get_db),
+    tenant_id: str = Depends(deps.get_current_tenant_id),
+    _: User = Depends(require_permission(Resource.TICKETS, Action.READ)),
+) -> Any:
+    """Analyze customer sentiment, urgency level, category, and root issue summary."""
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id, Ticket.tenant_id == tenant_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    messages = db.query(TicketMessage).filter(TicketMessage.ticket_id == ticket_id).order_by(TicketMessage.created_at.asc()).all()
+    history_str = "\n".join([f"{m.sender}: {m.content}" for m in messages if m.content]) or ticket.description or ticket.subject or ""
+
+    from app.services.llm_gateway import LLMGateway
+    import json
+    llm = LLMGateway(db, tenant_id)
+
+    system_prompt = (
+        "You are an AI Support Triage Classifier. Analyze the support ticket and respond ONLY with a valid JSON object with keys: "
+        "'sentiment' (one of: 'positive', 'neutral', 'frustrated', 'urgent'), "
+        "'urgency' (one of: 'P1', 'P2', 'P3'), "
+        "'category' (one of: 'Bug / Technical Issue', 'Billing & Payments', 'Account & Access', 'Feature Request', 'General Inquiry'), "
+        "'summary' (one clear sentence summarizing the root customer problem), "
+        "'suggested_action' (brief phrase like 'Review billing invoice', 'Provide reset instructions', 'Investigate bug report')."
+    )
+    prompt = f"Ticket Subject: {ticket.subject}\nChannel: {ticket.channel}\nContent:\n{history_str}\n\nReturn ONLY raw JSON."
+
+    try:
+        res = await llm.complete(prompt=prompt, model=None, provider=None, system_prompt=system_prompt)
+        clean_res = re.sub(r"^```json\s*|\s*```$", "", res.strip(), flags=re.MULTILINE).strip()
+        data = json.loads(clean_res)
+    except Exception:
+        data = {
+            "sentiment": "neutral",
+            "urgency": "P2" if ticket.priority == "high" else "P3",
+            "category": "General Inquiry",
+            "summary": ticket.subject or "Customer inquiry",
+            "suggested_action": "Respond to customer inquiry",
+        }
+
+    extra = dict(ticket.extra_data or {})
+    extra["ai_insights"] = data
+    ticket.extra_data = extra
+    if data.get("urgency") == "P1":
+        ticket.priority = "high"
+    db.commit()
+    db.refresh(ticket)
+
+    return {"status": "success", "ticket_id": ticket.id, "ai_insights": data}
+
 
 @router.get("/customers/{customer_id}/history")
 def get_customer_history(

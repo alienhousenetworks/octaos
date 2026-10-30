@@ -202,27 +202,33 @@ export default function AgentWorkspaceBody({ kind, agent, onQuickAction }: { kin
   const skin = WORKSPACE_SKINS[kind];
   const SkinIcon = skin.icon;
   return (
-    <div data-testid="agent-workspace" data-workspace={kind} data-workspace-skin={kind} className={'overflow-hidden rounded-2xl border bg-[#0f1310] ' + skin.border}>
-      <header className={'relative overflow-hidden border-b border-white/[0.07] bg-gradient-to-br ' + skin.glow + ' px-5 py-6 md:px-7 md:py-7'}>
-        <div className="pointer-events-none absolute -right-12 -top-16 size-56 rounded-full border border-white/[0.06]" />
-        <div className="pointer-events-none absolute -right-2 -top-6 size-36 rounded-full border border-white/[0.06]" />
-        <div className="relative flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-3xl">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.18em]" style={{ color: skin.accent }}><SkinIcon className="size-3.5" /> {skin.eyebrow}</div>
-            <h2 className="text-2xl font-semibold tracking-tight text-white md:text-3xl">{skin.title}</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">{skin.description}</p>
+    <div data-testid="agent-workspace" data-workspace={kind} data-workspace-skin={kind} className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#0c100d]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] bg-white/[0.02] px-4 py-2">
+        <div className="flex items-center gap-2.5 text-xs min-w-0">
+          <div className="flex size-6 items-center justify-center rounded-lg bg-white/[0.05]" style={{ color: skin.accent }}>
+            <SkinIcon className="size-3.5" />
           </div>
-          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/60"><Activity className="size-3.5" style={{ color: skin.accent }} /><span>Native workspace connected</span></div>
+          <div className="min-w-0">
+            <span className="font-semibold text-white/95">{skin.title}</span>
+            <span className="mx-2 text-white/30 hidden sm:inline">·</span>
+            <span className="text-[11px] text-white/50 hidden sm:inline truncate">{skin.description}</span>
+          </div>
         </div>
-        <div className="relative mt-6 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {skin.actions.map((action) => (
-            <button key={action} type="button" onClick={() => onQuickAction?.(action + '. Use connected OctaOS data and approved company knowledge. Separate verified facts from assumptions, and do not claim an action completed unless the system confirms it.')} className="group flex min-h-11 items-center justify-between gap-3 rounded-xl border border-white/[0.09] bg-black/20 px-3.5 py-3 text-left text-xs font-medium text-white/80 transition hover:border-white/20 hover:bg-black/35">
-              <span>{action}</span><Sparkles className="size-3.5 shrink-0 opacity-55 transition group-hover:opacity-100" style={{ color: skin.accent }} />
+            <button
+              key={action}
+              type="button"
+              onClick={() => onQuickAction?.(action + '. Use connected OctaOS data and approved company knowledge. Separate verified facts from assumptions, and do not claim an action completed unless the system confirms it.')}
+              className="group inline-flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] font-medium text-white/75 hover:bg-white/[0.08] hover:text-white transition"
+            >
+              <span>{action}</span>
+              <Sparkles className="size-3 opacity-60 group-hover:opacity-100" style={{ color: skin.accent }} />
             </button>
           ))}
         </div>
-      </header>
-      <div className="p-2 md:p-4">{body}</div>
+      </div>
+      <div className="p-1 md:p-2">{body}</div>
     </div>
   );
 }

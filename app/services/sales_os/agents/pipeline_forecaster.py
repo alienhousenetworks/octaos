@@ -59,10 +59,22 @@ class PipelineForecasterAgent(BaseSalesAgent):
             "closing": 50000.0,
         }
 
+        STAGE_CYCLE_DAYS = {
+            "discovered": 90,
+            "qualified": 75,
+            "researching": 60,
+            "outreach_ready": 60,
+            "in_cadence": 45,
+            "replied": 30,
+            "meeting_booked": 21,
+            "proposal": 14,
+            "closing": 7,
+        }
+
         for r in rooms:
             baseline_prob = STAGE_WIN_PROBABILITIES.get(r.stage, 0.10)
             default_deal_size = STAGE_DEAL_SIZES.get(r.stage, 20000.0)
-            deal_val = float(r.annual_revenue_usd or default_deal_size)
+            deal_val = float(getattr(r, "contract_value_usd", None) or r.annual_revenue_usd or default_deal_size)
             win_prob = float(r.calibrated_win_prob or baseline_prob)
 
             total_pipeline += deal_val
@@ -92,6 +104,8 @@ class PipelineForecasterAgent(BaseSalesAgent):
                 at_risk_count += 1
 
             days_active = (now - (r.created_at or now)).days if r.created_at else 0
+            cycle_days = STAGE_CYCLE_DAYS.get(r.stage, 30)
+            projected_close = (now + timedelta(days=cycle_days)).strftime("%Y-%m-%d")
             deal_audits.append(
                 DealRiskAudit(
                     deal_room_id=r.id,
@@ -100,7 +114,7 @@ class PipelineForecasterAgent(BaseSalesAgent):
                     calibrated_win_prob=win_prob,
                     days_in_stage=max(1, days_active),
                     risk_factors=risks,
-                    projected_close_date=(now + timedelta(days=30)).strftime("%Y-%m-%d"),
+                    projected_close_date=projected_close,
                 )
             )
 

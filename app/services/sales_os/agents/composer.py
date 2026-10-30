@@ -88,8 +88,16 @@ class ComposerAgent(BaseSalesAgent):
         our_usp = ctx.company_overview.get("usp", "Enterprise autonomous sales operating system") if ctx else "Enterprise sales platform"
 
         from app.models.base import User
-        user = self.db.query(User).filter_by(tenant_id=self.tenant_id).order_by(User.is_superuser.desc(), User.id.asc()).first()
-        employee_name = user.name.strip() if (user and user.name and user.name.strip()) else None
+        assigned_user = None
+        if deal_room.assigned_human_id:
+            try:
+                assigned_user = self.db.query(User).filter_by(id=deal_room.assigned_human_id).first()
+            except Exception:
+                assigned_user = None
+        if not assigned_user:
+            assigned_user = self.db.query(User).filter_by(tenant_id=self.tenant_id).order_by(User.is_superuser.desc(), User.id.asc()).first()
+
+        employee_name = assigned_user.name.strip() if (assigned_user and assigned_user.name and assigned_user.name.strip()) else None
         if employee_name:
             sender_rule = f"Write on behalf of {employee_name} at {our_company}. Sign off with: Best regards, {employee_name}, {our_company}."
         else:
@@ -100,6 +108,7 @@ class ComposerAgent(BaseSalesAgent):
         ev_records = self.db.query(EvidenceRecord).filter(EvidenceRecord.tenant_id == self.tenant_id).all()
         proof_claims = [e.claim for e in ev_records]
 
+        usp_with_proof = f"{our_usp}. Verified proof: {proof_claims[0]}" if proof_claims else our_usp
         rendered = render_prompts(
             "sales.composer",
             {
@@ -111,7 +120,7 @@ class ComposerAgent(BaseSalesAgent):
                 "company_name": deal_room.company_name,
                 "signals": ", ".join(signals) if signals else "none",
                 "pain_points": ", ".join(pain_points) if pain_points else "none",
-                "usp": our_usp,
+                "usp": usp_with_proof,
             },
         )
         try:
@@ -130,7 +139,7 @@ class ComposerAgent(BaseSalesAgent):
                 raise ValueError("composer returned an empty draft")
         except Exception:
             subject = f"Question for {recipient_name}"
-            signoff = f"Best regards,\n{employee_name}\n{our_company}" if employee_name else f"Best regards,\nThe {our_company} Team\n{our_company}"
+            signoff = f"Best regards,\n{employee_name}\n{our_company}" if employee_name else f"Best regards,\nThe {our_company} Team"
             if signals:
                 body = f"Hi {recipient_name},\n\nNoticed {deal_room.company_name}'s recent update: {signals[0]}.\n\nOpen to a brief conversation this week?\n\n{signoff}"
             elif proof_claims:

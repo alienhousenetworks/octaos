@@ -315,17 +315,24 @@ class WorkflowOrchestrator:
                     except Exception:
                         pass
 
+            # Merge server environment keys when DB credential row is unconfigured
+            env_discovery_keys = {
+                "apollo": os.getenv("APOLLO_API_KEY"),
+                "firecrawl": os.getenv("FIRECRAWL_API_KEY"),
+                "hunter": os.getenv("HUNTER_API_KEY"),
+                "apify": os.getenv("APIFY_API_KEY"),
+                "google_places": os.getenv("GOOGLE_PLACES_API_KEY") or os.getenv("GOOGLE_MAPS_API_KEY"),
+                "brave_search": os.getenv("BRAVE_SEARCH_API_KEY"),
+                "tavily": os.getenv("TAVILY_API_KEY"),
+                "x_search": os.getenv("X_BEARER_TOKEN"),
+                "x": os.getenv("X_BEARER_TOKEN"),
+            }
+            for k, v in env_discovery_keys.items():
+                if v and v.strip() and k not in available_providers:
+                    available_providers[k] = v.strip()
+
             if mode == "prompt_agent":
-                known_services = {
-                    "Website Development",
-                    "Mobile App Development",
-                    "Web Design",
-                    "SEO & Growth Marketing",
-                }
-                if parsed_icp.service in known_services:
-                    query = f"{parsed_icp.service} {parsed_icp.geography}".strip()
-                else:
-                    query = (prompt_instructions or parsed_icp.service or parsed_icp.intent or "").strip()[:240]
+                query = (prompt_instructions or (f"{parsed_icp.service} {parsed_icp.geography}".strip()) or parsed_icp.intent or "").strip()[:240]
             else:
                 query = profile_target_industries[0] if profile_target_industries else "target clients"
 
@@ -369,7 +376,7 @@ Return a JSON with exactly one key: 'primary_source' (string) containing your ch
             if "web_search" not in providers_to_try:
                 providers_to_try.append("web_search")
             error_log = []
-            search_keys = {"brave_search", "tavily", "reddit", "reddit_intent", "x", "x_search"}
+            search_keys = {"brave_search", "tavily", "firecrawl", "reddit", "reddit_intent", "x", "x_search"}
             suppressed_domains = set()
             try:
                 from app.models.deal_room import SuppressionRecord
