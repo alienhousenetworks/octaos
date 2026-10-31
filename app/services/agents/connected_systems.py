@@ -856,6 +856,8 @@ def format_connector_prompt(connector_info: Dict[str, Any], action_label: str = 
     ]
     if auth_url:
         lines.append(f"- **One-Click OAuth Connect:** [{label} Connect Link]({auth_url})")
+    if any(p in (str(label).lower() + " " + str(provider).lower()) for p in ("instagram", "insta", "facebook", "linkedin", "meta", "buffer", "twitter", "x", "social")):
+        lines.append("- **One-Click Buffer Connect (Instagram, LinkedIn, X):** [/api/v1/buffer/connect](/api/v1/buffer/connect)")
     if external_url:
         lines.append(f"- **Get Token / Portal:** [{external_url}]({external_url})")
     lines.append(f"- **Workspace Integrations:** [{settings_url}]({settings_url})")

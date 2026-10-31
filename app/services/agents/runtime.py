@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import time
 import uuid
 from typing import Dict, Any, List, Optional
@@ -267,13 +268,13 @@ class AgentRuntime:
         import re as _re
         asks_direct_publish = bool(
             _re.search(
-                r"\b(post\s+(?:it\s+|this\s+)?(?:directly|now|live)|publish\s+(?:it\s+|this\s+)?(?:directly|now|live|to|on|in)|post\s+(?:directly\s+)?(?:in|on|to)\s+(?:insta|instagram|facebook|fb|linkedin))\b",
+                r"\b(post\s+(?:it\s+|this\s+)?(?:directly|direcly|direct|now|live)|publish\s+(?:it\s+|this\s+)?(?:directly|direcly|direct|now|live|to|on|in)|post\s+(?:directly\s+|direcly\s+)?(?:in|on|to)\s+(?:insta|instagram|facebook|fb|linkedin))\b",
                 latest_user_turn,
                 _re.IGNORECASE,
             )
             or (
                 _re.search(r"\b(post|publish)\b", latest_user_turn, _re.IGNORECASE)
-                and _re.search(r"\b(direct|directly|live|now)\b", latest_user_turn, _re.IGNORECASE)
+                and _re.search(r"\b(direct|directly|direcly|live|now)\b", latest_user_turn, _re.IGNORECASE)
             )
         )
 
@@ -521,6 +522,26 @@ class AgentRuntime:
                 if res.get("connector_required") and res.get("message"):
                     connector_prompt_override = str(res["message"])
 
+        # Strip any raw JSON tool calls from parsed_output so the user never sees naked code
+        if parsed_output:
+            cleaned_p = _re.sub(r"```json\s*\{.*?\}\s*```", "", parsed_output, flags=_re.DOTALL).strip()
+            cleaned_p = _re.sub(r"```json\s*\{.*", "", cleaned_p, flags=_re.DOTALL).strip()
+            parsed_output = cleaned_p
+
+        if not parsed_output and executed_tools:
+            for inv in executed_tools:
+                res = inv.get("result") or {}
+                if inv.get("tool") == "post.create" and isinstance(res, dict):
+                    cap = res.get("caption") or ""
+                    plat = str(res.get("platform") or "Instagram").title()
+                    tags = " ".join(res.get("hashtags") or [])
+                    parsed_output = (
+                        f"I have designed and drafted your **{plat}** post:\n\n"
+                        f"**Caption:**\n{cap}\n\n"
+                        f"**Hashtags:** {tags}"
+                    )
+                    break
+
         if connector_prompt_override:
             conn_obj = (action_artifact or {}).get("connector") or {}
             auth_link = conn_obj.get("auth_url") or conn_obj.get("external_url") or "/app/settings?tab=integrations"
@@ -709,6 +730,7 @@ class AgentRuntime:
     def _parse_agent_output(self, raw_text: str, allowed_tools: List[str]) -> tuple[str, List[Dict[str, Any]]]:
         tool_invocations = []
         cleaned_output = raw_text.strip()
+        from app.services.ai_gateway.ai_parser import repair_json_string
 
         # Check if the output contains a JSON tool call block
         if "```json" in raw_text:
@@ -716,16 +738,30 @@ class AgentRuntime:
                 parts = raw_text.split("```json")
                 for p in parts[1:]:
                     block = p.split("```")[0].strip()
-                    data = json.loads(block)
+                    try:
+                        data = json.loads(block)
+                    except Exception:
+                        data = json.loads(repair_json_string(block))
                     if isinstance(data, dict) and "tool" in data and data["tool"] in allowed_tools:
                         tool_invocations.append(data)
             except Exception:
                 pass
-        elif raw_text.strip().startswith("{") and raw_text.strip().endswith("}"):
+            # Remove raw json tool block from conversation output so the user never sees raw syntax
+            cleaned_output = re.sub(r"```json\s*\{.*?\}\s*```", "", cleaned_output, flags=re.DOTALL).strip()
+            cleaned_output = re.sub(r"```json\s*\{.*", "", cleaned_output, flags=re.DOTALL).strip()
+        elif "{" in raw_text and '"tool"' in raw_text:
             try:
-                data = json.loads(raw_text.strip())
+                candidate = raw_text.strip()
+                if not candidate.startswith("{"):
+                    start = candidate.find("{")
+                    candidate = candidate[start:]
+                try:
+                    data = json.loads(candidate)
+                except Exception:
+                    data = json.loads(repair_json_string(candidate))
                 if isinstance(data, dict) and "tool" in data and data["tool"] in allowed_tools:
                     tool_invocations.append(data)
+                    cleaned_output = re.sub(r"\{.*", "", raw_text.strip(), flags=re.DOTALL).strip()
             except Exception:
                 pass
 

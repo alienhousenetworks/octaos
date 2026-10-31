@@ -52,6 +52,39 @@ class ActionItemList(BaseModel):
 
 # --- Parser & Retry Manager ---
 
+def repair_json_string(s: str) -> str:
+    """Repair truncated or unclosed JSON strings by closing open quotes and brackets."""
+    s = (s or "").strip()
+    if not s:
+        return s
+    in_quote = False
+    escape = False
+    brace_stack = []
+    for ch in s:
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if ch == '"':
+            in_quote = not in_quote
+            continue
+        if not in_quote:
+            if ch == '{':
+                brace_stack.append('}')
+            elif ch == '[':
+                brace_stack.append(']')
+            elif ch in ('}', ']'):
+                if brace_stack and brace_stack[-1] == ch:
+                    brace_stack.pop()
+    if in_quote:
+        s += '"'
+    while brace_stack:
+        s += brace_stack.pop()
+    return s
+
+
 class AIResponseParser:
     @staticmethod
     def clean_json_string(raw_response: str) -> str:
@@ -72,12 +105,16 @@ class AIResponseParser:
             if match_obj:
                 clean = match_obj.group(1)
             else:
-                # Check for JSON array
-                match_arr = re.search(r"(\[.*\])", clean, re.DOTALL)
-                if match_arr:
-                    clean = match_arr.group(1)
+                match_start = re.search(r"(\{.*)", clean, re.DOTALL)
+                if match_start:
+                    clean = match_start.group(1)
+                else:
+                    # Check for JSON array
+                    match_arr = re.search(r"(\[.*\])", clean, re.DOTALL)
+                    if match_arr:
+                        clean = match_arr.group(1)
                     
-        return clean
+        return repair_json_string(clean)
 
     @classmethod
     def parse_as_model(cls, raw_response: str, model_class: Type[T]) -> T:
@@ -93,15 +130,20 @@ class AIResponseParser:
                     field_name = list(model_class.__fields__.keys())[0]
                     data = {field_name: data}
                 return model_class.model_validate(data)
-            except Exception as inner_e:
-                raise ValueError(f"Failed to validate response against schema {model_class.__name__}: {inner_e}") from e
+            except Exception:
+                try:
+                    repaired = repair_json_string(cleaned)
+                    data = json.loads(repaired)
+                    return model_class.model_validate(data)
+                except Exception as inner_e:
+                    raise ValueError(f"Failed to validate response against schema {model_class.__name__}: {inner_e}") from e
 
 class AIRetryManager:
     @staticmethod
     async def call_with_retry(
         gateway_call_fn,
         model_class: Type[T],
-        max_retries: int = 3,
+        max_retries: int = 2,
         **gateway_kwargs
     ) -> T:
         last_error = None

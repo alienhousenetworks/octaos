@@ -441,6 +441,16 @@ function AgentActionCard({
               Connect {connectorObj.label || platform.toUpperCase()} to {artifact?.post_id ? 'Publish Directly' : 'Execute Live'}
             </span>
             <div className="flex flex-wrap items-center gap-2">
+              {['instagram', 'facebook', 'linkedin', 'twitter', 'x'].includes(platform) && (
+                <a
+                  href="/api/v1/buffer/connect"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-md border border-purple-400/40 bg-purple-500/15 px-2.5 py-1 text-[11px] font-semibold text-purple-200 hover:bg-purple-500/25 transition"
+                >
+                  One-Click Buffer Connect <ExternalLink className="size-3" />
+                </a>
+              )}
               {connectorObj.auth_url && (
                 <a
                   href={connectorObj.auth_url}

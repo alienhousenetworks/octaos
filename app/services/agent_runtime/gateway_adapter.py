@@ -37,6 +37,7 @@ class AIGatewayAgentAdapter:
             task_type=request.task_type,
             usage_callback=capture_usage,
             allowed_providers=list(request.allowed_providers) or None,
+            max_tokens=request.max_output_tokens or 4096,
         )
         if not isinstance(output, str):
             raise TypeError("AI gateway returned a non-text result for a text agent request.")

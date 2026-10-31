@@ -575,7 +575,7 @@ Format:
                     params.setdefault("instructions", current_request)
                 if dept == "Marketing":
                     if re.search(
-                        r"\b(post\s+(?:it\s+|this\s+)?(?:directly|now|live)|publish\s+(?:it\s+|this\s+)?(?:directly|now|live|to|on|in)|post\s+(?:directly\s+)?(?:in|on|to)\s+(?:insta|instagram|facebook|fb|linkedin))\b",
+                        r"\b(post\s+(?:it\s+|this\s+)?(?:directly|direcly|direct|now|live)|publish\s+(?:it\s+|this\s+)?(?:directly|direcly|direct|now|live|to|on|in)|post\s+(?:directly\s+|direcly\s+)?(?:in|on|to)\s+(?:insta|instagram|facebook|fb|linkedin))\b",
                         current_request,
                         re.IGNORECASE,
                     ):
