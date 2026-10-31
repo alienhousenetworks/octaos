@@ -222,6 +222,8 @@ class ToolRegistry:
             return await self._exec_knowledge_get_execution_status(payload, db, tenant_id, context)
         elif name == "agent.consult":
             return await self._exec_agent_consult(payload, db, tenant_id, context)
+        elif name == "app.connector_action":
+            return await self._exec_app_connector_action(payload, db, tenant_id, context)
         else:
             raise NotImplementedError(f"Tool '{name}' execution handler not implemented.")
 
@@ -537,6 +539,134 @@ class ToolRegistry:
             "duration_ms": exec_record.duration_ms,
             "executed_at": exec_record.executed_at.isoformat() if exec_record.executed_at else None,
             "provenance": exec_record.provenance,
+        }
+
+    async def _exec_app_connector_action(
+        self,
+        payload: Dict[str, Any],
+        db: Session,
+        tenant_id: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        from app.services.agents.connected_systems import check_app_connector, format_connector_prompt
+
+        app_name = str(payload.get("app") or payload.get("provider") or payload.get("platform") or "").strip()
+        operation = str(payload.get("operation") or "write").strip().lower()
+        action_name = str(payload.get("action") or operation).strip().lower()
+        params = dict(payload.get("params") or payload.get("data") or {})
+
+        if not app_name:
+            return {"success": False, "message": "Missing 'app' in app.connector_action payload."}
+
+        conn = check_app_connector(db, tenant_id, app_name)
+        if not conn.get("connected"):
+            return {
+                "success": False,
+                "status": "connector_required",
+                "connector_required": True,
+                "connector": conn,
+                "pending_action": {
+                    "type": "connector_action",
+                    "app": conn["app"],
+                    "operation": operation,
+                    "action": action_name,
+                    "params": params,
+                },
+                "message": format_connector_prompt(conn, f"{operation} data with {conn['label']}"),
+            }
+
+        app_key = conn["app"]
+        if app_key in ("instagram", "facebook", "linkedin", "buffer") and operation == "write":
+            from app.services.agents.section_registry import section_registry
+
+            post_payload = {
+                **params,
+                "platform": app_key if app_key != "buffer" else (params.get("platform") or "instagram"),
+                "publish_now": True,
+            }
+            if params.get("post_id"):
+                return await section_registry.execute_action("marketing", "post.publish", tenant_id, post_payload, db)
+            return await section_registry.execute_action("marketing", "post.create", tenant_id, post_payload, db)
+
+        if app_key in ("gmail", "email", "smtp") and operation == "write":
+            return await self._exec_email_send(params, db, tenant_id)
+
+        if conn.get("source") == "knowledge_connector" or operation == "read":
+            from app.models.knowledge_connectors import KnowledgeConnector
+
+            kc = (
+                db.query(KnowledgeConnector)
+                .filter(
+                    KnowledgeConnector.tenant_id == tenant_id,
+                    KnowledgeConnector.status == "active",
+                )
+                .all()
+            )
+            matched = next(
+                (
+                    row
+                    for row in kc
+                    if (row.connector_type or "").lower() == app_key or app_key in (row.name or "").lower()
+                ),
+                None,
+            )
+            if matched:
+                return await self._exec_knowledge_live_fetch(
+                    {"connector_id": matched.id, "params": params, "force_refresh": True},
+                    db,
+                    tenant_id,
+                    context,
+                )
+
+        if app_key == "sendgrid":
+            from app.services.integrations.sendgrid_service import SendGridService
+
+            svc = SendGridService(db, tenant_id)
+            res = await svc.send_email(
+                to_email=params.get("to") or params.get("to_email") or "",
+                subject=params.get("subject") or "OctaOS Notification",
+                html_content=params.get("body") or params.get("content") or "",
+            )
+            return {"success": True, "app": app_key, "operation": operation, "result": res}
+
+        if app_key == "twilio":
+            from app.services.integrations.twilio_service import TwilioService
+
+            svc = TwilioService(db, tenant_id)
+            res = await svc.send_sms(
+                to_number=params.get("to") or params.get("phone") or "",
+                body=params.get("body") or params.get("message") or "",
+            )
+            return {"success": True, "app": app_key, "operation": operation, "result": res}
+
+        if app_key == "calendly":
+            from app.services.integrations.calendly_service import CalendlyService
+
+            svc = CalendlyService(db, tenant_id)
+            res = await svc.list_event_types()
+            return {"success": True, "app": app_key, "operation": operation, "result": res}
+
+        if app_key == "zoominfo":
+            from app.services.integrations.zoominfo_service import ZoomInfoService
+
+            svc = ZoomInfoService(db, tenant_id)
+            res = await svc.enrich_company(domain=params.get("domain") or params.get("company") or "")
+            return {"success": True, "app": app_key, "operation": operation, "result": res}
+
+        if app_key in ("zapier", "workato"):
+            from app.services.integrations.zapier_workato_service import ZapierWorkatoService
+
+            svc = ZapierWorkatoService(db, tenant_id)
+            res = await svc.trigger_automation(provider=app_key, event_name=action_name, payload=params)
+            return {"success": True, "app": app_key, "operation": operation, "result": res}
+
+        return {
+            "success": True,
+            "status": "connected",
+            "app": app_key,
+            "operation": operation,
+            "connector": conn,
+            "message": f"{conn['label']} is connected and ready.",
         }
 
     def _register_default_tools(self):
@@ -878,6 +1008,11 @@ class ToolRegistry:
                         "generate_image": {"type": "boolean", "default": True, "description": "Whether to generate an AI visual image for this post"},
                         "image_url": {"type": "string", "description": "Optional pre-existing image URL"},
                         "topic": {"type": "string", "description": "Campaign theme or subject topic"},
+                        "publish_now": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": "Set true when the user explicitly asks to post or publish directly to the platform right now",
+                        },
                     },
                 },
                 output_schema={
@@ -1023,6 +1158,57 @@ class ToolRegistry:
                 output_schema={"type": "object", "properties": {"success": {"type": "boolean"}}},
                 required_scopes=["hr:write"],
                 risk_level="LOW",
+                side_effect="WRITE",
+                approval_required=False,
+            )
+        )
+
+        # 20. app.connector_action (Check & Execute Read/Write on External App Connectors)
+        self.register(
+            ToolDefinition(
+                name="app.connector_action",
+                description=(
+                    "Checks whether an external app connector (e.g. 'instagram', 'facebook', 'linkedin', 'buffer', "
+                    "'gmail', 'sendgrid', 'twilio', 'whatsapp', 'calendly', 'zoominfo', 'zapier', 'workato', "
+                    "'google_sheets', 'slack', 'notion') is connected, and either executes the read/write action "
+                    "directly or returns the connection link and credential prompt if not connected."
+                ),
+                input_schema={
+                    "type": "object",
+                    "required": ["app", "operation"],
+                    "properties": {
+                        "app": {
+                            "type": "string",
+                            "description": "Target app or connector slug (e.g. 'instagram', 'linkedin', 'sendgrid', 'google_sheets', 'slack')",
+                        },
+                        "operation": {
+                            "type": "string",
+                            "enum": ["read", "write"],
+                            "default": "write",
+                            "description": "Whether to read from or write/post to the external app",
+                        },
+                        "action": {
+                            "type": "string",
+                            "description": "Specific action name (e.g. 'publish_post', 'send_message', 'fetch_rows')",
+                        },
+                        "params": {
+                            "type": "object",
+                            "description": "Parameters for the read/write operation (e.g. caption, hashtags, query, to, body)",
+                        },
+                    },
+                },
+                output_schema={
+                    "type": "object",
+                    "properties": {
+                        "success": {"type": "boolean"},
+                        "status": {"type": "string"},
+                        "connector_required": {"type": "boolean"},
+                        "connector": {"type": "object"},
+                        "message": {"type": "string"},
+                    },
+                },
+                required_scopes=[],
+                risk_level="MEDIUM",
                 side_effect="WRITE",
                 approval_required=False,
             )

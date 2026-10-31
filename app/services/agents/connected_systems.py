@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -305,6 +305,21 @@ def load_connected_systems(db: Session, tenant_id: str) -> Dict[str, Any]:
         snapshot["mailbox_connected"] = get_universal_mailbox_provider(db, tenant_id) is not None
     except Exception:
         snapshot["mailbox_connected"] = False
+
+    try:
+        from app.services.credentials import get_decrypted_credential
+
+        meta_tok, _ = get_decrypted_credential(db, tenant_id, "meta")
+        li_tok, _ = get_decrypted_credential(db, tenant_id, "linkedin")
+        buf_tok, _ = get_decrypted_credential(db, tenant_id, "buffer")
+        snapshot["social_connected"] = {
+            "instagram": bool(meta_tok or buf_tok),
+            "facebook": bool(meta_tok or buf_tok),
+            "linkedin": bool(li_tok or buf_tok),
+            "buffer": bool(buf_tok),
+        }
+    except Exception:
+        snapshot["social_connected"] = {}
     return snapshot
 
 
@@ -510,3 +525,533 @@ def correct_assistant_reply(
             + "WhatsApp has no saved credential. Unsent drafts can still be stored."
         )
     return {"message": text, "drop_tasks": drop_tasks}
+
+
+APP_CONNECTOR_CATALOG: Dict[str, Dict[str, Any]] = {
+    "instagram": {
+        "provider": "meta",
+        "label": "Instagram (Meta Graph)",
+        "auth_url": "/api/v1/meta/auth?tenant_id={tenant_id}",
+        "external_url": "https://developers.facebook.com/tools/explorer/",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your Meta Graph Access Token (EAA...) or connect via Meta OAuth",
+    },
+    "facebook": {
+        "provider": "meta",
+        "label": "Facebook Page (Meta Graph)",
+        "auth_url": "/api/v1/meta/auth?tenant_id={tenant_id}",
+        "external_url": "https://developers.facebook.com/tools/explorer/",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your Meta Graph Page Access Token (EAA...) or connect via Meta OAuth",
+    },
+    "meta": {
+        "provider": "meta",
+        "label": "Meta (Instagram & Facebook)",
+        "auth_url": "/api/v1/meta/auth?tenant_id={tenant_id}",
+        "external_url": "https://developers.facebook.com/tools/explorer/",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your Meta Graph Access Token (EAA...) or connect via Meta OAuth",
+    },
+    "linkedin": {
+        "provider": "linkedin",
+        "label": "LinkedIn",
+        "auth_url": "/api/v1/linkedin/auth?tenant_id={tenant_id}",
+        "external_url": "https://www.linkedin.com/developers/tools/oauth",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your LinkedIn OAuth Access Token or connect via LinkedIn OAuth",
+    },
+    "buffer": {
+        "provider": "buffer",
+        "label": "Buffer",
+        "auth_url": "/api/v1/buffer/connect",
+        "external_url": "https://buffer.com/developers/api",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your Buffer Access Token",
+    },
+    "gmail": {
+        "provider": "gmail",
+        "label": "Gmail",
+        "auth_url": "/api/v1/google/auth?tenant_id={tenant_id}",
+        "external_url": "https://console.cloud.google.com/apis/credentials",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Connect via Google OAuth or paste your SMTP URI (smtp://user:pass@smtp.gmail.com:587)",
+    },
+    "email": {
+        "provider": "smtp",
+        "label": "Email / Mailbox",
+        "auth_url": "/api/v1/google/auth?tenant_id={tenant_id}",
+        "external_url": "https://console.cloud.google.com/apis/credentials",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your SMTP URI (smtp://user:pass@host:587) or connect Gmail OAuth",
+    },
+    "smtp": {
+        "provider": "smtp",
+        "label": "Email (SMTP)",
+        "auth_url": None,
+        "external_url": None,
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your SMTP connection URI (smtp://user:password@host:587)",
+    },
+    "google_calendar": {
+        "provider": "google_calendar",
+        "label": "Google Calendar",
+        "auth_url": "/api/v1/google/auth?tenant_id={tenant_id}",
+        "external_url": "https://console.cloud.google.com/apis/credentials",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Connect via Google OAuth",
+    },
+    "sendgrid": {
+        "provider": "sendgrid",
+        "label": "SendGrid",
+        "auth_url": None,
+        "external_url": "https://app.sendgrid.com/settings/api_keys",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your SendGrid API Key (SG....)",
+    },
+    "whatsapp": {
+        "provider": "whatsapp",
+        "label": "WhatsApp Business",
+        "auth_url": None,
+        "external_url": "https://developers.facebook.com/apps/",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your WhatsApp Cloud API Access Token",
+    },
+    "twilio": {
+        "provider": "twilio",
+        "label": "Twilio",
+        "auth_url": None,
+        "external_url": "https://console.twilio.com/",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your Twilio Auth Token / API Key",
+    },
+    "telegram": {
+        "provider": "telegram",
+        "label": "Telegram Bot",
+        "auth_url": None,
+        "external_url": "https://t.me/BotFather",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your Telegram Bot Token",
+    },
+    "calendly": {
+        "provider": "calendly",
+        "label": "Calendly",
+        "auth_url": None,
+        "external_url": "https://calendly.com/integrations/api_webhooks",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your Calendly Personal Access Token",
+    },
+    "zoominfo": {
+        "provider": "zoominfo",
+        "label": "ZoomInfo",
+        "auth_url": None,
+        "external_url": "https://www.zoominfo.com/",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your ZoomInfo API Key",
+    },
+    "apollo": {
+        "provider": "apollo",
+        "label": "Apollo.io",
+        "auth_url": None,
+        "external_url": "https://app.apollo.io/#/settings/integrations/api",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your Apollo API Key",
+    },
+    "hunter": {
+        "provider": "hunter",
+        "label": "Hunter.io",
+        "auth_url": None,
+        "external_url": "https://hunter.io/api-keys",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your Hunter API Key",
+    },
+    "zapier": {
+        "provider": "zapier",
+        "label": "Zapier",
+        "auth_url": None,
+        "external_url": "https://zapier.com/app/zaps",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your Zapier Webhook URL",
+    },
+    "workato": {
+        "provider": "workato",
+        "label": "Workato",
+        "auth_url": None,
+        "external_url": "https://app.workato.com/",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your Workato Webhook URL or Token",
+    },
+    "google_sheets": {
+        "provider": "google_sheets",
+        "label": "Google Sheets",
+        "auth_url": "/api/v1/google/auth?tenant_id={tenant_id}",
+        "external_url": "https://docs.google.com/spreadsheets/",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your Google Sheets API Token or connect in Knowledge Connectors",
+    },
+    "slack": {
+        "provider": "slack",
+        "label": "Slack",
+        "auth_url": None,
+        "external_url": "https://api.slack.com/apps",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your Slack Bot Token (xoxb-...) or Incoming Webhook URL",
+    },
+    "notion": {
+        "provider": "notion",
+        "label": "Notion",
+        "auth_url": None,
+        "external_url": "https://www.notion.so/my-integrations",
+        "settings_url": "/app/settings?tab=integrations",
+        "hint": "Paste your Notion Integration Secret (ntn_... or secret_...)",
+    },
+}
+
+_APP_NAME_ALIASES: Dict[str, str] = {
+    "insta": "instagram",
+    "ig": "instagram",
+    "instagram": "instagram",
+    "fb": "facebook",
+    "facebook": "facebook",
+    "meta": "meta",
+    "linkedin": "linkedin",
+    "buffer": "buffer",
+    "gmail": "gmail",
+    "email": "email",
+    "smtp": "smtp",
+    "calendar": "google_calendar",
+    "gcal": "google_calendar",
+    "google_calendar": "google_calendar",
+    "sendgrid": "sendgrid",
+    "whatsapp": "whatsapp",
+    "twilio": "twilio",
+    "telegram": "telegram",
+    "calendly": "calendly",
+    "zoominfo": "zoominfo",
+    "apollo": "apollo",
+    "hunter": "hunter",
+    "zapier": "zapier",
+    "workato": "workato",
+    "sheets": "google_sheets",
+    "google_sheets": "google_sheets",
+    "slack": "slack",
+    "notion": "notion",
+}
+
+
+def resolve_app_key(app_or_provider: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9_]+", "_", (app_or_provider or "").strip().lower()).strip("_")
+    return _APP_NAME_ALIASES.get(cleaned, cleaned or "external")
+
+
+def check_app_connector(db: Session, tenant_id: str, app_or_provider: str) -> Dict[str, Any]:
+    """Check whether an external app/connector is configured for this tenant."""
+    from app.services.credentials import get_decrypted_credential, normalize_provider
+
+    app_key = resolve_app_key(app_or_provider)
+    spec = APP_CONNECTOR_CATALOG.get(app_key, {})
+    provider = spec.get("provider") or normalize_provider(app_key)
+    label = spec.get("label") or app_key.replace("_", " ").title()
+    raw_auth_url = spec.get("auth_url")
+    auth_url = raw_auth_url.format(tenant_id=tenant_id) if raw_auth_url else None
+    external_url = spec.get("external_url")
+    settings_url = spec.get("settings_url") or "/app/settings?tab=integrations"
+    hint = spec.get("hint") or f"Paste your {label} API key or access token"
+
+    connected = False
+    connector_source = None
+
+    token, cred_settings = get_decrypted_credential(db, tenant_id, provider)
+    if token:
+        connected = True
+        connector_source = "api_credential"
+
+    if not connected and app_key in ("instagram", "facebook", "linkedin", "twitter", "x", "tiktok"):
+        buf_token, buf_settings = get_decrypted_credential(db, tenant_id, "buffer")
+        if buf_token:
+            by_plat = (buf_settings or {}).get("channel_ByPlatform") or (buf_settings or {}).get("channel_map") or {}
+            if by_plat.get(app_key) or (buf_settings or {}).get("default_channel_id"):
+                connected = True
+                connector_source = "buffer"
+
+    if not connected and app_key in ("gmail", "email", "smtp"):
+        try:
+            from app.services.email.universal_provider import get_universal_mailbox_provider
+
+            if get_universal_mailbox_provider(db, tenant_id) is not None:
+                connected = True
+                connector_source = "mailbox"
+        except Exception:
+            pass
+
+    if not connected:
+        try:
+            from app.models.knowledge_connectors import KnowledgeConnector
+
+            kc = (
+                db.query(KnowledgeConnector)
+                .filter(
+                    KnowledgeConnector.tenant_id == tenant_id,
+                    KnowledgeConnector.status == "active",
+                )
+                .all()
+            )
+            for row in kc:
+                row_type = (row.connector_type or "").lower()
+                row_name = (row.name or "").lower()
+                if row_type == app_key or app_key in row_name:
+                    connected = True
+                    connector_source = "knowledge_connector"
+                    break
+        except Exception:
+            pass
+
+    if not connected:
+        try:
+            from app.models.mcp import DynamicConnector
+
+            dc = (
+                db.query(DynamicConnector)
+                .filter(
+                    DynamicConnector.tenant_id == tenant_id,
+                    DynamicConnector.status == "active",
+                )
+                .all()
+            )
+            for row in dc:
+                if app_key in (row.slug or "").lower() or app_key in (row.name or "").lower():
+                    connected = True
+                    connector_source = "dynamic_connector"
+                    break
+        except Exception:
+            pass
+
+    return {
+        "connected": connected,
+        "app": app_key,
+        "provider": provider,
+        "label": label,
+        "auth_url": auth_url,
+        "external_url": external_url,
+        "settings_url": settings_url,
+        "hint": hint,
+        "source": connector_source,
+        "missing_reason": None if connected else f"{label} is not connected yet.",
+    }
+
+
+def format_connector_prompt(connector_info: Dict[str, Any], action_label: str = "") -> str:
+    """Build a direct chat response with connection links and inline credential prompt."""
+    label = connector_info.get("label") or connector_info.get("provider") or "this app"
+    provider = connector_info.get("provider") or connector_info.get("app") or "connector"
+    auth_url = connector_info.get("auth_url")
+    external_url = connector_info.get("external_url")
+    settings_url = connector_info.get("settings_url") or "/app/settings?tab=integrations"
+    hint = connector_info.get("hint") or f"Paste your {label} access token or API key"
+    task_phrase = f" to {action_label}" if action_label else ""
+
+    lines = [
+        f"**{label}** is not connected yet, so I cannot execute this live action{task_phrase} until we connect it.",
+        "",
+        "**Connect right here:**",
+    ]
+    if auth_url:
+        lines.append(f"- **One-Click OAuth Connect:** [{label} Connect Link]({auth_url})")
+    if external_url:
+        lines.append(f"- **Get Token / Portal:** [{external_url}]({external_url})")
+    lines.append(f"- **Workspace Integrations:** [{settings_url}]({settings_url})")
+    lines.append("")
+    lines.append(
+        f"**Or reply directly in this chat with your credential** ({hint}) — "
+        f"for example: `My {provider} token is <YOUR_TOKEN>` — and I will connect it and complete your request immediately."
+    )
+    return "\n".join(lines)
+
+
+def parse_conversation_transcript(raw_prompt: str) -> Tuple[str, List[Dict[str, str]]]:
+    """Unwrap UniversalAssistantView's CONVERSATION: block into (latest_user_text, history_messages)."""
+    text = (raw_prompt or "").strip()
+    if "CONVERSATION:\n" not in text:
+        return text, []
+
+    _, convo_part = text.split("CONVERSATION:\n", 1)
+    convo_part = re.sub(r"\n+ASSISTANT:\s*$", "", convo_part.strip())
+    pattern = re.compile(r"(?:^|\n\n)(USER|ASSISTANT):\s*", re.MULTILINE)
+    matches = list(pattern.finditer(convo_part))
+    if not matches:
+        return text, []
+
+    turns: List[Dict[str, str]] = []
+    for idx, match in enumerate(matches):
+        role = "user" if match.group(1) == "USER" else "assistant"
+        start = match.end()
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(convo_part)
+        content = convo_part[start:end].strip()
+        if content:
+            turns.append({"role": role, "content": content})
+
+    if not turns:
+        return text, []
+    if turns[-1]["role"] == "user":
+        return turns[-1]["content"], turns[:-1]
+    return text, turns
+
+
+def _detect_app_in_text(text: str) -> Optional[str]:
+    lowered = (text or "").lower()
+    for alias in (
+        "instagram", "insta", "facebook", "meta", "linkedin", "buffer",
+        "sendgrid", "gmail", "smtp", "google_calendar", "whatsapp",
+        "twilio", "telegram", "calendly", "zoominfo", "apollo", "hunter",
+        "zapier", "workato", "google_sheets", "slack", "notion",
+    ):
+        if re.search(rf"\b{re.escape(alias)}\b", lowered):
+            return resolve_app_key(alias)
+    if "/api/v1/meta/auth" in lowered:
+        return "instagram"
+    if "/api/v1/linkedin/auth" in lowered:
+        return "linkedin"
+    if "/api/v1/google/auth" in lowered:
+        return "gmail"
+    return None
+
+
+def extract_inline_credential(
+    text: str,
+    messages: Optional[List[Dict[str, Any]]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Detect when a user message supplies a connector credential/token and extract the prior task to resume."""
+    latest_text, parsed_turns = parse_conversation_transcript(text or "")
+    history: List[Dict[str, Any]] = list(messages or []) or parsed_turns
+    if history and history[-1].get("role") == "user" and (history[-1].get("content") or "").strip() == latest_text:
+        history = history[:-1]
+
+    stripped = latest_text.strip()
+    if not stripped:
+        return None
+
+    # Find if the immediately preceding assistant message asked for a connector credential
+    last_assistant = ""
+    resume_prompt = None
+    post_id = None
+    for idx in range(len(history) - 1, -1, -1):
+        msg = history[idx]
+        if msg.get("role") == "assistant" and not last_assistant:
+            last_assistant = str(msg.get("content") or "")
+            post_match = re.search(
+                r"\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b",
+                last_assistant,
+                re.IGNORECASE,
+            )
+            if post_match:
+                post_id = post_match.group(1)
+        elif msg.get("role") == "user" and last_assistant and resume_prompt is None:
+            candidate = str(msg.get("content") or "").strip()
+            if candidate and candidate != stripped:
+                resume_prompt = candidate
+                break
+
+    assistant_asked_for_cred = bool(
+        last_assistant
+        and any(
+            marker in last_assistant.lower()
+            for marker in (
+                "not connected yet",
+                "connect right here",
+                "reply directly in this chat with your credential",
+                "paste your",
+                "/api/v1/meta/auth",
+                "/api/v1/linkedin/auth",
+                "/app/settings?tab=integrations",
+                "api key",
+                "access token",
+            )
+        )
+    )
+
+    explicit_app = _detect_app_in_text(stripped)
+    context_app = _detect_app_in_text(last_assistant) if assistant_asked_for_cred else None
+    app_key = explicit_app or context_app
+
+    # Also support AI provider keys explicitly named in chat (openai, anthropic, gemini, groq, grok, openrouter, together)
+    ai_provider_match = re.search(
+        r"\b(openai|anthropic|gemini|openrouter|together|groq|grok)\b",
+        stripped,
+        re.IGNORECASE,
+    )
+
+    # Extract credential value
+    extracted_key = None
+    settings: Dict[str, Any] = {}
+
+    # 1. Check for smtp:// URI
+    smtp_match = re.search(r"(smtp://[^\s\"'<>]+)", stripped, re.IGNORECASE)
+    if smtp_match:
+        extracted_key = smtp_match.group(1)
+        app_key = app_key or "smtp"
+
+    # 2. Check for explicit labeled pattern: "token is <VAL>", "key: <VAL>", "credential = <VAL>"
+    if not extracted_key:
+        labeled = re.search(
+            r"(?:token|key|secret|credential|bearer|webhook)\s*(?:is|=|:)\s*[`\"']?([A-Za-z0-9_\-\.\:/@]{8,})[`\"']?",
+            stripped,
+            re.IGNORECASE,
+        )
+        if labeled:
+            extracted_key = labeled.group(1).rstrip(".,;)")
+
+    # 3. Check for well-known token prefixes
+    if not extracted_key:
+        prefix_match = re.search(
+            r"\b((?:EAA[A-Za-z0-9]{10,}|SG\.[A-Za-z0-9_\-\.]{10,}|sk-(?:proj-|ant-|or-)?[A-Za-z0-9_\-]{12,}|gsk_[A-Za-z0-9_\-]{12,}|xai-[A-Za-z0-9_\-]{12,}|xoxb-[A-Za-z0-9\-]{10,}|ntn_[A-Za-z0-9]{10,}|secret_[A-Za-z0-9]{10,}|AC[a-f0-9]{32}))\b",
+            stripped,
+        )
+        if prefix_match:
+            extracted_key = prefix_match.group(1)
+            if extracted_key.startswith("EAA") and not app_key:
+                app_key = "instagram"
+            elif extracted_key.startswith("SG.") and not app_key:
+                app_key = "sendgrid"
+            elif extracted_key.startswith("xoxb-") and not app_key:
+                app_key = "slack"
+
+    # 4. If assistant just asked for a credential and user replied with a raw single token (or "connect <token>")
+    if not extracted_key and assistant_asked_for_cred:
+        raw_token = re.match(
+            r"^(?:here(?:\s+is|\s*\'s)?(?:\s+my)?(?:\s+\w+)?\s*:?\s*)?[`\"']?([A-Za-z0-9_\-\.]{10,})[`\"']?$",
+            stripped,
+            re.IGNORECASE,
+        )
+        if raw_token:
+            candidate_tok = raw_token.group(1)
+            if candidate_tok.lower() not in ("connected", "connection", "instagram", "facebook", "linkedin"):
+                extracted_key = candidate_tok
+
+    if not extracted_key:
+        return None
+
+    # Optional page_id or instagram_account_id in message
+    ig_id_match = re.search(r"(?:instagram_account_id|ig_id|account_id)\s*(?:is|=|:)\s*([0-9]{5,})", stripped, re.IGNORECASE)
+    if ig_id_match:
+        settings["instagram_account_id"] = ig_id_match.group(1)
+    page_id_match = re.search(r"(?:page_id)\s*(?:is|=|:)\s*([0-9]{5,})", stripped, re.IGNORECASE)
+    if page_id_match:
+        settings["page_id"] = page_id_match.group(1)
+
+    if app_key:
+        spec = APP_CONNECTOR_CATALOG.get(app_key, {})
+        provider = spec.get("provider") or app_key
+    elif ai_provider_match:
+        provider = ai_provider_match.group(1).lower()
+        app_key = provider
+    else:
+        return None
+
+    return {
+        "provider": provider,
+        "app": app_key,
+        "key": extracted_key,
+        "settings": settings or None,
+        "resume_prompt": resume_prompt,
+        "post_id": post_id,
+    }
+

@@ -844,58 +844,99 @@ export default function OrchestratorView({
                           </div>
                         )}
 
-                        {/* Quick Connect for API key requirements */}
-                        {msg.results?.some((r: any) => r.status === 'action_required') && (
-                          <div className="mt-3 pt-3 border-t border-border">
-                            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 space-y-2.5">
-                              <span className="text-xs font-semibold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                                <Zap className="size-3 text-amber-400" /> Quick Connect
-                              </span>
-                              <div className="flex gap-2">
-                                <Input
-                                  type="text"
-                                  placeholder="Paste your API key here..."
-                                  value={orchInlineKeyValue}
-                                  onChange={(e) => setOrchInlineKeyValue(e.target.value)}
-                                  className="bg-background border-border text-foreground focus:border-amber-500 rounded-md h-8 text-xs flex-1"
-                                />
-                                <Button
-                                  onClick={async () => {
-                                    if (!orchInlineKeyValue) return;
-                                    let detectedProvider = 'anthropic';
-                                    if (orchInlineKeyValue.startsWith('sk-ant')) detectedProvider = 'anthropic';
-                                    else if (orchInlineKeyValue.startsWith('sk-or-')) detectedProvider = 'openrouter';
-                                    else if (orchInlineKeyValue.startsWith('sk-')) detectedProvider = 'openai';
-                                    else if (orchInlineKeyValue.startsWith('AIza')) detectedProvider = 'gemini';
-                                    else if (orchInlineKeyValue.startsWith('gsk_')) detectedProvider = 'groq';
-                                    else if (orchInlineKeyValue.startsWith('xai-')) detectedProvider = 'grok';
-                                    try {
-                                      await fetchWithAuth(`${API_URL}/commands/keys`, {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ provider: detectedProvider, key: orchInlineKeyValue }),
-                                      });
-                                      setOrchInlineKeyValue('');
-                                      fetchData();
-                                      const successMsg = {
-                                        id: `system-${Date.now()}`,
-                                        role: 'assistant' as const,
-                                        content: `✅ ${detectedProvider} API key saved successfully. I'm now fully operational — what would you like me to do?`,
-                                        timestamp: new Date().toISOString(),
-                                      };
-                                      setOrchMessages((prev) => [...prev, successMsg]);
-                                    } catch (err) {
-                                      console.error(err);
-                                    }
-                                  }}
-                                  className="h-8 px-3 text-xs font-medium"
-                                >
-                                  Save
-                                </Button>
+                        {/* Quick Connect for API key & external app connector requirements */}
+                        {msg.results?.some((r: any) => r.status === 'action_required' || r.connector_required) && (() => {
+                          const reqItem = msg.results.find((r: any) => r.status === 'action_required' || r.connector_required) || {};
+                          const connInfo = reqItem.connector || {};
+                          return (
+                            <div className="mt-3 pt-3 border-t border-border">
+                              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 space-y-2.5">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className="text-xs font-semibold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                                    <Zap className="size-3 text-amber-400" /> Quick Connect {connInfo.label ? `· ${connInfo.label}` : ''}
+                                  </span>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {connInfo.auth_url && (
+                                      <a
+                                        href={connInfo.auth_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-[11px] font-semibold text-amber-300 underline hover:text-amber-200"
+                                      >
+                                        OAuth Connect Link
+                                      </a>
+                                    )}
+                                    {connInfo.external_url && (
+                                      <a
+                                        href={connInfo.external_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-[11px] text-muted-foreground underline hover:text-foreground"
+                                      >
+                                        Get Token
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Input
+                                    type="password"
+                                    placeholder={connInfo.hint || 'Paste your API key or access token here...'}
+                                    value={orchInlineKeyValue}
+                                    onChange={(e) => setOrchInlineKeyValue(e.target.value)}
+                                    className="bg-background border-border text-foreground focus:border-amber-500 rounded-md h-8 text-xs flex-1"
+                                  />
+                                  <Button
+                                    onClick={async () => {
+                                      if (!orchInlineKeyValue) return;
+                                      let detectedProvider = connInfo.provider || 'anthropic';
+                                      if (!connInfo.provider) {
+                                        if (orchInlineKeyValue.startsWith('EAA')) detectedProvider = 'meta';
+                                        else if (orchInlineKeyValue.startsWith('SG.')) detectedProvider = 'sendgrid';
+                                        else if (orchInlineKeyValue.startsWith('sk-ant')) detectedProvider = 'anthropic';
+                                        else if (orchInlineKeyValue.startsWith('sk-or-')) detectedProvider = 'openrouter';
+                                        else if (orchInlineKeyValue.startsWith('sk-')) detectedProvider = 'openai';
+                                        else if (orchInlineKeyValue.startsWith('AIza')) detectedProvider = 'gemini';
+                                        else if (orchInlineKeyValue.startsWith('gsk_')) detectedProvider = 'groq';
+                                        else if (orchInlineKeyValue.startsWith('xai-')) detectedProvider = 'grok';
+                                      }
+                                      try {
+                                        await fetchWithAuth(`${API_URL}/commands/keys`, {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ provider: detectedProvider, key: orchInlineKeyValue.trim() }),
+                                        });
+                                        let publishNote = '';
+                                        if (reqItem.post_id) {
+                                          const pubRes = await fetchWithAuth(`${API_URL}/marketing/posts/${encodeURIComponent(reqItem.post_id)}/publish-now`, {
+                                            method: 'POST',
+                                          });
+                                          if (pubRes.ok) {
+                                            publishNote = ` Published post #${String(reqItem.post_id).slice(0, 8)} live!`;
+                                          }
+                                        }
+                                        setOrchInlineKeyValue('');
+                                        fetchData();
+                                        const successMsg = {
+                                          id: `system-${Date.now()}`,
+                                          role: 'assistant' as const,
+                                          content: `✅ ${connInfo.label || detectedProvider} credential saved.${publishNote || " I'm now connected — what would you like me to do?"}`,
+                                          timestamp: new Date().toISOString(),
+                                        };
+                                        setOrchMessages((prev) => [...prev, successMsg]);
+                                      } catch (err) {
+                                        console.error(err);
+                                      }
+                                    }}
+                                    className="h-8 px-3 text-xs font-medium"
+                                  >
+                                    {reqItem.post_id ? 'Connect & Post' : 'Connect'}
+                                  </Button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
 
                         <span className="text-[10px] mt-2 block text-right text-muted-foreground font-medium">
                           {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

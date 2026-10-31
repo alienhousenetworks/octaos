@@ -65,6 +65,71 @@ def apply_publish_result(db: Session, post: ContentPost, result, now: datetime) 
         post.status = "failed"
 
 
+async def publish_post_async(db: Session, post: ContentPost):
+    now = datetime.now(timezone.utc)
+    if post.external_post_id:
+        return PublishResult(
+            success=True,
+            platform=(post.platform or "").lower(),
+            external_id=post.external_post_id,
+            note="Already accepted by a publishing provider; awaiting delivery reconciliation.",
+        )
+
+    buffer_credential = (
+        db.query(APICredential)
+        .filter(APICredential.tenant_id == post.tenant_id, APICredential.provider == "buffer")
+        .first()
+    )
+    if buffer_credential:
+        settings_dict = dict(buffer_credential.settings or {})
+        channel_map = dict(settings_dict.get("channel_map") or settings_dict.get("channel_ByPlatform") or {})
+        platform_key = (post.platform or "").lower().replace("twitter", "x")
+        channel_id = channel_map.get(platform_key) or settings_dict.get("default_channel_id")
+        if channel_id:
+            try:
+                from app.services.integrations.buffer_service import BufferService
+                buffer = BufferService(db, post.tenant_id)
+                created = await buffer.create_post(
+                    channel_id=channel_id,
+                    text=post.content or "",
+                    image_url=post.image_url,
+                    video_url=post.video_url,
+                )
+                post.external_post_id = created["id"]
+                post.status = "scheduled"
+                post.fallback_reason = "Accepted by Buffer; platform delivery status is not yet reconciled."
+                db.add(ActivityLog(
+                    tenant_id=post.tenant_id,
+                    agent_name="Marketing AI",
+                    action="Queue Post in Buffer",
+                    description=f"Buffer accepted approved {platform_key} post {post.id} (external id={created['id']}).",
+                    status="success",
+                ))
+                db.commit()
+                return PublishResult(
+                    success=True,
+                    platform=platform_key,
+                    external_id=created["id"],
+                    note="Queued in Buffer; final social-network delivery is pending.",
+                )
+            except Exception as exc:
+                db.rollback()
+                result = PublishResult(
+                    success=False,
+                    platform=platform_key,
+                    error=f"Buffer publishing failed: {str(exc)[:240]}",
+                )
+                apply_publish_result(db, post, result, now)
+                post.status = "publish_uncertain"
+                db.commit()
+                return result
+
+    result = await publish_content_post(db, post)
+    apply_publish_result(db, post, result, now)
+    db.commit()
+    return result
+
+
 def publish_post_sync(db: Session, post: ContentPost):
     now = datetime.now(timezone.utc)
     # A provider post ID means the external system accepted it; never enqueue it again.

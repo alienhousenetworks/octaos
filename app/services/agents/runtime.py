@@ -88,7 +88,126 @@ class AgentRuntime:
         temperature = agent_ver.temperature or 0.7
 
         # 3. Resolve Tool Grants
-        allowed_tools = agent_ver.tool_grants or []
+        allowed_tools = list(agent_ver.tool_grants or [])
+        if "app.connector_action" not in allowed_tools:
+            allowed_tools.append("app.connector_action")
+
+        raw_prompt_str = str(
+            input_context.get("prompt")
+            or input_context.get("goal")
+            or input_context.get("message")
+            or ""
+        )
+        from app.services.agents.connected_systems import (
+            check_app_connector,
+            connection_facts,
+            extract_inline_credential,
+            format_connector_prompt,
+            load_connected_systems,
+            parse_conversation_transcript,
+        )
+        latest_user_turn, _ = parse_conversation_transcript(raw_prompt_str)
+        pre_execution_steps: List[str] = []
+
+        # 3a. Inline Credential Interception & Task Resumption
+        if not dry_run and raw_prompt_str:
+            cred_info = extract_inline_credential(raw_prompt_str, input_context.get("messages"))
+            if cred_info:
+                from app.services.credentials import save_credential
+
+                save_credential(
+                    db,
+                    tenant_id,
+                    cred_info["provider"],
+                    cred_info["key"],
+                    settings=cred_info.get("settings"),
+                )
+                pre_execution_steps.append(
+                    f"Saved encrypted {cred_info['provider'].upper()} credential in workspace vault"
+                )
+
+                # If there is a pending social post draft (or explicit post_id), publish it immediately
+                if cred_info.get("post_id") or cred_info.get("app") in ("instagram", "facebook", "meta", "linkedin", "buffer"):
+                    from app.models.verticals import ContentPost
+                    from app.services.agents.section_registry import section_registry
+
+                    target_plat = (
+                        cred_info["app"]
+                        if cred_info.get("app") in ("instagram", "facebook", "linkedin")
+                        else None
+                    )
+                    q = db.query(ContentPost).filter_by(tenant_id=tenant_id)
+                    if cred_info.get("post_id"):
+                        q = q.filter_by(id=cred_info["post_id"])
+                    else:
+                        q = q.filter(ContentPost.status != "published")
+                        if target_plat:
+                            q = q.filter(ContentPost.platform == target_plat)
+                    draft_post = q.order_by(ContentPost.created_at.desc()).first()
+
+                    if draft_post:
+                        pub_res = await section_registry.execute_action(
+                            "marketing",
+                            "post.publish",
+                            tenant_id,
+                            {"post_id": draft_post.id, "platform": draft_post.platform},
+                            db,
+                        )
+                        duration_ms = int((time.time() - start_time) * 1000)
+                        steps_combined = pre_execution_steps + list(pub_res.get("steps") or [])
+                        msg_out = (
+                            f"Connected **{cred_info['provider'].upper()}** and published your pending "
+                            f"{draft_post.platform.title()} post:\n\n{pub_res.get('message') or ''}"
+                        )
+                        return {
+                            "agent_id": agent.id,
+                            "execution_id": event_run_id,
+                            "agent_name": agent.name,
+                            "version": agent_ver.version,
+                            "status": "succeeded",
+                            "output": msg_out,
+                            "raw_response": msg_out,
+                            "tool_calls": [
+                                {
+                                    "tool": "post.publish",
+                                    "args": {"post_id": draft_post.id},
+                                    "result": pub_res,
+                                }
+                            ],
+                            "action_artifact": pub_res,
+                            "execution_steps": steps_combined,
+                            "pending_approval_id": None,
+                            "duration_ms": duration_ms,
+                            "tokens": 0,
+                            "cost_usd": 0.0,
+                        }
+
+                if cred_info.get("resume_prompt"):
+                    input_context = {**input_context, "prompt": cred_info["resume_prompt"]}
+                    raw_prompt_str = cred_info["resume_prompt"]
+                    latest_user_turn = cred_info["resume_prompt"]
+                else:
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    msg_out = (
+                        f"Your **{cred_info['provider'].upper()}** credential has been saved and connected. "
+                        f"Tell me what you'd like to read or publish and I'll execute it live."
+                    )
+                    return {
+                        "agent_id": agent.id,
+                        "execution_id": event_run_id,
+                        "agent_name": agent.name,
+                        "version": agent_ver.version,
+                        "status": "succeeded",
+                        "output": msg_out,
+                        "raw_response": msg_out,
+                        "tool_calls": [],
+                        "action_artifact": None,
+                        "execution_steps": pre_execution_steps,
+                        "pending_approval_id": None,
+                        "duration_ms": duration_ms,
+                        "tokens": 0,
+                        "cost_usd": 0.0,
+                    }
 
         # 4. Resolve Knowledge Context (Truth RAG). A company question must see
         # the crawled website, which is stored under General rather than the
@@ -97,11 +216,16 @@ class AgentRuntime:
             db,
             tenant_id,
             agent_ver.knowledge_access or [agent.department],
-            query=str(input_context.get("prompt") or input_context.get("goal") or input_context.get("message") or ""),
+            query=raw_prompt_str,
+        )
+        connected_snapshot = load_connected_systems(db, tenant_id)
+        conn_facts_json = connection_facts(connected_snapshot, latest_user_turn)
+        knowledge_with_conns = (
+            f"{knowledge_context}\n\n[LIVE WORKSPACE CONNECTIONS]\n{conn_facts_json}".strip()
         )
 
         # 5. Construct Delimited Execution Prompt (Prompt Injection Guard)
-        system_prompt = self._build_system_prompt(agent, agent_ver, knowledge_context, allowed_tools)
+        system_prompt = self._build_system_prompt(agent, agent_ver, knowledge_with_conns, allowed_tools)
         user_prompt = self._build_user_prompt(input_context)
 
         # 6. Execute Model via AI Gateway
@@ -140,14 +264,83 @@ class AgentRuntime:
         # 8. Execute or Gate Tool Calls
         executed_tools = []
         pending_approval = None
+        import re as _re
+        asks_direct_publish = bool(
+            _re.search(
+                r"\b(post\s+(?:it\s+|this\s+)?(?:directly|now|live)|publish\s+(?:it\s+|this\s+)?(?:directly|now|live|to|on|in)|post\s+(?:directly\s+)?(?:in|on|to)\s+(?:insta|instagram|facebook|fb|linkedin))\b",
+                latest_user_turn,
+                _re.IGNORECASE,
+            )
+            or (
+                _re.search(r"\b(post|publish)\b", latest_user_turn, _re.IGNORECASE)
+                and _re.search(r"\b(direct|directly|live|now)\b", latest_user_turn, _re.IGNORECASE)
+            )
+        )
+
+        if not tool_invocations and not dry_run:
+            from app.services.agents.connected_systems import _detect_app_in_text
+
+            target_app = _detect_app_in_text(latest_user_turn)
+            if asks_direct_publish and "post.create" in allowed_tools:
+                plat = target_app if target_app in ("instagram", "facebook", "linkedin") else "instagram"
+                tool_invocations.append({
+                    "tool": "post.create",
+                    "args": {
+                        "platform": plat,
+                        "caption": (parsed_output or latest_user_turn)[:500],
+                        "topic": latest_user_turn[:120],
+                        "publish_now": True,
+                    },
+                })
+            elif target_app and _re.search(
+                r"\b(read\s+from|write\s+(?:to|in|into)|post\s+(?:in|on|to)|publish\s+(?:in|on|to)|fetch\s+from|send\s+(?:via|through|to))\b",
+                latest_user_turn,
+                _re.IGNORECASE,
+            ):
+                op = "read" if _re.search(r"\b(read|fetch|get|pull)\b", latest_user_turn, _re.IGNORECASE) else "write"
+                tool_invocations.append({
+                    "tool": "app.connector_action",
+                    "args": {
+                        "app": target_app,
+                        "operation": op,
+                        "params": {"caption": (parsed_output or latest_user_turn)[:500], "query": latest_user_turn},
+                    },
+                })
 
         for inv in tool_invocations:
             tool_name = inv.get("tool")
-            tool_args = inv.get("args", {})
+            tool_args = dict(inv.get("args", {}) or {})
 
             tool_def = tool_registry.get(tool_name)
             if not tool_def:
                 continue
+
+            if tool_name == "post.create" and asks_direct_publish:
+                tool_args["publish_now"] = True
+
+            # Pre-check external connector before creating an approval request if not connected yet
+            if tool_name in ("post.publish", "email.send") and not dry_run:
+                target_app = (
+                    str(tool_args.get("platform") or "instagram")
+                    if tool_name == "post.publish"
+                    else "email"
+                )
+                conn = check_app_connector(db, tenant_id, target_app)
+                if not conn.get("connected"):
+                    executed_tools.append({
+                        "tool": tool_name,
+                        "args": tool_args,
+                        "result": {
+                            "success": False,
+                            "status": "connector_required",
+                            "connector_required": True,
+                            "connector": conn,
+                            "post_id": tool_args.get("post_id"),
+                            "platform": target_app,
+                            "message": format_connector_prompt(conn, f"execute {tool_name}"),
+                        },
+                    })
+                    continue
 
             if tool_def.approval_required and not dry_run:
                 # One approval record is shared by the approval UI, reviewer API, and
@@ -311,14 +504,32 @@ class AgentRuntime:
         status = "waiting_approval" if pending_approval else "succeeded"
 
         action_artifact = None
-        execution_steps = []
+        execution_steps = list(pre_execution_steps)
+        connector_prompt_override = None
         for inv in executed_tools:
             res = inv.get("result")
             if isinstance(res, dict):
                 if res.get("steps") and isinstance(res["steps"], list):
                     execution_steps.extend(res["steps"])
-                if not action_artifact and (res.get("post_id") or res.get("lead_id") or res.get("ticket_id")):
+                if not action_artifact and (
+                    res.get("post_id")
+                    or res.get("lead_id")
+                    or res.get("ticket_id")
+                    or res.get("connector_required")
+                ):
                     action_artifact = res
+                if res.get("connector_required") and res.get("message"):
+                    connector_prompt_override = str(res["message"])
+
+        if connector_prompt_override:
+            conn_obj = (action_artifact or {}).get("connector") or {}
+            auth_link = conn_obj.get("auth_url") or conn_obj.get("external_url") or "/app/settings?tab=integrations"
+            if not parsed_output or auth_link not in parsed_output:
+                parsed_output = (
+                    f"{parsed_output}\n\n---\n{connector_prompt_override}".strip()
+                    if parsed_output
+                    else connector_prompt_override
+                )
 
         return {
             "agent_id": agent.id,
@@ -578,6 +789,7 @@ class AgentRuntime:
                 f"DEPARTMENT FOCUS (Marketing AI):\n"
                 f"- Deliver compelling brand storytelling, campaign concepts, hooks, social captions, hashtags, and distribution strategy.\n"
                 f"- When a social post draft was created (post.create), highlight the created creative spot, present the finalized post caption and hashtags cleanly, and confirm that the visual image asset has been generated and saved to the workspace.\n"
+                f"- CRITICAL CONNECTOR TRUTH: If any tool result has `connector_required: true` or `status: \"connector_required\"`, DO NOT claim the post was published live. Explicitly state that the draft was created, include the exact connection link (`auth_url` / `external_url`) from the tool result, and tell the user they can reply right here in chat with their token/credential to connect and publish immediately.\n"
                 f"- STRICT ROLE BOUNDARY: DO NOT format output as sales leads, CRM accounts, or opportunity gap pitch angles. Lead generation belongs to Sales AI.\n"
                 f"- Do NOT include raw JSON tool blocks or technical meta-commentary. Speak directly to the user as their senior brand strategist."
             )

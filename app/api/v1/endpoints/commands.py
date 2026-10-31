@@ -149,12 +149,14 @@ def update_api_key(
     request: APIKeyUpdate
 ) -> Any:
     from app.services.security_service import SecretValidationService
-    if not SecretValidationService.validate_api_key(request.provider, request.key):
+    from app.services.credentials import normalize_provider
+    provider_name = normalize_provider(request.provider)
+    if not SecretValidationService.validate_api_key(provider_name, request.key):
         raise HTTPException(status_code=400, detail=f"Invalid key format for provider: {request.provider}")
         
     cred = db.query(APICredential).filter(
         APICredential.tenant_id == tenant_id,
-        APICredential.provider == request.provider
+        APICredential.provider == provider_name
     ).first()
     
     if cred:
@@ -171,7 +173,7 @@ def update_api_key(
         
         cred = APICredential(
             tenant_id=tenant_id,
-            provider=request.provider,
+            provider=provider_name,
             encrypted_key=encrypt_api_key(request.key),
             settings=request.settings,
             is_main=is_main
@@ -179,7 +181,7 @@ def update_api_key(
         db.add(cred)
     
     db.commit()
-    return {"message": f"{request.provider} key updated successfully"}
+    return {"message": f"{request.provider} key updated successfully", "provider": provider_name}
 
 
 @router.get("/jobs/{job_id}/stream")

@@ -76,6 +76,8 @@ class MarketingAgent(BaseAgent):
             return await self.scan_context_radar(params)
         elif action == "create_posts":
             return await self._create_posts(params)
+        elif action in ("publish_post", "post_now", "publish_directly"):
+            return await self._publish_post_direct(params)
         elif action == "generate_campaign":
             return await self._generate_campaign(params)
         elif action == "sync_analytics":
@@ -774,8 +776,34 @@ Write the complete post caption now. Do not include meta commentary or introduct
             "params": payload,
         }
 
+    async def _publish_post_direct(self, params: dict):
+        from app.services.agents.section_registry import section_registry
+
+        platforms = params.get("platforms") or [params.get("platform") or "instagram"]
+        if isinstance(platforms, str):
+            platforms = [platforms]
+        platform = str(platforms[0] or "instagram").lower()
+        payload = {
+            **params,
+            "platform": platform,
+            "publish_now": True,
+        }
+        action_name = "post.publish" if params.get("post_id") else "post.create"
+        res = await section_registry.execute_action("marketing", action_name, self.tenant_id, payload, self.db)
+        if res.get("connector_required"):
+            return {
+                **res,
+                "status": "action_required",
+            }
+        return {
+            **res,
+            "status": "success" if res.get("success") else "failed",
+        }
+
     async def _create_posts(self, params: dict):
         """Learning-aware short batch."""
+        if params.get("publish_now") or params.get("publish_directly"):
+            return await self._publish_post_direct(params)
         days = int(params.get("days", 3))
         topic = params.get("topic", "our business")
         platforms = params.get("platforms", ["linkedin"])

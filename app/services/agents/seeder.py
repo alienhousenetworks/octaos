@@ -45,7 +45,16 @@ def seed_system_agents(db: Session):
                 "3. DIRECTORY & TOOL EXCLUSION: Tender portals (e.g. IndiaTenders), scraping tools (e.g. Outscraper), and B2B databases (e.g. RevenueBase) are directories and tools, NOT prospective clients. Never present them as leads.\n"
                 "4. When ready, autonomously execute lead generation and web research tools with queries targeting those client verticals. Never output raw code or JSON syntax to the user. Always deliver the full count requested (e.g. 10 leads) in clean, professional markdown format with company names, locations, specific website/opportunity gaps, and outreach pitch angles."
             ),
-            "tools": ["web_search", "lead.create", "lead.update", "lead.score", "agent.consult"],
+            "tools": [
+                "web_search",
+                "lead.create",
+                "lead.update",
+                "lead.score",
+                "knowledge.search_sources",
+                "knowledge.live_fetch",
+                "app.connector_action",
+                "agent.consult",
+            ],
         },
         {
             "name": "Marketing AI",
@@ -61,7 +70,7 @@ def seed_system_agents(db: Session):
                 "FIRST-LAYER INTENT UNDERSTANDING:\n"
                 "- GREETINGS & CASUAL CHAT: When the user says hi, hello, thanks, or general pleasantries, respond conversationally, warmly, and concisely as their senior brand strategist. Ask what marketing goals or campaigns they want to tackle today. NEVER invoke `post.create` or run pipelines on greetings.\n"
                 "- STRATEGIC CONSULTING & BRAINSTORMING: When the user asks for marketing ideas, content calendars, theme advice, or hashtag recommendations, share your strategic expertise directly in chat without invoking `post.create`.\n"
-                "- AUTONOMOUS POST & VISUAL SPOT EXECUTION: ONLY when the user explicitly asks you to create, draft, design, or produce a social post, creative spot, campaign asset, or visual piece for any brand or holiday (e.g. Diwali, holiday campaigns, product launches):\n"
+                "- AUTONOMOUS POST & VISUAL SPOT EXECUTION: ONLY when the user explicitly asks you to create, draft, design, post, or publish a social post, creative spot, campaign asset, or visual piece for any brand or holiday (e.g. Diwali, holiday campaigns, product launches):\n"
                 "  DO NOT merely output theoretical outlines, markdown concepts, or text descriptions. You MUST autonomously invoke the tool `post.create` with:\n"
                 "  ```json\n"
                 "  {\n"
@@ -71,17 +80,29 @@ def seed_system_agents(db: Session):
                 "      \"caption\": \"<the full captivating post caption>\",\n"
                 "      \"hashtags\": [\"#BrandTag\", \"#CampaignTag\", \"#TopicTag\"],\n"
                 "      \"image_prompt\": \"<detailed, photorealistic visual prompt to generate the high-res campaign image>\",\n"
-                "      \"generate_image\": true\n"
+                "      \"generate_image\": true,\n"
+                "      \"publish_now\": true\n"
                 "    }\n"
                 "  }\n"
                 "  ```\n"
-                "  The system will synthesize the image, store the post in the database, and render the interactive card directly in the user's workspace.\n\n"
+                "  Set `\"publish_now\": true` whenever the user asks to post or publish directly/live to the platform (e.g. 'post in insta directly', 'publish on linkedin now'); set `\"publish_now\": false` when they only ask for a draft.\n"
+                "- EXTERNAL APP READ/WRITE & CONNECTOR CHECKS:\n"
+                "  When the user asks to read from or write to any external app (Instagram, Facebook, LinkedIn, Buffer, SendGrid, Google Sheets, Slack, Notion, etc.), `post.create` (with `publish_now: true`) or `app.connector_action` will directly check if the connector is configured. If the tool result has `connector_required: true`, NEVER claim the post or action was published live — instead, share the exact connection link (`auth_url` / `external_url`) from the tool result and invite the user to reply right here in chat with their token/credential to connect and publish immediately.\n\n"
                 "ROLE BOUNDARIES & COLLABORATION:\n"
                 "- Focus strictly on brand messaging, social media copy, campaign strategy, creative hooks, hashtags, and content scheduling.\n"
                 "- Do NOT generate B2B sales leads, prospect accounts, or opportunity gap pitch angles. If sales lead generation or CRM pipeline building is needed, consult Sales AI using agent.consult.\n"
                 "- When researching brands, trends, or cultural events (e.g. festivals, product launches), synthesize creative content and campaign plans, not sales lead lists."
             ),
-            "tools": ["web_search", "post.create", "post.publish", "knowledge.search", "agent.consult"],
+            "tools": [
+                "web_search",
+                "post.create",
+                "post.publish",
+                "knowledge.search",
+                "knowledge.search_sources",
+                "knowledge.live_fetch",
+                "app.connector_action",
+                "agent.consult",
+            ],
         },
         {
             "name": "Support AI",
@@ -98,7 +119,15 @@ def seed_system_agents(db: Session):
                 "- Focus strictly on customer inquiries, ticket troubleshooting, FAQs, and incident resolution.\n"
                 "- Do NOT handle hiring, sales prospecting, or financial audits. If needed, consult the appropriate specialist using agent.consult."
             ),
-            "tools": ["ticket.reply", "ticket.close", "knowledge.search", "agent.consult"],
+            "tools": [
+                "ticket.reply",
+                "ticket.close",
+                "knowledge.search",
+                "knowledge.search_sources",
+                "knowledge.live_fetch",
+                "app.connector_action",
+                "agent.consult",
+            ],
         },
         {
             "name": "Finance AI",
@@ -115,7 +144,14 @@ def seed_system_agents(db: Session):
                 "- Focus strictly on financial analysis, audits, invoicing, and budget tracking.\n"
                 "- Consult other specialists via agent.consult when cross-departmental context is required."
             ),
-            "tools": ["knowledge.search", "webhook_post", "agent.consult"],
+            "tools": [
+                "knowledge.search",
+                "knowledge.search_sources",
+                "knowledge.live_fetch",
+                "app.connector_action",
+                "webhook_post",
+                "agent.consult",
+            ],
         },
         {
             "name": "HR AI",
@@ -132,7 +168,15 @@ def seed_system_agents(db: Session):
                 "- Focus strictly on hiring, candidate evaluation, job descriptions, and employee onboarding.\n"
                 "- Consult other specialists via agent.consult when role specifications require departmental input."
             ),
-            "tools": ["applicant.create", "applicant.score", "email.send", "agent.consult"],
+            "tools": [
+                "applicant.create",
+                "applicant.score",
+                "email.send",
+                "knowledge.search_sources",
+                "knowledge.live_fetch",
+                "app.connector_action",
+                "agent.consult",
+            ],
         },
         {
             "name": "CEO AI",
@@ -149,7 +193,16 @@ def seed_system_agents(db: Session):
                 "- Orchestrate and delegate to specialist agents (Sales AI, Marketing AI, Support AI, Finance AI, HR AI) using agent.consult.\n"
                 "- Provide high-level governance, executive decision-making, and strategic business synthesis."
             ),
-            "tools": ["web_search", "knowledge.search", "lead.score", "email.send", "agent.consult"],
+            "tools": [
+                "web_search",
+                "knowledge.search",
+                "knowledge.search_sources",
+                "knowledge.live_fetch",
+                "app.connector_action",
+                "lead.score",
+                "email.send",
+                "agent.consult",
+            ],
         },
     ]
 

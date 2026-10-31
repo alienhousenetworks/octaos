@@ -10,10 +10,13 @@ from app.services.agents.finance import FinanceAgent
 from app.services.agents.hr import HRAgent
 from app.services.agents.connected_systems import (
     ai_webhook_target,
+    check_app_connector,
     clients_addressed_by,
     connection_facts,
     correct_assistant_reply,
     ensure_mcp_message_task,
+    extract_inline_credential,
+    format_connector_prompt,
     load_connected_systems,
     mcp_handoff_note,
     redact_webhook_details,
@@ -249,17 +252,78 @@ class OrchestratorAgent(BaseAgent):
             )
             return {"plan": {}, "results": [{"status": "success", "message": f"{saved} {handoff}"}]}
 
-        key_match = re.search(r'(?:key|token|credential|smtp|api key) is\s*[:=]?\s*([a-zA-Z0-9_\-\.\:\@\/]+)', current_request, re.IGNORECASE)
-        provider_match = re.search(r'(linkedin|meta|facebook|instagram|twitter|gmail|whatsapp|apollo|hunter|google_places|google_calendar|smtp)', current_request, re.IGNORECASE)
-        
-        if key_match and provider_match:
-            provider = provider_match.group(1).lower()
-            key = key_match.group(1)
+        cred_info = extract_inline_credential(current_request, messages)
+        if not cred_info:
+            key_match = re.search(r'(?:key|token|credential|smtp|api key) is\s*[:=]?\s*([a-zA-Z0-9_\-\.\:\@\/]+)', current_request, re.IGNORECASE)
+            provider_match = re.search(r'(linkedin|meta|facebook|instagram|twitter|gmail|whatsapp|apollo|hunter|google_places|google_calendar|smtp)', current_request, re.IGNORECASE)
+            if key_match and provider_match:
+                cred_info = {
+                    "provider": provider_match.group(1).lower(),
+                    "app": provider_match.group(1).lower(),
+                    "key": key_match.group(1),
+                    "settings": None,
+                    "resume_prompt": None,
+                    "post_id": None,
+                }
+
+        if cred_info:
+            cred_provider = cred_info["provider"]
+            cred_key = cred_info["key"]
             from app.services.credentials import save_credential
 
-            save_credential(self.db, self.tenant_id, provider, key)
-            self.log_activity("Configuration", f"Saved {provider} API key.")
-            return {"plan": {}, "results": [{"status": "success", "message": f"I've saved your {provider} configuration. What task should I execute next?"}]}
+            save_credential(self.db, self.tenant_id, cred_provider, cred_key, settings=cred_info.get("settings"))
+            self.log_activity("Configuration", f"Saved {cred_provider} API key.")
+
+            if cred_info.get("post_id") or cred_info.get("app") in ("instagram", "facebook", "meta", "linkedin", "buffer"):
+                from app.models.verticals import ContentPost
+                from app.services.agents.section_registry import section_registry
+
+                q = self.db.query(ContentPost).filter_by(tenant_id=self.tenant_id)
+                if cred_info.get("post_id"):
+                    q = q.filter_by(id=cred_info["post_id"])
+                else:
+                    q = q.filter(ContentPost.status != "published")
+                    if cred_info.get("app") in ("instagram", "facebook", "linkedin"):
+                        q = q.filter(ContentPost.platform == cred_info["app"])
+                draft_post = q.order_by(ContentPost.created_at.desc()).first()
+                if draft_post:
+                    pub_res = await section_registry.execute_action(
+                        "marketing",
+                        "post.publish",
+                        self.tenant_id,
+                        {"post_id": draft_post.id, "platform": draft_post.platform},
+                        self.db,
+                    )
+                    return {
+                        "plan": {"message": f"Connected {cred_provider} and published your pending post."},
+                        "results": [
+                            {
+                                **pub_res,
+                                "status": "success" if pub_res.get("success") else "action_required",
+                                "message": f"I've saved your {cred_provider} configuration and executed your pending post:\n\n{pub_res.get('message') or ''}",
+                            }
+                        ],
+                    }
+
+            if cred_info.get("resume_prompt"):
+                prior_messages = [m for m in (messages or []) if (m.get("content") or "").strip() != current_request]
+                resumed = await self.handle_prompt(
+                    cred_info["resume_prompt"],
+                    provider=provider,
+                    model=model,
+                    messages=prior_messages[:-1] if prior_messages else None,
+                )
+                resumed_results = list(resumed.get("results") or [])
+                resumed_results.insert(
+                    0,
+                    {
+                        "status": "success",
+                        "message": f"I've saved your {cred_provider} configuration and resumed your request.",
+                    },
+                )
+                return {**resumed, "results": resumed_results}
+
+            return {"plan": {}, "results": [{"status": "success", "message": f"I've saved your {cred_provider} configuration. What task should I execute next?"}]}
 
         # Build structured multi-turn conversation history
         conversation_context = ""
@@ -380,7 +444,8 @@ Currently configured API keys/credentials: {configured_providers}.
 
 Available Agents & Actions:
 - Marketing:
-  - "create_posts": parameters: {{"days": int, "topic": str, "platforms": list}}
+  - "create_posts": parameters: {{"days": int, "topic": str, "platforms": list, "publish_now": bool}}
+  - "publish_post": parameters: {{"platform": "instagram" | "facebook" | "linkedin", "topic": str, "caption": str, "publish_now": true}}
   - "generate_campaign": parameters: {{"topic": str, "days": int, "platforms": list, "text_provider": str, "image_provider": str, "video_provider": str, "generate_images": bool, "generate_videos": bool}}
 - Sales:
   - "generate_leads": parameters: {{"provider": "web_search" | "apify" | "apollo" | "hunter" | "google_places" | "<configured source id>", "query": str, "count": int, "freshness": str}}
@@ -509,6 +574,12 @@ Format:
                     params = task.setdefault("parameters", {})
                     params.setdefault("instructions", current_request)
                 if dept == "Marketing":
+                    if re.search(
+                        r"\b(post\s+(?:it\s+|this\s+)?(?:directly|now|live)|publish\s+(?:it\s+|this\s+)?(?:directly|now|live|to|on|in)|post\s+(?:directly\s+)?(?:in|on|to)\s+(?:insta|instagram|facebook|fb|linkedin))\b",
+                        current_request,
+                        re.IGNORECASE,
+                    ):
+                        task.setdefault("parameters", {})["publish_now"] = True
                     agent = MarketingAgent(self.db, self.tenant_id)
                     res = await agent.execute_task(task)
                     results.append(res)
@@ -540,29 +611,35 @@ Format:
                     results.append({"status": "success", "message": handoff})
                 elif dept == "System" and task.get("action") == "request_key":
                     provider = task.get("parameters", {}).get("provider", "unknown")
-                    if provider == "smtp":
-                        msg = "I need your SMTP outgoing mail credentials. Please reply with: 'My smtp credential is: smtp://username:password@smtp.mailtrap.io:2525'."
-                    else:
-                        msg = f"I need your {provider} API key to complete this task. Please reply with 'My {provider} key is: [YOUR_KEY]'."
+                    conn = check_app_connector(self.db, self.tenant_id, provider)
+                    msg = format_connector_prompt(conn, "complete this task")
                     self.log_activity("Action Required", msg)
-                    results.append({"status": "action_required", "message": msg})
+                    results.append({
+                        "status": "action_required",
+                        "connector_required": True,
+                        "connector": conn,
+                        "message": msg,
+                    })
                 else:
                     self.log_activity("Skip Task", f"No agent for {dept}", status="pending")
             except ValueError as ve:
                 ve_str = str(ve)
                 provider = None
                 # Identify missing provider from exception message
-                for p in ["linkedin", "meta", "facebook", "instagram", "twitter", "gmail", "whatsapp", "apollo", "hunter", "google_places", "google_calendar", "smtp", "greenhouse", "lever", "openai", "anthropic", "gemini"]:
+                for p in ["linkedin", "meta", "facebook", "instagram", "twitter", "gmail", "whatsapp", "apollo", "hunter", "google_places", "google_calendar", "smtp", "greenhouse", "lever", "openai", "anthropic", "gemini", "sendgrid", "twilio", "calendly", "zoominfo", "zapier", "workato"]:
                     if p in ve_str.lower():
                         provider = p
                         break
                 if provider:
-                    if provider == "smtp":
-                        msg = "I need your SMTP outgoing mail credentials. Please reply with: 'My smtp credential is: smtp://username:password@smtp.mailtrap.io:2525'."
-                    else:
-                        msg = f"I need your {provider} API key to complete this task. Please reply with 'My {provider} key is: [YOUR_KEY]'."
+                    conn = check_app_connector(self.db, self.tenant_id, provider)
+                    msg = format_connector_prompt(conn, "complete this task")
                     self.log_activity("Action Required", msg)
-                    results.append({"status": "action_required", "message": msg})
+                    results.append({
+                        "status": "action_required",
+                        "connector_required": True,
+                        "connector": conn,
+                        "message": msg,
+                    })
                 else:
                     raise ve
         return {"mode": "execution", "plan": plan, "results": results}

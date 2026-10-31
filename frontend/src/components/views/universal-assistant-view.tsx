@@ -131,9 +131,15 @@ function extractActionArtifact(result: any, content: string): any {
       if (tc?.result?.post_id || tc?.result?.image_url) return tc.result;
       if (tc?.result?.lead_id) return tc.result;
       if (tc?.result?.ticket_id) return tc.result;
+      if (tc?.result?.connector_required || tc?.result?.connector) return tc.result;
     }
   }
-  if (result?.post_id) return result;
+  if (Array.isArray(result?.results)) {
+    for (const r of result.results) {
+      if (r?.post_id || r?.connector_required || r?.connector) return r;
+    }
+  }
+  if (result?.post_id || result?.connector_required || result?.connector) return result;
 
   // Extract markdown image and hashtags fallback if present in output text
   const imgMatch = (content || '').match(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/);
@@ -168,10 +174,33 @@ function AgentActionCard({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleVal, setScheduleVal] = useState('');
+  const [needsConnector, setNeedsConnector] = useState<boolean>(
+    Boolean(artifact?.connector_required || artifact?.status === 'connector_required')
+  );
+  const [connectorKeyInput, setConnectorKeyInput] = useState('');
 
   const isPost = Boolean(artifact?.post_id || artifact?.caption || artifact?.image_url || artifact?.platform);
   const isLead = Boolean(artifact?.lead_id || artifact?.company);
-  const platform = String(artifact?.platform || 'instagram').toLowerCase();
+  const isConnector = Boolean(needsConnector || artifact?.connector_required || artifact?.connector);
+  const platform = String(artifact?.platform || artifact?.connector?.app || 'instagram').toLowerCase();
+  const connectorObj = artifact?.connector || {
+    provider: platform === 'instagram' || platform === 'facebook' ? 'meta' : platform,
+    label: platform.toUpperCase(),
+    auth_url:
+      platform === 'instagram' || platform === 'facebook'
+        ? `/api/v1/meta/auth?tenant_id=${encodeURIComponent(String(workspace.tenantId || 'default'))}`
+        : platform === 'linkedin'
+          ? `/api/v1/linkedin/auth?tenant_id=${encodeURIComponent(String(workspace.tenantId || 'default'))}`
+          : null,
+    external_url:
+      platform === 'instagram' || platform === 'facebook'
+        ? 'https://developers.facebook.com/tools/explorer/'
+        : platform === 'linkedin'
+          ? 'https://www.linkedin.com/developers/tools/oauth'
+          : null,
+    settings_url: '/app/settings?tab=integrations',
+    hint: `Paste your ${platform} access token or API key`,
+  };
   const caption = String(artifact?.caption || artifact?.content || '').replace(/#[a-zA-Z0-9_]+/g, '').trim();
   const hashtags: string[] = Array.isArray(artifact?.hashtags)
     ? artifact.hashtags
@@ -200,13 +229,55 @@ function AgentActionCard({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body?.detail || `Publish failed (${res.status})`);
+        const detailStr = typeof body?.detail === 'string' ? body.detail : `Publish failed (${res.status})`;
+        if (/missing|credential|token|not connected/i.test(detailStr)) {
+          setNeedsConnector(true);
+          setCurrentStatus('connector_required');
+        }
+        throw new Error(detailStr);
       }
+      setNeedsConnector(false);
       setCurrentStatus('published');
       setCurrentApproval('approved');
       setFeedback(`Successfully published to ${platform.toUpperCase()}!`);
     } catch (err: any) {
       setFeedback(err?.message || 'Failed to publish post.');
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleSaveConnectorAndExecute = async () => {
+    const trimmedKey = connectorKeyInput.trim();
+    if (!trimmedKey) return;
+    setBusyAction('connecting');
+    setFeedback(null);
+    try {
+      const keyRes = await workspace.fetchWithAuth(`${workspace.apiUrl}/commands/keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: connectorObj.provider || platform,
+          key: trimmedKey,
+        }),
+      });
+      if (!keyRes.ok) {
+        const errBody = await keyRes.json().catch(() => ({}));
+        throw new Error(errBody?.detail || `Failed to save ${connectorObj.label || platform} credential`);
+      }
+      setConnectorKeyInput('');
+      setNeedsConnector(false);
+      if (artifact?.post_id) {
+        await handlePublishNow();
+      } else {
+        setCurrentStatus('connected');
+        setFeedback(`${connectorObj.label || platform.toUpperCase()} connected! Resuming your request...`);
+        if (artifact?.pending_action?.app) {
+          onQuickPrompt?.(`Now that ${connectorObj.label || platform} is connected, please ${artifact.pending_action.operation || 'execute'} the request.`);
+        }
+      }
+    } catch (err: any) {
+      setFeedback(err?.message || 'Failed to connect credential.');
     } finally {
       setBusyAction(null);
     }
@@ -252,7 +323,7 @@ function AgentActionCard({
     }
   };
 
-  if (!isPost && !isLead) return null;
+  if (!isPost && !isLead && !isConnector) return null;
 
   return (
     <div className="mt-3.5 overflow-hidden rounded-2xl border border-white/[0.12] bg-[#0c120e] shadow-xl">
@@ -261,7 +332,7 @@ function AgentActionCard({
         <div className="flex items-center gap-2">
           <span className="flex size-2 rounded-full bg-[#83ee72] ring-4 ring-[#83ee72]/20" />
           <span className="font-semibold text-white/90 uppercase tracking-wide text-[11px]">
-            {isLead ? 'CRM Lead Captured' : `${platform} Visual Spot`}
+            {isLead ? 'CRM Lead Captured' : isPost ? `${platform} Visual Spot` : `${connectorObj.label || platform} Connector`}
           </span>
           {artifact?.post_id && (
             <span className="font-mono text-[10px] text-white/40">#{artifact.post_id.slice(0, 8)}</span>
@@ -359,6 +430,71 @@ function AgentActionCard({
       {feedback && (
         <div className="mx-3.5 mb-2.5 rounded-lg border border-[#7de56b]/30 bg-[#7de56b]/10 px-3 py-1.5 text-[11px] text-[#aef4a1]">
           {feedback}
+        </div>
+      )}
+
+      {/* Direct Connector Link & Inline Credential Prompt */}
+      {needsConnector && currentStatus !== 'published' && (
+        <div className="mx-3.5 mb-3 rounded-xl border border-amber-400/30 bg-amber-500/[0.08] p-3 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <span className="font-semibold text-amber-200 text-[11px] uppercase tracking-wider">
+              Connect {connectorObj.label || platform.toUpperCase()} to {artifact?.post_id ? 'Publish Directly' : 'Execute Live'}
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {connectorObj.auth_url && (
+                <a
+                  href={connectorObj.auth_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-md border border-amber-400/40 bg-amber-400/15 px-2.5 py-1 text-[11px] font-semibold text-amber-200 hover:bg-amber-400/25 transition"
+                >
+                  OAuth Connect Link <ExternalLink className="size-3" />
+                </a>
+              )}
+              {connectorObj.external_url && (
+                <a
+                  href={connectorObj.external_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-white/[0.06] px-2.5 py-1 text-[11px] text-white/85 hover:bg-white/[0.12] transition"
+                >
+                  Get {connectorObj.label || platform} Token <ExternalLink className="size-3" />
+                </a>
+              )}
+              <Link
+                href={connectorObj.settings_url || '/app/settings?tab=integrations'}
+                className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-white/[0.06] px-2.5 py-1 text-[11px] text-white/80 hover:text-white transition"
+              >
+                Integrations Settings <ChevronRight className="size-3" />
+              </Link>
+            </div>
+          </div>
+          <p className="text-[11px] text-white/70 mb-2">
+            {connectorObj.hint || `Paste your ${connectorObj.label || platform} access token below (or reply in chat) to connect and run immediately:`}
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              type="password"
+              value={connectorKeyInput}
+              onChange={(e) => setConnectorKeyInput(e.target.value)}
+              placeholder={`Enter ${connectorObj.provider || platform} token / API key...`}
+              className="flex-1 rounded-lg border border-white/15 bg-black/50 px-2.5 py-1.5 text-xs text-white placeholder:text-white/40 outline-none focus:border-amber-400/60"
+            />
+            <Button
+              size="sm"
+              disabled={!connectorKeyInput.trim() || busyAction === 'connecting'}
+              onClick={handleSaveConnectorAndExecute}
+              className="h-7 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black hover:bg-amber-300 disabled:opacity-50"
+            >
+              {busyAction === 'connecting' ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : artifact?.post_id ? (
+                'Connect & Publish'
+              ) : (
+                'Connect & Run'
+              )}
+            </Button>
+          </div>
         </div>
       )}
 

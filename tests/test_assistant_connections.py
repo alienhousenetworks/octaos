@@ -369,3 +369,140 @@ def test_knowledge_denial_is_replaced_with_the_stored_page():
     assert "https://alienhousenetworks.com/about-us/" in corrected["message"]
     assert "technology solutions company" in corrected["message"]
     assert "paste" not in corrected["message"].lower()
+
+
+def test_direct_instagram_post_checks_connector_and_connects_from_chat(monkeypatch):
+    import asyncio
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models.base import APICredential, Tenant
+    from app.models.verticals import ContentPost
+    from app.models.teams import AgentMetric
+    from app.models.agents import ActivityLog
+    from app.services.agents.connected_systems import (
+        check_app_connector,
+        extract_inline_credential,
+    )
+    from app.services.agents.section_registry import MarketingSectionAdapter
+    from app.services.credentials import save_credential
+    from app.services.social.publisher import PublishResult, SocialPublisher
+
+    engine = create_engine("sqlite:///:memory:")
+    Tenant.__table__.create(engine)
+    APICredential.__table__.create(engine)
+    ContentPost.__table__.create(engine)
+    AgentMetric.__table__.create(engine)
+    ActivityLog.__table__.create(engine)
+    db = sessionmaker(bind=engine)()
+    db.add(Tenant(id="tenant-ig", name="AlienHouse"))
+    db.commit()
+
+    # 1. Check connector when Instagram/Meta is not connected
+    conn = check_app_connector(db, "tenant-ig", "insta")
+    assert conn["connected"] is False
+    assert conn["provider"] == "meta"
+    assert "/api/v1/meta/auth?tenant_id=tenant-ig" in conn["auth_url"]
+    assert "developers.facebook.com" in conn["external_url"]
+
+    # 2. Ask MarketingSectionAdapter to create & publish directly while disconnected
+    adapter = MarketingSectionAdapter()
+    res = asyncio.run(
+        adapter.execute_action(
+            "post.create",
+            "tenant-ig",
+            {
+                "platform": "instagram",
+                "caption": "Launching our autonomous marketing workflow!",
+                "hashtags": ["#OctaOS", "#AI"],
+                "image_url": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe",
+                "generate_image": False,
+                "publish_now": True,
+            },
+            db,
+        )
+    )
+    assert res["success"] is False
+    assert res["connector_required"] is True
+    assert res["status"] == "connector_required"
+    assert "/api/v1/meta/auth?tenant_id=tenant-ig" in res["message"]
+    post_id = res["post_id"]
+
+    # Verify post stayed in draft (no fake dev_ig_ publish)
+    post_row = db.query(ContentPost).filter_by(id=post_id).one()
+    assert post_row.status == "draft"
+    assert not post_row.external_post_id
+
+    # 3. User replies in chat with their Instagram/Meta token
+    transcript = (
+        "Continue this conversation as Marketing AI.\n\nCONVERSATION:\n"
+        "USER: Post in insta directly about our autonomous marketing workflow\n\n"
+        f"ASSISTANT: {res['message']}\n\n"
+        "USER: My instagram token is EAABs1234567890abcdefXYZ\n\n"
+        "ASSISTANT: "
+    )
+    cred_info = extract_inline_credential(transcript)
+    assert cred_info is not None
+    assert cred_info["provider"] == "meta"
+    assert cred_info["key"] == "EAABs1234567890abcdefXYZ"
+    assert cred_info["post_id"] == post_id
+    assert "Post in insta directly" in (cred_info["resume_prompt"] or "")
+
+    # 4. Save credential and publish the pending post live
+    save_credential(db, "tenant-ig", cred_info["provider"], cred_info["key"], settings=cred_info.get("settings"))
+    assert check_app_connector(db, "tenant-ig", "instagram")["connected"] is True
+
+    async def fake_publish_instagram(self, post):
+        return PublishResult(True, "instagram", external_id="ig_live_998877")
+
+    monkeypatch.setattr(SocialPublisher, "_publish_instagram", fake_publish_instagram)
+
+    pub_res = asyncio.run(
+        adapter.execute_action(
+            "post.publish",
+            "tenant-ig",
+            {"post_id": post_id, "platform": "instagram"},
+            db,
+        )
+    )
+    assert pub_res["success"] is True
+    assert pub_res["status"] == "published"
+    assert pub_res["external_post_id"] == "ig_live_998877"
+    db.refresh(post_row)
+    assert post_row.status == "published"
+    assert post_row.external_post_id == "ig_live_998877"
+    db.close()
+
+
+def test_app_connector_action_tool_checks_connection():
+    import asyncio
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models.base import APICredential, Tenant
+    from app.services.agents.tools import tool_registry
+
+    engine = create_engine("sqlite:///:memory:")
+    Tenant.__table__.create(engine)
+    APICredential.__table__.create(engine)
+    db = sessionmaker(bind=engine)()
+    db.add(Tenant(id="tenant-conn", name="AlienHouse"))
+    db.commit()
+
+    res = asyncio.run(
+        tool_registry.execute_tool(
+            name="app.connector_action",
+            payload={"app": "sendgrid", "operation": "write", "params": {"to": "a@b.com", "body": "Hi"}},
+            db=db,
+            tenant_id="tenant-conn",
+            context={
+                "granted_tools": ["app.connector_action"],
+                "request_tenant_id": "tenant-conn",
+            },
+        )
+    )
+    assert res["success"] is False
+    assert res["connector_required"] is True
+    assert res["connector"]["provider"] == "sendgrid"
+    assert "app.sendgrid.com" in res["message"]
+    db.close()

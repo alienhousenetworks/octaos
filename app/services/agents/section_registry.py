@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Protocol
+from typing import Dict, Any, List, Optional, Protocol
 from sqlalchemy.orm import Session
 from app.models.verticals import Lead, Ticket, TicketMessage, ContentPost, Candidate, Transaction
 import uuid
@@ -142,6 +142,99 @@ class MarketingSectionAdapter:
     def get_supported_actions(self) -> List[str]:
         return ["post.create", "post.publish"]
 
+    async def _publish_with_connector_check(
+        self,
+        post: ContentPost,
+        tenant_id: str,
+        db: Session,
+        caption: Optional[str] = None,
+        hashtags: Optional[List[str]] = None,
+        steps: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        from app.services.agents.connected_systems import check_app_connector, format_connector_prompt
+        from app.services.social.publish_helpers import publish_post_async
+
+        resolved_caption = caption or (post.content or "").split("#")[0].strip() or (post.content or "")
+        resolved_tags = hashtags if hashtags is not None else [
+            w for w in (post.content or "").split() if w.startswith("#")
+        ]
+        base_steps = list(steps or [])
+
+        conn = check_app_connector(db, tenant_id, post.platform or "instagram")
+        if not conn.get("connected"):
+            base_steps.append(f"Checked {conn['label']} connector — not connected yet")
+            prompt_msg = format_connector_prompt(
+                conn,
+                f"publish your {post.platform.title()} post (Draft ID: {post.id})",
+            )
+            return {
+                "success": False,
+                "status": "connector_required",
+                "connector_required": True,
+                "connector": conn,
+                "post_id": post.id,
+                "platform": post.platform,
+                "caption": resolved_caption,
+                "hashtags": resolved_tags,
+                "content": post.content,
+                "image_url": post.image_url,
+                "image_prompt": post.image_prompt,
+                "approval_status": post.approval_status,
+                "steps": base_steps,
+                "pending_action": {
+                    "type": "publish_post",
+                    "post_id": post.id,
+                    "platform": post.platform,
+                },
+                "message": prompt_msg,
+            }
+
+        post.approval_status = "approved"
+        db.commit()
+        pub_res = await publish_post_async(db, post)
+        db.refresh(post)
+
+        if pub_res.success:
+            base_steps.append(
+                f"Verified {conn['label']} connector and published live (External ID: {pub_res.external_id})"
+            )
+            return {
+                "success": True,
+                "post_id": post.id,
+                "platform": post.platform,
+                "caption": resolved_caption,
+                "hashtags": resolved_tags,
+                "content": post.content,
+                "image_url": post.image_url,
+                "image_prompt": post.image_prompt,
+                "status": post.status,
+                "approval_status": post.approval_status,
+                "external_post_id": pub_res.external_id,
+                "steps": base_steps,
+                "message": (
+                    f"Post #{post.id[:8]} has been published live to {post.platform.title()} "
+                    f"(External ID: {pub_res.external_id})."
+                ),
+            }
+
+        base_steps.append(f"Publish to {conn['label']} failed: {pub_res.error}")
+        return {
+            "success": False,
+            "status": post.status or "failed",
+            "connector_required": "missing" in (pub_res.error or "").lower() or "token" in (pub_res.error or "").lower(),
+            "connector": conn,
+            "post_id": post.id,
+            "platform": post.platform,
+            "caption": resolved_caption,
+            "hashtags": resolved_tags,
+            "content": post.content,
+            "image_url": post.image_url,
+            "image_prompt": post.image_prompt,
+            "error": pub_res.error,
+            "steps": base_steps,
+            "message": f"Failed to publish post #{post.id[:8]} to {post.platform.title()}: {pub_res.error}",
+        }
+
     async def execute_action(
         self, action: str, tenant_id: str, payload: Dict[str, Any], db: Session
     ) -> Dict[str, Any]:
@@ -169,6 +262,12 @@ class MarketingSectionAdapter:
             image_prompt = payload.get("image_prompt")
             image_url = payload.get("image_url")
             generate_image = payload.get("generate_image", True)
+            publish_now = bool(
+                payload.get("publish_now")
+                or payload.get("publish_directly")
+                or str(payload.get("publish_mode") or "").lower() == "now"
+                or str(payload.get("status") or "").lower() == "published"
+            )
 
             # Generate real image if prompt given or requested and no image_url yet
             if not image_url and (image_prompt or generate_image):
@@ -209,8 +308,18 @@ class MarketingSectionAdapter:
                 f"Ingested brand context & {platform.title()} design requirements",
                 f"Synthesized engaging copy and {len(clean_tags)} high-reach hashtags",
                 "Generated high-definition visual creative spot",
-                f"Created draft post #{post.id[:8]} in Content Database (Status: Pending Approval)",
+                f"Created draft post #{post.id[:8]} in Content Database",
             ]
+
+            if publish_now:
+                return await self._publish_with_connector_check(
+                    post=post,
+                    tenant_id=tenant_id,
+                    db=db,
+                    caption=caption or post.content,
+                    hashtags=clean_tags,
+                    steps=steps_taken,
+                )
 
             return {
                 "success": True,
@@ -229,28 +338,24 @@ class MarketingSectionAdapter:
 
         elif action == "post.publish":
             post_id = payload.get("post_id")
+            platform_filter = str(payload.get("platform") or "").lower().strip()
             post = None
             if post_id:
                 post = db.query(ContentPost).filter_by(tenant_id=tenant_id, id=post_id).first()
             if not post:
-                post = db.query(ContentPost).filter_by(tenant_id=tenant_id).order_by(ContentPost.created_at.desc()).first()
+                q = db.query(ContentPost).filter_by(tenant_id=tenant_id)
+                if platform_filter:
+                    q = q.filter(ContentPost.platform == platform_filter)
+                post = q.order_by(ContentPost.created_at.desc()).first()
 
             if not post:
                 return {"success": False, "message": "No post draft available to publish."}
 
-            from datetime import datetime, timezone
-            post.status = "published"
-            post.approval_status = "published"
-            post.published_at = datetime.now(timezone.utc)
-            db.commit()
-            db.refresh(post)
-            return {
-                "success": True,
-                "post_id": post.id,
-                "platform": post.platform,
-                "status": "published",
-                "message": f"Post #{post.id[:8]} has been published to {post.platform.title()}.",
-            }
+            return await self._publish_with_connector_check(
+                post=post,
+                tenant_id=tenant_id,
+                db=db,
+            )
 
         raise NotImplementedError(f"Action '{action}' not supported by MarketingSectionAdapter.")
 

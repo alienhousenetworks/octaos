@@ -57,15 +57,44 @@ class SocialPublisher:
             logger.exception("Publish failed for %s post %s", platform, post.id)
             return PublishResult(False, platform, error=str(exc))
 
+    async def _ensure_meta_settings(self, token: str, settings: dict) -> dict:
+        resolved = dict(settings or {})
+        if resolved.get("page_id") and resolved.get("instagram_account_id"):
+            return resolved
+        try:
+            import httpx
+            from app.services.credentials import save_credential
+
+            async with httpx.AsyncClient(timeout=15.0) as http:
+                resp = await http.get(
+                    "https://graph.facebook.com/v21.0/me/accounts",
+                    params={
+                        "access_token": token,
+                        "fields": "id,name,access_token,instagram_business_account",
+                    },
+                )
+                if resp.status_code < 400:
+                    pages = (resp.json() or {}).get("data") or []
+                    if pages:
+                        page = pages[0]
+                        resolved.setdefault("page_id", page.get("id"))
+                        resolved.setdefault("page_name", page.get("name"))
+                        if page.get("access_token"):
+                            resolved.setdefault("page_access_token", page.get("access_token"))
+                        ig = page.get("instagram_business_account") or {}
+                        if ig.get("id"):
+                            resolved.setdefault("instagram_account_id", ig.get("id"))
+                        save_credential(self.db, self.tenant_id, "meta", token, settings=resolved)
+        except Exception:
+            logger.debug("Could not auto-discover Meta page/Instagram account settings", exc_info=True)
+        return resolved
+
     async def _publish_facebook(self, post: ContentPost) -> PublishResult:
         token, settings = get_decrypted_credential(self.db, self.tenant_id, "meta")
         if not token:
-            from app.core.config import settings as app_settings
-            if getattr(app_settings, "DEV", False) or getattr(app_settings, "ENVIRONMENT", "") in ("development", "dev", "local"):
-                ext_id = f"dev_fb_{post.id[:8]}"
-                return PublishResult(True, "facebook", external_id=ext_id, note="Simulated publish in DEV mode. Connect Meta API in Settings for live posting.")
             return PublishResult(False, "facebook", error="Missing Meta Graph API credential.")
 
+        settings = await self._ensure_meta_settings(token, settings)
         img_bytes, img_mime, img_url = await self._resolve_image(post)
         vid_bytes, vid_mime, vid_url = await self._resolve_video(post)
 
@@ -84,12 +113,9 @@ class SocialPublisher:
     async def _publish_instagram(self, post: ContentPost) -> PublishResult:
         token, settings = get_decrypted_credential(self.db, self.tenant_id, "meta")
         if not token:
-            from app.core.config import settings as app_settings
-            if getattr(app_settings, "DEV", False) or getattr(app_settings, "ENVIRONMENT", "") in ("development", "dev", "local"):
-                ext_id = f"dev_ig_{post.id[:8]}"
-                return PublishResult(True, "instagram", external_id=ext_id, note="Simulated publish in DEV mode. Connect Meta API in Settings for live posting.")
             return PublishResult(False, "instagram", error="Missing Meta Graph API credential.")
 
+        settings = await self._ensure_meta_settings(token, settings)
         img_bytes, img_mime, img_url = await self._resolve_image(post)
         vid_bytes, vid_mime, vid_url = await self._resolve_video(post)
 
@@ -115,10 +141,6 @@ class SocialPublisher:
     async def _publish_linkedin(self, post: ContentPost) -> PublishResult:
         token, settings = get_decrypted_credential(self.db, self.tenant_id, "linkedin")
         if not token:
-            from app.core.config import settings as app_settings
-            if getattr(app_settings, "DEV", False) or getattr(app_settings, "ENVIRONMENT", "") in ("development", "dev", "local"):
-                ext_id = f"dev_li_{post.id[:8]}"
-                return PublishResult(True, "linkedin", external_id=ext_id, note="Simulated publish in DEV mode. Connect LinkedIn OAuth in Settings for live posting.")
             return PublishResult(False, "linkedin", error="Missing LinkedIn API credential.")
 
         settings = dict(settings or {})
