@@ -22,7 +22,8 @@ def test_external_mcp_config_accepts_arbitrary_http_provider():
     assert config["headers"]["Authorization"] == "Bearer secret"
 
 
-def test_external_mcp_config_accepts_stdio_provider():
+def test_external_mcp_config_accepts_stdio_provider(monkeypatch):
+    monkeypatch.setenv("OCTAOS_MCP_ALLOW_UNSANDBOXED_STDIO", "true")
     config = validate_external_mcp_config(
         {
             "transport": "stdio",

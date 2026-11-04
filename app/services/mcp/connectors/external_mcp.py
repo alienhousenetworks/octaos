@@ -117,5 +117,27 @@ class ExternalMCPAdapter(ConnectorAdapter):
         arguments: Dict[str, Any],
     ) -> Dict[str, Any]:
         client = await self._client(ctx)
-        result = await client.call_tool(action_name, arguments)
+        supplied = dict(arguments or {})
+        confirmed = bool(supplied.pop("__octaos_confirm_side_effects", False))
+
+        # Re-discover on every invocation: a remote server may change its tools
+        # after connection. Never call a tool that is no longer advertised.
+        discovery = await client.list_tools()
+        tools = discovery.get("tools", []) if isinstance(discovery, dict) else []
+        selected = next(
+            (tool for tool in tools if tool.get("name") == action_name),
+            None,
+        )
+        if selected is None:
+            raise ExternalMCPError("Requested tool is not advertised by the remote MCP server.")
+
+        annotations = selected.get("annotations") or {}
+        if annotations.get("readOnlyHint") is not True and not confirmed:
+            raise ExternalMCPError(
+                "Remote tool is not explicitly marked read-only. "
+                "Review its schema and set confirm_side_effects=true to acknowledge possible side effects."
+            )
+
+        # The marker is stripped above and never forwarded to the provider.
+        result = await client.call_tool(action_name, supplied)
         return result if isinstance(result, dict) else {"result": result}

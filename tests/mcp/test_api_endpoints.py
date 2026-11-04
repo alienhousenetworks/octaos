@@ -184,3 +184,120 @@ def test_mcp_streamable_http_transport(api_test_data):
         assert tools_res.status_code == 200
         tools_data = tools_res.json()
         assert "tools" in tools_data["result"]
+
+
+def test_canonical_mcp_endpoint_is_available(api_test_data):
+    """Clients can use the conventional /mcp endpoint, not only the versioned alias."""
+    raw_key = api_test_data["raw_mcp_key"]
+    with TestClient(app) as client:
+        response = client.post(
+            "/mcp",
+            headers={
+                "Authorization": f"Bearer {raw_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+            },
+            json={
+                "jsonrpc": "2.0",
+                "id": "canonical-init",
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {"name": "interop-test", "version": "1.0.0"},
+                },
+            },
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["jsonrpc"] == "2.0"
+        assert payload["id"] == "canonical-init"
+        assert payload["result"]["protocolVersion"] == "2024-11-05"
+        assert payload["result"]["serverInfo"]["name"] == "octaos-governed-mcp-platform"
+
+
+def test_canonical_mcp_endpoint_rejects_non_json_content_type(api_test_data):
+    raw_key = api_test_data["raw_mcp_key"]
+    with TestClient(app) as client:
+        response = client.post(
+            "/mcp",
+            headers={
+                "Authorization": f"Bearer {raw_key}",
+                "Content-Type": "text/plain",
+                "Accept": "application/json",
+            },
+            content='{"jsonrpc":"2.0","id":1,"method":"ping"}',
+        )
+        assert response.status_code == 415
+
+
+def test_mcp_server_rejects_invalid_jsonrpc_version(api_test_data):
+    raw_key = api_test_data["raw_mcp_key"]
+    with TestClient(app) as client:
+        response = client.post(
+            "/mcp",
+            headers={
+                "Authorization": f"Bearer {raw_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            json={"jsonrpc": "1.0", "id": "bad-version", "method": "ping"},
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["error"]["code"] == -32600
+        assert payload["id"] == "bad-version"
+
+
+def test_canonical_mcp_endpoint_rejects_unconfigured_browser_origin(api_test_data, monkeypatch):
+    monkeypatch.delenv("MCP_ALLOWED_ORIGINS", raising=False)
+    raw_key = api_test_data["raw_mcp_key"]
+    with TestClient(app) as client:
+        response = client.post(
+            "/mcp",
+            headers={
+                "Authorization": f"Bearer {raw_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Origin": "https://untrusted.example",
+            },
+            json={"jsonrpc": "2.0", "id": "origin-test", "method": "ping"},
+        )
+        assert response.status_code == 403
+
+
+def test_canonical_mcp_endpoint_accepts_configured_browser_origin(api_test_data, monkeypatch):
+    monkeypatch.setenv("MCP_ALLOWED_ORIGINS", "https://client.example, https://chatgpt.com")
+    raw_key = api_test_data["raw_mcp_key"]
+    with TestClient(app) as client:
+        response = client.post(
+            "/mcp",
+            headers={
+                "Authorization": f"Bearer {raw_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Origin": "https://client.example",
+            },
+            json={"jsonrpc": "2.0", "id": "origin-test", "method": "ping"},
+        )
+        assert response.status_code == 200
+        assert response.json()["result"] == {}
+
+
+def test_streamable_http_rejects_jsonrpc_batches(api_test_data):
+    raw_key = api_test_data["raw_mcp_key"]
+    with TestClient(app) as client:
+        response = client.post(
+            "/mcp",
+            headers={
+                "Authorization": f"Bearer {raw_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            json=[
+                {"jsonrpc": "2.0", "id": 1, "method": "ping"},
+                {"jsonrpc": "2.0", "id": 2, "method": "ping"},
+            ],
+        )
+        assert response.status_code == 400
+        assert "batch" in response.json()["detail"].lower()
