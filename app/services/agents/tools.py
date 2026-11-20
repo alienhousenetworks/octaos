@@ -1698,6 +1698,121 @@ class ToolRegistry:
                 handler=self._exec_orodruin_geolocate,
             )
         )
+        self.register(
+            ToolDefinition(
+                name="orodruin.cyber_lookup",
+                description="Inspect exposed ports, services, and CVEs for an IP via Shodan InternetDB.",
+                input_schema={"type": "object", "required": ["ip"], "properties": {"ip": {"type": "string"}}},
+                output_schema={"type": "object"},
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_orodruin_cyber,
+            )
+        )
+        self.register(
+            ToolDefinition(
+                name="orodruin.ransomware",
+                description="Fetch recent ransomware victim disclosures (victim, group, country, sector).",
+                input_schema={"type": "object", "properties": {"limit": {"type": "integer", "default": 10}}},
+                output_schema={"type": "object"},
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_orodruin_ransomware,
+            )
+        )
+        self.register(
+            ToolDefinition(
+                name="orodruin.finance_awards",
+                description="Search US federal contract awards (USASpending) by keyword.",
+                input_schema={"type": "object", "required": ["query"], "properties": {"query": {"type": "string"}, "limit": {"type": "integer", "default": 8}}},
+                output_schema={"type": "object"},
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_orodruin_awards,
+            )
+        )
+        self.register(
+            ToolDefinition(
+                name="orodruin.research_papers",
+                description="Search recent ArXiv research papers on a topic.",
+                input_schema={"type": "object", "required": ["query"], "properties": {"query": {"type": "string"}, "limit": {"type": "integer", "default": 8}}},
+                output_schema={"type": "object"},
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_orodruin_papers,
+            )
+        )
+        self.register(
+            ToolDefinition(
+                name="orodruin.markets",
+                description="Fetch live crypto/market indicators (BTC, ETH, SOL).",
+                input_schema={"type": "object", "properties": {}},
+                output_schema={"type": "object"},
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_orodruin_markets,
+            )
+        )
+        self.register(
+            ToolDefinition(
+                name="orodruin.prediction_markets",
+                description="Fetch active Polymarket prediction markets and volumes.",
+                input_schema={"type": "object", "properties": {"limit": {"type": "integer", "default": 8}}},
+                output_schema={"type": "object"},
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_orodruin_prediction,
+            )
+        )
+        self.register(
+            ToolDefinition(
+                name="orodruin.search_sanctions",
+                description="Screen an entity or person against OpenSanctions global watchlists.",
+                input_schema={"type": "object", "required": ["query"], "properties": {"query": {"type": "string"}, "limit": {"type": "integer", "default": 8}}},
+                output_schema={"type": "object"},
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_orodruin_sanctions,
+            )
+        )
+        self.register(
+            ToolDefinition(
+                name="orodruin.ui_action",
+                description="Emit a UI control action for the Global Intelligence Map (focus_map, toggle_layer, apply_filters).",
+                input_schema={
+                    "type": "object",
+                    "required": ["action"],
+                    "properties": {
+                        "action": {"type": "string", "enum": ["focus_map", "toggle_layer", "apply_filters"]},
+                        "lat": {"type": "number"},
+                        "lon": {"type": "number"},
+                        "zoom": {"type": "number"},
+                        "layer": {"type": "string"},
+                        "topic": {"type": "string"},
+                    },
+                },
+                output_schema={"type": "object"},
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_orodruin_ui_action,
+            )
+        )
 
     async def _exec_orodruin_signals(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
         from app.services.orodruin_intel import OrodruinIntelService
@@ -1710,6 +1825,37 @@ class ToolRegistry:
     async def _exec_orodruin_geolocate(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
         from app.services.orodruin_intel import OrodruinIntelService
         return await OrodruinIntelService().geolocate_ip(str(args["ip"]))
+
+    async def _exec_orodruin_cyber(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().cyber_lookup(str(args["ip"]))
+
+    async def _exec_orodruin_ransomware(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return {"items": await OrodruinIntelService().get_ransomware(limit=int(args.get("limit") or 10))}
+
+    async def _exec_orodruin_awards(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return {"items": await OrodruinIntelService().finance_awards(str(args["query"]), limit=int(args.get("limit") or 8))}
+
+    async def _exec_orodruin_papers(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return {"items": await OrodruinIntelService().research_papers(str(args["query"]), limit=int(args.get("limit") or 8))}
+
+    async def _exec_orodruin_markets(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().get_markets()
+
+    async def _exec_orodruin_prediction(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return {"items": await OrodruinIntelService().get_prediction_markets(limit=int(args.get("limit") or 8))}
+
+    async def _exec_orodruin_sanctions(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return {"items": await OrodruinIntelService().search_sanctions(str(args["query"]), limit=int(args.get("limit") or 8))}
+
+    async def _exec_orodruin_ui_action(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        return {"ui_action": args, "applied": True}
 
 
 tool_registry = ToolRegistry()

@@ -1,9 +1,7 @@
-"""Orodruin Global OSINT & Intelligence API endpoints for OctaOS."""
-import os
+"""Native 100% Orodruin Global OSINT & Intelligence API endpoints for OctaOS."""
 from typing import Optional
 
-import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -11,7 +9,6 @@ from app.api.deps import get_current_user, get_db
 from app.services.orodruin_intel import OrodruinIntelService
 
 router = APIRouter()
-ORODRUIN_API_URL = os.getenv("ORODRUIN_API_URL", "http://127.0.0.1:8001").rstrip("/")
 
 
 class AnalyzeIntelRequest(BaseModel):
@@ -27,8 +24,7 @@ async def get_osint_signals(
     limit: int = Query(default=12, ge=1, le=30),
     current_user=Depends(get_current_user),
 ):
-    svc = OrodruinIntelService()
-    return await svc.fetch_signals(topic=topic, region=region, limit=limit)
+    return await OrodruinIntelService().fetch_signals(topic=topic, region=region, limit=limit)
 
 
 @router.post("/analyze")
@@ -37,8 +33,7 @@ async def analyze_osint_strategy(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    svc = OrodruinIntelService()
-    return await svc.analyze_for_strategy(
+    return await OrodruinIntelService().analyze_for_strategy(
         db,
         str(current_user.tenant_id),
         topic=payload.topic,
@@ -52,8 +47,77 @@ async def geolocate_ip(
     ip: str = Query(min_length=7, max_length=64),
     current_user=Depends(get_current_user),
 ):
+    return await OrodruinIntelService().geolocate_ip(ip)
+
+
+@router.get("/cyber")
+async def cyber_lookup(
+    ip: str = Query(min_length=7, max_length=64),
+    current_user=Depends(get_current_user),
+):
+    return await OrodruinIntelService().cyber_lookup(ip)
+
+
+@router.get("/ransomware")
+async def recent_ransomware(
+    limit: int = Query(default=12, ge=1, le=30),
+    current_user=Depends(get_current_user),
+):
+    try:
+        return {"items": await OrodruinIntelService().get_ransomware(limit=limit)}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Ransomware feed unavailable: {exc}") from exc
+
+
+@router.get("/awards")
+async def federal_awards(
+    q: str = Query(min_length=2, max_length=120),
+    limit: int = Query(default=8, ge=1, le=20),
+    current_user=Depends(get_current_user),
+):
+    return {"items": await OrodruinIntelService().finance_awards(q, limit=limit)}
+
+
+@router.get("/papers")
+async def arxiv_papers(
+    q: str = Query(min_length=2, max_length=120),
+    limit: int = Query(default=8, ge=1, le=20),
+    current_user=Depends(get_current_user),
+):
+    return {"items": await OrodruinIntelService().research_papers(q, limit=limit)}
+
+
+@router.get("/markets")
+async def live_markets(current_user=Depends(get_current_user)):
+    return await OrodruinIntelService().get_markets()
+
+
+@router.get("/prediction")
+async def prediction_markets(
+    limit: int = Query(default=8, ge=1, le=20),
+    current_user=Depends(get_current_user),
+):
+    return {"items": await OrodruinIntelService().get_prediction_markets(limit=limit)}
+
+
+@router.get("/sanctions")
+async def search_sanctions(
+    q: str = Query(min_length=2, max_length=120),
+    limit: int = Query(default=8, ge=1, le=20),
+    current_user=Depends(get_current_user),
+):
+    return {"items": await OrodruinIntelService().search_sanctions(q, limit=limit)}
+
+
+@router.get("/graph")
+async def actor_graph(
+    topic: str = Query(default="technology"),
+    region: Optional[str] = Query(default=None),
+    current_user=Depends(get_current_user),
+):
     svc = OrodruinIntelService()
-    return await svc.geolocate_ip(ip)
+    feed = await svc.fetch_signals(topic=topic, region=region, limit=12)
+    return svc.build_actor_graph(feed["signals"], topic)
 
 
 @router.get("/map-overlay")
@@ -78,21 +142,3 @@ async def get_map_overlay(
                 },
             })
     return {"type": "FeatureCollection", "features": features}
-
-
-@router.get("/proxy/{path:path}")
-async def proxy_orodruin_get(
-    path: str,
-    request: Request,
-    current_user=Depends(get_current_user),
-):
-    """Authenticated bridge to Orodruin's 41 OSINT endpoints (/api/*)."""
-    clean_path = path.lstrip("/")
-    target = f"{ORODRUIN_API_URL}/api/{clean_path}"
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        try:
-            resp = await client.get(target, params=dict(request.query_params))
-            resp.raise_for_status()
-            return resp.json()
-        except httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail=f"Orodruin service unavailable at {target}: {exc}") from exc

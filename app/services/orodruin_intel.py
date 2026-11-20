@@ -1,11 +1,13 @@
-"""Orodruin-compatible OSINT & Global Intelligence integration for OctaOS.
+"""Native 100% Orodruin OSINT & Intelligence integration for OctaOS.
 
-Fuses live public OSINT feeds (GDELT, USGS, NASA EONET, ArXiv, CoinGecko, ip-api)
-or an optional Orodruin sidecar URL with OctaOS's LLMGateway and LearningLoop.
+Provides direct async access to public OSINT feeds (GDELT, USGS, NASA EONET,
+Shodan InternetDB, ransomware.live, USASpending, ArXiv, CoinGecko, Polymarket,
+ip-api, OpenSanctions) and fuses them with LLMGateway + LearningLoop.
 """
 from __future__ import annotations
 
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 from urllib.parse import quote_plus
@@ -30,30 +32,11 @@ class OrodruinIntelService:
         region: Optional[str] = None,
         limit: int = 12,
     ) -> dict[str, Any]:
-        """Collect live grounded signals from public OSINT feeds (or Orodruin sidecar)."""
         signals: list[dict[str, Any]] = []
         errors: list[str] = []
 
         async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
-            if self.sidecar_url:
-                try:
-                    r = await client.get(f"{self.sidecar_url}/api/alerts", params={"hours": 24})
-                    if r.is_success:
-                        data = r.json()
-                        for item in (data if isinstance(data, list) else data.get("alerts", []))[:limit]:
-                            signals.append({
-                                "source": "orodruin_sidecar",
-                                "category": item.get("type", "alert"),
-                                "title": item.get("title") or item.get("summary") or "Orodruin Alert",
-                                "url": item.get("url") or "",
-                                "lat": item.get("lat"),
-                                "lon": item.get("lon"),
-                                "timestamp": item.get("timestamp") or _now_iso(),
-                            })
-                except Exception as exc:
-                    errors.append(f"sidecar: {exc}")
-
-            # 1. GDELT 2.0 Doc API (geopolitical / market news)
+            # 1. GDELT 2.0 Doc API
             try:
                 q = f"{topic} {region}".strip() if region else topic
                 gdelt_url = (
@@ -79,7 +62,7 @@ class OrodruinIntelService:
             try:
                 r = await client.get("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson")
                 if r.is_success:
-                    for feat in (r.json().get("features") or [])[:5]:
+                    for feat in (r.json().get("features") or [])[:6]:
                         props = feat.get("properties") or {}
                         coords = (feat.get("geometry") or {}).get("coordinates") or [None, None]
                         signals.append({
@@ -97,9 +80,9 @@ class OrodruinIntelService:
 
             # 3. NASA EONET natural events
             try:
-                r = await client.get("https://eonet.gsfc.nasa.gov/api/v3/events?limit=5&status=open")
+                r = await client.get("https://eonet.gsfc.nasa.gov/api/v3/events?limit=6&status=open")
                 if r.is_success:
-                    for ev in (r.json().get("events") or [])[:5]:
+                    for ev in (r.json().get("events") or [])[:6]:
                         geom = (ev.get("geometry") or [{}])[0]
                         coords = geom.get("coordinates") if isinstance(geom.get("coordinates"), list) else [None, None]
                         lon, lat = (coords[0], coords[1]) if len(coords) >= 2 and isinstance(coords[0], (int, float)) else (None, None)
@@ -118,18 +101,127 @@ class OrodruinIntelService:
         return {
             "topic": topic,
             "region": region,
-            "sidecar_connected": bool(self.sidecar_url),
             "count": len(signals),
             "signals": signals,
             "errors": errors,
             "retrieved_at": _now_iso(),
         }
 
+    async def cyber_lookup(self, ip: str) -> dict[str, Any]:
+        """Shodan InternetDB lookup (free, no key required)."""
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            r = await client.get(f"https://internetdb.shodan.io/{quote_plus(ip)}")
+            if r.status_code == 404:
+                return {"ip": ip, "ports": [], "vulns": [], "hostnames": [], "tags": []}
+            r.raise_for_status()
+            return r.json()
+
+    async def get_ransomware(self, limit: int = 12) -> list[dict[str, Any]]:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            r = await client.get("https://api.ransomware.live/v2/recentvictims")
+            r.raise_for_status()
+            data = r.json()
+            return (data if isinstance(data, list) else [])[:limit]
+
+    async def finance_awards(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+        """USASpending federal contract awards."""
+        payload = {
+            "fields": ["Award ID", "Recipient Name", "Award Amount", "Awarding Agency", "Description"],
+            "filters": {"keywords": [query], "award_type_codes": ["A", "B", "C", "D"]},
+            "limit": limit,
+            "page": 1,
+        }
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            r = await client.post("https://api.usaspending.gov/api/v2/search/spending_by_award/", json=payload)
+            r.raise_for_status()
+            return r.json().get("results") or []
+
+    async def research_papers(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+        """ArXiv Atom search."""
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            r = await client.get(
+                f"https://export.arxiv.org/api/query?search_query=all:{quote_plus(query)}&max_results={limit}"
+            )
+            r.raise_for_status()
+            entries = re.findall(r"<entry>(.*?)</entry>", r.text, flags=re.DOTALL)
+            papers = []
+            for entry in entries:
+                title = re.search(r"<title>(.*?)</title>", entry, flags=re.DOTALL)
+                link = re.search(r"<id>(.*?)</id>", entry, flags=re.DOTALL)
+                published = re.search(r"<published>(.*?)</published>", entry, flags=re.DOTALL)
+                papers.append({
+                    "title": " ".join(title.group(1).split()) if title else "Untitled",
+                    "url": link.group(1).strip() if link else "",
+                    "published": published.group(1).strip() if published else "",
+                })
+            return papers
+
+    async def get_markets(self) -> dict[str, Any]:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            r = await client.get(
+                "https://api.coingecko.com/api/v3/simple/price",
+                params={"ids": "bitcoin,ethereum,solana", "vs_currencies": "usd", "include_24hr_change": "true"},
+            )
+            r.raise_for_status()
+            return r.json()
+
+    async def get_prediction_markets(self, limit: int = 8) -> list[dict[str, Any]]:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            r = await client.get(
+                "https://gamma-api.polymarket.com/markets",
+                params={"limit": limit, "active": "true", "closed": "false"},
+            )
+            r.raise_for_status()
+            data = r.json()
+            return [
+                {"question": m.get("question"), "volume": m.get("volumeNum"), "slug": m.get("slug")}
+                for m in (data if isinstance(data, list) else [])[:limit]
+            ]
+
+    async def search_sanctions(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            r = await client.get(
+                "https://api.opensanctions.org/search/default",
+                params={"q": query, "limit": limit},
+            )
+            if not r.is_success:
+                return []
+            return [
+                {
+                    "id": item.get("id"),
+                    "caption": item.get("caption"),
+                    "schema": item.get("schema"),
+                    "datasets": item.get("datasets", []),
+                }
+                for item in (r.json().get("results") or [])[:limit]
+            ]
+
     async def geolocate_ip(self, ip: str) -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             r = await client.get(f"http://ip-api.com/json/{quote_plus(ip)}")
             r.raise_for_status()
             return r.json()
+
+    def build_actor_graph(self, signals: list[dict[str, Any]], topic: str) -> dict[str, Any]:
+        """Build an entity/source co-occurrence graph for native frontend visualization."""
+        nodes: dict[str, dict[str, Any]] = {
+            f"topic:{topic}": {"id": f"topic:{topic}", "label": topic, "kind": "topic", "weight": 3}
+        }
+        edges: list[dict[str, Any]] = []
+        for idx, sig in enumerate(signals[:15]):
+            src = sig.get("source") or "osint"
+            src_id = f"src:{src}"
+            if src_id not in nodes:
+                nodes[src_id] = {"id": src_id, "label": src.upper(), "kind": "source", "weight": 2}
+                edges.append({"source": f"topic:{topic}", "target": src_id, "weight": 1})
+            country = sig.get("country") or sig.get("category")
+            if country:
+                c_id = f"entity:{country}"
+                if c_id not in nodes:
+                    nodes[c_id] = {"id": c_id, "label": str(country), "kind": "entity", "weight": 1}
+                nodes[c_id]["weight"] += 1
+                edges.append({"source": src_id, "target": c_id, "weight": 1})
+        return {"nodes": list(nodes.values()), "edges": edges}
 
     async def analyze_for_strategy(
         self,
@@ -140,7 +232,7 @@ class OrodruinIntelService:
         region: Optional[str] = None,
         company_name: Optional[str] = None,
     ) -> dict[str, Any]:
-        """Fuse live OSINT signals with LLMGateway + LearningLoop for leads & marketing/sales strategy."""
+        """Fuse live OSINT signals with LLMGateway + LearningLoop + UI actions."""
         from app.services.learning_loop import LearningLoop
         from app.services.llm_gateway import LLMGateway
 
@@ -151,18 +243,18 @@ class OrodruinIntelService:
             task_type="market_strategy",
             strategy_used="osint_fused_strategy_v1",
             prompt_version="v1",
-            confidence_score=0.78,
+            confidence_score=0.80,
             context_features={"topic": topic, "region": region, "company": company_name, "learning_ctx": strategy_ctx},
         )
 
-        feed = await self.fetch_signals(topic=topic, region=region, limit=8)
+        feed = await self.fetch_signals(topic=topic, region=region, limit=10)
+        graph = self.build_actor_graph(feed["signals"], topic)
         top_headlines = [f"- [{s['source']}] {s['title']} ({s.get('url', '')})" for s in feed["signals"][:8]]
 
         gateway = LLMGateway(db, tenant_id)
-        analysis_text = ""
         if gateway.has_configured_provider():
             prompt = (
-                f"You are OctaOS Global Intelligence (powered by Orodruin OSINT feeds).\n"
+                f"You are OctaOS Global Intelligence (native Orodruin OSINT engine).\n"
                 f"Topic: {topic}\nRegion: {region or 'Global'}\nCompany Focus: {company_name or 'General'}\n\n"
                 f"Live Signals:\n" + "\n".join(top_headlines or ["No external headlines returned."]) + "\n\n"
                 "Provide:\n"
@@ -180,11 +272,17 @@ class OrodruinIntelService:
                 "Configure a model provider (NVIDIA NIM, OpenRouter, OpenAI, or local) in Integrations to enable AI strategy synthesis."
             )
 
+        # Pick first geolocated signal for UI focus_map action
+        geo_sig = next((s for s in feed["signals"] if s.get("lat") is not None and s.get("lon") is not None), None)
+        ui_actions = []
+        if geo_sig:
+            ui_actions.append({"action": "focus_map", "lat": geo_sig["lat"], "lon": geo_sig["lon"], "zoom": 4})
+
         loop.record_outcome_and_update(
             decision_id=decision_id,
             result_status="success",
             behavioral_signals={"signals_collected": feed["count"], "llm_synthesized": bool(gateway.has_configured_provider())},
-            quality_score=84.0 if feed["count"] > 0 else 55.0,
+            quality_score=86.0 if feed["count"] > 0 else 55.0,
         )
 
         return {
@@ -193,6 +291,8 @@ class OrodruinIntelService:
             "region": region,
             "signals_count": feed["count"],
             "signals": feed["signals"],
+            "graph": graph,
+            "ui_actions": ui_actions,
             "strategy_analysis": analysis_text,
             "retrieved_at": feed["retrieved_at"],
         }
