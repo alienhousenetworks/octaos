@@ -296,3 +296,142 @@ class OrodruinIntelService:
             "strategy_analysis": analysis_text,
             "retrieved_at": feed["retrieved_at"],
         }
+
+
+    async def fetch_cameras(self, limit: int = 80) -> dict[str, Any]:
+        """Fetch live public traffic cameras (TfL London + Singapore LTA) with zero API keys."""
+        features: list[dict[str, Any]] = []
+        headers = {"User-Agent": "OctaOS-Intelligence/1.0"}
+        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+            try:
+                r = await client.get("https://api.tfl.gov.uk/Place/Type/JamCam", headers=headers)
+                if r.is_success:
+                    for p in (r.json() if isinstance(r.json(), list) else [])[:limit]:
+                        lat, lon = p.get("lat"), p.get("lon")
+                        if lat is None or lon is None:
+                            continue
+                        ap = {x.get("key"): x.get("value") for x in (p.get("additionalProperties") or [])}
+                        features.append({
+                            "type": "Feature",
+                            "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                            "properties": {
+                                "id": p.get("id"),
+                                "title": p.get("commonName") or "TfL Camera",
+                                "source": "TfL London",
+                                "city": "London",
+                                "country": "GB",
+                                "image": ap.get("imageUrl"),
+                                "mp4": ap.get("videoUrl"),
+                            },
+                        })
+            except Exception:
+                pass
+
+            if len(features) < limit:
+                try:
+                    r = await client.get("https://api.data.gov.sg/v1/transport/traffic-images", headers=headers)
+                    if r.is_success:
+                        items = (r.json().get("items") or [{}])[0].get("cameras") or []
+                        for c in items[: max(0, limit - len(features))]:
+                            loc = c.get("location") or {}
+                            if loc.get("latitude") is None or loc.get("longitude") is None:
+                                continue
+                            features.append({
+                                "type": "Feature",
+                                "geometry": {"type": "Point", "coordinates": [loc["longitude"], loc["latitude"]]},
+                                "properties": {
+                                    "id": f"sg-{c.get('camera_id')}",
+                                    "title": f"Singapore Cam {c.get('camera_id')}",
+                                    "source": "LTA Singapore",
+                                    "city": "Singapore",
+                                    "country": "SG",
+                                    "image": c.get("image"),
+                                    "mp4": None,
+                                },
+                            })
+                except Exception:
+                    pass
+
+        return {"type": "FeatureCollection", "count": len(features), "features": features}
+
+    async def fetch_flights(self, limit: int = 250) -> dict[str, Any]:
+        """Fetch live OpenSky ADS-B aircraft positions."""
+        features: list[dict[str, Any]] = []
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                r = await client.get("https://opensky-network.org/api/states/all")
+                if r.is_success:
+                    for s in (r.json().get("states") or [])[:limit]:
+                        lon, lat = s[5], s[6]
+                        if lon is None or lat is None:
+                            continue
+                        features.append({
+                            "type": "Feature",
+                            "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                            "properties": {
+                                "icao24": s[0],
+                                "callsign": (s[1] or "").strip() or s[0],
+                                "country": s[2],
+                                "altitude_m": s[7],
+                                "velocity_ms": s[9],
+                                "heading": s[10],
+                            },
+                        })
+            except Exception:
+                pass
+        return {"type": "FeatureCollection", "count": len(features), "features": features}
+
+    async def fetch_disasters(self, limit: int = 50) -> dict[str, Any]:
+        """Fetch live GDACS global disaster alerts."""
+        features: list[dict[str, Any]] = []
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                r = await client.get("https://www.gdacs.org/gdacsapi/api/events/geteventlist/MAP")
+                if r.is_success:
+                    raw = (r.json().get("features") or [])[:limit]
+                    for feat in raw:
+                        props = feat.get("properties") or {}
+                        features.append({
+                            "type": "Feature",
+                            "geometry": feat.get("geometry"),
+                            "properties": {
+                                "id": props.get("eventid"),
+                                "name": props.get("name") or props.get("eventname"),
+                                "event_type": props.get("eventtype"),
+                                "alert_level": props.get("alertlevel"),
+                                "country": props.get("country"),
+                                "url": props.get("url", {}).get("report") if isinstance(props.get("url"), dict) else props.get("url"),
+                            },
+                        })
+            except Exception:
+                pass
+        return {"type": "FeatureCollection", "count": len(features), "features": features}
+
+    async def fetch_weather_radar(self) -> dict[str, Any]:
+        """Fetch RainViewer live precipitation radar tile URL."""
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                r = await client.get("https://api.rainviewer.com/public/weather-maps.json")
+                if r.is_success:
+                    data = r.json()
+                    host = data.get("host", "https://tilecache.rainviewer.com")
+                    past = (data.get("radar") or {}).get("past") or []
+                    if past:
+                        path = past[-1]["path"]
+                        return {"tile_url": f"{host}{path}/256/{{z}}/{{x}}/{{y}}/2/1_1.png", "time": past[-1].get("time")}
+            except Exception:
+                pass
+        return {"tile_url": None, "time": None}
+
+    async def deep_search(self, db: Session, tenant_id: str, query: str, count: int = 8) -> dict[str, Any]:
+        """Run OctaOS EnterpriseWebResearchService + GDELT fallback for deep browser/web research."""
+        try:
+            from app.services.research.enterprise_web import EnterpriseWebResearchService
+            svc = EnterpriseWebResearchService(db, tenant_id)
+            if hasattr(svc, "search"):
+                res = await svc.search(query=query, count=count)
+                return {"engine": "enterprise_web_research", "query": query, "results": res}
+        except Exception:
+            pass
+        feed = await self.fetch_signals(topic=query, limit=count)
+        return {"engine": "gdelt_osint_fallback", "query": query, "results": feed["signals"]}

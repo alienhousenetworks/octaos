@@ -142,3 +142,42 @@ async def get_map_overlay(
                 },
             })
     return {"type": "FeatureCollection", "features": features}
+
+
+@router.get("/cameras")
+async def live_cameras(
+    limit: int = Query(default=80, ge=1, le=300),
+    current_user=Depends(get_current_user),
+):
+    return await OrodruinIntelService().fetch_cameras(limit=limit)
+
+
+@router.get("/flights")
+async def live_flights(
+    limit: int = Query(default=250, ge=1, le=1000),
+    current_user=Depends(get_current_user),
+):
+    return await OrodruinIntelService().fetch_flights(limit=limit)
+
+
+@router.get("/disasters")
+async def live_disasters(
+    limit: int = Query(default=50, ge=1, le=200),
+    current_user=Depends(get_current_user),
+):
+    return await OrodruinIntelService().fetch_disasters(limit=limit)
+
+
+@router.get("/weather-radar")
+async def weather_radar(current_user=Depends(get_current_user)):
+    return await OrodruinIntelService().fetch_weather_radar()
+
+
+@router.get("/deep-search")
+async def deep_web_search(
+    q: str = Query(min_length=2, max_length=250),
+    count: int = Query(default=8, ge=1, le=20),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return await OrodruinIntelService().deep_search(db, str(current_user.tenant_id), q, count=count)

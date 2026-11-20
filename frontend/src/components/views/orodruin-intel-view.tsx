@@ -4,15 +4,22 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import {
+  Camera,
+  CloudRain,
   ExternalLink,
+  Flame,
   Globe2,
+  Layers,
   Loader2,
   MapPin,
   Network,
+  Plane,
   Radar,
+  Search,
   ShieldAlert,
   Sparkles,
   TrendingUp,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,18 +43,33 @@ interface OsintSignal {
   timestamp?: string;
 }
 
-interface GraphNode {
-  id: string;
-  label: string;
-  kind: string;
-  weight: number;
+interface CameraFeature {
+  geometry: { coordinates: [number, number] };
+  properties: {
+    id: string;
+    title: string;
+    source: string;
+    city?: string;
+    country?: string;
+    image?: string | null;
+    mp4?: string | null;
+  };
 }
 
-interface GraphEdge {
-  source: string;
-  target: string;
-  weight: number;
-}
+const BASEMAPS: Record<'dark' | 'streets' | 'satellite', { label: string; tiles: string[] }> = {
+  dark: {
+    label: '2D Dark',
+    tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+  },
+  streets: {
+    label: 'Streets',
+    tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+  },
+  satellite: {
+    label: 'Satellite',
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+  },
+};
 
 export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIntelViewProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -56,41 +78,70 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
   const [topic, setTopic] = useState('cloud security');
   const [region, setRegion] = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [activeTab, setActiveTab] = useState<'map' | 'intel' | 'graph' | 'feeds'>('map');
+  const [deepQuery, setDeepQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'map' | 'intel' | 'cameras' | 'graph' | 'feeds'>('map');
+  const [basemap, setBasemap] = useState<'dark' | 'streets' | 'satellite'>('dark');
+
+  const [layers, setLayers] = useState({
+    signals: true,
+    cameras: true,
+    flights: false,
+    disasters: true,
+    radar: false,
+  });
 
   const [signals, setSignals] = useState<OsintSignal[]>([]);
-  const [graph, setGraph] = useState<{ nodes: GraphNode[]; edges: GraphEdge[] }>({ nodes: [], edges: [] });
+  const [cameras, setCameras] = useState<CameraFeature[]>([]);
+  const [flights, setFlights] = useState<any[]>([]);
+  const [disasters, setDisasters] = useState<any[]>([]);
+  const [radarTileUrl, setRadarTileUrl] = useState<string | null>(null);
+  const [selectedCamera, setSelectedCamera] = useState<CameraFeature['properties'] | null>(null);
+  const [graph, setGraph] = useState<{ nodes: any[]; edges: any[] }>({ nodes: [], edges: [] });
   const [analysis, setAnalysis] = useState<string>('');
+  const [deepResults, setDeepResults] = useState<any[]>([]);
   const [markets, setMarkets] = useState<Record<string, any> | null>(null);
   const [predictions, setPredictions] = useState<any[]>([]);
   const [ransomware, setRansomware] = useState<any[]>([]);
 
   const [loadingSignals, setLoadingSignals] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [deepSearching, setDeepSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadSignalsAndGraph = async () => {
+  const loadAllFeeds = async () => {
     setLoadingSignals(true);
     setError(null);
     try {
       const qs = new URLSearchParams({ topic: topic || 'technology', limit: '15' });
       if (region.trim()) qs.set('region', region.trim());
-      const [sigRes, graphRes] = await Promise.all([
+      const [sigRes, graphRes, camRes, disRes, wxRes] = await Promise.all([
         fetchWithAuth(`${API_URL}/orodruin/signals?${qs.toString()}`),
         fetchWithAuth(`${API_URL}/orodruin/graph?${qs.toString()}`),
+        fetchWithAuth(`${API_URL}/orodruin/cameras?limit=80`),
+        fetchWithAuth(`${API_URL}/orodruin/disasters?limit=40`),
+        fetchWithAuth(`${API_URL}/orodruin/weather-radar`),
       ]);
-      if (sigRes.ok) {
-        const d = await sigRes.json();
-        setSignals(Array.isArray(d.signals) ? d.signals : []);
-      }
+      if (sigRes.ok) setSignals((await sigRes.json()).signals || []);
       if (graphRes.ok) {
         const g = await graphRes.json();
         setGraph({ nodes: g.nodes || [], edges: g.edges || [] });
       }
+      if (camRes.ok) setCameras((await camRes.json()).features || []);
+      if (disRes.ok) setDisasters((await disRes.json()).features || []);
+      if (wxRes.ok) setRadarTileUrl((await wxRes.json()).tile_url || null);
     } catch (err: any) {
-      setError(err?.message || 'Unable to fetch global OSINT signals.');
+      setError(err?.message || 'Unable to fetch global OSINT feeds.');
     } finally {
       setLoadingSignals(false);
+    }
+  };
+
+  const loadFlights = async () => {
+    try {
+      const res = await fetchWithAuth(`${API_URL}/orodruin/flights?limit=200`);
+      if (res.ok) setFlights((await res.json()).features || []);
+    } catch {
+      // non-blocking
     }
   };
 
@@ -105,16 +156,22 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
       if (pRes.ok) setPredictions((await pRes.json()).items || []);
       if (rRes.ok) setRansomware((await rRes.json()).items || []);
     } catch {
-      // Optional feed errors are non-blocking
+      // non-blocking
     }
   };
 
   useEffect(() => {
-    void loadSignalsAndGraph();
+    void loadAllFeeds();
     void loadSideFeeds();
   }, []);
 
-  // Native MapLibre GL 2D/3D Map Initialization & Live GeoJSON Sync
+  useEffect(() => {
+    if (layers.flights && flights.length === 0) {
+      void loadFlights();
+    }
+  }, [layers.flights]);
+
+  // Initialize native MapLibre GL map
   useEffect(() => {
     if (activeTab !== 'map' || !mapContainerRef.current) return;
     if (mapRef.current) {
@@ -127,16 +184,15 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
       style: {
         version: 8,
         sources: {
-          osm: {
+          basemap: {
             type: 'raster',
-            tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+            tiles: BASEMAPS[basemap].tiles,
             tileSize: 256,
-            attribution: '© OpenStreetMap · CARTO',
           },
         },
-        layers: [{ id: 'osm-dark', type: 'raster', source: 'osm' }],
+        layers: [{ id: 'basemap-layer', type: 'raster', source: 'basemap' }],
       },
-      center: [10, 22],
+      center: [0, 28],
       zoom: 1.8,
     });
 
@@ -147,45 +203,63 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
       map.remove();
       mapRef.current = null;
     };
-  }, [activeTab]);
+  }, [activeTab, basemap]);
 
-  // Plot geotagged signals on native MapLibre GL map
+  // Sync all toggleable GeoJSON & Weather Radar layers onto MapLibre GL
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    const plot = () => {
-      const features = signals
+    const syncLayers = () => {
+      const upsertCircleLayer = (id: string, features: any[], color: string, visible: boolean) => {
+        const data = { type: 'FeatureCollection' as const, features: visible ? features : [] };
+        const src = map.getSource(id) as maplibregl.GeoJSONSource | undefined;
+        if (src) {
+          src.setData(data);
+        } else {
+          map.addSource(id, { type: 'geojson', data });
+          map.addLayer({
+            id: `${id}-layer`,
+            type: 'circle',
+            source: id,
+            paint: {
+              'circle-radius': id === 'octaos-flights' ? 3.5 : 5.5,
+              'circle-color': color,
+              'circle-stroke-width': 1,
+              'circle-stroke-color': '#0a0d10',
+            },
+          });
+        }
+      };
+
+      const sigFeatures = signals
         .filter((s) => s.lat != null && s.lon != null)
         .map((s) => ({
-          type: 'Feature' as const,
-          geometry: { type: 'Point' as const, coordinates: [s.lon as number, s.lat as number] },
-          properties: { title: s.title, source: s.source, category: s.category },
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
+          properties: { title: s.title, source: s.source },
         }));
 
-      const data = { type: 'FeatureCollection' as const, features };
-      const existing = map.getSource('octaos-signals') as maplibregl.GeoJSONSource | undefined;
-      if (existing) {
-        existing.setData(data);
-      } else {
-        map.addSource('octaos-signals', { type: 'geojson', data });
-        map.addLayer({
-          id: 'octaos-signals-layer',
-          type: 'circle',
-          source: 'octaos-signals',
-          paint: {
-            'circle-radius': 6,
-            'circle-color': '#e5a93c',
-            'circle-stroke-width': 1.5,
-            'circle-stroke-color': '#2dd4bf',
-          },
-        });
+      upsertCircleLayer('octaos-signals', sigFeatures, '#e5a93c', layers.signals);
+      upsertCircleLayer('octaos-cameras', cameras, '#2dd4bf', layers.cameras);
+      upsertCircleLayer('octaos-flights', flights, '#60a5fa', layers.flights);
+      upsertCircleLayer('octaos-disasters', disasters, '#f87171', layers.disasters);
+
+      // RainViewer radar overlay
+      if (layers.radar && radarTileUrl) {
+        if (!map.getSource('octaos-radar')) {
+          map.addSource('octaos-radar', { type: 'raster', tiles: [radarTileUrl], tileSize: 256 });
+          map.addLayer({ id: 'octaos-radar-layer', type: 'raster', source: 'octaos-radar', paint: { 'raster-opacity': 0.55 } });
+        }
+      } else if (map.getLayer('octaos-radar-layer')) {
+        map.removeLayer('octaos-radar-layer');
+        map.removeSource('octaos-radar');
       }
     };
 
-    if (map.loaded()) plot();
-    else map.once('load', plot);
-  }, [signals, activeTab]);
+    if (map.loaded()) syncLayers();
+    else map.once('load', syncLayers);
+  }, [signals, cameras, flights, disasters, layers, radarTileUrl, basemap, activeTab]);
 
   const runAnalysis = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,7 +282,6 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
       if (data.graph) setGraph(data.graph);
       setAnalysis(data.strategy_analysis || '');
 
-      // Execute AI UI-driving actions natively on MapLibre
       if (Array.isArray(data.ui_actions) && mapRef.current) {
         for (const act of data.ui_actions) {
           if (act.action === 'focus_map' && act.lat != null && act.lon != null) {
@@ -223,15 +296,30 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
     }
   };
 
+  const runDeepSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deepQuery.trim()) return;
+    setDeepSearching(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/orodruin/deep-search?q=${encodeURIComponent(deepQuery.trim())}`);
+      if (res.ok) {
+        const d = await res.json();
+        setDeepResults(Array.isArray(d.results) ? d.results : []);
+      }
+    } finally {
+      setDeepSearching(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="Global Intelligence (Native Orodruin)"
-        description="Live OSINT feeds, MapLibre geospatial view, Actor Graph, and AI strategy synthesis integrated natively inside OctaOS."
+        description="Live OSINT feeds, MapLibre multi-layer geospatial view, ~80+ live public cameras, ADS-B flights, GDACS disasters, weather radar, Actor Graph, and Deep Search."
         meta={
           <span className="inline-flex items-center gap-1.5 text-info">
             <Globe2 className="size-3.5" />
-            Native MapLibre + 10 OSINT Tools
+            14 Native OSINT + UI Tools Active
           </span>
         }
         actions={<HanddrawnWorkflowSketch className="hidden lg:block" />}
@@ -248,7 +336,7 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
         <Input placeholder="Region / Country (optional)" value={region} onChange={(e) => setRegion(e.target.value)} />
         <Input placeholder="Target company (optional)" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
         <div className="flex gap-2">
-          <Button type="button" variant="outline" onClick={() => void loadSignalsAndGraph()} disabled={loadingSignals}>
+          <Button type="button" variant="outline" onClick={() => void loadAllFeeds()} disabled={loadingSignals}>
             {loadingSignals ? <Loader2 className="size-4 animate-spin" /> : <Radar className="size-4" />}
             Refresh
           </Button>
@@ -261,20 +349,15 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
 
       <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
         {[
-          { id: 'map', label: 'Global Map', icon: Globe2 },
-          { id: 'intel', label: 'Signals & Strategy', icon: Sparkles },
+          { id: 'map', label: 'Global Map & Layers', icon: Globe2 },
+          { id: 'cameras', label: `Live Cameras (${cameras.length})`, icon: Camera },
+          { id: 'intel', label: 'Deep Search & Strategy', icon: Sparkles },
           { id: 'graph', label: 'Actor Graph', icon: Network },
           { id: 'feeds', label: 'Markets & Cyber', icon: TrendingUp },
         ].map((t) => {
           const Icon = t.icon;
           return (
-            <Button
-              key={t.id}
-              type="button"
-              size="sm"
-              variant={activeTab === t.id ? 'default' : 'outline'}
-              onClick={() => setActiveTab(t.id as any)}
-            >
+            <Button key={t.id} type="button" size="sm" variant={activeTab === t.id ? 'default' : 'outline'} onClick={() => setActiveTab(t.id as any)}>
               <Icon className="size-4" />
               {t.label}
             </Button>
@@ -283,50 +366,137 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
       </div>
 
       {activeTab === 'map' && (
-        <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
-          <div className="overflow-hidden rounded-lg border border-border bg-card">
-            <div ref={mapContainerRef} className="h-[520px] w-full" />
-          </div>
-          <div className="rounded-lg border border-border bg-card flex flex-col max-h-[520px]">
-            <div className="border-b border-border px-4 py-3 text-sm font-semibold">
-              Geolocated Signals ({signals.filter((s) => s.lat != null).length})
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-2.5 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 font-medium text-muted-foreground"><Layers className="size-3.5" /> Layers:</span>
+              {[
+                { key: 'signals', label: 'OSINT Signals', icon: Radar },
+                { key: 'cameras', label: 'Live Cameras', icon: Camera },
+                { key: 'flights', label: 'Live Flights', icon: Plane },
+                { key: 'disasters', label: 'Disasters', icon: Flame },
+                { key: 'radar', label: 'Weather Radar', icon: CloudRain },
+              ].map((l) => {
+                const Icon = l.icon;
+                const on = layers[l.key as keyof typeof layers];
+                return (
+                  <button
+                    key={l.key}
+                    type="button"
+                    onClick={() => setLayers((prev) => ({ ...prev, [l.key]: !prev[l.key as keyof typeof layers] }))}
+                    className={`inline-flex items-center gap-1.5 rounded border px-2.5 py-1 transition ${
+                      on ? 'border-primary/40 bg-primary/15 text-foreground' : 'border-border bg-background text-muted-foreground'
+                    }`}
+                  >
+                    <Icon className="size-3" />
+                    {l.label}
+                  </button>
+                );
+              })}
             </div>
-            <div className="divide-y divide-border overflow-y-auto flex-1">
-              {signals.filter((s) => s.lat != null && s.lon != null).map((s, i) => (
+            <div className="flex items-center gap-1">
+              {(['dark', 'streets', 'satellite'] as const).map((b) => (
                 <button
-                  key={i}
+                  key={b}
                   type="button"
-                  onClick={() => mapRef.current?.flyTo({ center: [s.lon as number, s.lat as number], zoom: 5 })}
-                  className="block w-full px-4 py-3 text-left hover:bg-surface-hover"
+                  onClick={() => setBasemap(b)}
+                  className={`rounded border px-2 py-1 ${basemap === b ? 'border-info/50 bg-info/15 text-info' : 'border-border text-muted-foreground'}`}
                 >
-                  <div className="flex items-center gap-2 text-xs text-info font-mono">
-                    <MapPin className="size-3 text-primary" />
-                    <span>{s.source}</span>
-                    <span>{s.lat?.toFixed(2)}, {s.lon?.toFixed(2)}</span>
-                  </div>
-                  <p className="mt-1 text-xs font-medium text-foreground">{s.title}</p>
+                  {BASEMAPS[b].label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
+            <div className="overflow-hidden rounded-lg border border-border bg-card">
+              <div ref={mapContainerRef} className="h-[520px] w-full" />
+            </div>
+            <div className="rounded-lg border border-border bg-card flex flex-col max-h-[520px]">
+              <div className="border-b border-border px-4 py-3 text-sm font-semibold">
+                Geolocated Feed ({signals.filter((s) => s.lat != null).length + cameras.length})
+              </div>
+              <div className="divide-y divide-border overflow-y-auto flex-1">
+                {cameras.slice(0, 15).map((c) => (
+                  <button
+                    key={c.properties.id}
+                    type="button"
+                    onClick={() => {
+                      mapRef.current?.flyTo({ center: c.geometry.coordinates, zoom: 11 });
+                      setSelectedCamera(c.properties);
+                    }}
+                    className="block w-full px-4 py-2.5 text-left hover:bg-surface-hover"
+                  >
+                    <div className="flex items-center gap-2 font-mono text-[11px] text-info">
+                      <Camera className="size-3" />
+                      <span>{c.properties.source}</span>
+                    </div>
+                    <p className="mt-0.5 text-xs font-medium text-foreground">{c.properties.title}</p>
+                  </button>
+                ))}
+                {signals.filter((s) => s.lat != null && s.lon != null).map((s, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => mapRef.current?.flyTo({ center: [s.lon as number, s.lat as number], zoom: 5 })}
+                    className="block w-full px-4 py-2.5 text-left hover:bg-surface-hover"
+                  >
+                    <div className="flex items-center gap-2 font-mono text-[11px] text-primary">
+                      <MapPin className="size-3" />
+                      <span>{s.source}</span>
+                    </div>
+                    <p className="mt-0.5 text-xs font-medium text-foreground">{s.title}</p>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       )}
 
+      {activeTab === 'cameras' && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {cameras.length === 0 ? (
+            <div className="col-span-full"><EmptyState title="No cameras loaded" description="Click Refresh to load TfL London and LTA Singapore public feeds." /></div>
+          ) : (
+            cameras.slice(0, 24).map((cam) => (
+              <div key={cam.properties.id} className="overflow-hidden rounded-lg border border-border bg-card">
+                {cam.properties.mp4 ? (
+                  <video src={cam.properties.mp4} controls muted playsInline className="h-44 w-full bg-black object-cover" />
+                ) : cam.properties.image ? (
+                  <img src={cam.properties.image} alt={cam.properties.title} className="h-44 w-full bg-black object-cover" />
+                ) : null}
+                <div className="p-3">
+                  <div className="font-mono text-[11px] text-info">{cam.properties.source} · {cam.properties.city}</div>
+                  <div className="mt-1 text-xs font-semibold text-foreground">{cam.properties.title}</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
       {activeTab === 'intel' && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <section className="rounded-lg border border-border bg-card">
-            <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-              <h2 className="font-heading text-sm font-semibold">Live OSINT Signal Stream</h2>
-              <span className="font-mono text-xs text-muted-foreground">{signals.length} signals</span>
-            </div>
-            {signals.length === 0 ? (
-              <div className="p-6"><EmptyState title="No signals loaded" description="Click Refresh to pull live OSINT feeds." /></div>
-            ) : (
+        <div className="space-y-5">
+          <form onSubmit={runDeepSearch} className="flex gap-2 rounded-lg border border-border bg-card p-3">
+            <Input placeholder="Deep web & browser search (companies, trends, competitors)..." value={deepQuery} onChange={(e) => setDeepQuery(e.target.value)} />
+            <Button type="submit" disabled={deepSearching}>
+              {deepSearching ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+              Deep Search
+            </Button>
+          </form>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <section className="rounded-lg border border-border bg-card">
+              <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+                <h2 className="font-heading text-sm font-semibold">OSINT &amp; Deep Search Results</h2>
+                <span className="font-mono text-xs text-muted-foreground">{(deepResults.length || signals.length)} items</span>
+              </div>
               <div className="divide-y divide-border max-h-[480px] overflow-y-auto">
-                {signals.map((sig, idx) => (
+                {(deepResults.length ? deepResults : signals).map((sig, idx) => (
                   <div key={idx} className="flex items-start justify-between gap-3 px-5 py-3 hover:bg-surface-hover">
                     <div className="min-w-0">
-                      <span className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-info">{sig.source}</span>
+                      <span className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-info">{sig.source || 'web'}</span>
                       <p className="mt-1 text-sm font-medium">{sig.title}</p>
                     </div>
                     {sig.url && (
@@ -337,18 +507,18 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
                   </div>
                 ))}
               </div>
-            )}
-          </section>
-          <section className="rounded-lg border border-border bg-card">
-            <div className="border-b border-border px-5 py-3.5"><h2 className="font-heading text-sm font-semibold">AI Intelligence &amp; Strategy Brief</h2></div>
-            <div className="p-5">
-              {analysis ? (
-                <div className="whitespace-pre-wrap text-sm leading-6 text-foreground/90">{analysis}</div>
-              ) : (
-                <EmptyState title="Ready to synthesize strategy" description="Click Analyze & Strategize to fuse live signals with your AI provider and LearningLoop." />
-              )}
-            </div>
-          </section>
+            </section>
+            <section className="rounded-lg border border-border bg-card">
+              <div className="border-b border-border px-5 py-3.5"><h2 className="font-heading text-sm font-semibold">AI Intelligence &amp; Strategy Brief</h2></div>
+              <div className="p-5">
+                {analysis ? (
+                  <div className="whitespace-pre-wrap text-sm leading-6 text-foreground/90">{analysis}</div>
+                ) : (
+                  <EmptyState title="Ready to synthesize strategy" description="Click Analyze & Strategize to fuse live signals with your AI provider and LearningLoop." />
+                )}
+              </div>
+            </section>
+          </div>
         </div>
       )}
 
@@ -371,7 +541,7 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
                   <g key={node.id}>
                     {idx > 0 && <line x1={380} y1={160} x2={cx} y2={cy} stroke="#222b36" strokeWidth="1.2" />}
                     <circle cx={cx} cy={cy} r={Math.min(18, 7 + node.weight * 2)} fill={fill} opacity="0.9" />
-                    <text x={cx} y={cy + 24} textAnchor="middle" fill="#eceff4" fontSize="10">{node.label.slice(0, 22)}</text>
+                    <text x={cx} y={cy + 24} textAnchor="middle" fill="#eceff4" fontSize="10">{String(node.label).slice(0, 22)}</text>
                   </g>
                 );
               })}
@@ -414,6 +584,22 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
               ))}
             </div>
           </section>
+        </div>
+      )}
+
+      {selectedCamera && (
+        <div className="fixed bottom-5 right-5 z-50 w-96 overflow-hidden rounded-lg border border-border bg-card shadow-2xl">
+          <div className="flex items-center justify-between border-b border-border px-3 py-2 text-xs">
+            <span className="font-semibold truncate">{selectedCamera.title}</span>
+            <button type="button" onClick={() => setSelectedCamera(null)} className="text-muted-foreground hover:text-foreground">
+              <X className="size-4" />
+            </button>
+          </div>
+          {selectedCamera.mp4 ? (
+            <video src={selectedCamera.mp4} controls autoPlay muted playsInline className="h-52 w-full bg-black object-cover" />
+          ) : selectedCamera.image ? (
+            <img src={selectedCamera.image} alt={selectedCamera.title} className="h-52 w-full bg-black object-cover" />
+          ) : null}
         </div>
       )}
     </div>

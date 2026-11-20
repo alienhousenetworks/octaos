@@ -1792,17 +1792,18 @@ class ToolRegistry:
         self.register(
             ToolDefinition(
                 name="orodruin.ui_action",
-                description="Emit a UI control action for the Global Intelligence Map (focus_map, toggle_layer, apply_filters).",
+                description="Emit a UI control action for the Global Intelligence Map (focus_map, toggle_layer, apply_filters, open_camera).",
                 input_schema={
                     "type": "object",
                     "required": ["action"],
                     "properties": {
-                        "action": {"type": "string", "enum": ["focus_map", "toggle_layer", "apply_filters"]},
+                        "action": {"type": "string", "enum": ["focus_map", "toggle_layer", "apply_filters", "open_camera"]},
                         "lat": {"type": "number"},
                         "lon": {"type": "number"},
                         "zoom": {"type": "number"},
                         "layer": {"type": "string"},
                         "topic": {"type": "string"},
+                        "camera_id": {"type": "string"},
                     },
                 },
                 output_schema={"type": "object"},
@@ -1811,6 +1812,58 @@ class ToolRegistry:
                 side_effect="READ",
                 approval_required=False,
                 handler=self._exec_orodruin_ui_action,
+            )
+        )
+        self.register(
+            ToolDefinition(
+                name="orodruin.cameras",
+                description="Fetch live geolocated public traffic/city cameras (TfL London, LTA Singapore) with image and MP4 URLs.",
+                input_schema={"type": "object", "properties": {"limit": {"type": "integer", "default": 40}}},
+                output_schema={"type": "object"},
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_orodruin_cameras,
+            )
+        )
+        self.register(
+            ToolDefinition(
+                name="orodruin.flights",
+                description="Fetch live ADS-B aircraft positions from OpenSky Network.",
+                input_schema={"type": "object", "properties": {"limit": {"type": "integer", "default": 150}}},
+                output_schema={"type": "object"},
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_orodruin_flights,
+            )
+        )
+        self.register(
+            ToolDefinition(
+                name="orodruin.disasters",
+                description="Fetch live GDACS global disaster alerts (earthquakes, cyclones, floods, volcanoes).",
+                input_schema={"type": "object", "properties": {"limit": {"type": "integer", "default": 30}}},
+                output_schema={"type": "object"},
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_orodruin_disasters,
+            )
+        )
+        self.register(
+            ToolDefinition(
+                name="orodruin.deep_search",
+                description="Run deep web + OSINT search combining OctaOS web research with live GDELT intelligence.",
+                input_schema={"type": "object", "required": ["query"], "properties": {"query": {"type": "string"}, "count": {"type": "integer", "default": 8}}},
+                output_schema={"type": "object"},
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_orodruin_deep_search,
             )
         )
 
@@ -1856,6 +1909,22 @@ class ToolRegistry:
 
     async def _exec_orodruin_ui_action(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
         return {"ui_action": args, "applied": True}
+
+    async def _exec_orodruin_cameras(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().fetch_cameras(limit=int(args.get("limit") or 40))
+
+    async def _exec_orodruin_flights(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().fetch_flights(limit=int(args.get("limit") or 150))
+
+    async def _exec_orodruin_disasters(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().fetch_disasters(limit=int(args.get("limit") or 30))
+
+    async def _exec_orodruin_deep_search(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().deep_search(db, tenant_id, str(args["query"]), count=int(args.get("count") or 8))
 
 
 tool_registry = ToolRegistry()
