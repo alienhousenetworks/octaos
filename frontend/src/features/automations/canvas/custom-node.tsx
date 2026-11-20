@@ -54,8 +54,8 @@ const getCategoryStyles = (type: string, toolId?: string) => {
   }
   if (toolId && toolId.includes('http')) {
     return {
-      border: 'border-indigo-500/40 hover:border-indigo-500',
-      badgeBg: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30',
+      border: 'border-primary/40 hover:border-primary',
+      badgeBg: 'bg-primary/10 text-primary border-primary/30',
       glow: 'shadow-indigo-500/10',
       icon: Globe,
     };

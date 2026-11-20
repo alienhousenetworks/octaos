@@ -25,7 +25,7 @@ const RenderProgressBar = ({ progress }: { progress?: number }) => {
           <div className="h-full bg-violet-500 w-1/2 animate-pulse" />
         )}
       </div>
-      {isDef && <span className="text-xs text-gray-400 text-right">{Math.round(progress)}%</span>}
+      {isDef && <span className="text-xs text-muted-foreground text-right">{Math.round(progress)}%</span>}
     </div>
   );
 };
@@ -138,7 +138,7 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
       );
       case 'completed': return <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1"><CheckCircle className="h-3 w-3"/> Ready</span>;
       case 'failed': return <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1"><AlertTriangle className="h-3 w-3"/> Failed</span>;
-      default: return <span className="bg-gray-500/10 text-gray-400 border border-gray-500/20 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin"/> Planning</span>;
+      default: return <span className="bg-gray-500/10 text-muted-foreground border border-gray-500/20 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin"/> Planning</span>;
     }
   };
 
@@ -147,9 +147,9 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-3">
-            <Video className="text-violet-400" /> AI Video Studio
+            <Video className="text-primary" /> AI Video Studio
           </h1>
-          <p className="text-gray-400 mt-1">Generate programmatic motion graphics for marketing and social media.</p>
+          <p className="text-muted-foreground mt-1">Generate programmatic motion graphics for marketing and social media.</p>
         </div>
       </div>
 
@@ -161,26 +161,26 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
           </CardHeader>
           <CardContent className="p-0 space-y-4">
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-gray-400">Video Title</label>
+              <label className="text-xs font-semibold text-muted-foreground">Video Title</label>
               <Input 
                 value={title} 
                 onChange={(e) => setTitle(e.target.value)} 
                 placeholder="e.g. October Product Launch" 
-                className="bg-gray-900/50 border-gray-800 text-white"
+                className="bg-gray-900/50 border-border text-white"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-gray-400">Concept / Prompt</label>
+              <label className="text-xs font-semibold text-muted-foreground">Concept / Prompt</label>
               <Textarea 
                 value={prompt} 
                 onChange={(e) => setPrompt(e.target.value)} 
                 placeholder="Describe the video. e.g. 'A 30-second promo for our new AI agent feature. Include a hero scene, 3 feature highlights, and a final call to action.'" 
-                className="bg-gray-900/50 border-gray-800 text-white min-h-[120px] text-sm"
+                className="bg-gray-900/50 border-border text-white min-h-[120px] text-sm"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-400">AI Provider</label>
+                <label className="text-xs font-semibold text-muted-foreground">AI Provider</label>
                 <Select value={provider} onValueChange={(val) => {
                   if (!val) return;
                   setProvider(val);
@@ -192,10 +192,10 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
                   else if (val === 'anthropic') setModel('claude-sonnet-4-6');
                   else if (val === 'nvidia') setModel('meta/llama-3.3-70b-instruct');
                 }}>
-                  <SelectTrigger className="bg-gray-900/50 border-gray-800 text-white h-9 text-xs">
+                  <SelectTrigger className="bg-gray-900/50 border-border text-white h-9 text-xs">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                  <SelectContent className="bg-gray-900 border-border text-white">
                     <SelectItem value="auto">Auto (AI Brain Choice)</SelectItem>
                     <SelectItem value="openrouter">OpenRouter (Meta-Hub)</SelectItem>
                     <SelectItem value="together">Together AI (Meta-Hub)</SelectItem>
@@ -210,12 +210,12 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
               
               {provider !== 'auto' && (
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-gray-400">Model</label>
+                  <label className="text-xs font-semibold text-muted-foreground">Model</label>
                   <Select value={model} onValueChange={(val) => val && setModel(val)}>
-                    <SelectTrigger className="bg-gray-900/50 border-gray-800 text-white h-9 text-xs">
+                    <SelectTrigger className="bg-gray-900/50 border-border text-white h-9 text-xs">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                    <SelectContent className="bg-gray-900 border-border text-white">
                       {provider === 'openrouter' && (
                         <>
                           <SelectItem value="meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B (Default)</SelectItem>
@@ -281,10 +281,10 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
         </Card>
 
         <Card className="glass-panel border-transparent rounded-2xl shadow-2xl relative overflow-hidden lg:col-span-2 flex flex-col h-[600px]">
-          <CardHeader className="border-b border-gray-800 pb-4 pt-6 px-6">
+          <CardHeader className="border-b border-border pb-4 pt-6 px-6">
             <CardTitle className="text-lg font-bold text-white flex justify-between items-center">
               <span>Video Projects</span>
-              <Button variant="ghost" size="sm" onClick={fetchProjects} className="text-gray-400 hover:text-white">
+              <Button variant="ghost" size="sm" onClick={fetchProjects} className="text-muted-foreground hover:text-white">
                 <RefreshCw className="h-4 w-4" />
               </Button>
             </CardTitle>
@@ -292,10 +292,10 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
           <div className="flex-1 overflow-auto p-0">
             <Table>
               <TableHeader className="bg-gray-900/50 sticky top-0">
-                <TableRow className="border-gray-800 hover:bg-transparent">
-                  <TableHead className="text-gray-400 text-xs uppercase">Title & Info</TableHead>
-                  <TableHead className="text-gray-400 text-xs uppercase">Status</TableHead>
-                  <TableHead className="text-right text-gray-400 text-xs uppercase">Actions</TableHead>
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-muted-foreground text-xs uppercase">Title & Info</TableHead>
+                  <TableHead className="text-muted-foreground text-xs uppercase">Status</TableHead>
+                  <TableHead className="text-right text-muted-foreground text-xs uppercase">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -305,7 +305,7 @@ export default function VideoStudioView({ token, API_URL, fetchWithAuth }: Video
                   </TableRow>
                 )}
                 {projects.map((proj) => (
-                  <TableRow key={proj.id} className="border-gray-800/50 hover:bg-gray-800/30">
+                  <TableRow key={proj.id} className="border-border/50 hover:bg-gray-800/30">
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-bold text-white">{proj.title}</span>

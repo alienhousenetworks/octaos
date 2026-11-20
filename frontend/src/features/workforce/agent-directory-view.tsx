@@ -148,7 +148,7 @@ export default function AgentDirectoryView({
       {/* Honest Telemetry Summary Grid */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {/* Metric 1 */}
-        <div className="rounded-2xl border border-gray-800 bg-gray-950/50 p-4">
+        <div className="rounded-2xl border border-border bg-gray-950/50 p-4">
           <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider block">
             Registered Agents
           </span>
@@ -163,7 +163,7 @@ export default function AgentDirectoryView({
         </div>
 
         {/* Metric 2 */}
-        <div className="rounded-2xl border border-gray-800 bg-gray-950/50 p-4">
+        <div className="rounded-2xl border border-border bg-gray-950/50 p-4">
           <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider block">
             Running Now
           </span>
@@ -176,7 +176,7 @@ export default function AgentDirectoryView({
         </div>
 
         {/* Metric 3 */}
-        <div className="rounded-2xl border border-gray-800 bg-gray-950/50 p-4">
+        <div className="rounded-2xl border border-border bg-gray-950/50 p-4">
           <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider block">
             Success Rate
           </span>
@@ -189,7 +189,7 @@ export default function AgentDirectoryView({
         </div>
 
         {/* Metric 4 */}
-        <div className="rounded-2xl border border-gray-800 bg-gray-950/50 p-4">
+        <div className="rounded-2xl border border-border bg-gray-950/50 p-4">
           <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider block">
             Needs Attention
           </span>
@@ -213,7 +213,7 @@ export default function AgentDirectoryView({
 
       {/* Agents Grid */}
       {loading ? (
-        <div className="flex h-64 items-center justify-center rounded-2xl border border-gray-800 bg-gray-950/30">
+        <div className="flex h-64 items-center justify-center rounded-2xl border border-border bg-gray-950/30">
           <Loader2 className="size-6 animate-spin text-primary" />
         </div>
       ) : loadError && agents.length === 0 ? (
@@ -229,7 +229,7 @@ export default function AgentDirectoryView({
           </Button>
         </div>
       ) : filteredAgents.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-800/80 bg-gray-950/30 p-12 text-center">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-border/80 bg-gray-950/30 p-12 text-center">
           <Bot className="size-10 text-gray-600 mb-2" />
           <h3 className="text-sm font-semibold text-white">No matching agents found</h3>
           <p className="text-xs text-muted-foreground mt-1 max-w-sm">

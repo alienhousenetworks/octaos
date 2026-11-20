@@ -152,7 +152,7 @@ export default function AgentCreateWizard({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl rounded-3xl border-gray-800 bg-gray-950 p-6 text-white shadow-2xl">
+      <DialogContent className="max-w-2xl rounded-3xl border-border bg-gray-950 p-6 text-white shadow-2xl">
         <DialogHeader className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="flex size-7 items-center justify-center rounded-lg bg-primary/20 text-xs font-bold text-primary">
@@ -178,7 +178,7 @@ export default function AgentCreateWizard({
                     : 'bg-gray-800'
                 }`}
               />
-              <span className="block text-[10px] font-medium text-gray-400">{label}</span>
+              <span className="block text-[10px] font-medium text-muted-foreground">{label}</span>
             </div>
           ))}
         </div>
@@ -187,22 +187,22 @@ export default function AgentCreateWizard({
         {step === 1 && (
           <div className="space-y-4 animate-in fade-in duration-200">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-300">Agent Name *</label>
+              <label className="text-xs font-semibold text-foreground/85">Agent Name *</label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Enterprise SDR Lead Scout"
-                className="rounded-xl border-gray-800 bg-gray-900/80 text-xs text-white"
+                className="rounded-xl border-border bg-gray-900/80 text-xs text-white"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-300">Department</label>
+                <label className="text-xs font-semibold text-foreground/85">Department</label>
                 <select
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
-                  className="w-full h-9 rounded-xl border border-gray-800 bg-gray-900/80 px-3 text-xs text-white"
+                  className="w-full h-9 rounded-xl border border-border bg-gray-900/80 px-3 text-xs text-white"
                 >
                   <option value="sales">Sales</option>
                   <option value="marketing">Marketing</option>
@@ -214,23 +214,23 @@ export default function AgentCreateWizard({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-300">Operational Role *</label>
+                <label className="text-xs font-semibold text-foreground/85">Operational Role *</label>
                 <Input
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
                   placeholder="e.g. Inbound Prospect Qualification Specialist"
-                  className="rounded-xl border-gray-800 bg-gray-900/80 text-xs text-white"
+                  className="rounded-xl border-border bg-gray-900/80 text-xs text-white"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-300">Bounded Responsibility / Description</label>
+              <label className="text-xs font-semibold text-foreground/85">Bounded Responsibility / Description</label>
               <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Brief summary of what this agent is authorized to analyze, score, or execute..."
-                className="min-h-[70px] rounded-xl border-gray-800 bg-gray-900/80 text-xs text-white"
+                className="min-h-[70px] rounded-xl border-border bg-gray-900/80 text-xs text-white"
               />
             </div>
           </div>
@@ -239,7 +239,7 @@ export default function AgentCreateWizard({
         {/* STEP 2: AUTONOMY LEVEL */}
         {step === 2 && (
           <div className="space-y-3 animate-in fade-in duration-200">
-            <label className="text-xs font-semibold text-gray-300 block">
+            <label className="text-xs font-semibold text-foreground/85 block">
               Select Initial Autonomy Level
             </label>
             <div className="space-y-2">
@@ -253,7 +253,7 @@ export default function AgentCreateWizard({
                     className={`w-full text-left p-3.5 rounded-2xl border transition-all ${
                       isSelected
                         ? 'border-primary bg-primary/10 shadow-sm'
-                        : 'border-gray-800/80 bg-gray-900/40 hover:border-gray-700'
+                        : 'border-border/80 bg-gray-900/40 hover:border-gray-700'
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -275,7 +275,7 @@ export default function AgentCreateWizard({
           <div className="space-y-4 animate-in fade-in duration-200">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-300">Inference Provider</label>
+                <label className="text-xs font-semibold text-foreground/85">Inference Provider</label>
                 <select
                   value={provider}
                   onChange={(e) => {
@@ -283,7 +283,7 @@ export default function AgentCreateWizard({
                     setProvider(next);
                     if (next === 'nvidia' && envModel && !model.trim()) setModel(envModel);
                   }}
-                  className="w-full h-9 rounded-xl border border-gray-800 bg-gray-900/80 px-3 text-xs text-white"
+                  className="w-full h-9 rounded-xl border border-border bg-gray-900/80 px-3 text-xs text-white"
                 >
                   {AGENT_AI_PROVIDERS.map((item) => (
                     <option key={item.value} value={item.value}>
@@ -300,12 +300,12 @@ export default function AgentCreateWizard({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-300">Foundation Model</label>
+                <label className="text-xs font-semibold text-foreground/85">Foundation Model</label>
                 <Input
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
                   placeholder={envModel || 'Uses the environment model when Auto is selected'}
-                  className="rounded-xl border-gray-800 bg-gray-900/80 text-xs text-white font-mono"
+                  className="rounded-xl border-border bg-gray-900/80 text-xs text-white font-mono"
                 />
               </div>
             </div>
@@ -313,7 +313,7 @@ export default function AgentCreateWizard({
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3">
               <div>
                 <p className="text-xs font-semibold text-white">Start with a conversational assistant preset</p>
-                <p className="mt-1 text-[11px] text-gray-400">Adds a direct, curious, candid persona. You can edit every instruction before saving.</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">Adds a direct, curious, candid persona. You can edit every instruction before saving.</p>
               </div>
               <Button type="button" variant="outline" size="sm" className="border-primary/30 text-xs" onClick={() => {
                 setName((current) => current || 'Grok-style Assistant');
@@ -331,14 +331,14 @@ export default function AgentCreateWizard({
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-gray-300">System Prompt & Instructions *</label>
+                <label className="text-xs font-semibold text-foreground/85">System Prompt & Instructions *</label>
                 <span className="text-[11px] text-gray-500">Defines identity and operational guardrails</span>
               </div>
               <Textarea
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value)}
                 placeholder="You are an autonomous agent specialized in..."
-                className="min-h-[120px] rounded-xl border-gray-800 bg-gray-900/80 text-xs text-white font-mono leading-relaxed"
+                className="min-h-[120px] rounded-xl border-border bg-gray-900/80 text-xs text-white font-mono leading-relaxed"
               />
             </div>
           </div>
@@ -347,7 +347,7 @@ export default function AgentCreateWizard({
         {/* STEP 4: TOOL GRANTS */}
         {step === 4 && (
           <div className="space-y-3 animate-in fade-in duration-200">
-            <label className="text-xs font-semibold text-gray-300 block">
+            <label className="text-xs font-semibold text-foreground/85 block">
               Authorized Capability Grants
             </label>
             <div className="grid grid-cols-2 gap-2.5">
@@ -362,7 +362,7 @@ export default function AgentCreateWizard({
                     className={`flex items-start gap-2.5 p-3 rounded-xl border text-left transition-all ${
                       isChecked
                         ? 'border-primary/60 bg-primary/10 text-white'
-                        : 'border-gray-800 bg-gray-900/30 text-gray-400 hover:border-gray-700'
+                        : 'border-border bg-gray-900/30 text-muted-foreground hover:border-gray-700'
                     }`}
                   >
                     <Icon className={`size-4 shrink-0 mt-0.5 ${isChecked ? 'text-primary' : 'text-gray-500'}`} />
@@ -385,7 +385,7 @@ export default function AgentCreateWizard({
               variant="outline"
               size="sm"
               onClick={() => setStep(step - 1)}
-              className="rounded-xl border-gray-800 text-xs font-semibold"
+              className="rounded-xl border-border text-xs font-semibold"
             >
               <ChevronLeft className="mr-1.5 size-3.5" /> Back
             </Button>

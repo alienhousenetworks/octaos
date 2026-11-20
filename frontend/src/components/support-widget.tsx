@@ -376,7 +376,7 @@ export default function SupportWidget({
                     ticketStatus === 'pending_human' ? 'bg-amber-400 animate-pulse' :
                     config.live_chat_available ? 'bg-emerald-500' : 'bg-blue-400'
                   }`} />
-                  <span className="text-xs text-gray-400 font-medium">
+                  <span className="text-xs text-muted-foreground font-medium">
                     {ticketStatus === 'human_handling'
                       ? (agentName ? `Live with ${agentName}` : 'Live Agent Active')
                       : ticketStatus === 'pending_human'
@@ -393,7 +393,7 @@ export default function SupportWidget({
               <button
                 type="button"
                 onClick={handleNewChat}
-                className="px-2 py-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-1.5 text-xs font-medium"
+                className="px-2 py-1 rounded-lg text-muted-foreground hover:text-white hover:bg-white/10 transition-colors flex items-center gap-1.5 text-xs font-medium"
                 title="Start a new chat"
                 aria-label="Start a new chat"
               >
@@ -403,7 +403,7 @@ export default function SupportWidget({
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-white hover:bg-white/10 transition-colors"
                 title="Close Chat"
               >
                 <X size={18} />
@@ -423,7 +423,7 @@ export default function SupportWidget({
               className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'chat'
                   ? 'text-white'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                  : 'text-muted-foreground hover:text-gray-200 hover:bg-white/5'
               }`}
             >
               <MessageSquare size={13} /> Live Assistant
@@ -438,7 +438,7 @@ export default function SupportWidget({
               className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'ticket'
                   ? 'text-white'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                  : 'text-muted-foreground hover:text-gray-200 hover:bg-white/5'
               }`}
             >
               <FileText size={13} /> Raise Ticket
@@ -456,7 +456,7 @@ export default function SupportWidget({
                   if (isSys) {
                     return (
                       <div key={idx} className="flex justify-center my-1.5">
-                        <span className="bg-gray-900/80 border border-gray-800 text-gray-400 text-xs px-3 py-1 rounded-full text-center max-w-[90%] leading-relaxed">
+                        <span className="bg-gray-900/80 border border-border text-muted-foreground text-xs px-3 py-1 rounded-full text-center max-w-[90%] leading-relaxed">
                           {m.content}
                         </span>
                       </div>
@@ -484,7 +484,7 @@ export default function SupportWidget({
 
                         {/* Knowledge Base Citations */}
                         {m.citations && m.citations.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-white/10 text-xs text-gray-400 flex flex-wrap gap-1 items-center">
+                          <div className="mt-2 pt-2 border-t border-white/10 text-xs text-muted-foreground flex flex-wrap gap-1 items-center">
                             <span className="font-semibold" style={{ color: activeColor }}>Sources:</span>
                             {m.citations.map((c, cIdx) => (
                               <span
@@ -503,7 +503,7 @@ export default function SupportWidget({
 
                 {/* Suggest Live Chat Banner */}
                 {suggestLiveChat.suggested && (
-                  <div className="p-3 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 text-indigo-200 space-y-2 animate-in fade-in">
+                  <div className="p-3 rounded-2xl bg-primary/10 border border-primary/30 text-foreground space-y-2 animate-in fade-in">
                     <p className="text-xs leading-relaxed">
                       {suggestLiveChat.reason === 'loop_detected'
                         ? "It looks like we're having trouble resolving this. Would you like to connect with a live support agent?"
@@ -519,7 +519,7 @@ export default function SupportWidget({
                             setActiveTab('ticket');
                           }
                         }}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs h-7 px-3 rounded-lg flex items-center gap-1 shadow-md shadow-indigo-600/20"
+                        className="bg-primary text-primary-foreground hover:bg-primary-hover text-white text-xs h-7 px-3 rounded-lg flex items-center gap-1 shadow-md shadow-none"
                       >
                         <Headphones size={12} />
                         {suggestLiveChat.available ? 'Connect to Live Chat' : 'Raise Support Ticket'}
@@ -539,7 +539,7 @@ export default function SupportWidget({
               </div>
 
               {/* Quick Action Chips */}
-              <div className="px-3 py-1.5 bg-gray-900/60 border-t border-white/5 flex gap-1.5 overflow-x-auto">
+              <div className="px-3 py-1.5 bg-background border-t border-white/5 flex gap-1.5 overflow-x-auto">
                 <button
                   type="button"
                   onClick={() => handleSendMessage('I would like to speak with a human support agent.', 'request_handoff')}
@@ -555,14 +555,14 @@ export default function SupportWidget({
                 <button
                   type="button"
                   onClick={() => handleSendMessage('Can you explain pricing and plan features?')}
-                  className="px-2.5 py-1 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs whitespace-nowrap transition-colors"
+                  className="px-2.5 py-1 rounded-full bg-gray-800 hover:bg-gray-700 text-foreground/85 text-xs whitespace-nowrap transition-colors"
                 >
                   Pricing
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSendMessage('What are your company refund and cancellation policies?')}
-                  className="px-2.5 py-1 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs whitespace-nowrap transition-colors"
+                  className="px-2.5 py-1 rounded-full bg-gray-800 hover:bg-gray-700 text-foreground/85 text-xs whitespace-nowrap transition-colors"
                 >
                   Policies
                 </button>
@@ -579,7 +579,7 @@ export default function SupportWidget({
                     if (e.key === 'Enter') handleSendMessage();
                   }}
                   disabled={isSending}
-                  className="bg-gray-900 border-gray-800 text-white text-xs h-9 focus:border-blue-500 rounded-xl"
+                  className="bg-gray-900 border-border text-white text-xs h-9 focus:border-blue-500 rounded-xl"
                 />
                 <Button
                   onClick={() => handleSendMessage()}
@@ -599,17 +599,17 @@ export default function SupportWidget({
           {/* Tab 2: Raise Ticket Form */}
           {activeTab === 'ticket' && (
             <form onSubmit={handleRaiseTicket} className="flex-1 p-5 overflow-y-auto space-y-3.5 text-xs bg-gray-950/40">
-              <div className="bg-gray-900/60 p-3 rounded-2xl border border-white/5 space-y-1">
+              <div className="bg-background p-3 rounded-2xl border border-white/5 space-y-1">
                 <h5 className="font-bold text-white text-xs flex items-center gap-1.5">
                   <FileText size={13} style={{ color: activeColor }} /> Need Human Follow-up?
                 </h5>
-                <p className="text-xs text-gray-400 leading-relaxed">
+                <p className="text-xs text-muted-foreground leading-relaxed">
                   Submit your problem description and contact information. A specialist will review and respond directly.
                 </p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1">
+                <label className="block text-xs font-semibold text-foreground/85 mb-1">
                   Problem Description *
                 </label>
                 <Textarea
@@ -617,13 +617,13 @@ export default function SupportWidget({
                   placeholder="Describe your question or issue in detail..."
                   value={ticketForm.problem}
                   onChange={e => setTicketForm({ ...ticketForm, problem: e.target.value })}
-                  className="bg-gray-900 border-gray-800 text-white text-xs min-h-[80px] rounded-xl focus:border-blue-500 resize-none"
+                  className="bg-gray-900 border-border text-white text-xs min-h-[80px] rounded-xl focus:border-blue-500 resize-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1 flex items-center gap-1">
-                  <User size={11} className="text-gray-400" /> Full Name *
+                <label className="block text-xs font-semibold text-foreground/85 mb-1 flex items-center gap-1">
+                  <User size={11} className="text-muted-foreground" /> Full Name *
                 </label>
                 <Input
                   required
@@ -631,13 +631,13 @@ export default function SupportWidget({
                   placeholder="Your full name"
                   value={ticketForm.name}
                   onChange={e => setTicketForm({ ...ticketForm, name: e.target.value })}
-                  className="bg-gray-900 border-gray-800 text-white text-xs h-8 rounded-xl focus:border-blue-500"
+                  className="bg-gray-900 border-border text-white text-xs h-8 rounded-xl focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1 flex items-center gap-1">
-                  <Mail size={11} className="text-gray-400" /> Email Address *
+                <label className="block text-xs font-semibold text-foreground/85 mb-1 flex items-center gap-1">
+                  <Mail size={11} className="text-muted-foreground" /> Email Address *
                 </label>
                 <Input
                   required
@@ -645,13 +645,13 @@ export default function SupportWidget({
                   placeholder="name@company.com"
                   value={ticketForm.email}
                   onChange={e => setTicketForm({ ...ticketForm, email: e.target.value })}
-                  className="bg-gray-900 border-gray-800 text-white text-xs h-8 rounded-xl focus:border-blue-500"
+                  className="bg-gray-900 border-border text-white text-xs h-8 rounded-xl focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1 flex items-center gap-1">
-                  <Phone size={11} className="text-gray-400" /> Mobile Number *
+                <label className="block text-xs font-semibold text-foreground/85 mb-1 flex items-center gap-1">
+                  <Phone size={11} className="text-muted-foreground" /> Mobile Number *
                 </label>
                 <Input
                   required
@@ -659,7 +659,7 @@ export default function SupportWidget({
                   placeholder="+1 (555) 000-0000"
                   value={ticketForm.phone}
                   onChange={e => setTicketForm({ ...ticketForm, phone: e.target.value })}
-                  className="bg-gray-900 border-gray-800 text-white text-xs h-8 rounded-xl focus:border-blue-500"
+                  className="bg-gray-900 border-border text-white text-xs h-8 rounded-xl focus:border-blue-500"
                 />
               </div>
 

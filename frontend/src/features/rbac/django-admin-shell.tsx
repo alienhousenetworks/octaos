@@ -73,12 +73,12 @@ export default function DjangoAdminShell({
           className={`py-3 text-xs font-bold uppercase tracking-wider border-b-2 flex items-center gap-2 transition-all ${
             currentTab === 'users'
               ? 'border-[#79aec8] text-[#79aec8]'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              : 'border-transparent text-muted-foreground hover:text-zinc-200'
           }`}
         >
           <Users className="h-3.5 w-3.5" />
           Users
-          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300">
+          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-zinc-800 text-foreground/85">
             {usersCount}
           </span>
         </button>
@@ -88,12 +88,12 @@ export default function DjangoAdminShell({
           className={`py-3 text-xs font-bold uppercase tracking-wider border-b-2 flex items-center gap-2 transition-all ${
             currentTab === 'groups'
               ? 'border-[#79aec8] text-[#79aec8]'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              : 'border-transparent text-muted-foreground hover:text-zinc-200'
           }`}
         >
           <Shield className="h-3.5 w-3.5" />
           Groups
-          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300">
+          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-zinc-800 text-foreground/85">
             {groupsCount}
           </span>
         </button>
@@ -103,7 +103,7 @@ export default function DjangoAdminShell({
           className={`py-3 text-xs font-bold uppercase tracking-wider border-b-2 flex items-center gap-2 transition-all ${
             currentTab === 'permissions'
               ? 'border-[#79aec8] text-[#79aec8]'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              : 'border-transparent text-muted-foreground hover:text-zinc-200'
           }`}
         >
           <Layers className="h-3.5 w-3.5" />

@@ -113,7 +113,7 @@ export default function SalesLeadDossier({
   const conversation = (lead.data?.conversation || []) as any[];
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/30 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex justify-end bg-card/30 backdrop-blur-xs animate-in fade-in duration-200">
       <div 
         className="w-full max-w-2xl bg-white border-l border-slate-200 h-full shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 text-slate-900"
         onClick={(e) => e.stopPropagation()}
@@ -135,7 +135,7 @@ export default function SalesLeadDossier({
                       href={websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-slate-400 hover:text-blue-600 transition-colors p-0.5"
+                      className="text-muted-foreground hover:text-blue-600 transition-colors p-0.5"
                       title="Visit company website"
                     >
                       <ExternalLink size={13} />
@@ -151,7 +151,7 @@ export default function SalesLeadDossier({
 
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              className="p-2 rounded-xl text-muted-foreground hover:text-slate-700 hover:bg-slate-100 transition-colors"
             >
               <X size={18} />
             </button>
@@ -556,7 +556,7 @@ export default function SalesLeadDossier({
                 </h4>
                 {conversation.length === 0 ? (
                   <div className="p-8 text-center border border-dashed border-slate-200 rounded-xl bg-white">
-                    <Mail size={24} className="mx-auto text-slate-300 mb-2" />
+                    <Mail size={24} className="mx-auto text-foreground/85 mb-2" />
                     <p className="text-xs text-slate-500">
                       No outreach messages sent yet.
                     </p>
@@ -635,7 +635,7 @@ export default function SalesLeadDossier({
             <div className="space-y-4">
               {schedule.length === 0 ? (
                 <div className="p-8 text-center border border-dashed border-slate-200 rounded-xl bg-white">
-                  <Clock size={24} className="mx-auto text-slate-300 mb-2" />
+                  <Clock size={24} className="mx-auto text-foreground/85 mb-2" />
                   <p className="text-xs text-slate-500">
                     No follow-up schedule yet. It is created when the prospecting workflow sequences this lead.
                   </p>
@@ -672,7 +672,7 @@ export default function SalesLeadDossier({
                         </select>
                         <button
                           onClick={() => setSchedule((s) => s.filter((_, idx) => idx !== i))}
-                          className="text-slate-400 hover:text-rose-600 p-1"
+                          className="text-muted-foreground hover:text-rose-600 p-1"
                           title="Remove step"
                         >
                           <Trash2 size={13} />

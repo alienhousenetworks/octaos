@@ -32,6 +32,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import PageHeader from '@/components/shell/page-header';
+import { HanddrawnWorkflowSketch } from '@/components/handdraw/handdraw-illustrations';
 import StatusBadge from '@/components/shell/status-badge';
 import { EmptyState } from '@/components/shell/states';
 import KpiMetricCard from '@/components/analytics/kpi-metric-card';
@@ -313,7 +314,7 @@ export default function DashboardView({
       />
 
       {/* DEPARTMENT & TIME-PERIOD OPTIONS MENU */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card/60 p-2.5 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-2.5 sm:flex-row sm:items-center sm:justify-between">
         {/* Department Option Tabs */}
         <div className="flex flex-wrap items-center gap-1">
           {departmentOptions.map((dept) => {
@@ -323,10 +324,10 @@ export default function DashboardView({
                 key={dept.id}
                 type="button"
                 onClick={() => setSelectedDept(dept.id)}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
                   isActive
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-surface-hover hover:text-foreground'
                 }`}
               >
                 {dept.icon}
@@ -338,15 +339,15 @@ export default function DashboardView({
 
         {/* Time-Range Selector & Live Telemetry Pill */}
         <div className="flex items-center gap-2 self-end sm:self-auto">
-          <div className="flex items-center rounded-lg border border-border/70 bg-background/60 p-0.5 text-xs">
+          <div className="flex items-center rounded-md border border-border bg-background p-0.5 text-xs">
             {(['7d', '14d', '30d'] as PeriodTab[]).map((period) => (
               <button
                 key={period}
                 type="button"
                 onClick={() => setSelectedPeriod(period)}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium uppercase transition-colors ${
+                className={`rounded-sm px-2.5 py-1 text-xs font-medium uppercase transition-colors ${
                   selectedPeriod === period
-                    ? 'bg-secondary text-foreground font-bold shadow-xs'
+                    ? 'bg-surface-hover text-foreground font-semibold'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -355,7 +356,7 @@ export default function DashboardView({
             ))}
           </div>
 
-          <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-border/40 bg-background/40 px-2.5 py-1 text-[11px] text-muted-foreground">
+          <div className="hidden sm:flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground">
             {loadingPeriod ? (
               <>
                 <Loader2 className="h-3 w-3 animate-spin text-primary" />
@@ -363,7 +364,7 @@ export default function DashboardView({
               </>
             ) : (
               <>
-                <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="flex h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
                 <span>Telemetry live</span>
               </>
             )}
@@ -374,8 +375,8 @@ export default function DashboardView({
       {/* SECTION 1: TOKEN & INVOCATION VELOCITY HERO STRIP */}
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Coins className="h-3.5 w-3.5 text-primary" /> Token & Execution Velocity
+          <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+            <Coins className="h-3.5 w-3.5 text-primary" /> Token & execution velocity
           </span>
           <span className="text-[11px] font-mono text-muted-foreground">
             {tokenUsage.total_requests.toLocaleString()} logged operations · {formatTokens(tokenUsage.total_tokens)} tok

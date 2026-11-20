@@ -75,7 +75,7 @@ export default function DjangoAdminGroupForm({
             variant="ghost"
             size="sm"
             onClick={onCancel}
-            className="h-8 px-2 text-zinc-400 hover:text-white"
+            className="h-8 px-2 text-muted-foreground hover:text-white"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to Groups

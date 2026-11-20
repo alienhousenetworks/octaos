@@ -61,7 +61,7 @@ export interface ActivityLogItem {
 
 export interface ExecutionTraceItem {
   tool: string;
-  args: Record<string, any>;
+  args: Record<string, unknown>;
   duration_ms?: number;
   status?: 'authorized' | 'completed' | 'failed' | 'pending_approval';
 }

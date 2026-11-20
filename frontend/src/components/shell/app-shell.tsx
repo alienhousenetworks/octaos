@@ -30,6 +30,7 @@ import { crumbForPath, isItemActive, visibleGroups } from '@/lib/navigation';
 import { saveSession } from '@/lib/auth-session';
 import { notify } from '@/lib/notify';
 import { useWorkspace } from '@/lib/workspace';
+import type { OrganizationMembership } from '@/lib/contracts';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const workspace = useWorkspace();
@@ -39,7 +40,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [approvalCount, setApprovalCount] = useState<number | null>(null);
-  const [orgs, setOrgs] = useState<any[]>([]);
+  const [orgs, setOrgs] = useState<OrganizationMembership[]>([]);
   const [switching, setSwitching] = useState<string | null>(null);
   const { mode: interfaceMode, setMode } = useInterfaceMode();
 
@@ -47,11 +48,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (!workspace.ready) return;
     if (!workspace.token) router.replace('/login');
   }, [workspace.ready, workspace.token, router]);
-
-  useEffect(() => {
-    const stored = localStorage.getItem('octaos-sidebar-collapsed');
-    setCollapsed(stored === '1');
-  }, [pathname]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -63,10 +59,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
 
   useEffect(() => {
     if (!workspace.token) return;
@@ -137,7 +129,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const initials = (profile?.name || profile?.email || 'U').slice(0, 1).toUpperCase();
 
   const nav = (
-    <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+    <div className="classic-nav flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="flex h-[68px] items-center gap-3 border-b border-sidebar-border px-5">
         <Link href="/app/home" className="flex min-w-0 items-center gap-2">
           {workspace.logoUrl ? (
@@ -150,7 +142,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <nav className="flex-1 overflow-y-auto px-2.5 py-4" aria-label="Primary">
         {groups.map((group) => (
           <div key={group.label} className="mb-5">
-            <p className={`px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80 ${collapsed ? 'sr-only' : ''}`}>{group.label}</p>
+            <p className={`px-2.5 pb-1.5 text-xs font-medium text-muted-foreground/75 ${collapsed ? 'sr-only' : ''}`}>{group.label}</p>
             {group.items.map((item) => {
               const Icon = item.icon;
               const isActive = isItemActive(item, pathname);
@@ -161,6 +153,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   id={`nav-${item.id}`}
                   title={item.name}
                   aria-current={isActive ? "page" : undefined}
+                  onClick={() => setMobileOpen(false)}
                   className={`group/nav mb-1 flex h-10 items-center gap-3 rounded-lg border border-transparent px-3 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar ${isActive ? 'border-primary/15 bg-sidebar-accent text-sidebar-accent-foreground font-semibold' : 'text-muted-foreground hover:border-border/70 hover:bg-surface-hover hover:text-foreground'}`}
                 >
                   <Icon className={`size-[17px] shrink-0 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground group-hover/nav:text-foreground'}`} />
@@ -192,11 +185,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   if (interfaceMode === 'bot') {
-    return <AIWorkspaceShell accountLabel={profile?.name || profile?.email}>{children}</AIWorkspaceShell>;
+    return <AIWorkspaceShell accountLabel={profile?.name || profile?.email || undefined}>{children}</AIWorkspaceShell>;
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground">
+    <div className="classic-shell flex h-screen overflow-hidden bg-background text-foreground">
       <aside
         className="hidden h-full shrink-0 border-r border-sidebar-border md:block"
         style={{ width: collapsed ? 64 : 248 }}
@@ -223,7 +216,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </button>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[68px] shrink-0 items-center gap-3 border-b border-border bg-card px-4 md:px-7">
+        <header className="classic-topbar flex h-[68px] shrink-0 items-center gap-3 border-b border-border bg-card px-4 md:px-7">
           <button
             type="button"
             className="inline-flex size-9 items-center justify-center rounded-md border border-border md:hidden"
@@ -238,6 +231,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <span className="font-medium">{crumb.name}</span>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <span className="classic-status hidden items-center gap-1.5 rounded-full border border-success/20 bg-success/10 px-2.5 py-1 text-[11px] font-medium text-success xl:inline-flex">
+              <span className="size-1.5 rounded-full bg-success" />
+              Workspace synchronized
+            </span>
             <WorkforceActivity />
             <div
               role="group"
@@ -314,7 +311,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </DropdownMenu>
           </div>
         </header>
-        <main className="flex-1 overflow-auto px-4 py-6 md:px-7 md:py-8"><div className="mx-auto w-full max-w-[1600px]">{children}</div></main>
+        <main className="classic-main flex-1 overflow-auto px-4 py-6 md:px-7 md:py-8"><div className="mx-auto w-full max-w-[1600px]">{children}</div></main>
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} profile={profile} />
     </div>

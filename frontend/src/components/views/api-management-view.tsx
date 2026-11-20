@@ -421,8 +421,8 @@ export default function ApiManagementView({
         <div
           className={`fixed top-6 right-6 z-50 px-4 py-2.5 rounded-xl shadow-2xl text-xs font-mono font-semibold border transition-all ${
             toast.type === 'ok'
-              ? 'bg-zinc-900 border-emerald-500/30 text-emerald-300'
-              : 'bg-zinc-900 border-rose-500/30 text-rose-300'
+              ? 'bg-card border-emerald-500/30 text-emerald-300'
+              : 'bg-card border-rose-500/30 text-rose-300'
           }`}
         >
           {toast.msg}
@@ -432,18 +432,18 @@ export default function ApiManagementView({
       {/* Header & Breadcrumb */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
         <div>
-          <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mb-1">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono mb-1">
             <span>Settings</span>
             <span>/</span>
             <span className="text-zinc-200">APIs & Integrations</span>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-white flex items-center gap-2.5">
             Integrations & Machine Credentials
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700/60 font-mono">
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-zinc-800 text-foreground/85 border border-zinc-700/60 font-mono">
               {configured.length} connected
             </span>
           </h1>
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Connect LLM gateways, publishing APIs, outbound SMTP mailboxes, and B2B enrichment providers.
           </p>
         </div>
@@ -454,9 +454,9 @@ export default function ApiManagementView({
             disabled={refreshing}
             variant="outline"
             size="sm"
-            className="h-8 border-white/[0.08] bg-zinc-900/60 hover:bg-zinc-800 text-zinc-300 text-xs font-medium gap-1.5 rounded-md"
+            className="h-8 border-white/[0.08] bg-card/60 hover:bg-zinc-800 text-foreground/85 text-xs font-medium gap-1.5 rounded-md"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-zinc-400' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-muted-foreground' : ''}`} />
             Refresh Status
           </Button>
         </div>
@@ -468,13 +468,13 @@ export default function ApiManagementView({
           onClick={() => setMainSection('integrations')}
           className={`pb-3 transition-colors relative flex items-center gap-2 ${
             mainSection === 'integrations'
-              ? 'text-white border-b-2 border-indigo-500 font-semibold'
-              : 'text-zinc-400 hover:text-zinc-200'
+              ? 'text-white border-b-2 border-primary font-semibold'
+              : 'text-muted-foreground hover:text-zinc-200'
           }`}
         >
-          <Server className="w-4 h-4 text-indigo-400" />
+          <Server className="w-4 h-4 text-primary" />
           Outbound API Integrations
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300">
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-800 text-foreground/85">
             {configured.length}
           </span>
         </button>
@@ -483,13 +483,13 @@ export default function ApiManagementView({
           onClick={() => setMainSection('mcp')}
           className={`pb-3 transition-colors relative flex items-center gap-2 ${
             mainSection === 'mcp'
-              ? 'text-white border-b-2 border-indigo-500 font-semibold'
-              : 'text-zinc-400 hover:text-zinc-200'
+              ? 'text-white border-b-2 border-primary font-semibold'
+              : 'text-muted-foreground hover:text-zinc-200'
           }`}
         >
           <Sparkles className="w-4 h-4 text-purple-400" />
           OctaOS System MCP Hub
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-primary/15 text-primary border border-primary/30">
             One-Click Connect
           </span>
         </button>
@@ -504,29 +504,29 @@ export default function ApiManagementView({
       ) : (
         <>
       {/* AI Architecture Selector (Apple Style Segmented Card) */}
-      <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-5">
+      <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <Server className="w-4 h-4 text-indigo-400" />
+              <Server className="w-4 h-4 text-primary" />
               <h2 className="text-sm font-semibold text-white">AI Execution Architecture</h2>
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 font-medium">
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/25 font-medium">
                 {aiMode === 'inbuilt' ? 'PLATFORM HUB' : 'BYOK ACTIVE'}
               </span>
             </div>
-            <p className="text-xs text-zinc-400 mt-1 max-w-xl">
+            <p className="text-xs text-muted-foreground mt-1 max-w-xl">
               Select whether agents route LLM requests through server-managed failover hubs (OpenRouter/Together) or your dedicated private API tokens.
             </p>
           </div>
 
-          <div className="inline-flex p-1 rounded-lg bg-zinc-900 border border-white/[0.08] shrink-0 self-start md:self-center">
+          <div className="inline-flex p-1 rounded-lg bg-card border border-white/[0.08] shrink-0 self-start md:self-center">
             <button
               onClick={() => handleModeChange('inbuilt')}
               disabled={modeLoading}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 aiMode === 'inbuilt'
                   ? 'bg-zinc-800 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  : 'text-muted-foreground hover:text-zinc-200'
               }`}
             >
               <Server className="w-3.5 h-3.5" />
@@ -538,7 +538,7 @@ export default function ApiManagementView({
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 aiMode === 'byok'
                   ? 'bg-zinc-800 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  : 'text-muted-foreground hover:text-zinc-200'
               }`}
             >
               <ShieldCheck className="w-3.5 h-3.5" />
@@ -550,8 +550,8 @@ export default function ApiManagementView({
 
       {/* KPI Stats Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
+        <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-medium">Connected Services</span>
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
           </div>
@@ -561,10 +561,10 @@ export default function ApiManagementView({
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
+        <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-medium">Primary AI Router</span>
-            <Bot className="w-3.5 h-3.5 text-indigo-400" />
+            <Bot className="w-3.5 h-3.5 text-primary" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-sm font-semibold text-white tracking-tight truncate uppercase font-mono">
@@ -573,8 +573,8 @@ export default function ApiManagementView({
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
+        <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-medium">Hub Redundancy</span>
             <Zap className="w-3.5 h-3.5 text-amber-400" />
           </div>
@@ -586,10 +586,10 @@ export default function ApiManagementView({
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
+        <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-medium">Encryption Standard</span>
-            <Key className="w-3.5 h-3.5 text-zinc-400" />
+            <Key className="w-3.5 h-3.5 text-muted-foreground" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-sm font-semibold text-zinc-200 tracking-tight font-mono">
@@ -602,7 +602,7 @@ export default function ApiManagementView({
 
       {/* Tabs & Search Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs text-zinc-400 scrollbar-none">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs text-muted-foreground scrollbar-none">
           {categories.map((c) => (
             <button
               key={c.id}
@@ -610,7 +610,7 @@ export default function ApiManagementView({
               className={`px-3 py-1.5 rounded-md text-xs transition-colors whitespace-nowrap font-medium ${
                 activeCategory === c.id
                   ? 'bg-zinc-800 text-white shadow-sm border border-white/[0.08]'
-                  : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
+                  : 'text-muted-foreground hover:text-zinc-200 border border-transparent'
               }`}
             >
               {c.label}
@@ -619,12 +619,12 @@ export default function ApiManagementView({
         </div>
 
         <div className="relative w-full sm:w-64">
-          <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search providers or services…"
-            className="h-8 pl-8 text-xs bg-zinc-900/60 border-white/[0.08] focus:border-zinc-500 rounded-md placeholder:text-zinc-500"
+            className="h-8 pl-8 text-xs bg-card/60 border-white/[0.08] focus:border-zinc-500 rounded-md placeholder:text-zinc-500"
           />
         </div>
       </div>
@@ -641,7 +641,7 @@ export default function ApiManagementView({
               key={p.id}
               className={`rounded-xl border p-4 flex flex-col justify-between transition-all ${
                 isConfigured
-                  ? 'border-white/[0.12] bg-[#111318] shadow-sm'
+                  ? 'border-white/[0.12] bg-[#11161c] shadow-sm'
                   : 'border-white/[0.06] bg-[#0d0f14]'
               }`}
             >
@@ -663,14 +663,14 @@ export default function ApiManagementView({
                     className={`text-[10px] font-mono px-2 py-0.5 rounded-md font-medium shrink-0 ${
                       isConfigured
                         ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                        : 'bg-zinc-800/80 text-zinc-400 border border-zinc-700/60'
+                        : 'bg-zinc-800/80 text-muted-foreground border border-zinc-700/60'
                     }`}
                   >
                     {isConfigured ? 'CONNECTED' : 'DISCONNECTED'}
                   </span>
                 </div>
 
-                <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
+                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                   {p.description}
                 </p>
 
@@ -688,7 +688,7 @@ export default function ApiManagementView({
                     href={p.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[11px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1 font-mono transition-colors"
+                    className="text-[11px] text-zinc-500 hover:text-foreground/85 flex items-center gap-1 font-mono transition-colors"
                   >
                     Docs <ExternalLink className="w-3 h-3" />
                   </a>
@@ -704,7 +704,7 @@ export default function ApiManagementView({
                           size="sm"
                           variant="ghost"
                           onClick={() => handleSetMain(p.id)}
-                          className="h-7 text-[11px] text-zinc-400 hover:text-white px-2 rounded-md font-mono"
+                          className="h-7 text-[11px] text-muted-foreground hover:text-white px-2 rounded-md font-mono"
                           title="Set as Default AI Provider"
                         >
                           Make Primary
@@ -714,7 +714,7 @@ export default function ApiManagementView({
                         size="sm"
                         variant="ghost"
                         onClick={() => openConfigModal(p)}
-                        className="h-7 text-[11px] text-zinc-400 hover:text-white px-2 rounded-md font-mono"
+                        className="h-7 text-[11px] text-muted-foreground hover:text-white px-2 rounded-md font-mono"
                         title="Edit Settings"
                       >
                         Edit
@@ -724,7 +724,7 @@ export default function ApiManagementView({
                         variant="ghost"
                         onClick={() => handleDeleteKey(p.id)}
                         disabled={isDeleting}
-                        className="h-7 w-7 p-0 text-zinc-400 hover:text-rose-400 hover:bg-rose-950/20 rounded-md"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-rose-400 hover:bg-rose-950/20 rounded-md"
                         title="Remove Credential"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -751,10 +751,10 @@ export default function ApiManagementView({
         <DialogContent className="sm:max-w-lg bg-[#12141a] border-white/[0.08] text-white p-6 rounded-2xl shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold tracking-tight text-white flex items-center gap-2">
-              <Key className="w-4 h-4 text-zinc-300" />
+              <Key className="w-4 h-4 text-foreground/85" />
               Configure {dialogProvider?.label}
             </DialogTitle>
-            <DialogDescription className="text-xs text-zinc-400">
+            <DialogDescription className="text-xs text-muted-foreground">
               Credentials and company page linkages are encrypted per-tenant and stored securely.
             </DialogDescription>
           </DialogHeader>
@@ -774,7 +774,7 @@ export default function ApiManagementView({
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+                    <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
                       Instantly sign in with LinkedIn to authorize social post publishing permissions for your tenant.
                     </p>
                   </div>
@@ -791,15 +791,15 @@ export default function ApiManagementView({
                 </div>
 
                 <div className="pt-2.5 border-t border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <span className="text-[11px] text-zinc-400 font-mono">Authorization Scope:</span>
-                  <div className="inline-flex items-center gap-1 bg-zinc-950/80 p-1 rounded-lg border border-white/[0.08]">
+                  <span className="text-[11px] text-muted-foreground font-mono">Authorization Scope:</span>
+                  <div className="inline-flex items-center gap-1 bg-background/80 p-1 rounded-lg border border-white/[0.08]">
                     <button
                       type="button"
                       onClick={() => setSelectedScope('openid profile w_member_social w_organization_social')}
                       className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${
                         selectedScope.includes('w_organization_social')
                           ? 'bg-[#0a66c2] text-white shadow-sm'
-                          : 'text-zinc-400 hover:text-zinc-200'
+                          : 'text-muted-foreground hover:text-zinc-200'
                       }`}
                     >
                       Company Page & Profile
@@ -810,7 +810,7 @@ export default function ApiManagementView({
                       className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${
                         !selectedScope.includes('w_organization_social')
                           ? 'bg-zinc-800 text-white shadow-sm'
-                          : 'text-zinc-400 hover:text-zinc-200'
+                          : 'text-muted-foreground hover:text-zinc-200'
                       }`}
                     >
                       Personal Profile Only
@@ -820,18 +820,18 @@ export default function ApiManagementView({
               </div>
 
               {/* Company Page Note */}
-              <div className="text-[11px] text-zinc-400 bg-sky-950/20 border border-sky-800/30 rounded-xl p-3 leading-relaxed flex items-start gap-2.5">
+              <div className="text-[11px] text-muted-foreground bg-sky-950/20 border border-sky-800/30 rounded-xl p-3 leading-relaxed flex items-start gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
                 <div>
                   <strong className="text-sky-300">LinkedIn Company Page Requirement:</strong>
-                  <p className="mt-0.5 text-zinc-400">
+                  <p className="mt-0.5 text-muted-foreground">
                     Personal posts need <strong>Sign In with LinkedIn using OpenID Connect</strong> and <strong>Share on LinkedIn</strong>. Company Page posts also need the <strong>Community Management API</strong> product, and the signed-in member must be a <strong>Super Admin</strong> or <strong>Content Admin</strong> of that page. A member-only token publishes to the personal profile.
                   </p>
                 </div>
               </div>
 
               {/* LinkedIn Company Page URL or ID */}
-              <div className="space-y-1.5 p-3.5 rounded-xl bg-zinc-900/60 border border-white/[0.06]">
+              <div className="space-y-1.5 p-3.5 rounded-xl bg-card/60 border border-white/[0.06]">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-medium text-zinc-200 flex items-center gap-1.5">
                     <Briefcase className="w-3.5 h-3.5 text-sky-400" />
@@ -844,7 +844,7 @@ export default function ApiManagementView({
                   value={orgIdValue}
                   onChange={(e) => setOrgIdValue(e.target.value)}
                   placeholder="e.g. 104858837 or https://www.linkedin.com/company/104858837/admin/dashboard/"
-                  className="h-9 text-xs font-mono bg-zinc-950/80 border-white/[0.08] focus:border-sky-500 rounded-md"
+                  className="h-9 text-xs font-mono bg-background/80 border-white/[0.08] focus:border-sky-500 rounded-md"
                 />
                 {parsedOrgUrn ? (
                   <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-mono mt-1">
@@ -859,7 +859,7 @@ export default function ApiManagementView({
               </div>
 
               {/* Direct Access Token (Optional) */}
-              <div className="space-y-1.5 p-3.5 rounded-xl bg-zinc-900/60 border border-white/[0.06]">
+              <div className="space-y-1.5 p-3.5 rounded-xl bg-card/60 border border-white/[0.06]">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-medium text-zinc-200 flex items-center gap-1.5">
                     <Key className="w-3.5 h-3.5 text-amber-400" />
@@ -872,7 +872,7 @@ export default function ApiManagementView({
                     href="https://www.linkedin.com/developers/tools/oauth"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[11px] text-indigo-400 hover:text-indigo-300 font-mono flex items-center gap-1"
+                    className="text-[11px] text-primary hover:text-primary font-mono flex items-center gap-1"
                   >
                     Token Generator <ExternalLink className="w-3 h-3" />
                   </a>
@@ -884,12 +884,12 @@ export default function ApiManagementView({
                     value={keyValue}
                     onChange={(e) => setKeyValue(e.target.value)}
                     placeholder={configured.includes('linkedin') ? '•••••••••••••••• (Leave blank to keep active OAuth token)' : 'AQXTs... (Optional if using 1-Click Authorize)'}
-                    className="h-9 pr-9 text-xs font-mono bg-zinc-950/80 border-white/[0.08] focus:border-zinc-500 rounded-md"
+                    className="h-9 pr-9 text-xs font-mono bg-background/80 border-white/[0.08] focus:border-zinc-500 rounded-md"
                   />
                   <button
                     type="button"
                     onClick={() => setShowKey(!showKey)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-zinc-200"
                   >
                     {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
@@ -897,8 +897,8 @@ export default function ApiManagementView({
               </div>
 
               {/* Developer App BYOK (Optional) */}
-              <details className="text-xs text-zinc-400 bg-zinc-950/40 border border-white/[0.05] rounded-xl p-3" open={Boolean(clientIdValue || clientSecretValue)}>
-                <summary className="cursor-pointer hover:text-zinc-200 font-medium text-xs text-zinc-300 flex items-center justify-between select-none">
+              <details className="text-xs text-muted-foreground bg-background/40 border border-white/[0.05] rounded-xl p-3" open={Boolean(clientIdValue || clientSecretValue)}>
+                <summary className="cursor-pointer hover:text-zinc-200 font-medium text-xs text-foreground/85 flex items-center justify-between select-none">
                   <span className="flex items-center gap-1.5">
                     <Sliders className="w-3.5 h-3.5 text-purple-400" />
                     Custom Developer App Credentials (BYOK)
@@ -912,23 +912,23 @@ export default function ApiManagementView({
                     Optionally provide your own LinkedIn Developer App credentials. If left blank, OctaOS uses the pre-configured default app.
                   </p>
                   <div>
-                    <label className="text-[11px] text-zinc-400 font-mono">LinkedIn Client ID</label>
+                    <label className="text-[11px] text-muted-foreground font-mono">LinkedIn Client ID</label>
                     <Input
                       type="text"
                       value={clientIdValue}
                       onChange={(e) => setClientIdValue(e.target.value)}
                       placeholder="e.g. 771xk6ipgiz4un"
-                      className="h-8 text-xs font-mono bg-zinc-900 border-white/[0.08] mt-1"
+                      className="h-8 text-xs font-mono bg-card border-white/[0.08] mt-1"
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] text-zinc-400 font-mono">LinkedIn Primary Client Secret</label>
+                    <label className="text-[11px] text-muted-foreground font-mono">LinkedIn Primary Client Secret</label>
                     <Input
                       type="password"
                       value={clientSecretValue}
                       onChange={(e) => setClientSecretValue(e.target.value)}
                       placeholder="e.g. WPL_AP1..."
-                      className="h-8 text-xs font-mono bg-zinc-900 border-white/[0.08] mt-1"
+                      className="h-8 text-xs font-mono bg-card border-white/[0.08] mt-1"
                     />
                   </div>
                 </div>
@@ -939,7 +939,7 @@ export default function ApiManagementView({
                   variant="outline"
                   size="sm"
                   onClick={() => setDialogOpen(false)}
-                  className="h-8 border-white/[0.08] bg-zinc-900 text-zinc-300 text-xs rounded-md"
+                  className="h-8 border-white/[0.08] bg-card text-foreground/85 text-xs rounded-md"
                 >
                   Cancel
                 </Button>
@@ -975,7 +975,7 @@ export default function ApiManagementView({
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+                    <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
                       Connect your Buffer workspace to schedule and publish approved posts across 11 social networks: Instagram, Facebook, X, LinkedIn, TikTok, Threads, YouTube, Pinterest, Bluesky, Mastodon, and Google Business Profile.
                     </p>
                   </div>
@@ -992,7 +992,7 @@ export default function ApiManagementView({
                 </div>
 
                 <div className="pt-2.5 border-t border-white/[0.06] flex items-center justify-between">
-                  <span className="text-[11px] text-zinc-400">Connected social channels & mapping:</span>
+                  <span className="text-[11px] text-muted-foreground">Connected social channels & mapping:</span>
                   <a
                     href="/settings/integrations"
                     className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-400 hover:text-blue-300 font-mono"
@@ -1003,7 +1003,7 @@ export default function ApiManagementView({
               </div>
 
               {/* Direct Buffer API Key (Fallback) */}
-              <div className="space-y-1.5 p-3.5 rounded-xl bg-zinc-900/60 border border-white/[0.06]">
+              <div className="space-y-1.5 p-3.5 rounded-xl bg-card/60 border border-white/[0.06]">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-medium text-zinc-200 flex items-center gap-1.5">
                     <Key className="w-3.5 h-3.5 text-amber-400" />
@@ -1013,7 +1013,7 @@ export default function ApiManagementView({
                     href="https://buffer.com/manage/apps"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[11px] text-indigo-400 hover:text-indigo-300 font-mono flex items-center gap-1"
+                    className="text-[11px] text-primary hover:text-primary font-mono flex items-center gap-1"
                   >
                     Buffer API Settings <ExternalLink className="w-3 h-3" />
                   </a>
@@ -1025,12 +1025,12 @@ export default function ApiManagementView({
                     value={keyValue}
                     onChange={(e) => setKeyValue(e.target.value)}
                     placeholder={configured.includes('buffer') ? '•••••••••••••••• (Leave blank to keep active token)' : 'Paste Buffer API Key...'}
-                    className="h-9 pr-9 text-xs font-mono bg-zinc-950/80 border-white/[0.08] focus:border-zinc-500 rounded-md"
+                    className="h-9 pr-9 text-xs font-mono bg-background/80 border-white/[0.08] focus:border-zinc-500 rounded-md"
                   />
                   <button
                     type="button"
                     onClick={() => setShowKey(!showKey)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-zinc-200"
                   >
                     {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
@@ -1042,7 +1042,7 @@ export default function ApiManagementView({
                   variant="outline"
                   size="sm"
                   onClick={() => setDialogOpen(false)}
-                  className="h-8 border-white/[0.08] bg-zinc-900 text-zinc-300 text-xs rounded-md"
+                  className="h-8 border-white/[0.08] bg-card text-foreground/85 text-xs rounded-md"
                 >
                   Cancel
                 </Button>
@@ -1067,13 +1067,13 @@ export default function ApiManagementView({
             <div className="space-y-4 mt-2">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-zinc-300">API Secret Key / Token</label>
+                  <label className="text-xs font-medium text-foreground/85">API Secret Key / Token</label>
                   {dialogProvider?.url && (
                     <a
                       href={dialogProvider.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] text-indigo-400 hover:text-indigo-300 font-mono flex items-center gap-1"
+                      className="text-[11px] text-primary hover:text-primary font-mono flex items-center gap-1"
                     >
                       Obtain Key <ExternalLink className="w-3 h-3" />
                     </a>
@@ -1086,12 +1086,12 @@ export default function ApiManagementView({
                     value={keyValue}
                     onChange={(e) => setKeyValue(e.target.value)}
                     placeholder={dialogProvider?.placeholder || 'sk-...'}
-                    className="h-9 pr-9 text-xs font-mono bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
+                    className="h-9 pr-9 text-xs font-mono bg-card border-white/[0.08] focus:border-zinc-500 rounded-md"
                   />
                   <button
                     type="button"
                     onClick={() => setShowKey(!showKey)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-zinc-200"
                   >
                     {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
@@ -1103,10 +1103,10 @@ export default function ApiManagementView({
               </div>
 
               {dialogProvider && ['calendly', 'google_forms', 'landingi', 'formstack', 'zapier', 'workato', 'sendgrid', 'twilio'].includes(dialogProvider.id) && (
-                <div className="p-3 rounded-lg bg-zinc-950/60 border border-white/[0.08] space-y-1.5">
-                  <div className="flex items-center justify-between text-xs text-zinc-300">
+                <div className="p-3 rounded-lg bg-background/60 border border-white/[0.08] space-y-1.5">
+                  <div className="flex items-center justify-between text-xs text-foreground/85">
                     <span className="font-medium flex items-center gap-1.5">
-                      <Globe className="w-3.5 h-3.5 text-indigo-400" />
+                      <Globe className="w-3.5 h-3.5 text-primary" />
                       Inbound Webhook Endpoint
                     </span>
                     <button
@@ -1116,12 +1116,12 @@ export default function ApiManagementView({
                         navigator.clipboard.writeText(url);
                         showToast('✓ Webhook URL copied to clipboard');
                       }}
-                      className="text-[10px] font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                      className="text-[10px] font-mono text-primary hover:text-primary flex items-center gap-1"
                     >
                       <Copy className="w-3 h-3" /> Copy URL
                     </button>
                   </div>
-                  <p className="text-[11px] font-mono text-zinc-400 truncate bg-zinc-900 px-2 py-1 rounded">
+                  <p className="text-[11px] font-mono text-muted-foreground truncate bg-card px-2 py-1 rounded">
                     {`${API_URL}/integrations/webhooks/${dialogProvider.id}/${tenantId || 'default'}`}
                   </p>
                   <p className="text-[10px] text-zinc-500">
@@ -1135,7 +1135,7 @@ export default function ApiManagementView({
                   variant="outline"
                   size="sm"
                   onClick={() => setDialogOpen(false)}
-                  className="h-8 border-white/[0.08] bg-zinc-900 text-zinc-300 text-xs rounded-md"
+                  className="h-8 border-white/[0.08] bg-card text-foreground/85 text-xs rounded-md"
                 >
                   Cancel
                 </Button>

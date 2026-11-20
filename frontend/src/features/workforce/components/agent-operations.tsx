@@ -203,15 +203,15 @@ export default function AgentOperations({ agent }: AgentOperationsProps) {
           return (
             <Card
               key={op.id}
-              className="group flex flex-col justify-between rounded-2xl border border-gray-800 bg-gray-950/50 p-5 transition-all duration-200 hover:border-gray-700 hover:bg-gray-900/40"
+              className="group flex flex-col justify-between rounded-2xl border border-border bg-gray-950/50 p-5 transition-all duration-200 hover:border-gray-700 hover:bg-gray-900/40"
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex size-9 items-center justify-center rounded-xl border border-gray-800 bg-gray-900 text-primary">
+                  <div className="flex size-9 items-center justify-center rounded-xl border border-border bg-gray-900 text-primary">
                     <Icon className="size-4" />
                   </div>
                   {op.badge && (
-                    <span className="rounded-md border border-gray-700/60 bg-gray-900 px-2 py-0.5 text-[10px] font-semibold uppercase text-gray-300">
+                    <span className="rounded-md border border-gray-700/60 bg-gray-900 px-2 py-0.5 text-[10px] font-semibold uppercase text-foreground/85">
                       {op.badge}
                     </span>
                   )}

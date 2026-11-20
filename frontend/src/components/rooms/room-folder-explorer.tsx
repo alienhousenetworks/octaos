@@ -260,22 +260,22 @@ export default function RoomFolderExplorer({
   return (
     <div className="space-y-6 p-4 sm:p-6 max-w-7xl mx-auto">
       {/* Top Banner */}
-      <div className={`p-6 rounded-2xl border border-slate-800 bg-gradient-to-r ${config.gradient} shadow-lg relative overflow-hidden`}>
+      <div className={`p-6 rounded-2xl border border-border bg-gradient-to-r ${config.gradient} shadow-lg relative overflow-hidden`}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-slate-800/80 text-slate-300 border border-slate-700">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-slate-800/80 text-foreground/85 border border-slate-700">
                 Department Workspace
               </span>
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-muted-foreground">
                 {rooms.length} {rooms.length === 1 ? 'Room' : 'Rooms'}
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100 flex items-center gap-3">
-              <SectionIcon className="w-8 h-8 text-indigo-400" />
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
+              <SectionIcon className="w-8 h-8 text-primary" />
               {sectionTitle} Folders & Rooms
             </h1>
-            <p className="text-sm text-slate-300/80 max-w-2xl">
+            <p className="text-sm text-foreground/85/80 max-w-2xl">
               Create and manage dedicated rooms for each hiring process, campaign launch, sales deal, or service queue. Every room has its own unique slug, creation history, and folder access controls.
             </p>
           </div>
@@ -295,7 +295,7 @@ export default function RoomFolderExplorer({
             <Button
               type="button"
               onClick={handleOpenCreateModal}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white shadow-md gap-2 h-10 px-4"
+              className="bg-primary text-primary-foreground hover:bg-primary-hover text-white shadow-md gap-2 h-10 px-4"
             >
               <FolderPlus className="w-4 h-4" />
               <span>Create New Room</span>
@@ -307,16 +307,16 @@ export default function RoomFolderExplorer({
       {/* Filter & Search Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={`Search ${sectionTitle} rooms by name, slug, or creator...`}
-            className="pl-9 bg-slate-900 border-slate-800 text-xs text-slate-100 placeholder:text-slate-500 h-9"
+            className="pl-9 bg-card border-border text-xs text-foreground placeholder:text-slate-500 h-9"
           />
         </div>
 
-        <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-lg border border-slate-800 self-start sm:self-auto">
+        <div className="flex items-center gap-1.5 bg-card p-1 rounded-lg border border-border self-start sm:self-auto">
           {(['all', 'active', 'archived'] as const).map((tab) => (
             <button
               key={tab}
@@ -324,8 +324,8 @@ export default function RoomFolderExplorer({
               onClick={() => setStatusFilter(tab)}
               className={`px-3 py-1 rounded text-xs font-medium capitalize transition-colors ${
                 statusFilter === tab
-                  ? 'bg-slate-800 text-slate-100 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-slate-800 text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-slate-200'
               }`}
             >
               {tab}
@@ -336,17 +336,17 @@ export default function RoomFolderExplorer({
 
       {/* Folders Grid */}
       {loading ? (
-        <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
+        <div className="py-20 flex flex-col items-center justify-center text-muted-foreground gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
           <span className="text-xs">Loading {sectionTitle} rooms...</span>
         </div>
       ) : filteredRooms.length === 0 ? (
-        <div className="py-16 text-center border-2 border-dashed border-slate-800/80 rounded-2xl bg-slate-950/40 p-8 space-y-3">
-          <div className="w-12 h-12 rounded-xl bg-slate-900 text-slate-400 border border-slate-800 flex items-center justify-center mx-auto">
+        <div className="py-16 text-center border-2 border-dashed border-border/80 rounded-2xl bg-background/40 p-8 space-y-3">
+          <div className="w-12 h-12 rounded-xl bg-card text-muted-foreground border border-border flex items-center justify-center mx-auto">
             <Folder className="w-6 h-6" />
           </div>
           <h3 className="text-base font-semibold text-slate-200">No rooms found</h3>
-          <p className="text-xs text-slate-400 max-w-md mx-auto">
+          <p className="text-xs text-muted-foreground max-w-md mx-auto">
             {search ? 'Try clearing your search query or filter.' : `Create your first ${sectionTitle} room to get started.`}
           </p>
           <Button
@@ -354,7 +354,7 @@ export default function RoomFolderExplorer({
             variant="outline"
             size="sm"
             onClick={handleOpenCreateModal}
-            className="gap-1.5 text-xs bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800"
+            className="gap-1.5 text-xs bg-card border-slate-700 text-slate-200 hover:bg-slate-800"
           >
             <FolderPlus className="w-3.5 h-3.5" /> Create Room
           </Button>
@@ -366,7 +366,7 @@ export default function RoomFolderExplorer({
             return (
               <div
                 key={room.id}
-                className="group relative rounded-xl border border-slate-800/80 bg-slate-900/70 hover:bg-slate-900 transition-all duration-200 shadow-md flex flex-col justify-between overflow-hidden hover:border-slate-700"
+                className="group relative rounded-xl border border-border/80 bg-card/70 hover:bg-card transition-all duration-200 shadow-md flex flex-col justify-between overflow-hidden hover:border-slate-700"
               >
                 {/* Folder Tab Top Visual */}
                 <div className="h-1.5 w-full bg-gradient-to-r from-indigo-500/40 via-purple-500/40 to-transparent" />
@@ -375,10 +375,10 @@ export default function RoomFolderExplorer({
                   {/* Top Bar: Icon, Slug & Visibility */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <div className="w-9 h-9 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center shrink-0">
+                      <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary border border-primary/25 flex items-center justify-center shrink-0">
                         <Folder className="w-5 h-5" />
                       </div>
-                      <span className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-950 text-slate-300 border border-slate-800">
+                      <span className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-background text-foreground/85 border border-border">
                         #{room.slug}
                       </span>
                     </div>
@@ -393,7 +393,7 @@ export default function RoomFolderExplorer({
                           <Globe className="w-2.5 h-2.5" /> Public
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-muted-foreground border border-slate-700 flex items-center gap-1">
                           <Building2 className="w-2.5 h-2.5" /> Internal
                         </span>
                       )}
@@ -445,20 +445,20 @@ export default function RoomFolderExplorer({
 
                   {/* Room Name & Description */}
                   <div>
-                    <h3 className="text-base font-bold text-slate-100 group-hover:text-indigo-400 transition-colors line-clamp-1">
+                    <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
                       {room.name}
                     </h3>
-                    <p className="text-xs text-slate-400 line-clamp-2 mt-1 min-h-[32px]">
+                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1 min-h-[32px]">
                       {room.description || `Dedicated room workspace for ${room.name}.`}
                     </p>
                   </div>
 
                   {/* Metrics Badge */}
                   <div className="flex items-center gap-2 pt-1">
-                    <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-950/80 text-slate-300 border border-slate-800/80 flex items-center gap-1.5">
-                      <Layers className="w-3 h-3 text-indigo-400" />
+                    <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-background/80 text-foreground/85 border border-border/80 flex items-center gap-1.5">
+                      <Layers className="w-3 h-3 text-primary" />
                       <span>
-                        <strong className="text-slate-100 font-semibold">{counts.total}</strong> {config.itemUnit}
+                        <strong className="text-foreground font-semibold">{counts.total}</strong> {config.itemUnit}
                       </span>
                       {counts.active > 0 && (
                         <span className="text-slate-500">({counts.active} active)</span>
@@ -467,7 +467,7 @@ export default function RoomFolderExplorer({
                   </div>
 
                   {/* Meta: Creator & Creation Date */}
-                  <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
+                  <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px] text-slate-500">
                     <span className="flex items-center gap-1 truncate max-w-[140px]" title={room.creator_name || 'Staff'}>
                       <User className="w-3 h-3 text-slate-500 shrink-0" />
                       <span className="truncate">{room.creator_name || 'Staff'}</span>
@@ -484,7 +484,7 @@ export default function RoomFolderExplorer({
                 <button
                   type="button"
                   onClick={() => onSelectRoom(room.slug)}
-                  className="w-full py-2.5 px-4 bg-slate-950/60 hover:bg-indigo-600/10 border-t border-slate-800 text-xs font-semibold text-slate-300 hover:text-indigo-300 flex items-center justify-center gap-1.5 transition-colors"
+                  className="w-full py-2.5 px-4 bg-background/60 hover:bg-primary text-primary-foreground/10 border-t border-border text-xs font-semibold text-foreground/85 hover:text-primary flex items-center justify-center gap-1.5 transition-colors"
                 >
                   <span>Open Room Workspace</span>
                   <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -509,16 +509,16 @@ export default function RoomFolderExplorer({
 
       {/* Create Room Modal */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-w-xl bg-slate-900 border-slate-800 text-slate-100">
+        <DialogContent className="max-w-xl bg-card border-border text-foreground">
           <form onSubmit={handleCreateRoom}>
             <DialogHeader>
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary border border-primary/25">
                   <FolderPlus className="w-5 h-5" />
                 </div>
                 <div>
                   <DialogTitle className="text-xl font-bold">Create New {sectionTitle} Room</DialogTitle>
-                  <DialogDescription className="text-slate-400 text-xs">
+                  <DialogDescription className="text-muted-foreground text-xs">
                     Create a dedicated workspace folder with a unique slug and scoped data.
                   </DialogDescription>
                 </div>
@@ -528,24 +528,24 @@ export default function RoomFolderExplorer({
             <div className="space-y-4 py-4">
               {/* Room Name */}
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Room Name *</label>
+                <label className="text-xs font-medium text-foreground/85">Room Name *</label>
                 <Input
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="e.g. Senior Backend Engineer Hiring"
                   required
-                  className="bg-slate-950 border-slate-800 text-xs text-slate-100 h-9"
+                  className="bg-background border-border text-xs text-foreground h-9"
                 />
               </div>
 
               {/* Slug Preview / Input */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-slate-300">Unique URL Slug *</label>
+                  <label className="text-xs font-medium text-foreground/85">Unique URL Slug *</label>
                   <button
                     type="button"
                     onClick={() => setIsCustomSlug(!isCustomSlug)}
-                    className="text-[11px] text-indigo-400 hover:underline"
+                    className="text-[11px] text-primary hover:underline"
                   >
                     {isCustomSlug ? 'Auto-generate from name' : 'Customize slug'}
                   </button>
@@ -560,36 +560,36 @@ export default function RoomFolderExplorer({
                     }}
                     placeholder="senior-backend-engineer"
                     required
-                    className="flex-1 bg-slate-950 border-slate-800 text-xs font-mono text-slate-200 h-9"
+                    className="flex-1 bg-background border-border text-xs font-mono text-slate-200 h-9"
                   />
                 </div>
               </div>
 
               {/* Description */}
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Description (Optional)</label>
+                <label className="text-xs font-medium text-foreground/85">Description (Optional)</label>
                 <Textarea
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
                   placeholder="Summary of this room workspace, target goals, or team notes..."
                   rows={2}
-                  className="bg-slate-950 border-slate-800 text-xs text-slate-100 resize-none"
+                  className="bg-background border-border text-xs text-foreground resize-none"
                 />
               </div>
 
               {/* Visibility */}
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Initial Access Level</label>
+                <label className="text-xs font-medium text-foreground/85">Initial Access Level</label>
                 <Select
                   value={newVisibility}
                   onValueChange={(val) => {
                     if (val) setNewVisibility(val as 'internal_public' | 'private' | 'public');
                   }}
                 >
-                  <SelectTrigger className="bg-slate-950 border-slate-800 text-xs text-slate-200 h-9">
+                  <SelectTrigger className="bg-background border-border text-xs text-slate-200 h-9">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
+                  <SelectContent className="bg-card border-border text-slate-200">
                     <SelectItem value="internal_public">
                       🏢 Internal Staff (Everyone in your organization with section access)
                     </SelectItem>
@@ -604,35 +604,35 @@ export default function RoomFolderExplorer({
               </div>
 
               {/* Section Specific Preset Fields */}
-              <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-3">
-                <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              <div className="bg-background/60 p-3 rounded-xl border border-border space-y-3">
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                   Initial {sectionTitle} Parameters
                 </div>
 
                 {section === 'hr' && (
                   <>
                     <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Job Role Title</label>
+                      <label className="text-[11px] text-foreground/85">Job Role Title</label>
                       <Input
                         value={field1}
                         onChange={(e) => setField1(e.target.value)}
-                        className="bg-slate-900 border-slate-800 text-xs h-8"
+                        className="bg-card border-border text-xs h-8"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Key Requirements / Skills</label>
+                      <label className="text-[11px] text-foreground/85">Key Requirements / Skills</label>
                       <Input
                         value={field2}
                         onChange={(e) => setField2(e.target.value)}
-                        className="bg-slate-900 border-slate-800 text-xs h-8"
+                        className="bg-card border-border text-xs h-8"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Target Salary / Budget</label>
+                      <label className="text-[11px] text-foreground/85">Target Salary / Budget</label>
                       <Input
                         value={field3}
                         onChange={(e) => setField3(e.target.value)}
-                        className="bg-slate-900 border-slate-800 text-xs h-8"
+                        className="bg-card border-border text-xs h-8"
                       />
                     </div>
                   </>
@@ -641,27 +641,27 @@ export default function RoomFolderExplorer({
                 {section === 'marketing' && (
                   <>
                     <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Campaign Objective</label>
+                      <label className="text-[11px] text-foreground/85">Campaign Objective</label>
                       <Input
                         value={field1}
                         onChange={(e) => setField1(e.target.value)}
-                        className="bg-slate-900 border-slate-800 text-xs h-8"
+                        className="bg-card border-border text-xs h-8"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Target Audience</label>
+                      <label className="text-[11px] text-foreground/85">Target Audience</label>
                       <Input
                         value={field2}
                         onChange={(e) => setField2(e.target.value)}
-                        className="bg-slate-900 border-slate-800 text-xs h-8"
+                        className="bg-card border-border text-xs h-8"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Distribution Channels</label>
+                      <label className="text-[11px] text-foreground/85">Distribution Channels</label>
                       <Input
                         value={field3}
                         onChange={(e) => setField3(e.target.value)}
-                        className="bg-slate-900 border-slate-800 text-xs h-8"
+                        className="bg-card border-border text-xs h-8"
                       />
                     </div>
                   </>
@@ -670,21 +670,21 @@ export default function RoomFolderExplorer({
                 {section === 'sales' && (
                   <>
                     <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Target Account / Tier</label>
+                      <label className="text-[11px] text-foreground/85">Target Account / Tier</label>
                       <Input
                         value={field1}
                         onChange={(e) => setField1(e.target.value)}
-                        className="bg-slate-900 border-slate-800 text-xs h-8"
+                        className="bg-card border-border text-xs h-8"
                       />
                     </div>
                     {industryPacks.length > 0 && (
                     <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Industry *</label>
+                      <label className="text-[11px] text-foreground/85">Industry *</label>
                       <Select value={field2} onValueChange={(val) => setField2(val || '')}>
-                        <SelectTrigger className="bg-slate-900 border-slate-800 text-xs text-slate-200 h-8">
+                        <SelectTrigger className="bg-card border-border text-xs text-slate-200 h-8">
                           <SelectValue placeholder="Choose an industry" />
                         </SelectTrigger>
-                        <SelectContent className="bg-slate-900 border-slate-800 text-slate-200 max-h-64">
+                        <SelectContent className="bg-card border-border text-slate-200 max-h-64">
                           {industryPacks.map((pack) => (
                             <SelectItem key={pack.id} value={pack.id}>
                               {pack.name}
@@ -695,11 +695,11 @@ export default function RoomFolderExplorer({
                     </div>
                     )}
                     <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Target Deal Value</label>
+                      <label className="text-[11px] text-foreground/85">Target Deal Value</label>
                       <Input
                         value={field3}
                         onChange={(e) => setField3(e.target.value)}
-                        className="bg-slate-900 border-slate-800 text-xs h-8"
+                        className="bg-card border-border text-xs h-8"
                       />
                     </div>
                   </>
@@ -708,27 +708,27 @@ export default function RoomFolderExplorer({
                 {section === 'support' && (
                   <>
                     <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Queue Name</label>
+                      <label className="text-[11px] text-foreground/85">Queue Name</label>
                       <Input
                         value={field1}
                         onChange={(e) => setField1(e.target.value)}
-                        className="bg-slate-900 border-slate-800 text-xs h-8"
+                        className="bg-card border-border text-xs h-8"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Active Channels</label>
+                      <label className="text-[11px] text-foreground/85">Active Channels</label>
                       <Input
                         value={field2}
                         onChange={(e) => setField2(e.target.value)}
-                        className="bg-slate-900 border-slate-800 text-xs h-8"
+                        className="bg-card border-border text-xs h-8"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">SLA Response Target</label>
+                      <label className="text-[11px] text-foreground/85">SLA Response Target</label>
                       <Input
                         value={field3}
                         onChange={(e) => setField3(e.target.value)}
-                        className="bg-slate-900 border-slate-800 text-xs h-8"
+                        className="bg-card border-border text-xs h-8"
                       />
                     </div>
                   </>
@@ -740,7 +740,7 @@ export default function RoomFolderExplorer({
               <Button type="button" variant="ghost" size="sm" onClick={() => setIsCreateOpen(false)} disabled={creating}>
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={creating} className="bg-indigo-600 hover:bg-indigo-500 text-white gap-1.5">
+              <Button type="submit" size="sm" disabled={creating} className="bg-primary text-primary-foreground hover:bg-primary-hover text-white gap-1.5">
                 {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderPlus className="w-3.5 h-3.5" />}
                 Create & Open Room
               </Button>

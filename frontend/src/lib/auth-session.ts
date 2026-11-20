@@ -1,3 +1,5 @@
+import { createId } from '@/lib/id';
+
 /**
  * Session helpers: access + refresh tokens in localStorage.
  * Prevents mass 403s when access JWT expires after days away.
@@ -87,13 +89,15 @@ export async function fetchWithSession(
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string> | undefined),
   };
+  if (!headers['X-Request-ID']) headers['X-Request-ID'] = createId();
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   let res = await fetch(url, { ...options, headers });
 
-  if (res.status === 401 || res.status === 403) {
-    // Only try refresh when it looks like auth failure (not pure RBAC)
-    // Heuristic: always try once if we have a refresh token
+  if (res.status === 401) {
+    // A 403 is an authorization decision, not an expired session. Retrying it
+    // with a refreshed token can hide a real RBAC denial and creates duplicate
+    // requests for high-impact actions.
     if (getRefreshToken()) {
       const newToken = await refreshAccessToken(apiUrl);
       if (newToken) {

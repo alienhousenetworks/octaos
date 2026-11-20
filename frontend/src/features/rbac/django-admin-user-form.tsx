@@ -90,7 +90,7 @@ export default function DjangoAdminUserForm({
             variant="ghost"
             size="sm"
             onClick={onCancel}
-            className="h-8 px-2 text-zinc-400 hover:text-white"
+            className="h-8 px-2 text-muted-foreground hover:text-white"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to Users
@@ -101,7 +101,7 @@ export default function DjangoAdminUserForm({
         </div>
 
         {user.effective_permissions_count !== undefined && (
-          <span className="text-xs font-mono text-zinc-400 px-2.5 py-1 rounded bg-zinc-800 border border-zinc-700">
+          <span className="text-xs font-mono text-muted-foreground px-2.5 py-1 rounded bg-zinc-800 border border-zinc-700">
             {user.effective_permissions_count} active permissions
           </span>
         )}
@@ -136,7 +136,7 @@ export default function DjangoAdminUserForm({
               type="email"
               disabled
               value={user.email}
-              className="h-9 text-xs bg-zinc-900 border-zinc-800 text-zinc-400 cursor-not-allowed"
+              className="h-9 text-xs bg-card border-border text-muted-foreground cursor-not-allowed"
             />
           </div>
 
@@ -183,7 +183,7 @@ export default function DjangoAdminUserForm({
               id="id_is_active"
               checked={isActive}
               onChange={(e) => setIsActive(e.target.checked)}
-              className="mt-0.5 rounded border-zinc-700 bg-zinc-900"
+              className="mt-0.5 rounded border-zinc-700 bg-card"
             />
             <div>
               <label htmlFor="id_is_active" className="text-xs font-bold text-zinc-200 cursor-pointer">
@@ -201,7 +201,7 @@ export default function DjangoAdminUserForm({
               id="id_is_staff"
               checked={isStaff}
               onChange={(e) => setIsStaff(e.target.checked)}
-              className="mt-0.5 rounded border-zinc-700 bg-zinc-900"
+              className="mt-0.5 rounded border-zinc-700 bg-card"
             />
             <div>
               <label htmlFor="id_is_staff" className="text-xs font-bold text-zinc-200 cursor-pointer">
@@ -219,7 +219,7 @@ export default function DjangoAdminUserForm({
               id="id_is_superuser"
               checked={isSuperuser}
               onChange={(e) => setIsSuperuser(e.target.checked)}
-              className="mt-0.5 rounded border-zinc-700 bg-zinc-900"
+              className="mt-0.5 rounded border-zinc-700 bg-card"
             />
             <div>
               <label htmlFor="id_is_superuser" className="text-xs font-bold text-zinc-200 cursor-pointer">
@@ -233,7 +233,7 @@ export default function DjangoAdminUserForm({
         </div>
 
         {/* Groups dual-listbox */}
-        <div className="pt-2 border-t border-zinc-800">
+        <div className="pt-2 border-t border-border">
           <div className="text-xs font-bold text-zinc-200 mb-2">Groups</div>
           <FilterHorizontal
             title="groups"
@@ -245,7 +245,7 @@ export default function DjangoAdminUserForm({
         </div>
 
         {/* User permissions dual-listbox */}
-        <div className="pt-2 border-t border-zinc-800">
+        <div className="pt-2 border-t border-border">
           <div className="text-xs font-bold text-zinc-200 mb-2">User permissions</div>
           <FilterHorizontal
             title="user permissions"

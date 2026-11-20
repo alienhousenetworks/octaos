@@ -152,7 +152,7 @@ export default function SalesAccount360View({ token, API_URL, fetchWithAuth }: S
       case 'champion':
         return <span className="text-[11px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-md">Champion</span>;
       case 'technical_evaluator':
-        return <span className="text-[11px] font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-md">Technical Evaluator</span>;
+        return <span className="text-[11px] font-semibold bg-indigo-500/15 text-primary border border-primary/30 px-2 py-0.5 rounded-md">Technical Evaluator</span>;
       case 'blocker':
         return <span className="text-[11px] font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-md">Blocker</span>;
       default:

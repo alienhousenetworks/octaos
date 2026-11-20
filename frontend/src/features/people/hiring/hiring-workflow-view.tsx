@@ -728,7 +728,7 @@ export default function HiringWorkflowView({ API_URL, fetchWithAuth }: HiringWor
                   setImportNewName('');
                   setIsImportModalOpen(true);
                 }}
-                className="h-8 text-xs font-semibold border-indigo-500/40 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 flex items-center gap-1"
+                className="h-8 text-xs font-semibold border-primary/40 bg-primary/10 text-primary hover:bg-primary-hover/20 flex items-center gap-1"
                 title="Clone and import an existing company workflow into another folder"
               >
                 <FolderDown size={13} />
@@ -1076,7 +1076,7 @@ export default function HiringWorkflowView({ API_URL, fetchWithAuth }: HiringWor
         <DialogContent className="max-w-lg bg-card border-border text-foreground p-0 overflow-hidden shadow-2xl">
           <DialogHeader className="p-5 border-b border-border bg-muted/20">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <div className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/25">
                 <FolderDown size={18} />
               </div>
               <div>
@@ -1143,8 +1143,8 @@ export default function HiringWorkflowView({ API_URL, fetchWithAuth }: HiringWor
             </div>
 
             {/* Enterprise Safety Guarantee Banner */}
-            <div className="p-3 rounded-xl border border-indigo-500/30 bg-indigo-500/5 space-y-1">
-              <div className="flex items-center gap-1.5 text-indigo-400 font-bold text-[11px]">
+            <div className="p-3 rounded-xl border border-primary/30 bg-indigo-500/5 space-y-1">
+              <div className="flex items-center gap-1.5 text-primary font-bold text-[11px]">
                 <ShieldCheck size={13} />
                 <span>Enterprise Draft-Only Protection</span>
               </div>
@@ -1167,7 +1167,7 @@ export default function HiringWorkflowView({ API_URL, fetchWithAuth }: HiringWor
               size="sm"
               disabled={importingWorkflow || !importSourceWfId}
               onClick={handleImportWorkflowSubmit}
-              className="h-8.5 px-4 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs flex items-center gap-1.5"
+              className="h-8.5 px-4 text-xs font-bold bg-primary text-primary-foreground hover:bg-indigo-700 text-white shadow-xs flex items-center gap-1.5"
             >
               {importingWorkflow ? <Loader2 size={13} className="animate-spin" /> : <FolderDown size={13} />}
               <span>Import as Editable Draft</span>

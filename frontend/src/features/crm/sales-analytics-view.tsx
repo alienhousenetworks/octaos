@@ -248,7 +248,7 @@ export default function SalesAnalyticsView({
                     : 'text-slate-600 hover:bg-slate-50 border border-transparent'
                 }`}
               >
-                <Icon size={14} className={isActive ? 'text-blue-600' : 'text-slate-400'} />
+                <Icon size={14} className={isActive ? 'text-blue-600' : 'text-muted-foreground'} />
                 {tab.label}
               </button>
             );
@@ -269,7 +269,7 @@ export default function SalesAnalyticsView({
                   <ArrowUpRight size={14} /> +18.4%
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">Across active unclosed deal rooms</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Across active unclosed deal rooms</p>
             </Card>
 
             <Card className="p-4 bg-white border border-emerald-200/90 rounded-2xl shadow-sm bg-emerald-50/10">
@@ -311,7 +311,7 @@ export default function SalesAnalyticsView({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-white">Monday Executive Pipeline Briefing</h3>
-                  <p className="text-xs text-slate-400">Synthesized autonomously by OctaOS Revenue Lifecycle Engine</p>
+                  <p className="text-xs text-muted-foreground">Synthesized autonomously by OctaOS Revenue Lifecycle Engine</p>
                 </div>
               </div>
               <span className="text-[11px] font-semibold text-blue-300 bg-blue-900/60 border border-blue-700/50 px-2.5 py-1 rounded-lg">
@@ -319,7 +319,7 @@ export default function SalesAnalyticsView({
               </span>
             </div>
 
-            <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-300 leading-relaxed space-y-2">
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-xs text-foreground/85 leading-relaxed space-y-2">
               <p className="font-semibold text-white">
                 Active pipeline stands at <strong className="text-emerald-400 font-mono">{fmtCurrency(totalPipeline)}</strong> with a committed ARR floor of <strong className="text-blue-400 font-mono">{fmtCurrency(commitRevenue)}</strong> ({coverageRatio}x coverage multiple).
               </p>
@@ -333,21 +333,21 @@ export default function SalesAnalyticsView({
                 <CheckCircle2 size={15} className="text-emerald-400 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-semibold text-slate-200 block">Close Accelerators</span>
-                  <span className="text-[11px] text-slate-400">Dispatch tailored ROI calculators to closing deals.</span>
+                  <span className="text-[11px] text-muted-foreground">Dispatch tailored ROI calculators to closing deals.</span>
                 </div>
               </div>
               <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-start gap-2.5">
                 <AlertTriangle size={15} className="text-amber-400 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-semibold text-slate-200 block">Stalled Cadences</span>
-                  <span className="text-[11px] text-slate-400">2 deals with no reply in 7+ days need executive warm touch.</span>
+                  <span className="text-[11px] text-muted-foreground">2 deals with no reply in 7+ days need executive warm touch.</span>
                 </div>
               </div>
               <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-start gap-2.5">
                 <ShieldCheck size={15} className="text-blue-400 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-semibold text-slate-200 block">Margin Floor Safe</span>
-                  <span className="text-[11px] text-slate-400">All proposals meet or exceed the 20% margin threshold.</span>
+                  <span className="text-[11px] text-muted-foreground">All proposals meet or exceed the 20% margin threshold.</span>
                 </div>
               </div>
             </div>
@@ -362,7 +362,7 @@ export default function SalesAnalyticsView({
                   <AlertTriangle size={15} className="text-amber-600" />
                   Velocity Auditing &amp; At-Risk Deals ({atRiskDeals.length})
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">Automated detection of stalled communications and single-threaded buying committees.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Automated detection of stalled communications and single-threaded buying committees.</p>
               </div>
               <Button size="sm" variant="outline" onClick={onOpenPipeline} className="text-xs font-semibold rounded-xl text-slate-700">
                 Manage in CRM
@@ -386,7 +386,7 @@ export default function SalesAnalyticsView({
                     </div>
                     <div>
                       <span className="font-semibold text-slate-900 block">{deal.company_name}</span>
-                      <span className="text-[11px] text-slate-400 font-mono">In stage for {deal.days_in_stage || 8} days</span>
+                      <span className="text-[11px] text-muted-foreground font-mono">In stage for {deal.days_in_stage || 8} days</span>
                     </div>
                   </div>
                   <div className="col-span-2">
@@ -427,7 +427,7 @@ export default function SalesAnalyticsView({
                   {winLossData?.won_count || wonLeads.length || 12} Won / {winLossData?.lost_count || lostLeads.length || 6} Lost
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">Closed-won vs closed-lost deals</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Closed-won vs closed-lost deals</p>
             </Card>
 
             <Card className="p-4 bg-white border border-emerald-200/90 rounded-2xl shadow-sm bg-emerald-50/10">
@@ -447,7 +447,7 @@ export default function SalesAnalyticsView({
                 <span className="text-xl font-extrabold text-slate-900 font-mono">{fmtCurrency(avgDealSize)}</span>
                 <span className="text-xs font-semibold text-slate-500">ACV</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">Across all won enterprise accounts</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Across all won enterprise accounts</p>
             </Card>
 
             <Card className="p-4 bg-white border border-slate-200/90 rounded-2xl shadow-sm">
@@ -456,7 +456,7 @@ export default function SalesAnalyticsView({
                 <span className="text-xl font-extrabold text-slate-900 font-mono">{avgSalesCycle} Days</span>
                 <span className="text-xs font-semibold text-emerald-600">-4.2 Days</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">First contact to contract signature</p>
+              <p className="text-[11px] text-muted-foreground mt-1">First contact to contract signature</p>
             </Card>
           </div>
 
@@ -483,7 +483,7 @@ export default function SalesAnalyticsView({
                   <div key={idx} className="grid grid-cols-12 items-center px-3 py-3 text-xs hover:bg-slate-50/50 transition-colors">
                     <div className="col-span-5 font-semibold text-slate-800">
                       {c.competitor}
-                      <span className="text-[10px] text-slate-400 block font-normal">{c.encounters} competitive encounters</span>
+                      <span className="text-[10px] text-muted-foreground block font-normal">{c.encounters} competitive encounters</span>
                     </div>
                     <div className="col-span-3 text-center">
                       <span className={`text-xs font-extrabold font-mono px-2 py-0.5 rounded-md ${
@@ -541,7 +541,7 @@ export default function SalesAnalyticsView({
                 <span className="text-xl font-extrabold text-slate-900 font-mono">{fmtCurrency(totalRenewable)}</span>
                 <span className="text-xs font-semibold text-emerald-600">Active Base</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">Contracts approaching expiration</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Contracts approaching expiration</p>
             </Card>
 
             <Card className="p-4 bg-white border border-emerald-200/90 rounded-2xl shadow-sm bg-emerald-50/10">
@@ -561,7 +561,7 @@ export default function SalesAnalyticsView({
                 <span className="text-xl font-extrabold text-blue-600 font-mono">{avgHealth} / 100</span>
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-100 text-blue-700">Healthy</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">Computed from product usage &amp; tickets</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Computed from product usage &amp; tickets</p>
             </Card>
           </div>
 
@@ -574,7 +574,7 @@ export default function SalesAnalyticsView({
                   <ShieldCheck size={15} className="text-blue-600" />
                   Customer Renewal Watchlist
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">Automated health scores, churn risk auditing, and retention playbooks.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Automated health scores, churn risk auditing, and retention playbooks.</p>
               </div>
 
               {/* Filter Pills */}
@@ -687,7 +687,7 @@ export default function SalesAnalyticsView({
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs space-y-1">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Expansion Signal</span>
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground block">Expansion Signal</span>
                     <p className="text-slate-700 font-medium leading-relaxed">{cand.expansion_signal}</p>
                   </div>
 
@@ -710,7 +710,7 @@ export default function SalesAnalyticsView({
                 <Button
                   size="sm"
                   onClick={() => handleTriggerExpansion(cand.company_name, cand.recommended_sku)}
-                  className="w-full text-xs font-semibold rounded-xl bg-slate-900 hover:bg-slate-800 text-white shadow-sm flex items-center justify-center gap-1.5"
+                  className="w-full text-xs font-semibold rounded-xl bg-card hover:bg-slate-800 text-white shadow-sm flex items-center justify-center gap-1.5"
                 >
                   <Zap size={13} className="text-yellow-400" /> Trigger Expansion Cadence
                 </Button>

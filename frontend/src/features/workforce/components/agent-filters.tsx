@@ -40,14 +40,14 @@ export default function AgentFilters({
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search agents by name, role, capability, or tool..."
-          className="h-10 rounded-xl border-gray-800 bg-gray-900/60 pl-9 pr-9 text-xs text-white placeholder:text-gray-500 focus-visible:border-gray-700 focus-visible:ring-0"
+          className="h-10 rounded-xl border-border bg-background pl-9 pr-9 text-xs text-white placeholder:text-gray-500 focus-visible:border-gray-700 focus-visible:ring-0"
         />
         {searchQuery && (
           <button
             type="button"
             onClick={() => onSearchChange('')}
             aria-label="Clear search"
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white"
           >
             <X className="size-3.5" />
           </button>
@@ -55,7 +55,7 @@ export default function AgentFilters({
       </div>
 
       {/* Department Pills */}
-      <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto rounded-xl border border-gray-800/80 bg-gray-950/40 p-1">
+      <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto rounded-xl border border-border/80 bg-gray-950/40 p-1">
         {DEPARTMENTS.map((dept) => {
           const isSelected = selectedDept === dept.id;
           const count = deptCounts[dept.id];
@@ -74,7 +74,7 @@ export default function AgentFilters({
               {typeof count === 'number' && (
                 <span
                   className={`text-[10px] font-mono px-1 rounded-full ${
-                    isSelected ? 'bg-black/20 text-white' : 'bg-gray-800 text-gray-400'
+                    isSelected ? 'bg-black/20 text-white' : 'bg-gray-800 text-muted-foreground'
                   }`}
                 >
                   {count}

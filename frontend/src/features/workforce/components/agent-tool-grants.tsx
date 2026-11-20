@@ -176,7 +176,7 @@ export default function AgentToolGrants({
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-800 bg-gray-950/30 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-gray-950/30 p-3">
         <div>
           <p className="text-xs font-medium text-white">{visibleTools.filter((tool) => relevantToolIds[departmentKey]?.includes(tool.id)).length} relevant capabilities shown</p>
           <p className="text-[11px] text-muted-foreground">Unrelated tools are hidden by default; open the full catalog to review or revoke them.</p>
@@ -197,7 +197,7 @@ export default function AgentToolGrants({
               className={`flex flex-col gap-3 rounded-2xl border p-4 transition-all sm:flex-row sm:items-center sm:justify-between ${
                 isGranted
                   ? 'border-gray-700 bg-gray-950/70 shadow-sm'
-                  : 'border-gray-800/80 bg-gray-950/30 opacity-75'
+                  : 'border-border/80 bg-gray-950/30 opacity-75'
               }`}
             >
               <div className="space-y-1 sm:max-w-xl">
@@ -218,7 +218,7 @@ export default function AgentToolGrants({
                     {tool.risk} Risk
                   </span>
 
-                  <span className="rounded bg-gray-900 border border-gray-800 px-1.5 py-0.5 text-[10px] font-mono text-gray-400">
+                  <span className="rounded bg-gray-900 border border-border px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
                     {tool.sideEffect}
                   </span>
                 </div>

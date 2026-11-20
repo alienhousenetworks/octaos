@@ -138,6 +138,9 @@ export default function WorkspaceScreen() {
     return <UniversalAssistantView />;
   }
   if (pathname === '/app/home') {
+    if (mode === 'bot') {
+      return <UniversalAssistantView />;
+    }
     return (
       <DashboardView
         {...shared}
@@ -351,7 +354,7 @@ export default function WorkspaceScreen() {
         token={workspace.token}
         API_URL={workspace.apiUrl}
         fetchWithAuth={workspace.fetchWithAuth}
-        currentUserEmail={workspace.userProfile?.email}
+        currentUserEmail={workspace.userProfile?.email || undefined}
       />
     );
   }

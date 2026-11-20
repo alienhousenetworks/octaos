@@ -251,9 +251,9 @@ export default function TriggerScheduleCard({
   const currentFreqLabel = FREQUENCIES.find((f) => f.id === frequency)?.label || 'Daily';
 
   return (
-    <Card className={`bg-[#121316] border border-gray-800/80 rounded-2xl p-6 text-white shadow-xl ${className}`}>
+    <Card className={`bg-[#121316] border border-border/80 rounded-2xl p-6 text-white shadow-xl ${className}`}>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-gray-800/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-border/60">
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-base font-semibold text-white tracking-wide">{title}</h3>
@@ -261,14 +261,14 @@ export default function TriggerScheduleCard({
               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${
                 isActive
                   ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                  : 'bg-gray-800/60 text-gray-400 border-gray-700/40'
+                  : 'bg-gray-800/60 text-muted-foreground border-gray-700/40'
               }`}
             >
               <span className={`size-1.5 rounded-full ${isActive ? 'bg-emerald-400 animate-pulse' : 'bg-gray-400'}`} />
               {isActive ? 'Active' : 'Paused'}
             </span>
           </div>
-          <p className="text-xs text-gray-400 mt-1">{subtitle}</p>
+          <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -277,7 +277,7 @@ export default function TriggerScheduleCard({
             variant="outline"
             size="sm"
             onClick={() => setIsActive(!isActive)}
-            className="h-8 text-xs border-gray-800 bg-gray-900/60 hover:bg-gray-800 text-gray-300"
+            className="h-8 text-xs border-border bg-background hover:bg-gray-800 text-foreground/85"
           >
             {isActive ? 'Pause Schedule' : 'Enable Schedule'}
           </Button>
@@ -298,7 +298,7 @@ export default function TriggerScheduleCard({
       {/* Triggers Section */}
       <div className="space-y-4 mb-6">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">Triggers</label>
+          <label className="text-xs font-bold text-foreground/85 uppercase tracking-wider">Triggers</label>
           {nextRunAt && isActive && (
             <span className="text-xs text-sky-400 flex items-center gap-1 font-mono">
               <Clock className="size-3" /> Next run: {formatNextRun(nextRunAt)}
@@ -307,7 +307,7 @@ export default function TriggerScheduleCard({
         </div>
 
         {/* Trigger Pill Row - matches screenshot */}
-        <div className="relative bg-[#1a1b1f] border border-gray-800 rounded-xl p-2.5 flex flex-wrap items-center gap-3 transition-colors hover:border-gray-700/80">
+        <div className="relative bg-[#1a1b1f] border border-border rounded-xl p-2.5 flex flex-wrap items-center gap-3 transition-colors hover:border-gray-700/80">
           {/* Blue Alarm Icon */}
           <div className="flex items-center justify-center size-9 rounded-full bg-[#0084ff] text-white shadow-md shadow-blue-500/30 flex-shrink-0">
             <Bell className="size-4 fill-white" />
@@ -324,11 +324,11 @@ export default function TriggerScheduleCard({
               className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#25262b] hover:bg-[#2c2d33] border border-gray-700/60 text-white text-sm font-medium rounded-lg transition-colors"
             >
               <span>{currentFreqLabel}</span>
-              {isFreqOpen ? <ChevronUp className="size-3.5 text-gray-400" /> : <ChevronDown className="size-3.5 text-gray-400" />}
+              {isFreqOpen ? <ChevronUp className="size-3.5 text-muted-foreground" /> : <ChevronDown className="size-3.5 text-muted-foreground" />}
             </button>
 
             {isFreqOpen && (
-              <div className="absolute top-full left-0 mt-1.5 w-36 bg-[#202126] border border-gray-800 rounded-xl shadow-2xl py-1 z-30 overflow-hidden">
+              <div className="absolute top-full left-0 mt-1.5 w-36 bg-[#202126] border border-border rounded-xl shadow-2xl py-1 z-30 overflow-hidden">
                 {FREQUENCIES.map((f) => (
                   <button
                     key={f.id}
@@ -340,7 +340,7 @@ export default function TriggerScheduleCard({
                     className={`w-full text-left px-3.5 py-2 text-sm transition-colors flex items-center justify-between ${
                       frequency === f.id
                         ? 'bg-blue-600/20 text-blue-400 font-medium'
-                        : 'text-gray-300 hover:bg-[#2a2b32] hover:text-white'
+                        : 'text-foreground/85 hover:bg-[#2a2b32] hover:text-white'
                     }`}
                   >
                     <span>{f.label}</span>
@@ -354,7 +354,7 @@ export default function TriggerScheduleCard({
           {/* Time Picker separator */}
           {frequency !== 'hourly' && (
             <>
-              <span className="text-sm font-medium text-gray-400">at</span>
+              <span className="text-sm font-medium text-muted-foreground">at</span>
 
               {/* Time display button */}
               <div className="relative" ref={timePickerRef}>
@@ -371,7 +371,7 @@ export default function TriggerScheduleCard({
 
                 {/* Interactive Time Picker Popover */}
                 {isTimePickerOpen && (
-                  <div className="absolute top-full left-0 mt-1.5 bg-[#202126] border border-gray-800 rounded-xl p-3 shadow-2xl z-30 flex items-center gap-2">
+                  <div className="absolute top-full left-0 mt-1.5 bg-[#202126] border border-border rounded-xl p-3 shadow-2xl z-30 flex items-center gap-2">
                     {/* Hour Input */}
                     <input
                       type="number"
@@ -386,7 +386,7 @@ export default function TriggerScheduleCard({
                       className="w-12 h-9 text-center bg-[#151619] border border-gray-700/80 rounded-lg text-white font-mono text-base focus:border-blue-500 focus:outline-none"
                     />
 
-                    <span className="text-gray-400 font-bold font-mono text-lg">:</span>
+                    <span className="text-muted-foreground font-bold font-mono text-lg">:</span>
 
                     {/* Minute Input */}
                     <input
@@ -411,7 +411,7 @@ export default function TriggerScheduleCard({
                         type="button"
                         onClick={() => setAmpm('AM')}
                         className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-                          ampm === 'AM' ? 'bg-white text-black shadow-sm' : 'text-gray-400 hover:text-white'
+                          ampm === 'AM' ? 'bg-white text-black shadow-sm' : 'text-muted-foreground hover:text-white'
                         }`}
                       >
                         AM
@@ -420,7 +420,7 @@ export default function TriggerScheduleCard({
                         type="button"
                         onClick={() => setAmpm('PM')}
                         className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-                          ampm === 'PM' ? 'bg-white text-black shadow-sm' : 'text-gray-400 hover:text-white'
+                          ampm === 'PM' ? 'bg-white text-black shadow-sm' : 'text-muted-foreground hover:text-white'
                         }`}
                       >
                         PM
@@ -443,7 +443,7 @@ export default function TriggerScheduleCard({
                   className={`size-7 rounded-md text-xs font-medium transition-colors ${
                     dayOfWeek === idx
                       ? 'bg-blue-600 text-white font-bold'
-                      : 'bg-[#25262b] text-gray-400 hover:text-white hover:bg-gray-700'
+                      : 'bg-[#25262b] text-muted-foreground hover:text-white hover:bg-gray-700'
                   }`}
                 >
                   {day[0]}
@@ -454,7 +454,7 @@ export default function TriggerScheduleCard({
 
           {/* Monthly day selection */}
           {frequency === 'monthly' && (
-            <div className="flex items-center gap-1.5 ml-auto text-xs text-gray-400">
+            <div className="flex items-center gap-1.5 ml-auto text-xs text-muted-foreground">
               <span>Day</span>
               <input
                 type="number"
@@ -470,7 +470,7 @@ export default function TriggerScheduleCard({
           {/* Hourly interval selection */}
           {frequency === 'hourly' && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-400">every</span>
+              <span className="text-sm text-muted-foreground">every</span>
               <input
                 type="number"
                 min={1}
@@ -479,7 +479,7 @@ export default function TriggerScheduleCard({
                 onChange={(e) => setIntervalHours(Math.max(1, parseInt(e.target.value, 10) || 1))}
                 className="w-14 h-8 text-center bg-[#25262b] border border-gray-700/60 rounded-md text-white font-mono text-sm"
               />
-              <span className="text-sm text-gray-400">hour(s)</span>
+              <span className="text-sm text-muted-foreground">hour(s)</span>
             </div>
           )}
 
@@ -498,7 +498,7 @@ export default function TriggerScheduleCard({
       {/* Instructions / Prompt Directives */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">Instructions</label>
+          <label className="text-xs font-bold text-foreground/85 uppercase tracking-wider">Instructions</label>
           <span className="text-[11px] text-gray-500">Autonomous role & execution guidelines</span>
         </div>
 
@@ -506,16 +506,16 @@ export default function TriggerScheduleCard({
           value={instructions}
           onChange={(e) => setInstructions(e.target.value)}
           placeholder="ROLE&#10;You are Sales Intelligence Analyst...&#10;Find observable digital marketing weaknesses or decision-makers...&#10;WHAT WE SELL (only these)..."
-          className="bg-[#18191d] border border-gray-800 text-gray-200 rounded-xl p-4 text-xs font-mono leading-relaxed focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 resize-y min-h-[160px] shadow-inner"
+          className="bg-[#18191d] border border-border text-gray-200 rounded-xl p-4 text-xs font-mono leading-relaxed focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 resize-y min-h-[160px] shadow-inner"
         />
       </div>
 
       {/* Footer Save & Sync Bar */}
-      <div className="mt-4 pt-4 border-t border-gray-800/60 flex items-center justify-between">
+      <div className="mt-4 pt-4 border-t border-border/60 flex items-center justify-between">
         <div className="text-xs text-gray-500">
           {lastRunAt ? (
             <span>
-              Last executed: <strong className="text-gray-400">{formatNextRun(lastRunAt)}</strong>
+              Last executed: <strong className="text-muted-foreground">{formatNextRun(lastRunAt)}</strong>
             </span>
           ) : (
             <span>No previous automated run recorded.</span>

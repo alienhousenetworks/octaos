@@ -216,7 +216,7 @@ export default function ProfileView({
       {/* Header & Breadcrumb */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
         <div>
-          <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mb-1">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono mb-1">
             <span>Settings</span>
             <span>/</span>
             <span className="text-zinc-200">Organization & Account</span>
@@ -227,35 +227,35 @@ export default function ProfileView({
               Live Tenant
             </span>
           </h1>
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Manage your legal entity profile, multi-tenant workspace routing, and administrative security credentials.
           </p>
         </div>
       </div>
 
       {/* Organization Identity Card (Apple/GCP Style) */}
-      <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-5">
+      <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-zinc-800 border border-white/[0.1] text-zinc-200 flex items-center justify-center shrink-0">
-              <Building2 className="w-6 h-6 text-zinc-300" />
+              <Building2 className="w-6 h-6 text-foreground/85" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-semibold text-white tracking-tight">
                   {currentOrg?.name || userProfile?.name || 'OctaOS Enterprise Workspace'}
                 </h2>
-                <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
+                <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/30">
                   ENTERPRISE
                 </span>
               </div>
-              <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-zinc-400">
-                <span className="font-mono text-zinc-400">
+              <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
+                <span className="font-mono text-muted-foreground">
                   Tenant ID: {userProfile?.tenant_id?.slice(0, 16)}…
                 </span>
                 <button
                   onClick={handleCopyTenantId}
-                  className="inline-flex items-center gap-1 text-[11px] font-mono text-zinc-400 hover:text-white transition-colors"
+                  className="inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground hover:text-white transition-colors"
                   title="Copy full Tenant ID"
                 >
                   {copiedTenant ? (
@@ -270,7 +270,7 @@ export default function ProfileView({
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-center">
-            <span className="inline-flex items-center gap-1 text-xs font-mono font-medium px-2.5 py-1 rounded-md bg-zinc-900 border border-white/[0.08] text-zinc-300">
+            <span className="inline-flex items-center gap-1 text-xs font-mono font-medium px-2.5 py-1 rounded-md bg-card border border-white/[0.08] text-foreground/85">
               <Shield className="w-3.5 h-3.5 text-emerald-400" />
               {roleLabel}
             </span>
@@ -279,13 +279,13 @@ export default function ProfileView({
       </div>
 
       {/* Segmented Tab Controls */}
-      <div className="inline-flex p-1 rounded-lg bg-zinc-900/90 border border-white/[0.08]">
+      <div className="inline-flex p-1 rounded-lg bg-card/90 border border-white/[0.08]">
         <button
           onClick={() => setActiveTab('organization')}
           className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
             activeTab === 'organization'
               ? 'bg-zinc-800 text-white shadow-sm'
-              : 'text-zinc-400 hover:text-zinc-200'
+              : 'text-muted-foreground hover:text-zinc-200'
           }`}
         >
           Company Profile
@@ -295,7 +295,7 @@ export default function ProfileView({
           className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
             activeTab === 'workspaces'
               ? 'bg-zinc-800 text-white shadow-sm'
-              : 'text-zinc-400 hover:text-zinc-200'
+              : 'text-muted-foreground hover:text-zinc-200'
           }`}
         >
           Workspaces ({organizations.length})
@@ -305,7 +305,7 @@ export default function ProfileView({
           className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
             activeTab === 'account'
               ? 'bg-zinc-800 text-white shadow-sm'
-              : 'text-zinc-400 hover:text-zinc-200'
+              : 'text-muted-foreground hover:text-zinc-200'
           }`}
         >
           Personal Account & Security
@@ -314,31 +314,31 @@ export default function ProfileView({
 
       {/* Tab 1: Organization Details Form */}
       {activeTab === 'organization' && (
-        <form onSubmit={handleSaveOrganization} className="rounded-xl border border-white/[0.08] bg-[#111318] p-6 space-y-6">
+        <form onSubmit={handleSaveOrganization} className="rounded-xl border border-white/[0.08] bg-[#11161c] p-6 space-y-6">
           <div className="border-b border-white/[0.08] pb-4">
             <h3 className="text-sm font-semibold text-white">General Information</h3>
-            <p className="text-xs text-zinc-400 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Legal entity details used across automated contracts, invoices, and branded communications.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-zinc-400" />
+              <label className="text-xs font-medium text-foreground/85 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
                 Organization Legal Name
               </label>
               <Input
                 value={editOrgName}
                 onChange={(e) => setEditOrgName(e.target.value)}
                 placeholder="Acme Technologies Inc."
-                className="h-9 text-xs bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
+                className="h-9 text-xs bg-card border-white/[0.08] focus:border-zinc-500 rounded-md"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-zinc-400" />
+              <label className="text-xs font-medium text-foreground/85 flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-muted-foreground" />
                 Corporate Contact Email
               </label>
               <Input
@@ -346,13 +346,13 @@ export default function ProfileView({
                 value={editOrgEmail}
                 onChange={(e) => setEditOrgEmail(e.target.value)}
                 placeholder="contact@enterprise.com"
-                className="h-9 text-xs bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
+                className="h-9 text-xs bg-card border-white/[0.08] focus:border-zinc-500 rounded-md"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5 text-zinc-400" />
+              <label className="text-xs font-medium text-foreground/85 flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-muted-foreground" />
                 Company Website
               </label>
               <Input
@@ -360,20 +360,20 @@ export default function ProfileView({
                 value={editOrgWebsite}
                 onChange={(e) => setEditOrgWebsite(e.target.value)}
                 placeholder="https://enterprise.com"
-                className="h-9 text-xs bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
+                className="h-9 text-xs bg-card border-white/[0.08] focus:border-zinc-500 rounded-md"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-zinc-400" />
+              <label className="text-xs font-medium text-foreground/85 flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
                 Registered Business Address
               </label>
               <Input
                 value={editOrgAddress}
                 onChange={(e) => setEditOrgAddress(e.target.value)}
                 placeholder="100 Enterprise Way, Suite 400"
-                className="h-9 text-xs bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
+                className="h-9 text-xs bg-card border-white/[0.08] focus:border-zinc-500 rounded-md"
               />
             </div>
           </div>
@@ -400,15 +400,15 @@ export default function ProfileView({
       {/* Tab 2: Workspaces Switcher Grid */}
       {activeTab === 'workspaces' && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-5">
+          <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-5">
             <h3 className="text-sm font-semibold text-white">Your Authorized Workspaces</h3>
-            <p className="text-xs text-zinc-400 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Switch tenant context across multi-organization deployments without re-authenticating.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
               {loadingOrgs && organizations.length === 0 ? (
-                <div className="col-span-2 py-8 text-center text-xs text-zinc-400">
+                <div className="col-span-2 py-8 text-center text-xs text-muted-foreground">
                   <Loader2 className="w-4 h-4 mx-auto mb-2 animate-spin text-zinc-500" />
                   Loading tenant organizations…
                 </div>
@@ -422,8 +422,8 @@ export default function ProfileView({
                       key={org.id}
                       className={`rounded-xl border p-4 transition-all ${
                         isCurrent
-                          ? 'border-indigo-500/40 bg-indigo-950/20 shadow-sm'
-                          : 'border-white/[0.08] bg-zinc-900/60 hover:border-white/[0.16]'
+                          ? 'border-primary/40 bg-primary/10 shadow-sm'
+                          : 'border-white/[0.08] bg-card/60 hover:border-white/[0.16]'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -472,31 +472,31 @@ export default function ProfileView({
 
       {/* Tab 3: Personal Account & Security */}
       {activeTab === 'account' && (
-        <form onSubmit={handleSaveProfile} className="rounded-xl border border-white/[0.08] bg-[#111318] p-6 space-y-6">
+        <form onSubmit={handleSaveProfile} className="rounded-xl border border-white/[0.08] bg-[#11161c] p-6 space-y-6">
           <div className="border-b border-white/[0.08] pb-4">
             <h3 className="text-sm font-semibold text-white">Personal Credentials</h3>
-            <p className="text-xs text-zinc-400 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Account identity associated with session tokens and audit log signatures.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-zinc-400" />
+              <label className="text-xs font-medium text-foreground/85 flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-muted-foreground" />
                 Full Name
               </label>
               <Input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
                 placeholder="Jane Doe"
-                className="h-9 text-xs bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
+                className="h-9 text-xs bg-card border-white/[0.08] focus:border-zinc-500 rounded-md"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-zinc-400" />
+              <label className="text-xs font-medium text-foreground/85 flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-muted-foreground" />
                 Phone Number
               </label>
               <Input
@@ -504,12 +504,12 @@ export default function ProfileView({
                 value={editPhone}
                 onChange={(e) => setEditPhone(e.target.value)}
                 placeholder="+1 (555) 000-0000"
-                className="h-9 text-xs bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
+                className="h-9 text-xs bg-card border-white/[0.08] focus:border-zinc-500 rounded-md"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5 text-zinc-500" />
                 Account Email (Primary SSO)
               </label>
@@ -517,16 +517,16 @@ export default function ProfileView({
                 readOnly
                 disabled
                 value={userProfile?.email || ''}
-                className="h-9 text-xs bg-zinc-900/40 border-white/[0.04] text-zinc-500 cursor-not-allowed rounded-md font-mono"
+                className="h-9 text-xs bg-card/40 border-white/[0.04] text-zinc-500 cursor-not-allowed rounded-md font-mono"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                 <Shield className="w-3.5 h-3.5 text-zinc-500" />
                 Security Verification
               </label>
-              <div className="h-9 px-3 rounded-md bg-zinc-900/40 border border-white/[0.04] flex items-center gap-2 text-xs text-emerald-400 font-mono">
+              <div className="h-9 px-3 rounded-md bg-card/40 border border-white/[0.04] flex items-center gap-2 text-xs text-emerald-400 font-mono">
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 SSO Identity Verified
               </div>

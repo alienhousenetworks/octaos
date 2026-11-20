@@ -140,7 +140,7 @@ export default function DjangoAdminUsersList({
       {/* Top Search & Actions Row */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="text"
             placeholder="Search email, name, or department..."
@@ -152,7 +152,7 @@ export default function DjangoAdminUsersList({
 
         {/* Django Actions Bar */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-zinc-400 font-medium">Action:</span>
+          <span className="text-xs text-muted-foreground font-medium">Action:</span>
           <select
             value={actionChoice}
             onChange={(e) => setActionChoice(e.target.value)}
@@ -189,7 +189,7 @@ export default function DjangoAdminUsersList({
             Go
           </Button>
 
-          <span className="text-xs text-zinc-400 font-mono ml-1">
+          <span className="text-xs text-muted-foreground font-mono ml-1">
             {selectedUserIds.size} of {filteredUsers.length} selected
           </span>
         </div>
@@ -211,7 +211,7 @@ export default function DjangoAdminUsersList({
                         selectedUserIds.size === filteredUsers.length
                       }
                       onChange={toggleSelectAll}
-                      className="rounded border-zinc-700 bg-zinc-900"
+                      className="rounded border-zinc-700 bg-card"
                     />
                   </th>
                   <th>Username / Email</th>
@@ -226,7 +226,7 @@ export default function DjangoAdminUsersList({
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-8 text-zinc-400">
+                    <td colSpan={8} className="text-center py-8 text-muted-foreground">
                       Loading user accounts...
                     </td>
                   </tr>
@@ -246,7 +246,7 @@ export default function DjangoAdminUsersList({
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleSelectUser(u.id)}
-                            className="rounded border-zinc-700 bg-zinc-900"
+                            className="rounded border-zinc-700 bg-card"
                           />
                         </td>
                         <td>
@@ -264,10 +264,10 @@ export default function DjangoAdminUsersList({
                               u.department?.toLowerCase() === 'sales'
                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                                 : u.department?.toLowerCase() === 'hr'
-                                ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                                ? 'bg-primary/10 text-primary border-primary/25'
                                 : u.department?.toLowerCase() === 'marketing'
                                 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                                : 'bg-zinc-800 text-zinc-400 border-zinc-700/60'
+                                : 'bg-zinc-800 text-muted-foreground border-zinc-700/60'
                             }`}
                           >
                             {u.department || 'General'}
@@ -318,7 +318,7 @@ export default function DjangoAdminUsersList({
             </table>
           </div>
 
-          <div className="text-xs text-zinc-400 font-mono">
+          <div className="text-xs text-muted-foreground font-mono">
             {filteredUsers.length} {filteredUsers.length === 1 ? 'user' : 'users'}
           </div>
         </div>

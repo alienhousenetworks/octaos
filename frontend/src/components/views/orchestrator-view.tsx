@@ -1030,19 +1030,6 @@ export default function OrchestratorView({
                     🚀 Source SaaS leads
                   </button>
                 )}
-                {apps.some((a: any) => a.app_name === 'Real Estate Lead Engine') && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setOrchInput(
-                        'Generate property descriptions using the Real Estate Lead Engine for 456 Oak Ave. Premium luxury pool description.'
-                      )
-                    }
-                    className="text-xs font-medium px-2.5 py-1 rounded-md bg-secondary/70 hover:bg-secondary text-foreground border border-border transition-colors"
-                  >
-                    🏡 Generate listings
-                  </button>
-                )}
                 {apps.some((a: any) => a.app_name === 'Creative Content Lab') && (
                   <button
                     type="button"

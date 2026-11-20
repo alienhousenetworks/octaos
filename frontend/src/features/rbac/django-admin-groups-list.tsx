@@ -47,7 +47,7 @@ export default function DjangoAdminGroupsList({
       {/* Top Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="text"
             placeholder="Search groups..."
@@ -81,7 +81,7 @@ export default function DjangoAdminGroupsList({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="text-center py-8 text-zinc-400">
+                <td colSpan={5} className="text-center py-8 text-muted-foreground">
                   Loading groups...
                 </td>
               </tr>
@@ -103,11 +103,11 @@ export default function DjangoAdminGroupsList({
                       {g.name}
                     </button>
                   </td>
-                  <td className="text-zinc-400 text-xs truncate max-w-xs">
+                  <td className="text-muted-foreground text-xs truncate max-w-xs">
                     {g.description || '—'}
                   </td>
                   <td className="text-center">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono bg-zinc-800 text-zinc-300 border border-zinc-700/60">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono bg-zinc-800 text-foreground/85 border border-zinc-700/60">
                       <Users className="h-3 w-3" />
                       {g.members_count}
                     </span>
@@ -121,7 +121,7 @@ export default function DjangoAdminGroupsList({
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => onSelectGroup(g.id)}
-                        className="text-zinc-400 hover:text-zinc-200"
+                        className="text-muted-foreground hover:text-zinc-200"
                         title="Edit group"
                       >
                         <Edit2 className="h-3.5 w-3.5" />
@@ -142,7 +142,7 @@ export default function DjangoAdminGroupsList({
         </table>
       </div>
 
-      <div className="text-xs text-zinc-400 font-mono">
+      <div className="text-xs text-muted-foreground font-mono">
         {filteredGroups.length} {filteredGroups.length === 1 ? 'group' : 'groups'} total
       </div>
     </div>

@@ -329,7 +329,7 @@ export default function SalesUnifiedInboxView({
     if (c === 'whatsapp') return <MessageSquare size={size} className="text-emerald-400" />;
     if (c === 'linkedin') return <LinkedInIcon size={size} className="text-sky-400" />;
     if (c === 'call' || c === 'phone') return <Phone size={size} className="text-amber-400" />;
-    return <Mail size={size} className="text-indigo-400" />;
+    return <Mail size={size} className="text-primary" />;
   };
 
   const formatTimestamp = (iso?: string) => {
@@ -350,19 +350,19 @@ export default function SalesUnifiedInboxView({
   return (
     <div className="space-y-4">
       {/* Top Cadence Dispatch & Metrics Bar */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+      <div className="bg-card/90 border border-border rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/25 text-primary flex items-center justify-center shrink-0">
             <Mail className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-slate-100">Omnichannel Unified Inbox</h2>
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <h2 className="text-base font-bold text-foreground">Omnichannel Unified Inbox</h2>
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-primary/10 text-primary border border-primary/25">
                 Phase 2 Durable Engine
               </span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-muted-foreground">
               Live multi-channel message thread stream across Email, WhatsApp, and LinkedIn with atomic stop-on-reply.
             </p>
           </div>
@@ -371,7 +371,7 @@ export default function SalesUnifiedInboxView({
         {/* Right Stats & Run Button */}
         <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
           {cadenceStats && (
-            <div className="hidden sm:flex items-center gap-3 text-xs bg-slate-950/80 border border-slate-800 px-3 py-1.5 rounded-lg">
+            <div className="hidden sm:flex items-center gap-3 text-xs bg-background/80 border border-border px-3 py-1.5 rounded-lg">
               <div>
                 <span className="text-slate-500">Enrolled:</span>{' '}
                 <strong className="text-slate-200">{cadenceStats.active_enrolled_leads}</strong>
@@ -394,7 +394,7 @@ export default function SalesUnifiedInboxView({
             size="sm"
             onClick={handleTriggerCadenceRun}
             disabled={runningCadence}
-            className="gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md shadow-indigo-600/20"
+            className="gap-2 bg-primary text-primary-foreground hover:bg-primary-hover text-white font-semibold text-xs shadow-md shadow-none"
           >
             {runningCadence ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -409,9 +409,9 @@ export default function SalesUnifiedInboxView({
       {/* Main 3-Pane Enterprise Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-[680px]">
         {/* ── LEFT PANE: THREAD LIST (col-span-3) ── */}
-        <div className="lg:col-span-3 bg-slate-900/90 border border-slate-800 rounded-xl flex flex-col overflow-hidden">
+        <div className="lg:col-span-3 bg-card/90 border border-border rounded-xl flex flex-col overflow-hidden">
           {/* Search & Channel Filter */}
-          <div className="p-3 border-b border-slate-800 space-y-2.5">
+          <div className="p-3 border-b border-border space-y-2.5">
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500" />
               <Input
@@ -419,7 +419,7 @@ export default function SalesUnifiedInboxView({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && fetchThreads()}
-                className="pl-8 h-8 text-xs bg-slate-950 border-slate-800 text-slate-200 placeholder:text-slate-500"
+                className="pl-8 h-8 text-xs bg-background border-border text-slate-200 placeholder:text-slate-500"
               />
             </div>
 
@@ -432,8 +432,8 @@ export default function SalesUnifiedInboxView({
                   onClick={() => setChannelFilter(ch)}
                   className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors capitalize ${
                     channelFilter === ch
-                      ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                      ? 'bg-primary/15 text-primary border border-primary/30 font-semibold'
+                      : 'text-muted-foreground hover:text-slate-200 hover:bg-slate-800'
                   }`}
                 >
                   {ch === 'all' ? 'All Channels' : ch}
@@ -446,7 +446,7 @@ export default function SalesUnifiedInboxView({
           <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60 max-h-[580px]">
             {loadingThreads ? (
               <div className="flex flex-col items-center justify-center p-8 text-slate-500 gap-2">
-                <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
                 <span className="text-xs">Loading conversations…</span>
               </div>
             ) : threads.length === 0 ? (
@@ -462,14 +462,14 @@ export default function SalesUnifiedInboxView({
                     onClick={() => setSelectedLeadId(t.lead_id)}
                     className={`p-3 cursor-pointer transition-all ${
                       isSelected
-                        ? 'bg-indigo-600/10 border-l-4 border-indigo-500 text-slate-100'
-                        : 'hover:bg-slate-800/50 text-slate-300'
+                        ? 'bg-primary text-primary-foreground/10 border-l-4 border-primary text-foreground'
+                        : 'hover:bg-slate-800/50 text-foreground/85'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-1 mb-1">
                       <div className="flex items-center gap-1.5 truncate">
                         {getChannelIcon(t.channel, 13)}
-                        <span className="font-semibold text-xs truncate text-slate-100">
+                        <span className="font-semibold text-xs truncate text-foreground">
                           {t.contact_name}
                         </span>
                       </div>
@@ -478,7 +478,7 @@ export default function SalesUnifiedInboxView({
                       </span>
                     </div>
 
-                    <div className="text-[11px] font-medium text-slate-400 truncate mb-1">
+                    <div className="text-[11px] font-medium text-muted-foreground truncate mb-1">
                       {t.company}
                     </div>
 
@@ -496,7 +496,7 @@ export default function SalesUnifiedInboxView({
                           <Clock className="w-2.5 h-2.5" /> Day {t.next_step.day} {t.next_step.channel}
                         </span>
                       ) : (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-800 text-slate-400">
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-800 text-muted-foreground">
                           {t.status}
                         </span>
                       )}
@@ -513,19 +513,19 @@ export default function SalesUnifiedInboxView({
         </div>
 
         {/* ── CENTER PANE: CONVERSATION STREAM & COMPOSER (col-span-6) ── */}
-        <div className="lg:col-span-6 bg-slate-900/90 border border-slate-800 rounded-xl flex flex-col overflow-hidden">
+        <div className="lg:col-span-6 bg-card/90 border border-border rounded-xl flex flex-col overflow-hidden">
           {activeThread ? (
             <>
               {/* Thread Header */}
-              <div className="p-3.5 border-b border-slate-800 flex items-center justify-between gap-3 bg-slate-950/60">
+              <div className="p-3.5 border-b border-border flex items-center justify-between gap-3 bg-background/60">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm">
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/25 text-primary flex items-center justify-center font-bold text-sm">
                     {activeThread.lead.name.charAt(0)}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-slate-100">{activeThread.lead.name}</h3>
-                      <span className="text-xs text-slate-400 font-medium">@{activeThread.lead.company}</span>
+                      <h3 className="text-sm font-bold text-foreground">{activeThread.lead.name}</h3>
+                      <span className="text-xs text-muted-foreground font-medium">@{activeThread.lead.company}</span>
                     </div>
                     <div className="text-[11px] text-slate-500 flex items-center gap-2">
                       <span>{activeThread.lead.email}</span>
@@ -545,7 +545,7 @@ export default function SalesUnifiedInboxView({
                   variant="outline"
                   size="sm"
                   onClick={handleTogglePauseCadence}
-                  className="h-7 text-xs gap-1.5 border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800"
+                  className="h-7 text-xs gap-1.5 border-slate-700 bg-card text-foreground/85 hover:bg-slate-800"
                 >
                   {activeThread.lead.cadence_paused ? (
                     <>
@@ -560,10 +560,10 @@ export default function SalesUnifiedInboxView({
               </div>
 
               {/* Message Bubbles Container */}
-              <div className="flex-1 p-4 overflow-y-auto space-y-4 max-h-[380px] bg-slate-950/30">
+              <div className="flex-1 p-4 overflow-y-auto space-y-4 max-h-[380px] bg-background/30">
                 {loadingMessages ? (
                   <div className="flex flex-col items-center justify-center h-48 text-slate-500 gap-2">
-                    <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
                     <span className="text-xs">Fetching messages…</span>
                   </div>
                 ) : activeThread.messages.length === 0 ? (
@@ -582,7 +582,7 @@ export default function SalesUnifiedInboxView({
                           <span>{m.author}</span>
                           <span>•</span>
                           <span>{formatTimestamp(m.at)}</span>
-                          <span className="px-1.5 py-0.2 rounded text-[10px] font-mono uppercase bg-slate-950 text-slate-400 border border-slate-800">
+                          <span className="px-1.5 py-0.2 rounded text-[10px] font-mono uppercase bg-background text-muted-foreground border border-border">
                             {m.channel}
                           </span>
                         </div>
@@ -590,18 +590,18 @@ export default function SalesUnifiedInboxView({
                         <div
                           className={`max-w-[85%] rounded-2xl p-3.5 text-xs leading-relaxed shadow-sm ${
                             isOutbound
-                              ? 'bg-gradient-to-r from-indigo-900/60 to-indigo-800/40 border border-indigo-700/50 text-slate-100 rounded-br-none'
+                              ? 'bg-gradient-to-r from-indigo-900/60 to-indigo-800/40 border border-indigo-700/50 text-foreground rounded-br-none'
                               : 'bg-slate-800/80 border border-slate-700 text-slate-200 rounded-bl-none'
                           }`}
                         >
                           {m.subject && (
-                            <div className="font-semibold text-indigo-300 pb-1.5 mb-1.5 border-b border-indigo-500/20">
+                            <div className="font-semibold text-primary pb-1.5 mb-1.5 border-b border-primary/25">
                               {m.subject}
                             </div>
                           )}
                           <div className="whitespace-pre-wrap">{m.content}</div>
                           {m.delivery_details && (
-                            <div className="text-[10px] text-slate-400 mt-2 pt-1 border-t border-slate-700/50 flex items-center gap-1">
+                            <div className="text-[10px] text-muted-foreground mt-2 pt-1 border-t border-slate-700/50 flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                               <span>{m.delivery_details}</span>
                             </div>
@@ -615,8 +615,8 @@ export default function SalesUnifiedInboxView({
 
               {/* AI Suggestion Chips */}
               {aiSuggestions.length > 0 && (
-                <div className="px-3.5 py-2 border-t border-slate-800/80 bg-slate-950/70 flex items-center gap-2 overflow-x-auto">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 flex items-center gap-1 shrink-0">
+                <div className="px-3.5 py-2 border-t border-border/80 bg-background/70 flex items-center gap-2 overflow-x-auto">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-primary flex items-center gap-1 shrink-0">
                     <Sparkles className="w-3 h-3" /> AI Copilot:
                   </span>
                   {aiSuggestions.map((sug) => (
@@ -628,7 +628,7 @@ export default function SalesUnifiedInboxView({
                         if (sug.channel) setReplyChannel(sug.channel);
                         notify(`Applied template: "${sug.title}"`);
                       }}
-                      className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0 transition-colors"
+                      className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-primary/10 hover:bg-primary-hover/20 text-primary border border-primary/30 shrink-0 transition-colors"
                     >
                       {sug.title}
                     </button>
@@ -637,17 +637,17 @@ export default function SalesUnifiedInboxView({
               )}
 
               {/* Multi-Channel Reply Composer */}
-              <div className="p-3.5 border-t border-slate-800 bg-slate-950 space-y-2.5">
+              <div className="p-3.5 border-t border-border bg-background space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-slate-400 font-medium">Channel:</span>
+                    <span className="text-xs text-muted-foreground font-medium">Channel:</span>
                     <button
                       type="button"
                       onClick={() => setReplyChannel('email')}
                       className={`px-2 py-0.5 rounded text-xs font-semibold flex items-center gap-1 transition-colors ${
                         replyChannel === 'email'
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                          ? 'bg-primary text-primary-foreground text-white'
+                          : 'bg-slate-800 text-muted-foreground hover:text-slate-200'
                       }`}
                     >
                       <Mail className="w-3 h-3" /> Email
@@ -658,7 +658,7 @@ export default function SalesUnifiedInboxView({
                       className={`px-2 py-0.5 rounded text-xs font-semibold flex items-center gap-1 transition-colors ${
                         replyChannel === 'whatsapp'
                           ? 'bg-emerald-600 text-white'
-                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                          : 'bg-slate-800 text-muted-foreground hover:text-slate-200'
                       }`}
                     >
                       <MessageSquare className="w-3 h-3" /> WhatsApp
@@ -671,7 +671,7 @@ export default function SalesUnifiedInboxView({
                     placeholder="Subject line..."
                     value={replySubject}
                     onChange={(e) => setReplySubject(e.target.value)}
-                    className="h-8 text-xs bg-slate-900 border-slate-800 text-slate-200"
+                    className="h-8 text-xs bg-card border-border text-slate-200"
                   />
                 )}
 
@@ -680,7 +680,7 @@ export default function SalesUnifiedInboxView({
                   value={replyBody}
                   onChange={(e) => setReplyBody(e.target.value)}
                   rows={3}
-                  className="text-xs bg-slate-900 border-slate-800 text-slate-200 resize-none"
+                  className="text-xs bg-card border-border text-slate-200 resize-none"
                 />
 
                 <div className="flex items-center justify-between">
@@ -692,7 +692,7 @@ export default function SalesUnifiedInboxView({
                     size="sm"
                     onClick={handleSendReply}
                     disabled={sending || !replyBody.trim()}
-                    className="gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-4"
+                    className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary-hover text-white font-semibold text-xs px-4"
                   >
                     {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                     <span>Send Message</span>
@@ -713,27 +713,27 @@ export default function SalesUnifiedInboxView({
           {activeThread ? (
             <>
               {/* Account Quick Card */}
-              <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3">
+              <div className="bg-card/90 border border-border rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Prospect Profile
                   </span>
                   {activeThread.lead.score && (
-                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/25">
                       Score: {activeThread.lead.score}/100
                     </span>
                   )}
                 </div>
 
                 <div>
-                  <h4 className="text-sm font-bold text-slate-100">{activeThread.lead.name}</h4>
-                  <div className="text-xs text-indigo-400 font-medium">{activeThread.lead.company}</div>
+                  <h4 className="text-sm font-bold text-foreground">{activeThread.lead.name}</h4>
+                  <div className="text-xs text-primary font-medium">{activeThread.lead.company}</div>
                 </div>
 
-                <div className="space-y-1.5 text-xs text-slate-400">
+                <div className="space-y-1.5 text-xs text-muted-foreground">
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500">Committee Role:</span>
-                    <span className="font-medium text-slate-300 capitalize">
+                    <span className="font-medium text-foreground/85 capitalize">
                       {activeThread.lead.committee_role?.replace('_', ' ') || 'Economic Buyer'}
                     </span>
                   </div>
@@ -755,7 +755,7 @@ export default function SalesUnifiedInboxView({
                         window.location.href = `/app/sales/deals?deal=${activeThread.deal_room?.id}`;
                       }
                     }}
-                    className="w-full text-xs gap-1.5 border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800"
+                    className="w-full text-xs gap-1.5 border-slate-700 bg-background text-foreground/85 hover:bg-slate-800"
                   >
                     <span>Open Deal Room</span>
                     <ArrowUpRight className="w-3.5 h-3.5" />
@@ -764,9 +764,9 @@ export default function SalesUnifiedInboxView({
               </div>
 
               {/* Cadence Progression Stepper */}
-              <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3">
+              <div className="bg-card/90 border border-border rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Cadence Sequence
                   </span>
                   <span className="text-[10px] text-slate-500">
@@ -788,10 +788,10 @@ export default function SalesUnifiedInboxView({
                           isSent
                             ? 'bg-emerald-500/5 border-emerald-500/20 text-slate-200'
                             : isPending
-                            ? 'bg-indigo-500/5 border-indigo-500/20 text-slate-300'
+                            ? 'bg-indigo-500/5 border-primary/25 text-foreground/85'
                             : isHalted
-                            ? 'bg-amber-500/5 border-amber-500/20 text-slate-400'
-                            : 'bg-slate-950 border-slate-800 text-slate-400'
+                            ? 'bg-amber-500/5 border-amber-500/20 text-muted-foreground'
+                            : 'bg-background border-border text-muted-foreground'
                         }`}
                       >
                         <div className="flex items-center justify-between font-semibold">
@@ -804,10 +804,10 @@ export default function SalesUnifiedInboxView({
                               isSent
                                 ? 'bg-emerald-500/20 text-emerald-300'
                                 : isPending
-                                ? 'bg-indigo-500/20 text-indigo-300'
+                                ? 'bg-primary/15 text-primary'
                                 : isHalted
                                 ? 'bg-amber-500/20 text-amber-300'
-                                : 'bg-slate-800 text-slate-400'
+                                : 'bg-slate-800 text-muted-foreground'
                             }`}
                           >
                             {step.status}
@@ -823,7 +823,7 @@ export default function SalesUnifiedInboxView({
               </div>
             </>
           ) : (
-            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-6 text-center text-slate-500 text-xs">
+            <div className="bg-card/90 border border-border rounded-xl p-6 text-center text-slate-500 text-xs">
               Select a conversation to see the prospect dossier and cadence progression.
             </div>
           )}

@@ -26,6 +26,7 @@ import {
   Mail,
   Search,
 } from 'lucide-react';
+import type { UserProfile } from '@/lib/contracts';
 
 export type NavItem = {
   id: string;
@@ -179,19 +180,19 @@ export function allNavItems() {
   return [...NAV_GROUPS.flatMap((group) => group.items), ...EXTRA_ROUTES];
 }
 
-export function canSeeItem(item: NavItem, profile: any) {
+export function canSeeItem(item: NavItem, profile: UserProfile | null) {
   // Profile arrives after /auth/me. Hiding the nav until then leaves a blank sidebar.
   if (!profile) return !item.systemAdminOnly && !item.adminOnly;
   if (item.systemAdminOnly) return !!profile.is_system_admin;
   if (item.adminOnly) return profile.role === 'admin' || !!profile.is_system_admin;
   if (profile.role === 'admin' || profile.is_system_admin) return true;
   if (item.id === 'assistant' || item.id === 'dashboard' || item.id === 'profile' || item.section === 'profile') return true;
-  const allowed: string[] | undefined = profile.allowed_sections;
+  const allowed: string[] | undefined = profile.allowed_sections ?? undefined;
   if (!allowed || allowed.includes('all')) return true;
   return allowed.includes(item.section);
 }
 
-export function visibleGroups(profile: any): NavGroup[] {
+export function visibleGroups(profile: UserProfile | null): NavGroup[] {
   return NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter((item) => canSeeItem(item, profile)),
@@ -242,11 +243,10 @@ export function isItemActive(item: NavItem, pathname: string) {
   return hrefs.some((href) => pathname === href || pathname.startsWith(`${href}/`));
 }
 
-export function isAgentAllowed(agentKey: string, profile: any): boolean {
+export function isAgentAllowed(agentKey: string, profile: UserProfile | null): boolean {
   if (!profile) return true;
   if (profile.is_system_admin) return true;
   const allowed = profile.allowed_agents;
   if (!allowed || allowed.includes('*')) return true;
   return allowed.map((a: string) => String(a).toLowerCase()).includes(agentKey.toLowerCase());
 }
-

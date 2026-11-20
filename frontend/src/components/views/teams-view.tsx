@@ -317,24 +317,24 @@ export default function TeamsView({
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20 animate-in fade-in duration-300">
       {/* View Switcher Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800/60 pb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-6">
         <div>
           <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-3">
-            <Users className="text-violet-500 h-9 w-9" /> Autonomous AI Operations
+            <Users className="text-primary h-9 w-9" /> Autonomous AI Operations
           </h1>
-          <p className="text-gray-400 mt-1">
+          <p className="text-muted-foreground mt-1">
             Build bespoke agents with tool capabilities, organize into collaborative teams, and run live agentic flows.
           </p>
         </div>
 
         {/* Tab Buttons */}
-        <div className="flex items-center gap-2 bg-gray-900/80 p-1.5 rounded-2xl border border-gray-800/80">
+        <div className="flex items-center gap-2 bg-gray-900/80 p-1.5 rounded-2xl border border-border/80">
           <button
             onClick={() => setActiveTab('teams')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
  activeTab === 'teams'
  ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/20'
- : 'text-gray-400 hover:text-white'
+ : 'text-muted-foreground hover:text-white'
  }`}
           >
             <Layers size={14} /> Multi-Agent Teams
@@ -344,11 +344,11 @@ export default function TeamsView({
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
  activeTab === 'studio'
  ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/20'
- : 'text-gray-400 hover:text-white'
+ : 'text-muted-foreground hover:text-white'
  }`}
           >
             <Bot size={14} /> Custom Agent Studio
-            <span className="text-xs bg-violet-500/20 text-violet-300 px-1.5 py-0.5 rounded-full ml-1">
+            <span className="text-xs bg-violet-500/20 text-primary-hover px-1.5 py-0.5 rounded-full ml-1">
               {agents.length}
             </span>
           </button>
@@ -361,7 +361,7 @@ export default function TeamsView({
       {activeTab === 'teams' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-400 font-medium">
+            <div className="text-sm text-muted-foreground font-medium">
               Active multi-agent team clusters operating across your enterprise.
             </div>
             <Button
@@ -394,21 +394,21 @@ export default function TeamsView({
                   <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-violet-600 to-indigo-600" />
 
                   {/* Team Header */}
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-gray-800/60">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-border/60">
                     <div>
                       <div className="flex items-center gap-2.5">
                         <h2 className="text-lg font-semibold text-white">{team.name}</h2>
                         {isDefaultTeam ? (
-                          <span className="text-xs bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-bold">
+                          <span className="text-xs bg-primary/10 text-primary border border-primary/25 px-2 py-0.5 rounded-full font-bold">
                             Default Cluster
                           </span>
                         ) : (
-                          <span className="text-xs bg-violet-500/10 text-violet-400 border border-violet-500/20 px-2 py-0.5 rounded-full font-bold">
+                          <span className="text-xs bg-violet-500/10 text-primary border border-violet-500/20 px-2 py-0.5 rounded-full font-bold">
                             Custom Cluster
                           </span>
                         )}
                       </div>
-                      <p className="text-gray-400 text-xs mt-1">
+                      <p className="text-muted-foreground text-xs mt-1">
                         Active collaborative team with {team.agents?.length || 0} autonomous agents
                       </p>
                     </div>
@@ -423,7 +423,7 @@ export default function TeamsView({
                           setTeamFormAgents(team.agents);
                           setIsEditTeamOpen(true);
                         }}
-                        className="bg-transparent border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900 rounded-xl h-8 text-xs font-bold"
+                        className="bg-transparent border-border text-foreground/85 hover:text-white hover:bg-gray-900 rounded-xl h-8 text-xs font-bold"
                       >
                         <Edit2 size={12} className="mr-1.5" /> Edit Team
                       </Button>
@@ -441,8 +441,8 @@ export default function TeamsView({
                   </div>
 
                   {/* Dynamic Runtime Telemetry Cards */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-6 border-b border-gray-800/40">
-                    <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-6 border-b border-border/40">
+                    <div className="bg-gray-900/40 border border-border/30 rounded-2xl p-4">
                       <span className="text-xs text-gray-500 font-bold uppercase tracking-wider block">
                         Total Flow Runs
                       </span>
@@ -450,7 +450,7 @@ export default function TeamsView({
                         {teamMetrics.active_tasks}
                       </span>
                     </div>
-                    <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                    <div className="bg-gray-900/40 border border-border/30 rounded-2xl p-4">
                       <span className="text-xs text-gray-500 font-bold uppercase tracking-wider block">
                         Task Success Rate
                       </span>
@@ -458,15 +458,15 @@ export default function TeamsView({
                         {teamMetrics.success_rate}
                       </span>
                     </div>
-                    <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                    <div className="bg-gray-900/40 border border-border/30 rounded-2xl p-4">
                       <span className="text-xs text-gray-500 font-bold uppercase tracking-wider block">
                         Tokens Processed
                       </span>
-                      <span className="text-lg font-semibold text-violet-400 mt-1 block">
+                      <span className="text-lg font-semibold text-primary mt-1 block">
                         {Number(teamMetrics.total_tokens).toLocaleString()}
                       </span>
                     </div>
-                    <div className="bg-gray-900/40 border border-gray-800/30 rounded-2xl p-4">
+                    <div className="bg-gray-900/40 border border-border/30 rounded-2xl p-4">
                       <span className="text-xs text-gray-500 font-bold uppercase tracking-wider block">
                         Runtime Uptime
                       </span>
@@ -478,8 +478,8 @@ export default function TeamsView({
 
                   {/* Agents in Team */}
                   <div className="pt-6">
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                      <Bot size={14} className="text-violet-400" /> Active Agents in Cluster
+                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
+                      <Bot size={14} className="text-primary" /> Active Agents in Cluster
                     </h3>
                     <div className="space-y-4">
                       {team.agents?.map((agentName: string) => {
@@ -491,7 +491,7 @@ export default function TeamsView({
                         return (
                           <div
                             key={agentName}
-                            className="bg-gray-950/40 border border-gray-800/40 rounded-2xl p-4 md:p-5 relative transition-all hover:bg-gray-950/60"
+                            className="bg-gray-950/40 border border-border/40 rounded-2xl p-4 md:p-5 relative transition-all hover:bg-gray-950/60"
                           >
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                               <div className="flex items-start gap-3">
@@ -505,7 +505,7 @@ export default function TeamsView({
                                       <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse" /> Running / Ready
                                     </span>
                                     {matchingAgent?.department && (
-                                      <span className="text-xs bg-gray-800/80 text-gray-300 px-2 py-0.5 rounded-md font-bold uppercase">
+                                      <span className="text-xs bg-gray-800/80 text-foreground/85 px-2 py-0.5 rounded-md font-bold uppercase">
                                         {matchingAgent.department}
                                       </span>
                                     )}
@@ -515,10 +515,10 @@ export default function TeamsView({
                                   </p>
 
                                   <div className="flex gap-2 mt-2">
-                                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-md bg-gray-900 border border-gray-800 text-gray-400 uppercase">
+                                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-md bg-gray-900 border border-border text-muted-foreground uppercase">
                                       Provider: {matchingAgent?.provider || 'openrouter'}
                                     </span>
-                                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-md bg-gray-900 border border-gray-800 text-gray-400">
+                                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-md bg-gray-900 border border-border text-muted-foreground">
                                       Model: {matchingAgent?.model || 'meta-llama/llama-3.3-70b-instruct'}
                                     </span>
                                   </div>
@@ -544,7 +544,7 @@ export default function TeamsView({
                                   className={`h-8 text-xs font-bold rounded-xl px-3 flex items-center gap-1.5 transition-all ${
  isTesting
  ? 'bg-violet-600 text-white hover:bg-violet-500 border-transparent shadow-lg shadow-violet-500/20'
- : 'bg-transparent border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900'
+ : 'bg-transparent border-border text-foreground/85 hover:text-white hover:bg-gray-900'
  }`}
                                 >
                                   <Send size={11} /> Test Chat
@@ -564,7 +564,7 @@ export default function TeamsView({
                                       placeholder={`Ask ${agentName} to perform a task (e.g. "Research Stripe leadership and prepare outreach")...`}
                                       value={testInput}
                                       onChange={(e) => setTestInput(e.target.value)}
-                                      className="bg-gray-900 border-gray-800 text-white text-xs min-h-[48px] max-h-[120px] rounded-xl flex-1 focus:border-violet-500"
+                                      className="bg-gray-900 border-border text-white text-xs min-h-[48px] max-h-[120px] rounded-xl flex-1 focus:border-primary"
                                     />
                                     <Button
                                       onClick={handleRunAgentTest}
@@ -580,16 +580,16 @@ export default function TeamsView({
                                     <label className="text-xs font-bold text-gray-500 uppercase block">
                                       Agent Response
                                     </label>
-                                    <div className="bg-gray-900/80 border border-gray-800 text-gray-200 p-4 rounded-2xl text-xs font-mono whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto">
+                                    <div className="bg-gray-900/80 border border-border text-gray-200 p-4 rounded-2xl text-xs font-mono whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto">
                                       {testResponse}
                                     </div>
                                     {testToolCalls.length > 0 && (
                                       <div className="p-3 bg-violet-950/20 border border-violet-500/20 rounded-xl space-y-1">
-                                        <span className="text-xs font-bold uppercase text-violet-400 block">
+                                        <span className="text-xs font-bold uppercase text-primary block">
                                           Executed Tool Invocations:
                                         </span>
                                         {testToolCalls.map((tc, idx) => (
-                                          <div key={idx} className="text-xs text-gray-300 font-mono">
+                                          <div key={idx} className="text-xs text-foreground/85 font-mono">
                                             ✓ {tc.tool} with args {JSON.stringify(tc.args)}
                                           </div>
                                         ))}
@@ -619,7 +619,7 @@ export default function TeamsView({
           {/* Studio Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             {/* Department Filter Tabs */}
-            <div className="flex flex-wrap items-center gap-1.5 bg-gray-900/60 p-1 rounded-xl border border-gray-800/80">
+            <div className="flex flex-wrap items-center gap-1.5 bg-background p-1 rounded-xl border border-border/80">
               {['all', 'sales', 'marketing', 'support', 'hr', 'finance', 'executive', 'custom'].map((dept) => (
                 <button
                   key={dept}
@@ -627,7 +627,7 @@ export default function TeamsView({
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
  selectedDeptFilter === dept
  ? 'bg-violet-600 text-white'
- : 'text-gray-400 hover:text-white'
+ : 'text-muted-foreground hover:text-white'
  }`}
                 >
                   {dept}
@@ -659,12 +659,12 @@ export default function TeamsView({
                   <div className="space-y-4">
                     {/* Header Badges */}
                     <div className="flex items-center justify-between">
-                      <span className="text-xs uppercase font-semibold tracking-widest text-violet-400 bg-violet-500/10 px-2.5 py-1 rounded-full border border-violet-500/20">
+                      <span className="text-xs uppercase font-semibold tracking-widest text-primary bg-violet-500/10 px-2.5 py-1 rounded-full border border-violet-500/20">
                         {agent.department}
                       </span>
                       <div className="flex items-center gap-1.5">
                         {agent.is_system ? (
-                          <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
+                          <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/25">
                             System
                           </span>
                         ) : (
@@ -687,24 +687,24 @@ export default function TeamsView({
                     {/* Agent Identity */}
                     <div className="flex items-start gap-3">
                       <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-violet-600/30 to-indigo-600/30 border border-violet-500/20 flex items-center justify-center flex-shrink-0">
-                        <Bot size={22} className="text-violet-400" />
+                        <Bot size={22} className="text-primary" />
                       </div>
                       <div>
                         <CardTitle className="text-base text-white font-semibold">{agent.name}</CardTitle>
-                        <span className="text-xs text-violet-300/80 font-medium block mt-0.5">{agent.role}</span>
+                        <span className="text-xs text-primary-hover/80 font-medium block mt-0.5">{agent.role}</span>
                       </div>
                     </div>
 
-                    <CardDescription className="text-gray-300 text-xs leading-relaxed line-clamp-2">
+                    <CardDescription className="text-foreground/85 text-xs leading-relaxed line-clamp-2">
                       {agent.description}
                     </CardDescription>
 
                     {/* Model & Provider */}
-                    <div className="flex gap-2 pt-2 border-t border-gray-800/40 text-xs">
-                      <span className="bg-gray-900 border border-gray-800 text-gray-400 px-2 py-0.5 rounded-md font-bold uppercase">
+                    <div className="flex gap-2 pt-2 border-t border-border/40 text-xs">
+                      <span className="bg-gray-900 border border-border text-muted-foreground px-2 py-0.5 rounded-md font-bold uppercase">
                         {agent.provider}
                       </span>
-                      <span className="bg-gray-900 border border-gray-800 text-gray-300 px-2 py-0.5 rounded-md font-mono">
+                      <span className="bg-gray-900 border border-border text-foreground/85 px-2 py-0.5 rounded-md font-mono">
                         {agent.model}
                       </span>
                     </div>
@@ -719,9 +719,9 @@ export default function TeamsView({
                           agent.tools.map((t) => (
                             <span
                               key={t}
-                              className="text-xs font-semibold bg-gray-900/80 border border-gray-800 text-gray-300 px-2 py-0.5 rounded-md flex items-center gap-1"
+                              className="text-xs font-semibold bg-gray-900/80 border border-border text-foreground/85 px-2 py-0.5 rounded-md flex items-center gap-1"
                             >
-                              <Wrench size={9} className="text-violet-400" /> {t}
+                              <Wrench size={9} className="text-primary" /> {t}
                             </span>
                           ))
                         ) : (
@@ -732,7 +732,7 @@ export default function TeamsView({
                   </div>
 
                   {/* Actions */}
-                  <div className="mt-5 pt-4 border-t border-gray-800/60 space-y-3">
+                  <div className="mt-5 pt-4 border-t border-border/60 space-y-3">
                     <Button
                       size="sm"
                       onClick={() => {
@@ -750,7 +750,7 @@ export default function TeamsView({
                       className={`w-full font-bold h-9 rounded-xl transition-all ${
  isTesting
  ? 'bg-violet-600 text-white'
- : 'bg-gray-900 hover:bg-gray-800 text-white border border-gray-800'
+ : 'bg-gray-900 hover:bg-gray-800 text-white border border-border'
  }`}
                     >
                       <Send size={12} className="mr-1.5" /> {isTesting ? 'Close Test Console' : 'Interactive Test Bench'}
@@ -758,15 +758,15 @@ export default function TeamsView({
 
                     {/* Live Test Drawer inside Card */}
                     {isTesting && (
-                      <div className="pt-3 border-t border-gray-800/80 space-y-2 animate-in slide-in-from-top-2 duration-200">
+                      <div className="pt-3 border-t border-border/80 space-y-2 animate-in slide-in-from-top-2 duration-200">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-gray-400 font-bold uppercase">Prompt Agent</span>
-                          <label className="flex items-center gap-1.5 text-gray-400 cursor-pointer">
+                          <span className="text-muted-foreground font-bold uppercase">Prompt Agent</span>
+                          <label className="flex items-center gap-1.5 text-muted-foreground cursor-pointer">
                             <input
                               type="checkbox"
                               checked={testDryRun}
                               onChange={(e) => setTestDryRun(e.target.checked)}
-                              className="rounded bg-gray-900 border-gray-800 text-violet-600"
+                              className="rounded bg-gray-900 border-border text-violet-600"
                             />
                             <span>Dry-run tools</span>
                           </label>
@@ -775,7 +775,7 @@ export default function TeamsView({
                           placeholder={`Enter prompt for ${agent.name}...`}
                           value={testInput}
                           onChange={(e) => setTestInput(e.target.value)}
-                          className="bg-gray-900 border-gray-800 text-white text-xs min-h-[48px] max-h-[100px] rounded-xl"
+                          className="bg-gray-900 border-border text-white text-xs min-h-[48px] max-h-[100px] rounded-xl"
                         />
                         <Button
                           size="sm"
@@ -786,7 +786,7 @@ export default function TeamsView({
                           {testAgentLoading ? <Loader2 size={12} className="animate-spin mr-1" /> : 'Run Test'}
                         </Button>
                         {testResponse && (
-                          <div className="bg-gray-950 p-3 rounded-xl border border-gray-800 text-gray-200 text-xs font-mono max-h-[180px] overflow-y-auto whitespace-pre-wrap">
+                          <div className="bg-gray-950 p-3 rounded-xl border border-border text-gray-200 text-xs font-mono max-h-[180px] overflow-y-auto whitespace-pre-wrap">
                             {testResponse}
                           </div>
                         )}
@@ -807,28 +807,28 @@ export default function TeamsView({
         <DialogContent className="glass-panel border-violet-500/20 text-white rounded-3xl max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white font-semibold text-xl flex items-center gap-2">
-              <Bot className="text-violet-400" /> Create Custom Autonomous Agent
+              <Bot className="text-primary" /> Create Custom Autonomous Agent
             </DialogTitle>
           </DialogHeader>
 
           <div className="flex flex-col gap-4 py-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Agent Name</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Agent Name</label>
                 <Input
                   placeholder="e.g. Inbound SDR Agent"
                   value={agentFormName}
                   onChange={(e) => setAgentFormName(e.target.value)}
-                  className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 rounded-xl"
+                  className="bg-background border-border text-white focus:border-primary rounded-xl"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Department / Section</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Department / Section</label>
                 <Select value={agentFormDept} onValueChange={(val) => val && setAgentFormDept(val)}>
-                  <SelectTrigger className="bg-gray-900 border-gray-800 text-white rounded-xl">
+                  <SelectTrigger className="bg-gray-900 border-border text-white rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                  <SelectContent className="bg-gray-900 border-border text-white">
                     <SelectItem value="sales">Sales & Revenue</SelectItem>
                     <SelectItem value="marketing">Marketing & Growth</SelectItem>
                     <SelectItem value="support">Customer Support</SelectItem>
@@ -842,19 +842,19 @@ export default function TeamsView({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-400 uppercase">Operational Role</label>
+              <label className="text-xs font-bold text-muted-foreground uppercase">Operational Role</label>
               <Input
                 placeholder="e.g. Lead Qualification & Technical Pitch Specialist"
                 value={agentFormRole}
                 onChange={(e) => setAgentFormRole(e.target.value)}
-                className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 rounded-xl"
+                className="bg-background border-border text-white focus:border-primary rounded-xl"
               />
             </div>
 
             {/* Provider and Model */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">LLM Provider</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">LLM Provider</label>
                 <Select
                   value={agentFormProvider}
                   onValueChange={(val) => {
@@ -872,10 +872,10 @@ export default function TeamsView({
                     }
                   }}
                 >
-                  <SelectTrigger className="bg-gray-900 border-gray-800 text-white rounded-xl">
+                  <SelectTrigger className="bg-gray-900 border-border text-white rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                  <SelectContent className="bg-gray-900 border-border text-white">
                     <SelectItem value="auto">Auto / Default (.env)</SelectItem>
                     <SelectItem value="nvidia">NVIDIA NIM (Llama 3.3 70B)</SelectItem>
                     <SelectItem value="openrouter">OpenRouter (Llama 3.3 70B Default)</SelectItem>
@@ -890,12 +890,12 @@ export default function TeamsView({
                 </Select>
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Model Selection</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Model Selection</label>
                 <Select value={agentFormModel} onValueChange={(val) => val && setAgentFormModel(val)}>
-                  <SelectTrigger className="bg-gray-900 border-gray-800 text-white rounded-xl">
+                  <SelectTrigger className="bg-gray-900 border-border text-white rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                  <SelectContent className="bg-gray-900 border-border text-white">
                     <SelectItem value="meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B (Default)</SelectItem>
                     <SelectItem value="meta/llama-3.3-70b-instruct">meta/llama-3.3-70b-instruct (NVIDIA NIM)</SelectItem>
                     <SelectItem value="meta-llama/Llama-3.3-70B-Instruct-Turbo">Llama 3.3 70B Turbo</SelectItem>
@@ -914,20 +914,20 @@ export default function TeamsView({
 
             {/* System Prompt */}
             <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-400 uppercase">
+              <label className="text-xs font-bold text-muted-foreground uppercase">
                 System Persona & Behavioral Directives
               </label>
               <Textarea
                 placeholder="Define this agent's identity, evaluation rules, domain knowledge, and output format..."
                 value={agentFormPrompt}
                 onChange={(e) => setAgentFormPrompt(e.target.value)}
-                className="bg-gray-900/60 border-gray-800 text-white text-xs min-h-[120px] rounded-xl focus:border-violet-500"
+                className="bg-background border-border text-white text-xs min-h-[120px] rounded-xl focus:border-primary"
               />
             </div>
 
             {/* Capability / Tool Grants Checklist */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-400 uppercase block">
+              <label className="text-xs font-bold text-muted-foreground uppercase block">
                 Authorized Capabilities & Tool Grants (Least-Privilege)
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -947,11 +947,11 @@ export default function TeamsView({
                       className={`flex items-center justify-between p-2.5 rounded-xl border text-left transition-all ${
  isSelected
  ? 'bg-violet-600/20 border-violet-500 text-white'
- : 'bg-gray-900/40 border-gray-800 text-gray-400 hover:border-gray-700'
+ : 'bg-gray-900/40 border-border text-muted-foreground hover:border-gray-700'
  }`}
                     >
                       <div className="flex items-center gap-2">
-                        <t.icon size={14} className={isSelected ? 'text-violet-400' : 'text-gray-500'} />
+                        <t.icon size={14} className={isSelected ? 'text-primary' : 'text-gray-500'} />
                         <div>
                           <span className="text-xs font-bold block">{t.label}</span>
                           <span className="text-xs text-gray-500">
@@ -959,7 +959,7 @@ export default function TeamsView({
                           </span>
                         </div>
                       </div>
-                      {isSelected && <Check size={14} className="text-violet-400" />}
+                      {isSelected && <Check size={14} className="text-primary" />}
                     </button>
                   );
                 })}
@@ -988,16 +988,16 @@ export default function TeamsView({
           </DialogHeader>
           <div className="flex flex-col gap-4 py-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-400 uppercase">Team Cluster Name</label>
+              <label className="text-xs font-bold text-muted-foreground uppercase">Team Cluster Name</label>
               <Input
                 placeholder="e.g. Enterprise Inbound Growth"
                 value={teamFormName}
                 onChange={(e) => setTeamFormName(e.target.value)}
-                className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 rounded-xl"
+                className="bg-background border-border text-white focus:border-primary rounded-xl"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-400 uppercase block">
+              <label className="text-xs font-bold text-muted-foreground uppercase block">
                 Assign Agents (Built-in + Custom)
               </label>
               <div className="grid grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1">
@@ -1016,12 +1016,12 @@ export default function TeamsView({
                       }}
                       className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${
  isSelected
- ? 'bg-violet-600/20 border-violet-500 text-violet-300'
- : 'bg-gray-900/40 border-gray-800 text-gray-400 hover:border-gray-700'
+ ? 'bg-violet-600/20 border-violet-500 text-primary-hover'
+ : 'bg-gray-900/40 border-border text-muted-foreground hover:border-gray-700'
  }`}
                     >
                       <span className="truncate">{ag.name}</span>
-                      {isSelected && <Check size={12} className="text-violet-400 flex-shrink-0" />}
+                      {isSelected && <Check size={12} className="text-primary flex-shrink-0" />}
                     </button>
                   );
                 })}
@@ -1048,16 +1048,16 @@ export default function TeamsView({
           </DialogHeader>
           <div className="flex flex-col gap-4 py-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-400 uppercase">Team Name</label>
+              <label className="text-xs font-bold text-muted-foreground uppercase">Team Name</label>
               <Input
                 placeholder="Team Name"
                 value={teamFormName}
                 onChange={(e) => setTeamFormName(e.target.value)}
-                className="bg-gray-900/60 border-gray-800 text-white focus:border-violet-500 rounded-xl"
+                className="bg-background border-border text-white focus:border-primary rounded-xl"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-400 uppercase block">Assign Agents</label>
+              <label className="text-xs font-bold text-muted-foreground uppercase block">Assign Agents</label>
               <div className="grid grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1">
                 {agents.map((ag) => {
                   const isSelected = teamFormAgents.includes(ag.name);
@@ -1074,12 +1074,12 @@ export default function TeamsView({
                       }}
                       className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${
  isSelected
- ? 'bg-violet-600/20 border-violet-500 text-violet-300'
- : 'bg-gray-900/40 border-gray-800 text-gray-400 hover:border-gray-700'
+ ? 'bg-violet-600/20 border-violet-500 text-primary-hover'
+ : 'bg-gray-900/40 border-border text-muted-foreground hover:border-gray-700'
  }`}
                     >
                       <span className="truncate">{ag.name}</span>
-                      {isSelected && <Check size={12} className="text-violet-400 flex-shrink-0" />}
+                      {isSelected && <Check size={12} className="text-primary flex-shrink-0" />}
                     </button>
                   );
                 })}

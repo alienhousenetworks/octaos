@@ -52,7 +52,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
             {toast.variant === 'success' && <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-400" />}
             {toast.variant === 'error' && <XCircle className="mt-0.5 size-4 shrink-0 text-red-400" />}
             {toast.variant === 'warning' && <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-400" />}
-            {toast.variant === 'info' && <Info className="mt-0.5 size-4 shrink-0 text-indigo-300" />}
+            {toast.variant === 'info' && <Info className="mt-0.5 size-4 shrink-0 text-primary" />}
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium leading-5">{toast.title}</p>
               {toast.message && <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{toast.message}</p>}

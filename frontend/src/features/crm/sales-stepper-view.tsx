@@ -177,9 +177,9 @@ export default function SalesStepperView({
 
         {/* Right: Live Terminal Logs */}
         <div className="lg:col-span-7">
-          <Card className="bg-slate-950 border-slate-800 rounded-2xl overflow-hidden shadow-xl flex flex-col h-[650px]">
+          <Card className="bg-background border-border rounded-2xl overflow-hidden shadow-xl flex flex-col h-[650px]">
             {/* Terminal Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900/60">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60">
               <div className="flex items-center gap-2">
                 <Terminal size={14} className="text-emerald-400" />
                 <span className="text-xs font-mono font-semibold text-foreground">
@@ -210,10 +210,10 @@ export default function SalesStepperView({
                 </div>
               ) : (
                 workflowStatus.logs.map((log, index) => {
-                  let colorClass = 'text-gray-300';
+                  let colorClass = 'text-foreground/85';
                   if (log.includes('[SEARCH]')) colorClass = 'text-cyan-400';
                   else if (log.includes('[QUALIFY]')) colorClass = 'text-amber-400';
-                  else if (log.includes('[DATE]')) colorClass = 'text-violet-400';
+                  else if (log.includes('[DATE]')) colorClass = 'text-primary';
                   else if (log.includes('[EMAIL]')) colorClass = 'text-emerald-400 font-bold';
                   else if (log.includes('[ERROR]') || log.includes('error')) colorClass = 'text-rose-400 font-bold';
 

@@ -42,7 +42,7 @@ const DEPT_CONFIG: Record<
     label: 'Marketing',
     accent: 'violet',
     bgBadge: 'bg-violet-500/10',
-    textBadge: 'text-violet-400',
+    textBadge: 'text-primary',
     borderBadge: 'border-violet-500/20',
     icon: Calendar,
   },
@@ -65,9 +65,9 @@ const DEPT_CONFIG: Record<
   finance: {
     label: 'Finance',
     accent: 'indigo',
-    bgBadge: 'bg-indigo-500/10',
-    textBadge: 'text-indigo-400',
-    borderBadge: 'border-indigo-500/20',
+    bgBadge: 'bg-primary/10',
+    textBadge: 'text-primary',
+    borderBadge: 'border-primary/25',
     icon: DollarSign,
   },
   executive: {
@@ -117,7 +117,7 @@ export default function AgentCard({ agent, onOpenCockpit }: AgentCardProps) {
     label: agent.department || 'Custom',
     accent: 'slate',
     bgBadge: 'bg-slate-500/10',
-    textBadge: 'text-slate-400',
+    textBadge: 'text-muted-foreground',
     borderBadge: 'border-slate-500/20',
     icon: Bot,
   };
@@ -133,7 +133,7 @@ export default function AgentCard({ agent, onOpenCockpit }: AgentCardProps) {
   const cockpitHref = agentPath;
 
   return (
-    <Card className="glass-panel group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-gray-800/80 bg-gray-950/60 p-5 shadow-lg transition-all duration-200 hover:border-gray-700 hover:shadow-xl">
+    <Card className="glass-panel group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-gray-950/60 p-5 shadow-lg transition-all duration-200 hover:border-gray-700 hover:shadow-xl">
       <div className="space-y-4">
         {/* Top Badges */}
         <div className="flex items-center justify-between gap-2">
@@ -145,7 +145,7 @@ export default function AgentCard({ agent, onOpenCockpit }: AgentCardProps) {
               {dept.label}
             </span>
             {agent.is_system ? (
-              <span className="rounded-md border border-gray-700/60 bg-gray-900/80 px-1.5 py-0.5 text-[11px] font-medium text-gray-300">
+              <span className="rounded-md border border-gray-700/60 bg-gray-900/80 px-1.5 py-0.5 text-[11px] font-medium text-foreground/85">
                 System
               </span>
             ) : (
@@ -182,14 +182,14 @@ export default function AgentCard({ agent, onOpenCockpit }: AgentCardProps) {
         </div>
 
         {/* Purpose Description */}
-        <p className="line-clamp-2 text-xs leading-relaxed text-gray-400">
+        <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
           {agent.description || `${agent.role} operating within the ${dept.label} department.`}
         </p>
 
         {/* Model and Capabilities */}
         <div className="space-y-2 border-t border-gray-900 pt-3">
           <div className="flex items-center justify-between text-[11px]">
-            <span className="font-mono text-gray-400 truncate max-w-[170px]" title={agent.model}>
+            <span className="font-mono text-muted-foreground truncate max-w-[170px]" title={agent.model}>
               {agent.model || 'meta-llama/llama-3.3-70b-instruct'}
             </span>
             <span className="text-gray-500">
@@ -203,7 +203,7 @@ export default function AgentCard({ agent, onOpenCockpit }: AgentCardProps) {
               agent.tools.slice(0, 3).map((tool) => (
                 <span
                   key={tool}
-                  className="inline-flex items-center gap-1 rounded bg-gray-900 border border-gray-800/80 px-1.5 py-0.5 text-[10px] text-gray-300 font-mono"
+                  className="inline-flex items-center gap-1 rounded bg-gray-900 border border-border/80 px-1.5 py-0.5 text-[10px] text-foreground/85 font-mono"
                 >
                   <Wrench className="size-2.5 text-gray-500" />
                   {tool}
@@ -213,7 +213,7 @@ export default function AgentCard({ agent, onOpenCockpit }: AgentCardProps) {
               <span className="text-[11px] text-gray-500 italic">Conversational agent</span>
             )}
             {agent.tools && agent.tools.length > 3 && (
-              <span className="rounded bg-gray-900/60 px-1.5 py-0.5 text-[10px] text-gray-500">
+              <span className="rounded bg-background px-1.5 py-0.5 text-[10px] text-gray-500">
                 +{agent.tools.length - 3} more
               </span>
             )}
@@ -226,7 +226,7 @@ export default function AgentCard({ agent, onOpenCockpit }: AgentCardProps) {
             <Link
               key={sc.label}
               href={`${agentPath}?tab=${sc.subpath}`}
-              className="rounded-md border border-gray-800 bg-gray-900/50 px-2 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:border-gray-700 hover:text-white"
+              className="rounded-md border border-border bg-gray-900/50 px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:border-gray-700 hover:text-white"
             >
               {sc.label}
             </Link>
@@ -240,7 +240,7 @@ export default function AgentCard({ agent, onOpenCockpit }: AgentCardProps) {
           <Button
             variant="outline"
             size="sm"
-            className="w-full justify-between rounded-xl border-gray-800 bg-gray-900/40 text-xs font-semibold text-gray-200 hover:border-gray-700 hover:bg-gray-800 hover:text-white"
+            className="w-full justify-between rounded-xl border-border bg-gray-900/40 text-xs font-semibold text-gray-200 hover:border-gray-700 hover:bg-gray-800 hover:text-white"
           >
             <span>Open Cockpit</span>
             <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />

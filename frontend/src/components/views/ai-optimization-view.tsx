@@ -60,9 +60,9 @@ export default function AIOptimizationView({
                   <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2">
                     <DollarSign className="text-emerald-400 h-8 w-8 animate-pulse" /> AI Cost Control Center
                   </h1>
-                  <p className="text-gray-400 mt-1">Standardise provider APIs, optimize token usage, route workloads dynamically, and track latency savings.</p>
+                  <p className="text-muted-foreground mt-1">Standardise provider APIs, optimize token usage, route workloads dynamically, and track latency savings.</p>
                 </div>
-                <div className="flex items-center gap-2 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] px-4 py-2 rounded-xl text-xs text-gray-400 font-semibold shadow-inner">
+                <div className="flex items-center gap-2 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] px-4 py-2 rounded-xl text-xs text-muted-foreground font-semibold shadow-inner">
                   <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
                   <span>AI Cost Optimization Layer Active</span>
                 </div>
@@ -73,7 +73,7 @@ export default function AIOptimizationView({
                 <Card className="glass-panel border-emerald-500/20 relative overflow-hidden transition-all duration-300 hover:scale-[1.03] rounded-2xl shadow-lg">
                   <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500" />
                   <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                    <CardTitle className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Optimised Spend</CardTitle>
+                    <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Optimised Spend</CardTitle>
                     <DollarSign className="h-4 w-4 text-emerald-450" />
                   </CardHeader>
                   <CardContent className="space-y-1">
@@ -85,8 +85,8 @@ export default function AIOptimizationView({
                 <Card className="glass-panel border-violet-500/20 relative overflow-hidden transition-all duration-300 hover:scale-[1.03] rounded-2xl shadow-lg">
                   <div className="absolute top-0 left-0 w-1.5 h-full bg-violet-500" />
                   <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                    <CardTitle className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Universal Cache Hit Rate</CardTitle>
-                    <Zap className="h-4 w-4 text-violet-400" />
+                    <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Universal Cache Hit Rate</CardTitle>
+                    <Zap className="h-4 w-4 text-primary" />
                   </CardHeader>
                   <CardContent className="space-y-1">
                     <div className="text-xl font-semibold text-white">{optimizationMetrics?.cache_metrics?.hit_rate || 0}%</div>
@@ -97,7 +97,7 @@ export default function AIOptimizationView({
                 <Card className="glass-panel border-blue-500/20 relative overflow-hidden transition-all duration-300 hover:scale-[1.03] rounded-2xl shadow-lg">
                   <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500" />
                   <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                    <CardTitle className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Latency Saved</CardTitle>
+                    <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Latency Saved</CardTitle>
                     <Clock className="h-4 w-4 text-blue-400" />
                   </CardHeader>
                   <CardContent className="space-y-1">
@@ -109,7 +109,7 @@ export default function AIOptimizationView({
                 <Card className="glass-panel border-amber-500/20 relative overflow-hidden transition-all duration-300 hover:scale-[1.03] rounded-2xl shadow-lg">
                   <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500" />
                   <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                    <CardTitle className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Estimated Cost Savings</CardTitle>
+                    <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estimated Cost Savings</CardTitle>
                     <BarChart3 className="h-4 w-4 text-amber-400" />
                   </CardHeader>
                   <CardContent className="space-y-1">
@@ -122,30 +122,30 @@ export default function AIOptimizationView({
               {/* Providers Status & Telemetry */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <Card className="lg:col-span-8 glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between">
-                  <div className="flex items-center justify-between mb-4 border-b border-gray-800 pb-4">
+                  <div className="flex items-center justify-between mb-4 border-b border-border pb-4">
                     <div>
                       <h3 className="font-semibold text-lg text-white">Universal AI Providers Gateway</h3>
-                      <p className="text-xs text-gray-400">Standardised provider telemetry, average latency, and configuration state.</p>
+                      <p className="text-xs text-muted-foreground">Standardised provider telemetry, average latency, and configuration state.</p>
                     </div>
-                    <span className="text-xs text-violet-400 font-bold uppercase tracking-wider font-mono">Dynamic Fallback Active</span>
+                    <span className="text-xs text-primary font-bold uppercase tracking-wider font-mono">Dynamic Fallback Active</span>
                   </div>
 
                   <div className="overflow-x-auto">
                     <Table>
-                      <TableHeader className="bg-gray-950/40 border-b border-gray-800">
-                        <TableRow className="border-gray-800 hover:bg-transparent">
-                          <TableHead className="text-gray-400 font-bold text-xs p-4">Provider</TableHead>
-                          <TableHead className="text-gray-400 font-bold text-xs p-4">Status</TableHead>
-                          <TableHead className="text-gray-400 font-bold text-xs p-4">Avg Latency</TableHead>
-                          <TableHead className="text-gray-400 font-bold text-xs p-4">Uptime / Health</TableHead>
-                          <TableHead className="text-gray-400 font-bold text-xs p-4 text-right">Failover Count</TableHead>
+                      <TableHeader className="bg-gray-950/40 border-b border-border">
+                        <TableRow className="border-border hover:bg-transparent">
+                          <TableHead className="text-muted-foreground font-bold text-xs p-4">Provider</TableHead>
+                          <TableHead className="text-muted-foreground font-bold text-xs p-4">Status</TableHead>
+                          <TableHead className="text-muted-foreground font-bold text-xs p-4">Avg Latency</TableHead>
+                          <TableHead className="text-muted-foreground font-bold text-xs p-4">Uptime / Health</TableHead>
+                          <TableHead className="text-muted-foreground font-bold text-xs p-4 text-right">Failover Count</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody className="divide-y divide-gray-800">
                         {Object.entries(optimizationMetrics?.provider_metrics || {}).map(([p, metrics]: [string, any]) => {
                           const isConfigured = optimizationMetrics?.active_providers?.includes(p.toLowerCase()) || p === "mock";
                           return (
-                            <TableRow key={p} className="border-gray-800 hover:bg-gray-900/20">
+                            <TableRow key={p} className="border-border hover:bg-gray-900/20">
                               <TableCell className="p-4 whitespace-nowrap">
                                 <div className="flex items-center gap-2">
                                   <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-1 rounded text-white text-xs font-bold uppercase w-16 text-center">
@@ -163,10 +163,10 @@ export default function AIOptimizationView({
                                   {isConfigured ? "● Connected" : "○ Not Configured"}
                                 </span>
                               </TableCell>
-                              <TableCell className="p-4 text-xs font-mono text-gray-300">
+                              <TableCell className="p-4 text-xs font-mono text-foreground/85">
                                 {isConfigured ? `${metrics.avg_latency || "0.0"}s` : "N/A"}
                               </TableCell>
-                              <TableCell className="p-4 text-xs font-semibold text-gray-300">
+                              <TableCell className="p-4 text-xs font-semibold text-foreground/85">
                                 {metrics.uptime}%
                               </TableCell>
                               <TableCell className="p-4 text-right text-xs font-mono text-rose-400">
@@ -183,16 +183,16 @@ export default function AIOptimizationView({
                 {/* Cache Metrics */}
                 <Card className="lg:col-span-4 glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-border mb-4">
                       <h3 className="font-semibold text-lg text-white">Universal Cache</h3>
-                      <Zap className="text-violet-400 h-5 w-5" />
+                      <Zap className="text-primary h-5 w-5" />
                     </div>
 
                     <div className="space-y-4">
                       <div>
-                        <div className="flex justify-between text-xs font-semibold text-gray-400 mb-1.5">
+                        <div className="flex justify-between text-xs font-semibold text-muted-foreground mb-1.5">
                           <span>Prompt Hit Rate</span>
-                          <span className="text-violet-400 font-bold">{optimizationMetrics?.cache_metrics?.hit_rate || 0}%</span>
+                          <span className="text-primary font-bold">{optimizationMetrics?.cache_metrics?.hit_rate || 0}%</span>
                         </div>
                         <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
                           <div 
@@ -202,24 +202,24 @@ export default function AIOptimizationView({
                         </div>
                       </div>
 
-                      <div className="bg-[rgba(0,0,0,0.15)] border border-gray-800 p-4 rounded-xl space-y-3 shadow-inner">
+                      <div className="bg-[rgba(0,0,0,0.15)] border border-border p-4 rounded-xl space-y-3 shadow-inner">
                         <div className="flex justify-between text-xs">
-                          <span className="text-gray-400">Cache Hits Count:</span>
+                          <span className="text-muted-foreground">Cache Hits Count:</span>
                           <span className="font-mono text-white font-bold">{optimizationMetrics?.cache_metrics?.hits || 0}</span>
                         </div>
                         <div className="flex justify-between text-xs">
-                          <span className="text-gray-400">Token Reuse (Saved):</span>
+                          <span className="text-muted-foreground">Token Reuse (Saved):</span>
                           <span className="font-mono text-emerald-400 font-bold">{(optimizationMetrics?.cache_metrics?.token_reuse || 0).toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between text-xs">
-                          <span className="text-gray-400">Cache Caching Layer:</span>
-                          <span className="text-violet-400 font-bold font-mono">Redis DB 1</span>
+                          <span className="text-muted-foreground">Cache Caching Layer:</span>
+                          <span className="text-primary font-bold font-mono">Redis DB 1</span>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="text-xs text-violet-300/80 bg-violet-500/5 border border-violet-500/10 p-3 rounded-lg flex items-start gap-2 mt-4">
+                  <div className="text-xs text-primary-hover/80 bg-violet-500/5 border border-violet-500/10 p-3 rounded-lg flex items-start gap-2 mt-4">
                     <Zap size={14} className="mt-0.5 flex-shrink-0" />
                     <p>
                       <strong>Optimize logic:</strong> Prompts matching Global, Department or Workflow templates bypass LLM endpoints. Saves 100% tokens and execution lag.
@@ -232,7 +232,7 @@ export default function AIOptimizationView({
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 {/* Routing Distribution */}
                 <Card className="lg:col-span-6 glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl p-6 shadow-2xl relative overflow-hidden">
-                  <div className="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-border mb-4">
                     <h3 className="font-semibold text-lg text-white">Dynamic Department Workload Routing</h3>
                     <span className="text-xs text-emerald-400 font-bold uppercase tracking-wider font-mono">Routing Analytics</span>
                   </div>
@@ -244,7 +244,7 @@ export default function AIOptimizationView({
                         <div key={dept} className="space-y-1.5">
                           <div className="flex justify-between text-xs">
                             <span className="font-bold text-white capitalize">{dept} tasks</span>
-                            <span className="text-gray-400 text-xs">{totalDeptCalls} requests</span>
+                            <span className="text-muted-foreground text-xs">{totalDeptCalls} requests</span>
                           </div>
                           
                           {totalDeptCalls > 0 ? (
@@ -263,7 +263,7 @@ export default function AIOptimizationView({
                                   local: "bg-teal-500",
                                   mock: "bg-gray-600"
                                 };
-                                const bgClass = colors[provider.toLowerCase()] || "bg-indigo-600";
+                                const bgClass = colors[provider.toLowerCase()] || "bg-primary text-primary-foreground";
                                 return (
                                   <div 
                                     key={provider} 
@@ -281,7 +281,7 @@ export default function AIOptimizationView({
                           )}
 
                           {/* Percentages row */}
-                          <div className="flex gap-2.5 flex-wrap text-xs font-semibold text-gray-400 mt-1">
+                          <div className="flex gap-2.5 flex-wrap text-xs font-semibold text-muted-foreground mt-1">
                             {Object.entries(providers).map(([provider, count]: [string, any]) => {
                               const pct = ((count / totalDeptCalls) * 100).toFixed(0);
                               return (
@@ -310,29 +310,29 @@ export default function AIOptimizationView({
                 {/* Batch Jobs */}
                 <Card className="lg:col-span-6 glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-border mb-4">
                       <h3 className="font-semibold text-lg text-white">Batch Orchestration System</h3>
                       <span className="text-xs text-amber-400 font-bold uppercase tracking-wider font-mono">Async Batch Telemetry</span>
                     </div>
 
                     <div className="grid grid-cols-3 gap-4 mb-6">
-                      <div className="p-3 border border-gray-800 rounded-xl bg-gray-950/20 text-center shadow-inner">
+                      <div className="p-3 border border-border rounded-xl bg-gray-950/20 text-center shadow-inner">
                         <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Jobs Processed</span>
                         <div className="text-xl font-semibold text-white mt-1">{optimizationMetrics?.batch_metrics?.total_jobs || 0}</div>
                       </div>
-                      <div className="p-3 border border-gray-800 rounded-xl bg-gray-950/20 text-center shadow-inner">
+                      <div className="p-3 border border-border rounded-xl bg-gray-950/20 text-center shadow-inner">
                         <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Tasks Completed</span>
                         <div className="text-xl font-semibold text-white mt-1">{optimizationMetrics?.batch_metrics?.total_tasks_processed || 0}</div>
                       </div>
-                      <div className="p-3 border border-gray-800 rounded-xl bg-gray-950/20 text-center shadow-inner bg-emerald-500/5 border-emerald-500/10">
+                      <div className="p-3 border border-border rounded-xl bg-gray-950/20 text-center shadow-inner bg-emerald-500/5 border-emerald-500/10">
                         <span className="text-xs font-bold text-emerald-450 uppercase tracking-wider block">Batch Savings</span>
                         <div className="text-xl font-semibold text-emerald-400 mt-1">${optimizationMetrics?.batch_metrics?.async_savings?.toFixed(2) || "0.00"}</div>
                       </div>
                     </div>
 
-                    <div className="bg-[rgba(0,0,0,0.15)] border border-gray-800 p-4 rounded-xl space-y-3 shadow-inner">
+                    <div className="bg-[rgba(0,0,0,0.15)] border border-border p-4 rounded-xl space-y-3 shadow-inner">
                       <div className="flex justify-between text-xs">
-                        <span className="text-gray-400">Processing Jobs:</span>
+                        <span className="text-muted-foreground">Processing Jobs:</span>
                         <span className="font-mono text-white font-bold flex items-center gap-1.5">
                           {optimizationMetrics?.batch_metrics?.processing_jobs || 0}
                           {optimizationMetrics?.batch_metrics?.processing_jobs > 0 && (
@@ -341,11 +341,11 @@ export default function AIOptimizationView({
                         </span>
                       </div>
                       <div className="flex justify-between text-xs">
-                        <span className="text-gray-400">Completed Jobs:</span>
+                        <span className="text-muted-foreground">Completed Jobs:</span>
                         <span className="font-mono text-white font-bold">{optimizationMetrics?.batch_metrics?.completed_jobs || 0}</span>
                       </div>
                       <div className="flex justify-between text-xs">
-                        <span className="text-gray-400">Failed Jobs:</span>
+                        <span className="text-muted-foreground">Failed Jobs:</span>
                         <span className="font-mono text-rose-450 font-bold">{optimizationMetrics?.batch_metrics?.failed_jobs || 0}</span>
                       </div>
                     </div>

@@ -1,10 +1,36 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useSyncExternalStore } from 'react';
 
 export type InterfaceMode = 'bot' | 'classic';
 
 const STORAGE_KEY = 'octaos-interface-mode';
+const MODE_EVENT = 'octaos-interface-mode-change';
+
+function subscribe(onChange: () => void) {
+  window.addEventListener('storage', onChange);
+  window.addEventListener(MODE_EVENT, onChange);
+  return () => {
+    window.removeEventListener('storage', onChange);
+    window.removeEventListener(MODE_EVENT, onChange);
+  };
+}
+
+function getModeSnapshot(): InterfaceMode {
+  return localStorage.getItem(STORAGE_KEY) === 'classic' ? 'classic' : 'bot';
+}
+
+function getServerModeSnapshot(): InterfaceMode {
+  return 'bot';
+}
+
+function getReadySnapshot() {
+  return true;
+}
+
+function getServerReadySnapshot() {
+  return false;
+}
 
 type InterfaceModeValue = {
   mode: InterfaceMode;
@@ -19,13 +45,8 @@ const InterfaceModeContext = createContext<InterfaceModeValue>({
 });
 
 export function InterfaceModeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setModeState] = useState<InterfaceMode>('bot');
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    setModeState(localStorage.getItem(STORAGE_KEY) === 'classic' ? 'classic' : 'bot');
-    setReady(true);
-  }, []);
+  const mode = useSyncExternalStore(subscribe, getModeSnapshot, getServerModeSnapshot);
+  const ready = useSyncExternalStore(subscribe, getReadySnapshot, getServerReadySnapshot);
 
   const setMode = (next: InterfaceMode) => {
     if (next !== mode) {
@@ -38,9 +59,9 @@ export function InterfaceModeProvider({ children }: { children: React.ReactNode 
         // A page that stays mounted still receives the mode from context.
       }
     }
-    setModeState(next);
     try {
       localStorage.setItem(STORAGE_KEY, next);
+      window.dispatchEvent(new Event(MODE_EVENT));
     } catch {
       // The choice still applies for this visit if storage is blocked.
     }

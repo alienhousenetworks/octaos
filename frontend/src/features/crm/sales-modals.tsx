@@ -83,7 +83,7 @@ export function CreateLeadModal({
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
                 placeholder="Target Corp"
-                className="text-xs bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500"
+                className="text-xs bg-slate-50 border-slate-200 text-slate-900 placeholder:text-muted-foreground focus:bg-white focus:border-blue-500"
               />
             </div>
             <div>
@@ -93,7 +93,7 @@ export function CreateLeadModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Jane Doe"
-                className="text-xs bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500"
+                className="text-xs bg-slate-50 border-slate-200 text-slate-900 placeholder:text-muted-foreground focus:bg-white focus:border-blue-500"
               />
             </div>
             <div>
@@ -103,7 +103,7 @@ export function CreateLeadModal({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="jane@company.com"
-                className="text-xs bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500"
+                className="text-xs bg-slate-50 border-slate-200 text-slate-900 placeholder:text-muted-foreground focus:bg-white focus:border-blue-500"
               />
             </div>
             <div>
@@ -112,7 +112,7 @@ export function CreateLeadModal({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+1 555-0199"
-                className="text-xs bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500"
+                className="text-xs bg-slate-50 border-slate-200 text-slate-900 placeholder:text-muted-foreground focus:bg-white focus:border-blue-500"
               />
             </div>
             <div>
@@ -121,7 +121,7 @@ export function CreateLeadModal({
                 value={capacity}
                 onChange={(e) => setCapacity(e.target.value)}
                 placeholder="e.g. $5,000"
-                className="text-xs bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500"
+                className="text-xs bg-slate-50 border-slate-200 text-slate-900 placeholder:text-muted-foreground focus:bg-white focus:border-blue-500"
               />
             </div>
             <div>
@@ -144,7 +144,7 @@ export function CreateLeadModal({
               value={need}
               onChange={(e) => setNeed(e.target.value)}
               placeholder="What product or services do they need?"
-              className="text-xs bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500"
+              className="text-xs bg-slate-50 border-slate-200 text-slate-900 placeholder:text-muted-foreground focus:bg-white focus:border-blue-500"
             />
           </div>
 
@@ -155,7 +155,7 @@ export function CreateLeadModal({
               value={why}
               onChange={(e) => setWhy(e.target.value)}
               placeholder="Key trigger, recent hiring, expansion, or pain point..."
-              className="text-xs bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500"
+              className="text-xs bg-slate-50 border-slate-200 text-slate-900 placeholder:text-muted-foreground focus:bg-white focus:border-blue-500"
             />
           </div>
 
@@ -226,7 +226,7 @@ export function UploadLeadsModal({
             onClick={() => document.getElementById('sales-import-file')?.click()}
             className="border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-2xl p-8 text-center cursor-pointer transition-all bg-slate-50/60 hover:bg-blue-50/40 group"
           >
-            <Upload size={28} className="mx-auto mb-2 text-slate-400 group-hover:text-blue-600 transition-colors" />
+            <Upload size={28} className="mx-auto mb-2 text-muted-foreground group-hover:text-blue-600 transition-colors" />
             <p className="text-sm font-bold text-slate-800">
               {file ? file.name : 'Click or drop CSV / JSON file'}
             </p>

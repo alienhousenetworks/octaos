@@ -3,30 +3,42 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { clearSession, fetchWithSession, getAccessToken, saveSession } from '@/lib/auth-session';
+import {
+  asObject,
+  asRecordList,
+  isRecord,
+  isUserProfile,
+  type ConfiguredProvider,
+  type InstalledApp,
+  type UserProfile,
+  type WorkspaceMetrics,
+  type WorkspaceQueue,
+  type WorkspaceSettings,
+  type WorkspaceTeam,
+  type WorkspaceTimelineItem,
+} from '@/lib/contracts';
 import { notify } from '@/lib/notify';
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
-
-type Queue = { posts: any[]; leads: any[] };
 
 type WorkspaceValue = {
   ready: boolean;
   token: string | null;
   tenantId: string | null;
-  userProfile: any;
-  setUserProfile: (profile: any) => void;
+  userProfile: UserProfile | null;
+  setUserProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>;
   setToken: (token: string | null) => void;
   setTenantId: (tenantId: string | null) => void;
   apiUrl: string;
-  fetchWithAuth: (url: string, options?: any) => Promise<Response>;
+  fetchWithAuth: (url: string, options?: RequestInit) => Promise<Response>;
   fetchData: () => Promise<void>;
-  queue: Queue;
-  timeline: any[];
-  knowledge: any[];
-  metrics: any;
-  teams: any[];
-  setTeams: React.Dispatch<React.SetStateAction<any[]>>;
-  apps: any[];
+  queue: WorkspaceQueue;
+  timeline: WorkspaceTimelineItem[];
+  knowledge: Record<string, unknown>[];
+  metrics: WorkspaceMetrics;
+  teams: WorkspaceTeam[];
+  setTeams: React.Dispatch<React.SetStateAction<WorkspaceTeam[]>>;
+  apps: InstalledApp[];
   configuredProviders: string[];
   logoUrl: string | null;
   setLogoUrl: (url: string | null) => void;
@@ -41,10 +53,10 @@ type WorkspaceValue = {
 
 const WorkspaceContext = createContext<WorkspaceValue | null>(null);
 
-async function safeJson(res: Response, fallback: any = null) {
+async function safeJson<T>(res: Response, fallback: T): Promise<T> {
   if (!res.ok) return fallback;
   try {
-    return await res.json();
+    return (await res.json()) as T;
   } catch {
     return fallback;
   }
@@ -55,46 +67,48 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [token, setTokenState] = useState<string | null>(null);
   const [tenantId, setTenantIdState] = useState<string | null>(null);
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [faviconUrl, setFaviconUrl] = useState<string | null>(null);
-  const [queue, setQueue] = useState<Queue>({ posts: [], leads: [] });
-  const [timeline, setTimeline] = useState<any[]>([]);
-  const [knowledge, setKnowledge] = useState<any[]>([]);
-  const [metrics, setMetrics] = useState<any>({});
-  const [teams, setTeams] = useState<any[]>([]);
-  const [apps, setApps] = useState<any[]>([]);
+  const [queue, setQueue] = useState<WorkspaceQueue>({ posts: [], leads: [] });
+  const [timeline, setTimeline] = useState<WorkspaceTimelineItem[]>([]);
+  const [knowledge, setKnowledge] = useState<Record<string, unknown>[]>([]);
+  const [metrics, setMetrics] = useState<WorkspaceMetrics>({});
+  const [teams, setTeams] = useState<WorkspaceTeam[]>([]);
+  const [apps, setApps] = useState<InstalledApp[]>([]);
   const [configuredProviders, setConfiguredProviders] = useState<string[]>([]);
   const feedUsers = useRef(0);
   const [feedOn, setFeedOn] = useState(false);
-  const profileRef = useRef<any>(null);
-  profileRef.current = userProfile;
+  const profileLoadedRef = useRef(false);
 
   const logout = useCallback(() => {
     clearSession();
     setTokenState(null);
     setTenantIdState(null);
     setUserProfile(null);
+    profileLoadedRef.current = false;
     router.replace('/');
   }, [router]);
 
-  const fetchWithAuth = useCallback(async (url: string, options: any = {}) => {
+  const fetchWithAuth = useCallback(async (url: string, options: RequestInit = {}) => {
     const res = await fetchWithSession(url, options, API_URL);
     const newest = getAccessToken();
-    if (newest && newest !== token) setTokenState(newest);
+    if (newest) setTokenState((current) => (current === newest ? current : newest));
     if (res.status === 401) logout();
     return res;
-  }, [logout, token]);
+  }, [logout]);
 
   const fetchData = useCallback(async () => {
     if (!getAccessToken()) return;
     try {
-      if (!profileRef.current) {
+      if (!profileLoadedRef.current) {
         try {
           const meRes = await fetchWithAuth(`${API_URL}/auth/me`);
           if (meRes.ok) {
-            const meData = await meRes.json();
+            const meData: unknown = await meRes.json();
+            if (!isUserProfile(meData)) return;
             setUserProfile(meData);
+            profileLoadedRef.current = true;
             if (meData.tenant_id) {
               localStorage.setItem('tenant_id', meData.tenant_id);
               setTenantIdState(meData.tenant_id);
@@ -108,7 +122,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      const load = async (path: string, fallback: any) => {
+      const load = async <T,>(path: string, fallback: T): Promise<T> => {
         try {
           const res = await fetchWithAuth(`${API_URL}${path}`);
           return await safeJson(res, fallback);
@@ -125,19 +139,30 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         load('/dashboard/marketplace/installed', []),
         load('/commands/keys', {}),
       ]);
-      setQueue(queueData && !Array.isArray(queueData) ? queueData : { posts: [], leads: [] });
-      setTimeline(Array.isArray(timelineData) ? timelineData : []);
-      setKnowledge(Array.isArray(knowledgeData) ? knowledgeData : []);
-      setMetrics(metricsData && typeof metricsData === 'object' && !Array.isArray(metricsData) ? metricsData : {});
-      setTeams(Array.isArray(teamData) ? teamData : []);
-      setApps(Array.isArray(appData) ? appData : []);
-      const providers = keyStatusData?.configured_providers || [];
-      setConfiguredProviders(providers.map((provider: any) => typeof provider === 'string' ? provider : provider.provider).filter(Boolean));
+      const queueObject: Record<string, unknown> = isRecord(queueData) ? queueData : {};
+      setQueue({
+        posts: asRecordList(queueObject.posts),
+        leads: asRecordList(queueObject.leads),
+      });
+      setTimeline(asRecordList(timelineData) as WorkspaceTimelineItem[]);
+      setKnowledge(asRecordList(knowledgeData));
+      setMetrics(asObject(metricsData));
+      setTeams(asRecordList(teamData) as WorkspaceTeam[]);
+      setApps(asRecordList(appData) as InstalledApp[]);
+      const providers: ConfiguredProvider[] = isRecord(keyStatusData) && Array.isArray(keyStatusData.configured_providers)
+        ? keyStatusData.configured_providers.filter((provider): provider is ConfiguredProvider => typeof provider === 'string' || isRecord(provider))
+        : [];
+      setConfiguredProviders(
+        providers
+          .map((provider) => typeof provider === 'string' ? provider : typeof provider.provider === 'string' ? provider.provider : '')
+          .filter(Boolean),
+      );
     } catch (error) {
       console.error(error);
     }
   }, [fetchWithAuth]);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- browser session hydration */
   useEffect(() => {
     const saved = getAccessToken();
     const savedTenant = typeof window !== 'undefined' ? localStorage.getItem('tenant_id') : null;
@@ -147,12 +172,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     fetch(`${API_URL}/auth/settings`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (!data) return;
-        if (data.logo_url) setLogoUrl(data.logo_url);
-        if (data.favicon_url) setFaviconUrl(data.favicon_url);
+        if (!isRecord(data)) return;
+        const settingsData = data as WorkspaceSettings;
+        if (settingsData.logo_url) setLogoUrl(settingsData.logo_url);
+        if (settingsData.favicon_url) setFaviconUrl(settingsData.favicon_url);
       })
       .catch(() => undefined);
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!faviconUrl) return;
@@ -173,8 +200,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!token) return;
+    // This effect synchronizes the screen with the authenticated API state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
-  }, [token]); // profile + first feed load
+  }, [token, fetchData]); // profile + first feed load
 
   useEffect(() => {
     if (!token || !feedOn) return;

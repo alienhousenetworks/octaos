@@ -147,7 +147,7 @@ export default function FilterHorizontal({
         <div className="filter-horizontal-col">
           <div className="filter-horizontal-header">
             <span>Available {title}</span>
-            <span className="text-[10px] font-mono text-zinc-400">
+            <span className="text-[10px] font-mono text-muted-foreground">
               ({filteredAvailable.length} of {availablePool.length})
             </span>
           </div>
@@ -180,7 +180,7 @@ export default function FilterHorizontal({
                   >
                     <span className="font-medium truncate">
                       {item.subtitle ? (
-                        <span className="text-zinc-400 font-mono text-[11px] mr-1.5">
+                        <span className="text-muted-foreground font-mono text-[11px] mr-1.5">
                           {item.subtitle} |
                         </span>
                       ) : null}
@@ -259,7 +259,7 @@ export default function FilterHorizontal({
         <div className="filter-horizontal-col">
           <div className="filter-horizontal-header">
             <span>Chosen {title}</span>
-            <span className="text-[10px] font-mono text-zinc-400">
+            <span className="text-[10px] font-mono text-muted-foreground">
               ({filteredChosen.length} of {chosenPool.length})
             </span>
           </div>
@@ -292,7 +292,7 @@ export default function FilterHorizontal({
                   >
                     <span className="font-medium truncate">
                       {item.subtitle ? (
-                        <span className="text-zinc-400 font-mono text-[11px] mr-1.5">
+                        <span className="text-muted-foreground font-mono text-[11px] mr-1.5">
                           {item.subtitle} |
                         </span>
                       ) : null}

@@ -350,7 +350,7 @@ export default function DjangoAdminRBACView({
             <h2 className="text-base font-bold text-white uppercase tracking-wider">
               System Permissions Catalogue ({permissions.length} total)
             </h2>
-            <span className="text-xs font-mono text-zinc-400">
+            <span className="text-xs font-mono text-muted-foreground">
               Read-only core registry
             </span>
           </div>
@@ -373,11 +373,11 @@ export default function DjangoAdminRBACView({
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-zinc-200">{p.name}</span>
-                        <code className="text-[10px] text-[#79aec8] font-mono bg-zinc-900 px-1.5 py-0.5 rounded">
+                        <code className="text-[10px] text-[#79aec8] font-mono bg-card px-1.5 py-0.5 rounded">
                           {p.codename}
                         </code>
                       </div>
-                      <p className="text-[11px] text-zinc-400">{p.description}</p>
+                      <p className="text-[11px] text-muted-foreground">{p.description}</p>
                     </div>
                   ))}
                 </div>

@@ -33,7 +33,7 @@ const AGENT_DATA = {
     persona: 'Jules — Senior Autonomous Copywriter & Campaign Planner',
     icon: Calendar,
     color: 'from-violet-600 to-indigo-600',
-    textColor: 'text-violet-400',
+    textColor: 'text-primary',
     borderColor: 'border-violet-500/30',
     priceInr: '₹3,999',
     priceUsd: '$49',
@@ -247,20 +247,20 @@ export default function AgentLockedScreen({
                 <span className="text-xs text-muted-foreground font-mono">Standalone Hire</span>
               </div>
               <h1 className="text-2xl md:text-3xl font-bold text-white mt-1.5">{agent.name}</h1>
-              <p className="text-sm text-zinc-400">{agent.persona}</p>
+              <p className="text-sm text-muted-foreground">{agent.persona}</p>
             </div>
           </div>
 
           <div className="text-left md:text-right bg-white/5 border border-white/10 rounded-2xl p-4 min-w-[200px]">
-            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider block">Price</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block">Price</span>
             <div className="text-2xl font-bold text-white mt-0.5">
-              {agent.priceInr} <span className="text-xs text-zinc-400 font-normal">/ mo ({agent.priceUsd})</span>
+              {agent.priceInr} <span className="text-xs text-muted-foreground font-normal">/ mo ({agent.priceUsd})</span>
             </div>
             <span className="text-xs text-emerald-400 block mt-0.5 font-medium">{agent.quota}</span>
           </div>
         </div>
 
-        <p className="mt-6 text-sm md:text-base text-zinc-300 leading-relaxed max-w-3xl">
+        <p className="mt-6 text-sm md:text-base text-foreground/85 leading-relaxed max-w-3xl">
           {agent.description}
         </p>
 
@@ -299,7 +299,7 @@ export default function AgentLockedScreen({
             variant="outline"
             size="lg"
             onClick={() => router.push('/app/settings/enterprise')}
-            className="border-white/10 hover:bg-white/5 text-zinc-300"
+            className="border-white/10 hover:bg-white/5 text-foreground/85"
           >
             Explore All Plans & Multi-Agent Bundles
             <ArrowRight size={15} className="ml-2" />
@@ -310,14 +310,14 @@ export default function AgentLockedScreen({
       {/* Capabilities & Output Preview Grid */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         {/* Features Column - 7 cols */}
-        <Card className="md:col-span-7 bg-zinc-950/60 border-white/10 p-6 rounded-2xl shadow-xl backdrop-blur-md">
+        <Card className="md:col-span-7 bg-background/60 border-white/10 p-6 rounded-2xl shadow-xl backdrop-blur-md">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles size={18} className={agent.textColor} />
             <h2 className="text-base font-semibold text-white">What this AI employee executes for you</h2>
           </div>
           <div className="space-y-3">
             {agent.features.map((feat, idx) => (
-              <div key={idx} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/5 text-xs md:text-sm text-zinc-300">
+              <div key={idx} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/5 text-xs md:text-sm text-foreground/85">
                 <CheckCircle2 size={16} className={`${agent.textColor} shrink-0 mt-0.5`} />
                 <span>{feat}</span>
               </div>
@@ -326,19 +326,19 @@ export default function AgentLockedScreen({
         </Card>
 
         {/* Live Output Mockup Column - 5 cols */}
-        <Card className="md:col-span-5 bg-zinc-950/60 border-white/10 p-6 rounded-2xl shadow-xl flex flex-col justify-between">
+        <Card className="md:col-span-5 bg-background/60 border-white/10 p-6 rounded-2xl shadow-xl flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-              <span className="text-xs uppercase tracking-wider text-zinc-400 font-semibold">Autonomous Output Preview</span>
+              <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Autonomous Output Preview</span>
               <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
             </div>
 
-            <div className="p-4 rounded-xl bg-black/60 border border-white/10 text-xs text-zinc-300 leading-relaxed font-mono">
+            <div className="p-4 rounded-xl bg-black/60 border border-white/10 text-xs text-foreground/85 leading-relaxed font-mono">
               {agent.sampleOutput}
             </div>
 
-            <div className="mt-4 p-3 rounded-xl bg-primary/5 border border-primary/10 text-xs text-zinc-400 flex items-start gap-2">
-              <ShieldCheck size={16} className="text-violet-400 shrink-0 mt-0.5" />
+            <div className="mt-4 p-3 rounded-xl bg-primary/5 border border-primary/10 text-xs text-muted-foreground flex items-start gap-2">
+              <ShieldCheck size={16} className="text-primary shrink-0 mt-0.5" />
               <span>Full isolation: Your prompts, leads, and customer data are scoped strictly to your tenant organization.</span>
             </div>
           </div>

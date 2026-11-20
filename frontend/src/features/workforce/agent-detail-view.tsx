@@ -195,7 +195,7 @@ export default function AgentDetailView({
 
   if (!agent) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-800 bg-gray-950/40 p-12 text-center">
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-gray-950/40 p-12 text-center">
         <Bot className="size-12 text-gray-600 mb-3" />
         <h2 className="text-base font-semibold text-white">Agent not found</h2>
         <p className="text-xs text-muted-foreground mt-1 mb-4">
@@ -213,7 +213,7 @@ export default function AgentDetailView({
   return (
     <div className="space-y-6 pb-12">
       {/* Top Breadcrumb & Navigation */}
-      <div className="flex items-center justify-between border-b border-gray-800/80 pb-4">
+      <div className="flex items-center justify-between border-b border-border/80 pb-4">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Link href="/app/agents" className="hover:text-white transition-colors flex items-center gap-1">
             <ChevronLeft className="size-3.5" /> All agents
@@ -227,7 +227,7 @@ export default function AgentDetailView({
             variant="outline"
             size="sm"
             onClick={() => setActiveTab('console')}
-            className="rounded-xl border-gray-800 bg-gray-900/40 text-xs font-semibold"
+            className="rounded-xl border-border bg-gray-900/40 text-xs font-semibold"
           >
             <Terminal className="mr-1.5 size-3.5 text-primary" /> Run Task
           </Button>
@@ -242,7 +242,7 @@ export default function AgentDetailView({
       </div>
 
       {/* Cockpit Identity Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-gray-800 bg-gray-950/60 p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-border bg-gray-950/60 p-6">
         <div className="flex items-start gap-4">
           <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-gray-700 bg-gradient-to-br from-gray-900 to-gray-800 text-primary shadow-inner">
             <Bot className="size-7" />
@@ -250,11 +250,11 @@ export default function AgentDetailView({
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-bold tracking-tight text-white">{agent.name}</h1>
-              <span className="rounded-md border border-gray-700 bg-gray-900/80 px-2 py-0.5 text-[11px] font-semibold uppercase text-gray-300">
+              <span className="rounded-md border border-gray-700 bg-gray-900/80 px-2 py-0.5 text-[11px] font-semibold uppercase text-foreground/85">
                 {agent.department}
               </span>
               {agent.is_system ? (
-                <span className="rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[11px] font-medium text-indigo-400">
+                <span className="rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
                   System Agent
                 </span>
               ) : (
@@ -268,12 +268,12 @@ export default function AgentDetailView({
               </span>
             </div>
             <p className="text-xs text-muted-foreground">{agent.role}</p>
-            <p className="text-xs text-gray-400 pt-1 max-w-2xl">{agent.description}</p>
+            <p className="text-xs text-muted-foreground pt-1 max-w-2xl">{agent.description}</p>
           </div>
         </div>
 
-        <div className="flex flex-col sm:items-end gap-1.5 text-xs text-gray-400 font-mono">
-          <span className="rounded bg-gray-900 border border-gray-800 px-2 py-1">
+        <div className="flex flex-col sm:items-end gap-1.5 text-xs text-muted-foreground font-mono">
+          <span className="rounded bg-gray-900 border border-border px-2 py-1">
             {agent.model || 'meta-llama/llama-3.3-70b-instruct'}
           </span>
           <span className="text-[11px] text-gray-500">
@@ -283,7 +283,7 @@ export default function AgentDetailView({
       </div>
 
       {/* Cockpit Tabs Navigation */}
-      <div className="flex items-center gap-1 overflow-x-auto border-b border-gray-800 pb-px">
+      <div className="flex items-center gap-1 overflow-x-auto border-b border-border pb-px">
         {[
           { id: 'overview', label: 'Overview', icon: CheckCircle2 },
           { id: 'operations', label: 'Operations', icon: Layers },
@@ -328,7 +328,7 @@ export default function AgentDetailView({
         <div className="space-y-6">
           {/* Telemetry Metrics */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="rounded-2xl border border-gray-800 bg-gray-950/40 p-4">
+            <div className="rounded-2xl border border-border bg-gray-950/40 p-4">
               <span className="text-[11px] font-medium text-muted-foreground uppercase block">
                 Total Executions
               </span>
@@ -336,7 +336,7 @@ export default function AgentDetailView({
                 {agent.total_executions > 0 ? agent.total_executions : '—'}
               </span>
             </div>
-            <div className="rounded-2xl border border-gray-800 bg-gray-950/40 p-4">
+            <div className="rounded-2xl border border-border bg-gray-950/40 p-4">
               <span className="text-[11px] font-medium text-muted-foreground uppercase block">
                 Verified Success Rate
               </span>
@@ -344,7 +344,7 @@ export default function AgentDetailView({
                 {agent.total_executions > 0 ? '99.4%' : '—'}
               </span>
             </div>
-            <div className="rounded-2xl border border-gray-800 bg-gray-950/40 p-4">
+            <div className="rounded-2xl border border-border bg-gray-950/40 p-4">
               <span className="text-[11px] font-medium text-muted-foreground uppercase block">
                 Authorized Tools
               </span>
@@ -352,7 +352,7 @@ export default function AgentDetailView({
                 {agent.tools?.length || 0}
               </span>
             </div>
-            <div className="rounded-2xl border border-gray-800 bg-gray-950/40 p-4">
+            <div className="rounded-2xl border border-border bg-gray-950/40 p-4">
               <span className="text-[11px] font-medium text-muted-foreground uppercase block">
                 Configuration Version
               </span>
@@ -383,7 +383,7 @@ export default function AgentDetailView({
                 <Loader2 className="size-4 animate-spin text-gray-500" />
               </div>
             ) : activityLogs.length === 0 ? (
-              <div className="rounded-xl border border-gray-800 bg-gray-950/30 p-6 text-center text-xs text-gray-500">
+              <div className="rounded-xl border border-border bg-gray-950/30 p-6 text-center text-xs text-gray-500">
                 No recent activity recorded for {agent.name}. Open Chat and send a message to generate execution logs.
               </div>
             ) : (
@@ -391,11 +391,11 @@ export default function AgentDetailView({
                 {activityLogs.slice(0, 5).map((log) => (
                   <div
                     key={log.id}
-                    className="flex items-center justify-between rounded-xl border border-gray-800/80 bg-gray-950/40 p-3 text-xs"
+                    className="flex items-center justify-between rounded-xl border border-border/80 bg-gray-950/40 p-3 text-xs"
                   >
                     <div className="space-y-0.5">
                       <span className="font-semibold text-white">{log.action}</span>
-                      <p className="text-gray-400 text-[11px]">{log.description || 'Verified execution completed.'}</p>
+                      <p className="text-muted-foreground text-[11px]">{log.description || 'Verified execution completed.'}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
@@ -427,8 +427,8 @@ export default function AgentDetailView({
 
       {/* 4. CONFIGURATION */}
       {activeTab === 'configuration' && (
-        <Card className="rounded-2xl border border-gray-800 bg-gray-950/60 p-6 space-y-6">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-gray-800/80 pb-4">
+        <Card className="rounded-2xl border border-border bg-gray-950/60 p-6 space-y-6">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-border/80 pb-4">
             <div>
               <h3 className="text-sm font-semibold text-white">Versioned Persona & Instructions</h3>
               <p className="text-xs text-muted-foreground">
@@ -451,7 +451,7 @@ export default function AgentDetailView({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-300">Provider</label>
+              <label className="text-xs font-semibold text-foreground/85">Provider</label>
               <select
                 value={configProvider}
                 onChange={(e) => {
@@ -459,7 +459,7 @@ export default function AgentDetailView({
                   setConfigProvider(next);
                   if (next === 'nvidia' && envModel && !configModel.trim()) setConfigModel(envModel);
                 }}
-                className="w-full h-9 rounded-xl border border-gray-800 bg-gray-900/80 px-3 text-xs text-white"
+                className="w-full h-9 rounded-xl border border-border bg-gray-900/80 px-3 text-xs text-white"
               >
                 {AGENT_AI_PROVIDERS.map((item) => (
                   <option key={item.value} value={item.value}>
@@ -476,18 +476,18 @@ export default function AgentDetailView({
             </div>
 
             <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-xs font-semibold text-gray-300">Model Identifier</label>
+              <label className="text-xs font-semibold text-foreground/85">Model Identifier</label>
               <Input
                 value={configModel}
                 onChange={(e) => setConfigModel(e.target.value)}
-                className="rounded-xl border-gray-800 bg-gray-900/80 text-xs text-white font-mono"
+                className="rounded-xl border-border bg-gray-900/80 text-xs text-white font-mono"
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-gray-300">Temperature</label>
+              <label className="text-xs font-semibold text-foreground/85">Temperature</label>
               <span className="font-mono text-xs text-primary">{configTemp}</span>
             </div>
             <input
@@ -502,14 +502,14 @@ export default function AgentDetailView({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-gray-300">System Prompt Directive</label>
+            <label className="text-xs font-semibold text-foreground/85">System Prompt Directive</label>
             <Textarea
               value={configPrompt}
               onChange={(e) => {
                 promptDraftRef.current = e.target.value;
                 setConfigPrompt(e.target.value);
               }}
-              className="min-h-[220px] rounded-xl border-gray-800 bg-gray-900/80 text-xs text-white font-mono leading-relaxed"
+              className="min-h-[220px] rounded-xl border-border bg-gray-900/80 text-xs text-white font-mono leading-relaxed"
             />
           </div>
         </Card>
@@ -527,8 +527,8 @@ export default function AgentDetailView({
 
       {/* 6. ACTIVITY LOGS */}
       {activeTab === 'activity' && (
-        <Card className="rounded-2xl border border-gray-800 bg-gray-950/60 p-6 space-y-4">
-          <div className="flex items-center justify-between border-b border-gray-800/80 pb-3">
+        <Card className="rounded-2xl border border-border bg-gray-950/60 p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-border/80 pb-3">
             <div>
               <h3 className="text-sm font-semibold text-white">Execution Audit Logs</h3>
               <p className="text-xs text-muted-foreground">
@@ -539,7 +539,7 @@ export default function AgentDetailView({
               variant="outline"
               size="sm"
               onClick={loadActivity}
-              className="rounded-xl border-gray-800 text-xs"
+              className="rounded-xl border-border text-xs"
             >
               Refresh
             </Button>
@@ -550,16 +550,16 @@ export default function AgentDetailView({
               <Loader2 className="size-6 animate-spin text-primary" />
             </div>
           ) : activityLogs.length === 0 ? (
-            <div className="rounded-xl border border-gray-800 bg-gray-950/30 p-8 text-center text-xs text-gray-500">
+            <div className="rounded-xl border border-border bg-gray-950/30 p-8 text-center text-xs text-gray-500">
               No execution records found in current audit window.
             </div>
           ) : (
-            <div className="divide-y divide-gray-900 overflow-hidden rounded-xl border border-gray-800 bg-gray-950/40">
+            <div className="divide-y divide-gray-900 overflow-hidden rounded-xl border border-border bg-gray-950/40">
               {activityLogs.map((log) => (
                 <div key={log.id} className="flex flex-col gap-1 p-3.5 sm:flex-row sm:items-center sm:justify-between text-xs">
                   <div className="space-y-0.5">
                     <span className="font-semibold text-white">{log.action}</span>
-                    <p className="text-gray-400 text-[11px]">{log.description || 'Task completed.'}</p>
+                    <p className="text-muted-foreground text-[11px]">{log.description || 'Task completed.'}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <span

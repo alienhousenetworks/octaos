@@ -347,7 +347,7 @@ export default function AuthForms({
             <CardTitle className="text-2xl text-center text-white font-extrabold tracking-tight">
               {verifyingInvite ? "Verifying invitation..." : `Join ${invitationDetails?.company_name || 'Organization'}`}
             </CardTitle>
-            <CardDescription className="text-center text-gray-400 text-xs">
+            <CardDescription className="text-center text-muted-foreground text-xs">
               {invitationError ? (
                 <span className="text-rose-400 font-bold">{invitationError}</span>
               ) : (
@@ -369,40 +369,40 @@ export default function AuthForms({
               </Button>
             ) : verifyingInvite ? (
               <div className="flex justify-center py-8">
-                <Loader2 className="animate-spin h-8 w-8 text-violet-500" />
+                <Loader2 className="animate-spin h-8 w-8 text-primary" />
               </div>
             ) : (
               <form onSubmit={handleAcceptInvite} className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-400">Full Name</label>
+                  <label className="text-xs font-semibold text-muted-foreground">Full Name</label>
                   <Input 
                     placeholder="Jane Doe" 
                     required
                     value={fullName} 
                     onChange={e => setFullName(e.target.value)} 
-                    className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20 h-11 text-sm"
+                    className="bg-background border-border text-white rounded-xl focus:border-primary focus:ring-primary/20 h-11 text-sm"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-400">Email Address</label>
+                  <label className="text-xs font-semibold text-muted-foreground">Email Address</label>
                   <Input 
                     placeholder="name@company.com" 
                     type="email" 
                     required
                     value={email} 
                     onChange={e => setEmail(e.target.value)} 
-                    className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20 h-11 text-sm"
+                    className="bg-background border-border text-white rounded-xl focus:border-primary focus:ring-primary/20 h-11 text-sm"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-400">Password</label>
+                  <label className="text-xs font-semibold text-muted-foreground">Password</label>
                   <Input 
                     placeholder="••••••••" 
                     type="password" 
                     required
                     value={password} 
                     onChange={e => setPassword(e.target.value)} 
-                    className="bg-gray-900/60 border-gray-800 text-white rounded-xl focus:border-violet-500 focus:ring-violet-500/20 h-11 text-sm"
+                    className="bg-background border-border text-white rounded-xl focus:border-primary focus:ring-primary/20 h-11 text-sm"
                   />
                 </div>
 
@@ -415,8 +415,8 @@ export default function AuthForms({
                   </button>
                 </div>
 
-                <div className="text-center text-xs text-gray-400">
-                  Already have an account? <span className="text-violet-400 hover:text-violet-300 cursor-pointer font-bold transition-colors" onClick={() => {
+                <div className="text-center text-xs text-muted-foreground">
+                  Already have an account? <span className="text-primary hover:text-primary-hover cursor-pointer font-bold transition-colors" onClick={() => {
                     setInviteToken?.(null);
                     setAppStateSafe('login');
                   }}>Log in</span>
@@ -551,7 +551,7 @@ export default function AuthForms({
               <span className="text-white font-extrabold text-2xl tracking-tight">OctaOs</span>
             </div>
             <CardTitle className="text-2xl text-center text-white font-extrabold tracking-tight">Access Your Workspace</CardTitle>
-            <CardDescription className="text-center text-gray-400 text-xs">
+            <CardDescription className="text-center text-muted-foreground text-xs">
               {loginMode === 'password' 
                 ? "Enter your email and password to log in directly." 
                 : "Enter your email. A one-time code (OTP) will be sent."}
@@ -646,7 +646,7 @@ export default function AuthForms({
               <span className="text-white font-extrabold text-2xl tracking-tight">OctaOs</span>
             </div>
           <CardTitle className="text-2xl text-center text-white font-extrabold tracking-tight">Deploy Your Workspace</CardTitle>
-          <CardDescription className="text-center text-gray-400 text-xs">Create your admin profile and company details. Setup takes 30 seconds.</CardDescription>
+          <CardDescription className="text-center text-muted-foreground text-xs">Create your admin profile and company details. Setup takes 30 seconds.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pb-8">
             {formError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-red-300">{formError}</p>}

@@ -264,18 +264,18 @@ export default function MembersView({
       {/* Header & Breadcrumb */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
         <div>
-          <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mb-1">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono mb-1">
             <span>Settings</span>
             <span>/</span>
             <span className="text-zinc-200">IAM & Access Governance</span>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-white flex items-center gap-2.5">
             Team & Access Control
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700/60 font-mono">
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-zinc-800 text-foreground/85 border border-zinc-700/60 font-mono">
               {metrics.total} members
             </span>
           </h1>
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Manage enterprise user roles, single-use invitation tokens, and granular functional permissions.
           </p>
         </div>
@@ -304,10 +304,10 @@ export default function MembersView({
 
       {/* KPI Stats Strip (GCP style) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
+        <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-medium">Total Organization Members</span>
-            <Users className="w-3.5 h-3.5 text-zinc-400" />
+            <Users className="w-3.5 h-3.5 text-muted-foreground" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-semibold text-white tracking-tight">{metrics.total}</span>
@@ -315,19 +315,19 @@ export default function MembersView({
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
+        <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-medium">Administrators & Owners</span>
-            <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
+            <ShieldCheck className="w-3.5 h-3.5 text-primary" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-semibold text-white tracking-tight">{metrics.admins}</span>
-            <span className="text-[11px] text-indigo-400/80 font-medium">Full governance</span>
+            <span className="text-[11px] text-primary/80 font-medium">Full governance</span>
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
+        <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-medium">Standard Operators</span>
             <Shield className="w-3.5 h-3.5 text-emerald-400" />
           </div>
@@ -340,13 +340,13 @@ export default function MembersView({
 
       {/* Segmented View Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="inline-flex p-1 rounded-lg bg-zinc-900/90 border border-white/[0.08]">
+        <div className="inline-flex p-1 rounded-lg bg-card/90 border border-white/[0.08]">
           <button
             onClick={() => setActiveTab('members')}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
               activeTab === 'members'
                 ? 'bg-zinc-800 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
+                : 'text-muted-foreground hover:text-zinc-200'
             }`}
           >
             Team Directory
@@ -356,7 +356,7 @@ export default function MembersView({
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
               activeTab === 'matrix'
                 ? 'bg-zinc-800 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
+                : 'text-muted-foreground hover:text-zinc-200'
             }`}
           >
             Role & Permissions Matrix
@@ -369,7 +369,7 @@ export default function MembersView({
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              className="h-8 text-xs bg-zinc-900/60 border border-white/[0.08] text-zinc-300 rounded-md px-2.5 focus:border-zinc-500 focus:outline-none"
+              className="h-8 text-xs bg-card/60 border border-white/[0.08] text-foreground/85 rounded-md px-2.5 focus:border-zinc-500 focus:outline-none"
             >
               <option value="all">All Roles</option>
               <option value="admin">Administrators</option>
@@ -379,12 +379,12 @@ export default function MembersView({
 
             {/* Search */}
             <div className="relative w-full sm:w-60">
-              <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by name or email…"
-                className="h-8 pl-8 text-xs bg-zinc-900/60 border-white/[0.08] focus:border-zinc-500 rounded-md placeholder:text-zinc-500"
+                className="h-8 pl-8 text-xs bg-card/60 border-white/[0.08] focus:border-zinc-500 rounded-md placeholder:text-zinc-500"
               />
             </div>
           </div>
@@ -393,10 +393,10 @@ export default function MembersView({
 
       {/* Main Tab Content */}
       {activeTab === 'members' ? (
-        <div className="rounded-xl border border-white/[0.08] bg-[#111318] overflow-hidden">
+        <div className="rounded-xl border border-white/[0.08] bg-[#11161c] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-zinc-900/80 border-b border-white/[0.08] text-zinc-400 font-mono uppercase tracking-wider text-[11px]">
+              <thead className="bg-card/80 border-b border-white/[0.08] text-muted-foreground font-mono uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="py-3 px-4 font-medium">User Profile</th>
                   <th className="py-3 px-4 font-medium">System Role</th>
@@ -407,14 +407,14 @@ export default function MembersView({
               <tbody className="divide-y divide-white/[0.06]">
                 {loading && members.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-12 text-center text-zinc-400">
+                    <td colSpan={4} className="py-12 text-center text-muted-foreground">
                       <Loader2 className="w-5 h-5 mx-auto mb-2 animate-spin text-zinc-500" />
                       Loading team directory…
                     </td>
                   </tr>
                 ) : filteredMembers.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-12 text-center text-zinc-400">
+                    <td colSpan={4} className="py-12 text-center text-muted-foreground">
                       No members found matching your search.
                     </td>
                   </tr>
@@ -449,8 +449,8 @@ export default function MembersView({
                             onChange={(e) => handleRoleChange(member.id, e.target.value)}
                             className={`text-xs font-medium rounded-md px-2.5 py-1 border focus:outline-none cursor-pointer transition-colors ${
                               isAdmin
-                                ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30'
-                                : 'bg-zinc-800 text-zinc-300 border-zinc-700/60'
+                                ? 'bg-primary/10 text-primary border-primary/30'
+                                : 'bg-zinc-800 text-foreground/85 border-zinc-700/60'
                             }`}
                           >
                             <option value="admin">Administrator</option>
@@ -463,16 +463,16 @@ export default function MembersView({
                         {/* Scopes Column */}
                         <td className="py-3.5 px-4">
                           {isAdmin ? (
-                            <span className="inline-flex items-center gap-1.5 text-[11px] font-mono text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-md">
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-mono text-primary bg-primary/10 border border-primary/25 px-2 py-0.5 rounded-md">
                               <ShieldCheck className="w-3 h-3" />
                               All Modules (Full Root)
                             </span>
                           ) : (
                             <button
                               onClick={() => setEditingMember(member)}
-                              className="inline-flex items-center gap-1.5 text-[11px] font-mono text-zinc-300 hover:text-white bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/60 px-2.5 py-1 rounded-md transition-colors"
+                              className="inline-flex items-center gap-1.5 text-[11px] font-mono text-foreground/85 hover:text-white bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/60 px-2.5 py-1 rounded-md transition-colors"
                             >
-                              <Settings2 className="w-3 h-3 text-zinc-400" />
+                              <Settings2 className="w-3 h-3 text-muted-foreground" />
                               {allowedCount} of {SECTIONS.length} Modules Authorized
                               <ChevronRight className="w-3 h-3 text-zinc-500" />
                             </button>
@@ -485,7 +485,7 @@ export default function MembersView({
                             size="sm"
                             variant="ghost"
                             onClick={() => handleDeleteMember(member.id)}
-                            className="h-8 w-8 p-0 text-zinc-400 hover:text-rose-400 hover:bg-rose-950/20 rounded-md"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-400 hover:bg-rose-950/20 rounded-md"
                             title="Remove Member Access"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -501,31 +501,31 @@ export default function MembersView({
         </div>
       ) : (
         /* GCP IAM Role Matrix View */
-        <div className="rounded-xl border border-white/[0.08] bg-[#111318] overflow-hidden">
-          <div className="p-4 border-b border-white/[0.08] bg-zinc-900/50">
+        <div className="rounded-xl border border-white/[0.08] bg-[#11161c] overflow-hidden">
+          <div className="p-4 border-b border-white/[0.08] bg-card/50">
             <h3 className="text-sm font-semibold text-white">Role-Based Access Governance Matrix</h3>
-            <p className="text-xs text-zinc-400 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Reference specification of canonical authorization levels across OctaOS subsystems.
             </p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-zinc-900/80 border-b border-white/[0.08] text-zinc-400 font-mono uppercase tracking-wider text-[11px]">
+              <thead className="bg-card/80 border-b border-white/[0.08] text-muted-foreground font-mono uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="py-3 px-4 font-medium">Resource / Subsystem</th>
-                  <th className="py-3 px-4 font-medium text-indigo-400">Administrator</th>
+                  <th className="py-3 px-4 font-medium text-primary">Administrator</th>
                   <th className="py-3 px-4 font-medium text-emerald-400">Manager</th>
-                  <th className="py-3 px-4 font-medium text-zinc-300">Member (Agent)</th>
-                  <th className="py-3 px-4 font-medium text-zinc-400">Viewer</th>
+                  <th className="py-3 px-4 font-medium text-foreground/85">Member (Agent)</th>
+                  <th className="py-3 px-4 font-medium text-muted-foreground">Viewer</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.06]">
                 {PERMISSIONS_MATRIX.map((row, idx) => (
                   <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
                     <td className="py-3 px-4 font-medium text-white">{row.resource}</td>
-                    <td className="py-3 px-4 font-mono text-[11px] text-indigo-300">{row.admin}</td>
+                    <td className="py-3 px-4 font-mono text-[11px] text-primary">{row.admin}</td>
                     <td className="py-3 px-4 font-mono text-[11px] text-emerald-300">{row.manager}</td>
-                    <td className="py-3 px-4 font-mono text-[11px] text-zinc-300">{row.agent}</td>
+                    <td className="py-3 px-4 font-mono text-[11px] text-foreground/85">{row.agent}</td>
                     <td className="py-3 px-4 font-mono text-[11px] text-zinc-500">{row.viewer}</td>
                   </tr>
                 ))}
@@ -540,32 +540,32 @@ export default function MembersView({
         <DialogContent className="sm:max-w-md bg-[#12141a] border-white/[0.08] text-white p-6 rounded-2xl shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold tracking-tight text-white flex items-center gap-2">
-              <UserPlus className="w-4 h-4 text-zinc-300" />
+              <UserPlus className="w-4 h-4 text-foreground/85" />
               Invite Team Member
             </DialogTitle>
-            <DialogDescription className="text-xs text-zinc-400">
+            <DialogDescription className="text-xs text-muted-foreground">
               Generate a cryptographically signed invitation link with predetermined role credentials.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleGenerateInvite} className="space-y-4 mt-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-300">Recipient Email (Optional)</label>
+              <label className="text-xs font-medium text-foreground/85">Recipient Email (Optional)</label>
               <Input
                 type="email"
                 placeholder="colleague@enterprise.com"
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
-                className="h-9 text-xs bg-zinc-900 border-white/[0.08] focus:border-zinc-500 rounded-md"
+                className="h-9 text-xs bg-card border-white/[0.08] focus:border-zinc-500 rounded-md"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-300">Assigned Organization Role</label>
+              <label className="text-xs font-medium text-foreground/85">Assigned Organization Role</label>
               <select
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value)}
-                className="w-full h-9 text-xs bg-zinc-900 border border-white/[0.08] rounded-md px-3 text-zinc-200 focus:border-zinc-500 focus:outline-none"
+                className="w-full h-9 text-xs bg-card border border-white/[0.08] rounded-md px-3 text-zinc-200 focus:border-zinc-500 focus:outline-none"
               >
                 <option value="member">Member (Operator)</option>
                 <option value="admin">Administrator</option>
@@ -598,7 +598,7 @@ export default function MembersView({
                   <Input
                     readOnly
                     value={generatedLink}
-                    className="h-8 text-xs font-mono bg-zinc-900 border-white/[0.08] text-zinc-300"
+                    className="h-8 text-xs font-mono bg-card border-white/[0.08] text-foreground/85"
                   />
                   <Button
                     type="button"
@@ -620,10 +620,10 @@ export default function MembersView({
         <DialogContent className="sm:max-w-lg bg-[#12141a] border-white/[0.08] text-white p-6 rounded-2xl shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold tracking-tight text-white flex items-center gap-2">
-              <Settings2 className="w-4 h-4 text-zinc-300" />
+              <Settings2 className="w-4 h-4 text-foreground/85" />
               Authorized Modules for {editingMember?.name || editingMember?.email}
             </DialogTitle>
-            <DialogDescription className="text-xs text-zinc-400">
+            <DialogDescription className="text-xs text-muted-foreground">
               Enable or restrict access to specific domain agent workspaces for this user.
             </DialogDescription>
           </DialogHeader>
@@ -638,15 +638,15 @@ export default function MembersView({
                   key={sec.id}
                   className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition-colors ${
                     allowed
-                      ? 'bg-zinc-900/80 border-white/[0.12] text-zinc-200 font-medium'
-                      : 'bg-zinc-950/40 border-white/[0.04] text-zinc-500'
+                      ? 'bg-card/80 border-white/[0.12] text-zinc-200 font-medium'
+                      : 'bg-background/40 border-white/[0.04] text-zinc-500'
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={allowed}
                     onChange={() => handleToggleSection(sec.id)}
-                    className="rounded border-zinc-700 text-indigo-600 focus:ring-0 bg-zinc-900"
+                    className="rounded border-zinc-700 text-indigo-600 focus:ring-0 bg-card"
                   />
                   <span>{sec.name}</span>
                 </label>

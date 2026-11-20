@@ -193,9 +193,9 @@ export default function CEOView({
     if (d.includes('engine') || d.includes('tech')) return 'bg-cyan-950/70 border-cyan-800/50 text-cyan-300';
     if (d.includes('operat')) return 'bg-blue-950/70 border-blue-800/50 text-blue-300';
     if (d.includes('prod')) return 'bg-teal-950/70 border-teal-800/50 text-teal-300';
-    if (d.includes('legal') || d.includes('regulat')) return 'bg-violet-950/70 border-violet-800/50 text-violet-300';
+    if (d.includes('legal') || d.includes('regulat')) return 'bg-violet-950/70 border-violet-800/50 text-primary-hover';
     if (d.includes('risk') || d.includes('red') || d.includes('adversar')) return 'bg-red-950/70 border-red-800/50 text-red-300';
-    return 'bg-slate-800 border-slate-700 text-slate-300';
+    return 'bg-slate-800 border-slate-700 text-foreground/85';
   };
 
   const getAssignedAgent = (dept: string) => {
@@ -1127,29 +1127,29 @@ export default function CEOView({
   }, [effectiveNodes]);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16 font-sans text-slate-100">
+    <div className="space-y-6 max-w-7xl mx-auto pb-16 font-sans text-foreground">
       {/* 1. Reconciled Executive Vitals Strip */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm backdrop-blur">
+        <div className="bg-card/80 border border-border/80 rounded-2xl p-4 shadow-sm backdrop-blur">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Active Pipelines</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Active Pipelines</span>
             <Activity className="h-4 w-4 text-sky-400" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-white">{vitals.active_pipelines}</span>
-            <span className="text-xs text-slate-400">({vitals.completed_pipelines} completed)</span>
+            <span className="text-xs text-muted-foreground">({vitals.completed_pipelines} completed)</span>
           </div>
-          <p className="text-xs text-slate-400 mt-1">Autonomous executive DAGs in progress</p>
+          <p className="text-xs text-muted-foreground mt-1">Autonomous executive DAGs in progress</p>
         </div>
 
-        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm backdrop-blur">
+        <div className="bg-card/80 border border-border/80 rounded-2xl p-4 shadow-sm backdrop-blur">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Budget Envelope</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Budget Envelope</span>
             <DollarSign className="h-4 w-4 text-emerald-400" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-white">${vitals.total_budget_spent.toLocaleString()}</span>
-            <span className="text-xs text-slate-400">/ ${vitals.total_budget_allocated.toLocaleString()}</span>
+            <span className="text-xs text-muted-foreground">/ ${vitals.total_budget_allocated.toLocaleString()}</span>
           </div>
           <div className="w-full bg-slate-800 rounded-full h-1.5 mt-2 overflow-hidden">
             <div
@@ -1157,24 +1157,24 @@ export default function CEOView({
               style={{ width: `${Math.min(vitals.budget_utilization_pct, 100)}%` }}
             />
           </div>
-          <p className="text-xs text-slate-400 mt-1">{vitals.budget_utilization_pct}% authorized capital utilized</p>
+          <p className="text-xs text-muted-foreground mt-1">{vitals.budget_utilization_pct}% authorized capital utilized</p>
         </div>
 
-        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm backdrop-blur">
+        <div className="bg-card/80 border border-border/80 rounded-2xl p-4 shadow-sm backdrop-blur">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Governance Gates</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Governance Gates</span>
             <Shield className="h-4 w-4 text-amber-400" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-white">{vitals.pending_approvals_count}</span>
             <span className="text-xs text-amber-400 font-medium">Pending Approvals</span>
           </div>
-          <p className="text-xs text-slate-400 mt-1">Dual-Key and $R3/$R4 policy checkpoints</p>
+          <p className="text-xs text-muted-foreground mt-1">Dual-Key and $R3/$R4 policy checkpoints</p>
         </div>
 
-        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm backdrop-blur">
+        <div className="bg-card/80 border border-border/80 rounded-2xl p-4 shadow-sm backdrop-blur">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Control Plane Status</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Control Plane Status</span>
             <span className={`h-2.5 w-2.5 rounded-full ${vitals.system_status === 'HEALTHY' ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`} />
           </div>
           <div className="mt-2">
@@ -1182,7 +1182,7 @@ export default function CEOView({
               {vitals.system_status === 'HEALTHY' ? 'Deterministic & Compliant' : 'Attention Required'}
             </span>
           </div>
-          <p className="text-xs text-slate-400 mt-1">Zero unverified leakage | AST Fail-Closed</p>
+          <p className="text-xs text-muted-foreground mt-1">Zero unverified leakage | AST Fail-Closed</p>
         </div>
       </div>
 
@@ -1196,7 +1196,7 @@ export default function CEOView({
       )}
 
       {/* 2. Business Autonomy & Control Plane Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/90 border border-slate-800 p-4 rounded-3xl shadow-md">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card/90 border border-border p-4 rounded-3xl shadow-md">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-primary/10 border border-primary/20 rounded-xl text-primary shadow-xs">
             <Target className="h-6 w-6" />
@@ -1216,11 +1216,11 @@ export default function CEOView({
         </div>
 
         <div className="flex items-center gap-2.5">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-950/80 border border-slate-800 rounded-2xl text-xs text-slate-300">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-background/80 border border-border rounded-2xl text-xs text-foreground/85">
             <Building className="h-3.5 w-3.5 text-sky-400" />
-            <span className="text-slate-400">Tenant:</span>
+            <span className="text-muted-foreground">Tenant:</span>
             <span className="font-semibold text-white">{companyContext?.company_name || 'OctaOS Enterprise'}</span>
-            <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700">
+            <span className="text-[10px] bg-slate-800 text-foreground/85 px-2 py-0.5 rounded-full border border-slate-700">
               {companyContext?.industry || 'B2B Automation'}
             </span>
           </div>
@@ -1228,14 +1228,14 @@ export default function CEOView({
       </div>
 
       {/* 3. Top-Level Control Plane Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
-        <div className="flex items-center gap-2 bg-slate-900/60 p-1 rounded-2xl border border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 pb-3">
+        <div className="flex items-center gap-2 bg-card/60 p-1 rounded-2xl border border-border">
           <button
             onClick={() => setActivePlaneTab('OBJECTIVES')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
               activePlaneTab === 'OBJECTIVES'
                 ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                : 'text-muted-foreground hover:text-slate-200 hover:bg-slate-800/40'
             }`}
           >
             <Target className="h-4 w-4" />
@@ -1251,8 +1251,8 @@ export default function CEOView({
             onClick={() => setActivePlaneTab('PORTFOLIO')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
               activePlaneTab === 'PORTFOLIO'
-                ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
+                : 'text-muted-foreground hover:text-slate-200 hover:bg-slate-800/40'
             }`}
           >
             <Layers className="h-4 w-4" />
@@ -1264,7 +1264,7 @@ export default function CEOView({
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
               activePlaneTab === 'OPERATIONS'
                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                : 'text-muted-foreground hover:text-slate-200 hover:bg-slate-800/40'
             }`}
           >
             <Activity className="h-4 w-4" />
@@ -1279,41 +1279,41 @@ export default function CEOView({
             }>
               <Plus size={14} /> Define Objective Commitment
             </DialogTrigger>
-            <DialogContent className="border border-slate-800 text-white max-w-lg rounded-3xl p-6 bg-slate-950/95 shadow-2xl backdrop-blur-2xl">
+            <DialogContent className="border border-border text-white max-w-lg rounded-3xl p-6 bg-background/95 shadow-2xl backdrop-blur-2xl">
               <DialogHeader>
                 <DialogTitle className="text-base font-bold text-white flex items-center gap-2">
                   <Target className="text-sky-400 h-5 w-5" /> Commit New Strategic Objective
                 </DialogTitle>
-                <CardDescription className="text-xs text-slate-400">
+                <CardDescription className="text-xs text-muted-foreground">
                   Objectives are versioned commitments bound to target KPIs, budget ceilings, and deadlines.
                 </CardDescription>
               </DialogHeader>
               <div className="space-y-3.5 mt-3">
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-slate-300">Objective Title</label>
+                  <label className="text-xs font-semibold text-foreground/85">Objective Title</label>
                   <Input
                     placeholder="e.g. Reduce Enterprise Customer Churn from 8% to 5%"
                     value={newObjTitle}
                     onChange={(e) => setNewObjTitle(e.target.value)}
-                    className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                    className="bg-card border-border text-white rounded-xl text-xs h-9 focus:border-sky-500"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-300">Target Metric Code</label>
+                    <label className="text-xs font-semibold text-foreground/85">Target Metric Code</label>
                     <Input
                       placeholder="e.g. churn_rate or mrr_growth"
                       value={newObjMetric}
                       onChange={(e) => setNewObjMetric(e.target.value)}
-                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                      className="bg-card border-border text-white rounded-xl text-xs h-9 focus:border-sky-500"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-300">Department Scope</label>
+                    <label className="text-xs font-semibold text-foreground/85">Department Scope</label>
                     <select
                       value={newObjDept}
                       onChange={(e) => setNewObjDept(e.target.value)}
-                      className="bg-slate-900 border border-slate-800 text-white rounded-xl text-xs h-9 px-2 focus:border-sky-500"
+                      className="bg-card border border-border text-white rounded-xl text-xs h-9 px-2 focus:border-sky-500"
                     >
                       <option value="ENTERPRISE">Enterprise-Wide</option>
                       <option value="SALES">Sales & Pipeline</option>
@@ -1326,54 +1326,54 @@ export default function CEOView({
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-300">Baseline Value</label>
+                    <label className="text-xs font-semibold text-foreground/85">Baseline Value</label>
                     <Input
                       type="number"
                       placeholder="0"
                       value={newObjBaseline}
                       onChange={(e) => setNewObjBaseline(e.target.value)}
-                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                      className="bg-card border-border text-white rounded-xl text-xs h-9 focus:border-sky-500"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-300">Target Value</label>
+                    <label className="text-xs font-semibold text-foreground/85">Target Value</label>
                     <Input
                       type="number"
                       placeholder="100"
                       value={newObjTarget}
                       onChange={(e) => setNewObjTarget(e.target.value)}
-                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                      className="bg-card border-border text-white rounded-xl text-xs h-9 focus:border-sky-500"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-300">Unit</label>
+                    <label className="text-xs font-semibold text-foreground/85">Unit</label>
                     <Input
                       placeholder="percent, USD, count"
                       value={newObjUnit}
                       onChange={(e) => setNewObjUnit(e.target.value)}
-                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                      className="bg-card border-border text-white rounded-xl text-xs h-9 focus:border-sky-500"
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-300">Budget Envelope ($)</label>
+                    <label className="text-xs font-semibold text-foreground/85">Budget Envelope ($)</label>
                     <Input
                       type="number"
                       placeholder="20000"
                       value={newObjBudget}
                       onChange={(e) => setNewObjBudget(e.target.value)}
-                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                      className="bg-card border-border text-white rounded-xl text-xs h-9 focus:border-sky-500"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-300">Deadline Horizon (Days)</label>
+                    <label className="text-xs font-semibold text-foreground/85">Deadline Horizon (Days)</label>
                     <Input
                       type="number"
                       placeholder="90"
                       value={newObjDeadlineDays}
                       onChange={(e) => setNewObjDeadlineDays(e.target.value)}
-                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                      className="bg-card border-border text-white rounded-xl text-xs h-9 focus:border-sky-500"
                     />
                   </div>
                 </div>
@@ -1395,61 +1395,61 @@ export default function CEOView({
         <div className="space-y-6 animate-in fade-in">
           {/* Objectives Summary Strip */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+            <div className="bg-card/60 border border-border rounded-2xl p-4">
+              <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold uppercase">
                 <span>Total Objectives</span>
                 <Target className="h-4 w-4 text-sky-400" />
               </div>
               <div className="text-2xl font-bold text-white mt-1">{objectivesList.length}</div>
-              <p className="text-[11px] text-slate-400 mt-0.5">Versioned organizational commitments</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Versioned organizational commitments</p>
             </div>
 
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+            <div className="bg-card/60 border border-border rounded-2xl p-4">
+              <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold uppercase">
                 <span>Strategic Health</span>
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
               </div>
               <div className="text-2xl font-bold text-emerald-400 mt-1">
                 {objectivesList.filter(o => o.health === 'ON_TRACK').length} On Track
               </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">
+              <p className="text-[11px] text-muted-foreground mt-0.5">
                 {objectivesList.filter(o => o.health === 'AT_RISK').length} at risk | {objectivesList.filter(o => o.health === 'NEEDS_ATTENTION').length} attention
               </p>
             </div>
 
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+            <div className="bg-card/60 border border-border rounded-2xl p-4">
+              <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold uppercase">
                 <span>Total Capital Committed</span>
-                <DollarSign className="h-4 w-4 text-indigo-400" />
+                <DollarSign className="h-4 w-4 text-primary" />
               </div>
               <div className="text-2xl font-bold text-white mt-1">
                 ${objectivesList.reduce((acc, o) => acc + (o.budget_limit || 0), 0).toLocaleString()}
               </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">Allocated budget ceiling across goals</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Allocated budget ceiling across goals</p>
             </div>
 
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+            <div className="bg-card/60 border border-border rounded-2xl p-4">
+              <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold uppercase">
                 <span>Consumed Budget</span>
                 <TrendingUp className="h-4 w-4 text-amber-400" />
               </div>
               <div className="text-2xl font-bold text-white mt-1">
                 ${objectivesList.reduce((acc, o) => acc + (o.consumed_budget || 0), 0).toLocaleString()}
               </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">Real-world expenditure tracked to date</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Real-world expenditure tracked to date</p>
             </div>
           </div>
 
           {/* Objectives Grid */}
           {isLoadingObjectives ? (
-            <div className="flex items-center justify-center p-12 text-slate-400 text-xs">
+            <div className="flex items-center justify-center p-12 text-muted-foreground text-xs">
               <Loader2 className="animate-spin h-5 w-5 mr-2 text-sky-400" /> Loading objective commitments...
             </div>
           ) : objectivesList.length === 0 ? (
-            <div className="bg-slate-900/50 border border-dashed border-slate-800 rounded-3xl p-12 text-center space-y-3">
+            <div className="bg-card/50 border border-dashed border-border rounded-3xl p-12 text-center space-y-3">
               <Target className="h-10 w-10 text-slate-500 mx-auto" />
               <h3 className="text-sm font-bold text-white">No Strategic Objectives Committed Yet</h3>
-              <p className="text-xs text-slate-400 max-w-md mx-auto">
+              <p className="text-xs text-muted-foreground max-w-md mx-auto">
                 Define your company's measurable goals (e.g. churn reduction, revenue expansion, hiring ramp). The Business Autonomy Plane will coordinate cross-department DAG workflows and budget envelopes to achieve them.
               </p>
               <Button
@@ -1464,12 +1464,12 @@ export default function CEOView({
               {objectivesList.map((obj) => (
                 <div
                   key={obj.id}
-                  className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 shadow-sm space-y-4 hover:border-slate-700 transition-all"
+                  className="bg-card/80 border border-border rounded-3xl p-5 shadow-sm space-y-4 hover:border-slate-700 transition-all"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-bold">
+                        <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-slate-800 text-foreground/85 border border-slate-700 font-bold">
                           {obj.department || 'Enterprise'}
                         </span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
@@ -1484,7 +1484,7 @@ export default function CEOView({
                         <span className="text-[10px] text-slate-500 font-mono">v{obj.version}</span>
                       </div>
                       <h3 className="text-sm font-bold text-white mt-1.5">{obj.title}</h3>
-                      {obj.description && <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{obj.description}</p>}
+                      {obj.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{obj.description}</p>}
                     </div>
 
                     <div className="text-right shrink-0">
@@ -1494,11 +1494,11 @@ export default function CEOView({
                   </div>
 
                   {/* Target Metric Progress Bar */}
-                  <div className="space-y-1.5 bg-slate-950/60 border border-slate-800/60 p-3 rounded-2xl">
+                  <div className="space-y-1.5 bg-background/60 border border-border/60 p-3 rounded-2xl">
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400 font-medium">Metric: <span className="text-slate-200 font-semibold">{obj.target_metric}</span></span>
+                      <span className="text-muted-foreground font-medium">Metric: <span className="text-slate-200 font-semibold">{obj.target_metric}</span></span>
                       <span className="text-white font-bold font-mono">
-                        {obj.current_value} / {obj.target_value} <span className="text-slate-400 text-[10px]">{obj.unit}</span>
+                        {obj.current_value} / {obj.target_value} <span className="text-muted-foreground text-[10px]">{obj.unit}</span>
                       </span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-2 overflow-hidden border border-border">
@@ -1515,15 +1515,15 @@ export default function CEOView({
 
                   {/* Financial & Deadline Footer */}
                   <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                    <div className="bg-slate-950/40 p-2 rounded-xl border border-slate-800/40">
-                      <span className="text-slate-400 block text-[10px]">Budget Envelope</span>
+                    <div className="bg-background/40 p-2 rounded-xl border border-border/40">
+                      <span className="text-muted-foreground block text-[10px]">Budget Envelope</span>
                       <span className="font-semibold text-white">
                         ${obj.consumed_budget.toLocaleString()} / ${obj.budget_limit.toLocaleString()}
                       </span>
                       <span className="text-[10px] text-slate-500 block">({obj.budget_utilization_pct}% used)</span>
                     </div>
-                    <div className="bg-slate-950/40 p-2 rounded-xl border border-slate-800/40">
-                      <span className="text-slate-400 block text-[10px]">Deadline Horizon</span>
+                    <div className="bg-background/40 p-2 rounded-xl border border-border/40">
+                      <span className="text-muted-foreground block text-[10px]">Deadline Horizon</span>
                       <span className="font-semibold text-white">
                         {obj.deadline ? new Date(obj.deadline).toLocaleDateString() : 'Continuous'}
                       </span>
@@ -1532,7 +1532,7 @@ export default function CEOView({
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/60">
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/60">
                     <Button
                       size="sm"
                       variant="ghost"
@@ -1561,22 +1561,22 @@ export default function CEOView({
           {/* Record Progress Modal */}
           {selectedObjForMetric && (
             <Dialog open={!!selectedObjForMetric} onOpenChange={() => setSelectedObjForMetric(null)}>
-              <DialogContent className="border border-slate-800 text-white max-w-md rounded-3xl p-6 bg-slate-950/95 shadow-2xl backdrop-blur-2xl">
+              <DialogContent className="border border-border text-white max-w-md rounded-3xl p-6 bg-background/95 shadow-2xl backdrop-blur-2xl">
                 <DialogHeader>
                   <DialogTitle className="text-base font-bold text-white flex items-center gap-2">
                     <Activity className="text-sky-400 h-5 w-5" /> Record Objective Telemetry
                   </DialogTitle>
-                  <CardDescription className="text-xs text-slate-400">
+                  <CardDescription className="text-xs text-muted-foreground">
                     Record observed metric progress and budget spent to calibrate variance.
                   </CardDescription>
                 </DialogHeader>
                 <div className="space-y-3.5 mt-3">
                   <div>
-                    <span className="text-xs text-slate-400 block">Objective</span>
+                    <span className="text-xs text-muted-foreground block">Objective</span>
                     <span className="text-sm font-bold text-white">{selectedObjForMetric.title}</span>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-300">
+                    <label className="text-xs font-semibold text-foreground/85">
                       New Measured Value ({selectedObjForMetric.unit})
                     </label>
                     <Input
@@ -1585,26 +1585,26 @@ export default function CEOView({
                       placeholder={String(selectedObjForMetric.current_value)}
                       value={metricMeasuredValue}
                       onChange={(e) => setMetricMeasuredValue(e.target.value)}
-                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                      className="bg-card border-border text-white rounded-xl text-xs h-9 focus:border-sky-500"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-300">Budget Spent to Date ($)</label>
+                    <label className="text-xs font-semibold text-foreground/85">Budget Spent to Date ($)</label>
                     <Input
                       type="number"
                       step="any"
                       placeholder={String(selectedObjForMetric.consumed_budget)}
                       value={metricBudgetSpent}
                       onChange={(e) => setMetricBudgetSpent(e.target.value)}
-                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-sky-500"
+                      className="bg-card border-border text-white rounded-xl text-xs h-9 focus:border-sky-500"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-300">Evidence / Telemetry Source</label>
+                    <label className="text-xs font-semibold text-foreground/85">Evidence / Telemetry Source</label>
                     <select
                       value={metricEvidenceSource}
                       onChange={(e) => setMetricEvidenceSource(e.target.value)}
-                      className="bg-slate-900 border border-slate-800 text-white rounded-xl text-xs h-9 px-2 focus:border-sky-500"
+                      className="bg-card border border-border text-white rounded-xl text-xs h-9 px-2 focus:border-sky-500"
                     >
                       <option value="crm_sync">CRM & Deal Sync</option>
                       <option value="stripe_sync">Stripe / Revenue Gateway</option>
@@ -1632,7 +1632,7 @@ export default function CEOView({
       <div className="space-y-6 animate-in fade-in">
         <div className="space-y-6 animate-in fade-in">
           {/* Executive Directives & Workspaces (Last CEO Works) Section */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-lg space-y-3">
+          <div className="bg-card/90 border border-border rounded-3xl p-4 shadow-lg space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-sky-950/70 border border-sky-800/60 rounded-xl text-sky-400">
@@ -1650,7 +1650,7 @@ export default function CEOView({
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-slate-400">Manage previous CEO strategic directives, review council deliberations, or launch new runs.</p>
+                  <p className="text-[11px] text-muted-foreground">Manage previous CEO strategic directives, review council deliberations, or launch new runs.</p>
                 </div>
               </div>
 
@@ -1666,7 +1666,7 @@ export default function CEOView({
                 <button
                   type="button"
                   onClick={() => setIsWorkspacesSectionOpen(!isWorkspacesSectionOpen)}
-                  className="p-1.5 text-slate-400 hover:text-white rounded-xl bg-slate-950/60 border border-slate-800 hover:border-slate-700 transition-all"
+                  className="p-1.5 text-muted-foreground hover:text-white rounded-xl bg-background/60 border border-border hover:border-slate-700 transition-all"
                   title={isWorkspacesSectionOpen ? "Collapse history" : "Expand history"}
                 >
                   {isWorkspacesSectionOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -1676,9 +1676,9 @@ export default function CEOView({
 
             {/* Collapsible list of workspaces */}
             {isWorkspacesSectionOpen && (
-              <div className="pt-2 border-t border-slate-800/60 space-y-2">
+              <div className="pt-2 border-t border-border/60 space-y-2">
                 {ceoWorkflows.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-slate-500 bg-slate-950/40 rounded-2xl border border-slate-800/50">
+                  <div className="p-4 text-center text-xs text-slate-500 bg-background/40 rounded-2xl border border-border/50">
                     No executive directives saved yet. Enter a directive prompt below to draft your first strategic plan!
                   </div>
                 ) : (
@@ -1691,7 +1691,7 @@ export default function CEOView({
                           className={`p-3 rounded-2xl border transition-all text-xs flex flex-col justify-between gap-2.5 ${
                             isSelected
                               ? 'bg-sky-950/50 border-sky-500/70 shadow-sm shadow-sky-500/10 ring-1 ring-sky-500/40'
-                              : 'bg-slate-950/70 border-slate-800/80 hover:border-slate-700'
+                              : 'bg-background/70 border-border/80 hover:border-slate-700'
                           }`}
                         >
                           <div className="space-y-1">
@@ -1699,7 +1699,7 @@ export default function CEOView({
                               <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full border ${
                                 w.status === 'RUNNING' || w.status === 'ACTIVE' ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60 animate-pulse' :
                                 w.status === 'COMPLETED' ? 'bg-sky-950/80 text-sky-300 border-sky-800/60' :
-                                'bg-slate-900 text-slate-400 border border-slate-800'
+                                'bg-card text-muted-foreground border border-border'
                               }`}>
                                 {w.status || 'DRAFT'}
                               </span>
@@ -1710,13 +1710,13 @@ export default function CEOView({
                             <h4 className="font-bold text-white text-xs line-clamp-1" title={w.name || w.objective}>
                               {w.name || w.objective || `Directive ${w.id.slice(0, 8)}`}
                             </h4>
-                            <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                               <span>Budget: <strong className="text-white">${Number(w.estimated_budget || 25000).toLocaleString()}</strong></span>
                               {w.roi_multiple && <span>ROI: <strong className="text-emerald-400">{w.roi_multiple}x</strong></span>}
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between gap-1 pt-1.5 border-t border-slate-800/50">
+                          <div className="flex items-center justify-between gap-1 pt-1.5 border-t border-border/50">
                             <button
                               type="button"
                               onClick={() => handleLoadWorkspaceState(w.id)}
@@ -1750,7 +1750,7 @@ export default function CEOView({
           </div>
 
           {/* Stepper Navigation Bar */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-3 shadow-lg">
+          <div className="bg-card/90 border border-border rounded-3xl p-3 shadow-lg">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               <button
                 onClick={() => setInteractiveStep(1)}
@@ -1758,17 +1758,17 @@ export default function CEOView({
                   interactiveStep === 1
                     ? 'bg-sky-950/60 border-sky-500/70 text-white shadow-sm'
                     : currentPlanData
-                    ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
-                    : 'bg-slate-950/40 border-slate-800/60 text-slate-500'
+                    ? 'bg-background/60 border-border text-foreground/85 hover:border-slate-700'
+                    : 'bg-background/40 border-border/60 text-slate-500'
                 }`}
               >
                 <div className={`h-8 w-8 rounded-xl flex items-center justify-center font-bold text-xs ${
-                  interactiveStep === 1 ? 'bg-sky-500 text-white' : currentPlanData ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-slate-800 text-slate-400'
+                  interactiveStep === 1 ? 'bg-sky-500 text-white' : currentPlanData ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-slate-800 text-muted-foreground'
                 }`}>
                   {currentPlanData ? <Check className="h-4 w-4" /> : '1'}
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider block text-slate-400">Stage 1</span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider block text-muted-foreground">Stage 1</span>
                   <span className="text-xs font-bold block">Contextual Strategy & Review</span>
                 </div>
               </button>
@@ -1780,17 +1780,17 @@ export default function CEOView({
                   interactiveStep === 2
                     ? 'bg-sky-950/60 border-sky-500/70 text-white shadow-sm'
                     : currentMeetingData
-                    ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
-                    : 'bg-slate-950/40 border-slate-800/60 text-slate-500 cursor-not-allowed opacity-60'
+                    ? 'bg-background/60 border-border text-foreground/85 hover:border-slate-700'
+                    : 'bg-background/40 border-border/60 text-slate-500 cursor-not-allowed opacity-60'
                 }`}
               >
                 <div className={`h-8 w-8 rounded-xl flex items-center justify-center font-bold text-xs ${
-                  interactiveStep === 2 ? 'bg-sky-500 text-white' : currentMeetingData ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-slate-800 text-slate-400'
+                  interactiveStep === 2 ? 'bg-sky-500 text-white' : currentMeetingData ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-slate-800 text-muted-foreground'
                 }`}>
                   {currentMeetingData ? <Check className="h-4 w-4" /> : '2'}
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider block text-slate-400">Stage 2</span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider block text-muted-foreground">Stage 2</span>
                   <span className="text-xs font-bold block">Council Meeting & Critique</span>
                 </div>
               </button>
@@ -1802,17 +1802,17 @@ export default function CEOView({
                   interactiveStep === 3
                     ? 'bg-sky-950/60 border-sky-500/70 text-white shadow-sm'
                     : teamStatusData
-                    ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
-                    : 'bg-slate-950/40 border-slate-800/60 text-slate-500 cursor-not-allowed opacity-60'
+                    ? 'bg-background/60 border-border text-foreground/85 hover:border-slate-700'
+                    : 'bg-background/40 border-border/60 text-slate-500 cursor-not-allowed opacity-60'
                 }`}
               >
                 <div className={`h-8 w-8 rounded-xl flex items-center justify-center font-bold text-xs ${
-                  interactiveStep === 3 ? 'bg-sky-500 text-white' : teamStatusData ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-slate-800 text-slate-400'
+                  interactiveStep === 3 ? 'bg-sky-500 text-white' : teamStatusData ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-slate-800 text-muted-foreground'
                 }`}>
                   {teamStatusData ? <Check className="h-4 w-4" /> : '3'}
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider block text-slate-400">Stage 3</span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider block text-muted-foreground">Stage 3</span>
                   <span className="text-xs font-bold block">Real Workforce Hub</span>
                 </div>
               </button>
@@ -1825,42 +1825,42 @@ export default function CEOView({
               {/* Left Column: Company Knowledge & Directive Form */}
               <div className="lg:col-span-5 space-y-6">
                 {/* Company Knowledge Base Ingestion Card */}
-                <Card className="bg-slate-900/90 border-slate-800 rounded-3xl overflow-hidden shadow-lg border-t-2 border-t-indigo-500">
-                  <CardHeader className="pb-3 border-b border-slate-800/60">
+                <Card className="bg-card/90 border-border rounded-3xl overflow-hidden shadow-lg border-t-2 border-t-indigo-500">
+                  <CardHeader className="pb-3 border-b border-border/60">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Building className="h-4 w-4 text-indigo-400" />
+                        <Building className="h-4 w-4 text-primary" />
                         <CardTitle className="text-sm text-white font-bold">Company Knowledge Base</CardTitle>
                       </div>
-                      <span className="text-[10px] bg-indigo-950/60 text-indigo-300 border border-indigo-800/50 px-2 py-0.5 rounded-full font-semibold">
+                      <span className="text-[10px] bg-indigo-950/60 text-primary border border-indigo-800/50 px-2 py-0.5 rounded-full font-semibold">
                         Ingested Context
                       </span>
                     </div>
-                    <CardDescription className="text-slate-400 text-xs">
+                    <CardDescription className="text-muted-foreground text-xs">
                       The CEO AI actively grounds all planning against your company profile and verified USP.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-3 space-y-3 text-xs">
-                    <div className="p-3 bg-slate-950/70 rounded-2xl border border-slate-800/80 space-y-2">
+                    <div className="p-3 bg-background/70 rounded-2xl border border-border/80 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] uppercase font-bold text-slate-400">Organization</span>
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground">Organization</span>
                         <span className="font-bold text-white text-xs">{companyContext?.company_name || 'OctaOS Enterprise'}</span>
                       </div>
-                      <div className="flex items-center justify-between border-t border-slate-800/60 pt-1.5">
-                        <span className="text-[10px] uppercase font-bold text-slate-400">Industry</span>
-                        <span className="text-slate-300 text-xs">{companyContext?.industry || 'B2B AI Automation & SaaS'}</span>
+                      <div className="flex items-center justify-between border-t border-border/60 pt-1.5">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground">Industry</span>
+                        <span className="text-foreground/85 text-xs">{companyContext?.industry || 'B2B AI Automation & SaaS'}</span>
                       </div>
-                      <div className="border-t border-slate-800/60 pt-1.5">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Verified Core USP</span>
+                      <div className="border-t border-border/60 pt-1.5">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-0.5">Verified Core USP</span>
                         <p className="text-[11px] text-sky-300 italic bg-sky-950/30 p-2 rounded-xl border border-sky-800/40">
                           "{companyContext?.usp || 'Zero-human overhead multi-agent executive automation with verifiable ledger auditability.'}"
                         </p>
                       </div>
-                      <div className="border-t border-slate-800/60 pt-1.5">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Target Decision Makers</span>
+                      <div className="border-t border-border/60 pt-1.5">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Target Decision Makers</span>
                         <div className="flex flex-wrap gap-1">
                           {(companyContext?.target_decision_makers || ['Chief Revenue Officer', 'VP of Sales', 'CEO']).map((dm: string, idx: number) => (
-                            <span key={idx} className="bg-slate-900 border border-slate-700 text-slate-200 text-[10px] px-2 py-0.5 rounded-full">
+                            <span key={idx} className="bg-card border border-slate-700 text-slate-200 text-[10px] px-2 py-0.5 rounded-full">
                               {dm}
                             </span>
                           ))}
@@ -1871,24 +1871,24 @@ export default function CEOView({
                 </Card>
 
                 {/* Directive Formulation Input Form */}
-                <Card className="bg-slate-900/90 border-slate-800 rounded-3xl overflow-hidden shadow-lg">
-                  <CardHeader className="pb-3 border-b border-slate-800/60">
+                <Card className="bg-card/90 border-border rounded-3xl overflow-hidden shadow-lg">
+                  <CardHeader className="pb-3 border-b border-border/60">
                     <div className="flex items-center gap-2">
                       <Target className="h-4 w-4 text-sky-400" />
                       <CardTitle className="text-sm text-white font-bold">Executive Directive Form</CardTitle>
                     </div>
-                    <CardDescription className="text-slate-400 text-xs">
+                    <CardDescription className="text-muted-foreground text-xs">
                       Provide high-level strategic outcomes. The CEO orchestrates domain specialists to draft an actionable plan.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-4 space-y-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-slate-300">Executive Directive Prompt</label>
+                      <label className="text-xs font-medium text-foreground/85">Executive Directive Prompt</label>
                       <Textarea
                         placeholder="e.g. Accelerate enterprise outbound SDR pipeline to reach $100k ARR through multi-touch sequences"
                         value={objectivePrompt}
                         onChange={(e) => setObjectivePrompt(e.target.value)}
-                        className="bg-slate-950/80 border-slate-800 text-white rounded-xl text-xs min-h-[85px] focus:border-sky-500"
+                        className="bg-background/80 border-border text-white rounded-xl text-xs min-h-[85px] focus:border-sky-500"
                       />
                       <div className="flex flex-wrap gap-1.5 pt-1">
                         {PRESET_DIRECTIVES.map((p, idx) => (
@@ -1899,7 +1899,7 @@ export default function CEOView({
                               setObjectivePrompt(p.prompt);
                               setBudgetCapInput(p.budget);
                             }}
-                            className="text-[10px] bg-slate-950/80 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-sky-500/50 px-2 py-0.5 rounded-full transition-all"
+                            className="text-[10px] bg-background/80 hover:bg-slate-800 text-foreground/85 border border-border hover:border-sky-500/50 px-2 py-0.5 rounded-full transition-all"
                           >
                             {p.label}
                           </button>
@@ -1909,12 +1909,12 @@ export default function CEOView({
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-slate-300">Budget Envelope ($)</label>
+                        <label className="text-xs font-medium text-foreground/85">Budget Envelope ($)</label>
                         <Input
                           type="number"
                           value={budgetCapInput}
                           onChange={(e) => setBudgetCapInput(e.target.value)}
-                          className="bg-slate-950/80 border-slate-800 text-white text-xs rounded-xl"
+                          className="bg-background/80 border-border text-white text-xs rounded-xl"
                         />
                       </div>
                       <div className="flex flex-col justify-end">
@@ -1944,13 +1944,13 @@ export default function CEOView({
               {/* Right Column: Strategic Plan & User Feedback / Review Loop */}
               <div className="lg:col-span-7 space-y-6">
                 {!currentPlanData ? (
-                  <Card className="bg-slate-900/90 border-slate-800 rounded-3xl p-8 text-center space-y-4 border-dashed border-2">
-                    <div className="h-16 w-16 mx-auto rounded-3xl bg-slate-950 border border-slate-800 flex items-center justify-center text-sky-400">
+                  <Card className="bg-card/90 border-border rounded-3xl p-8 text-center space-y-4 border-dashed border-2">
+                    <div className="h-16 w-16 mx-auto rounded-3xl bg-background border border-border flex items-center justify-center text-sky-400">
                       <Users className="h-8 w-8" />
                     </div>
                     <div className="max-w-md mx-auto space-y-2">
                       <h3 className="text-base font-bold text-white">No Strategy Plan Drafted Yet</h3>
-                      <p className="text-xs text-slate-400 leading-relaxed">
+                      <p className="text-xs text-muted-foreground leading-relaxed">
                         Input an executive directive on the left and click <span className="text-sky-400 font-semibold">"Draft Strategic Plan"</span>. The CEO will synthesize your company knowledge base, allocate departmental budgets, and assemble your specialist team for your interactive review.
                       </p>
                     </div>
@@ -1958,8 +1958,8 @@ export default function CEOView({
                 ) : (
                   <div className="space-y-6 animate-in fade-in">
                     {/* Synthesized Plan Card */}
-                    <Card className="bg-slate-900/90 border-slate-800 rounded-3xl overflow-hidden shadow-xl border-t-2 border-t-sky-500">
-                      <CardHeader className="pb-3 border-b border-slate-800/60">
+                    <Card className="bg-card/90 border-border rounded-3xl overflow-hidden shadow-xl border-t-2 border-t-sky-500">
+                      <CardHeader className="pb-3 border-b border-border/60">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <FileText className="h-4 w-4 text-sky-400" />
@@ -1969,24 +1969,24 @@ export default function CEOView({
                             v{currentPlanData.version_num} {currentPlanData.version_num > 1 ? 'Refined Draft' : 'Initial Draft'}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-300 font-medium pt-1">
+                        <p className="text-xs text-foreground/85 font-medium pt-1">
                           {currentPlanData.prompt}
                         </p>
                       </CardHeader>
 
                       <CardContent className="pt-4 space-y-4 text-xs">
                         {/* Financial & ROI Header */}
-                        <div className="grid grid-cols-3 gap-3 p-3 bg-slate-950/80 rounded-2xl border border-slate-800">
+                        <div className="grid grid-cols-3 gap-3 p-3 bg-background/80 rounded-2xl border border-border">
                           <div className="text-center">
-                            <span className="text-[10px] text-slate-400 uppercase font-bold block">Budget Envelope</span>
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold block">Budget Envelope</span>
                             <span className="text-sm font-bold text-white">${Number(currentPlanData.budget_cap).toLocaleString()}</span>
                           </div>
-                          <div className="text-center border-x border-slate-800">
-                            <span className="text-[10px] text-slate-400 uppercase font-bold block">Projected ROI</span>
+                          <div className="text-center border-x border-border">
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold block">Projected ROI</span>
                             <span className="text-sm font-bold text-emerald-400">{currentPlanData.estimated_roi}</span>
                           </div>
                           <div className="text-center">
-                            <span className="text-[10px] text-slate-400 uppercase font-bold block">Pipeline Value</span>
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold block">Pipeline Value</span>
                             <span className="text-sm font-bold text-sky-400">{currentPlanData.projected_pipeline_value}</span>
                           </div>
                         </div>
@@ -2006,7 +2006,7 @@ export default function CEOView({
                               <Brain className="h-3.5 w-3.5" />
                               <span>Dynamic Strategic Hypothesis</span>
                             </div>
-                            <p className="text-[11px] text-slate-300 leading-relaxed">
+                            <p className="text-[11px] text-foreground/85 leading-relaxed">
                               {currentPlanData.strategic_hypothesis}
                             </p>
                           </div>
@@ -2014,13 +2014,13 @@ export default function CEOView({
 
                         {/* Prior Human Feedback Rounds */}
                         {currentPlanData.feedback_history && currentPlanData.feedback_history.length > 0 && (
-                          <div className="p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl space-y-1.5 text-[11px]">
-                            <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                          <div className="p-2.5 bg-background/60 border border-border rounded-xl space-y-1.5 text-[11px]">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">
                               Incorporated Human Review Comments ({currentPlanData.feedback_history.length})
                             </span>
                             <div className="flex flex-wrap gap-1.5">
                               {currentPlanData.feedback_history.map((fb: string, fbIdx: number) => (
-                                <span key={fbIdx} className="bg-slate-900 border border-slate-700 text-slate-300 px-2 py-0.5 rounded-lg text-[10px] line-clamp-1" title={fb}>
+                                <span key={fbIdx} className="bg-card border border-slate-700 text-foreground/85 px-2 py-0.5 rounded-lg text-[10px] line-clamp-1" title={fb}>
                                   Round {fbIdx + 1}: "{fb}"
                                 </span>
                               ))}
@@ -2030,12 +2030,12 @@ export default function CEOView({
 
                         {/* Assigned Specialist Employee Personas */}
                         <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-2">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block mb-2">
                             Assigned Executive Specialist Team ({currentPlanData.assigned_employees?.length || 0})
                           </span>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                             {currentPlanData.assigned_employees?.map((emp: any, idx: number) => (
-                              <div key={idx} className="p-3 bg-slate-950/80 border border-slate-800 rounded-2xl flex items-center gap-3">
+                              <div key={idx} className="p-3 bg-background/80 border border-border rounded-2xl flex items-center gap-3">
                                 <img
                                   src={emp.avatar}
                                   alt={emp.name}
@@ -2048,7 +2048,7 @@ export default function CEOView({
                                       {emp.agent_role}
                                     </span>
                                   </div>
-                                  <p className="text-[10px] text-slate-400 truncate">{emp.title}</p>
+                                  <p className="text-[10px] text-muted-foreground truncate">{emp.title}</p>
                                   <p className="text-[9px] text-slate-500 truncate pt-0.5">{emp.specialty}</p>
                                 </div>
                               </div>
@@ -2058,14 +2058,14 @@ export default function CEOView({
 
                         {/* Department Budget Allocations */}
                         <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-2">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block mb-2">
                             Departmental Budget Envelope Allocation
                           </span>
-                          <div className="space-y-2 p-3 bg-slate-950/60 rounded-2xl border border-slate-800">
+                          <div className="space-y-2 p-3 bg-background/60 rounded-2xl border border-border">
                             {currentPlanData.budget_allocations?.map((alloc: any, idx: number) => (
                               <div key={idx} className="space-y-1">
                                 <div className="flex items-center justify-between text-[11px]">
-                                  <span className="text-slate-300 font-medium">{alloc.employee} ({alloc.role})</span>
+                                  <span className="text-foreground/85 font-medium">{alloc.employee} ({alloc.role})</span>
                                   <span className="text-white font-bold">${Number(alloc.allocated_amount).toLocaleString()} ({alloc.percentage}%)</span>
                                 </div>
                                 <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
@@ -2081,17 +2081,17 @@ export default function CEOView({
 
                         {/* 3-Phase Execution Milestones */}
                         <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-2">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block mb-2">
                             Execution Roadmap & Deliverable Milestones
                           </span>
                           <div className="space-y-2">
                             {currentPlanData.milestones?.map((m: any, idx: number) => (
-                              <div key={idx} className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl space-y-1">
+                              <div key={idx} className="p-3 bg-background/70 border border-border rounded-xl space-y-1">
                                 <div className="flex items-center justify-between">
                                   <span className="font-bold text-white text-xs">{m.phase}</span>
                                   <span className="text-[10px] text-sky-400 font-semibold">{m.days}</span>
                                 </div>
-                                <ul className="list-disc list-inside text-[11px] text-slate-400 space-y-0.5 pt-1">
+                                <ul className="list-disc list-inside text-[11px] text-muted-foreground space-y-0.5 pt-1">
                                   {m.deliverables?.map((d: string, dIdx: number) => (
                                     <li key={dIdx}>{d}</li>
                                   ))}
@@ -2104,8 +2104,8 @@ export default function CEOView({
                     </Card>
 
                     {/* AUTONOMOUS 3-AGENT PRE-REVIEW CRITIQUE LOOP & FACT GROUNDING PROVENANCE */}
-                    <Card className="bg-slate-900/90 border-slate-800 rounded-3xl overflow-hidden shadow-xl border-t-2 border-t-emerald-500">
-                      <CardHeader className="pb-3 border-b border-slate-800/60 bg-slate-950/40">
+                    <Card className="bg-card/90 border-border rounded-3xl overflow-hidden shadow-xl border-t-2 border-t-emerald-500">
+                      <CardHeader className="pb-3 border-b border-border/60 bg-background/40">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           <div className="flex items-center gap-2.5">
                             <div className="p-2 bg-emerald-950/80 border border-emerald-800/60 rounded-xl text-emerald-400">
@@ -2121,7 +2121,7 @@ export default function CEOView({
                                   "{currentPlanData.consensus_phrase || 'We can do it'}"
                                 </span>
                               </div>
-                              <CardDescription className="text-slate-400 text-xs">
+                              <CardDescription className="text-muted-foreground text-xs">
                                 Technical (CTO), Financial (CFO), and Adversarial (Red Team) autonomous stress-test loop before human gate.
                               </CardDescription>
                             </div>
@@ -2140,7 +2140,7 @@ export default function CEOView({
                             <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">
                               Unanimous Autonomous Consensus Reached
                             </span>
-                            <p className="text-slate-300 text-xs leading-relaxed">
+                            <p className="text-foreground/85 text-xs leading-relaxed">
                               {currentPlanData.consensus_rationale || 
                                 'Autonomous 3-Agent Pre-Review Loop completed 2 iterations. Technical (Technical AI), Financial (CFO AI), and Adversarial (Red Team AI) critics resolved all flagged issues and reached unanimous sign-off: "We can do it".'}
                             </p>
@@ -2150,39 +2150,39 @@ export default function CEOView({
                         {/* Knowledge Base Grounding & Provenance Matrix */}
                         <div>
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5">
-                              <Building className="h-3.5 w-3.5 text-indigo-400" />
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1.5">
+                              <Building className="h-3.5 w-3.5 text-primary" />
                               Knowledge Base Fact-Grounding & Provenance Backend
                             </span>
-                            <span className="text-[10px] text-indigo-400 font-mono">
+                            <span className="text-[10px] text-primary font-mono">
                               Verified Vector Audit
                             </span>
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 p-3 bg-slate-950/70 rounded-2xl border border-slate-800">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 p-3 bg-background/70 rounded-2xl border border-border">
                             <div className="space-y-1">
                               <span className="text-[10px] text-slate-500 uppercase font-bold block">Organization & Industry</span>
                               <p className="text-white font-bold text-xs">
                                 {currentPlanData.source_facts_matrix?.company_name || companyContext?.company_name || 'AlienHouse Networks'} 
-                                <span className="text-slate-400 font-normal"> • {currentPlanData.source_facts_matrix?.industry || companyContext?.industry || 'Software Development'}</span>
+                                <span className="text-muted-foreground font-normal"> • {currentPlanData.source_facts_matrix?.industry || companyContext?.industry || 'Software Development'}</span>
                               </p>
                             </div>
                             <div className="space-y-1">
                               <span className="text-[10px] text-slate-500 uppercase font-bold block">Target Decision Makers</span>
                               <div className="flex flex-wrap gap-1">
                                 {(currentPlanData.source_facts_matrix?.target_decision_makers || companyContext?.target_decision_makers || ['CEO', 'VP Sales', 'Chief Revenue Officer', 'CTO']).map((dm: string, dmIdx: number) => (
-                                  <span key={dmIdx} className="bg-slate-900 border border-slate-700 text-slate-300 text-[10px] px-1.5 py-0.2 rounded-full">
+                                  <span key={dmIdx} className="bg-card border border-slate-700 text-foreground/85 text-[10px] px-1.5 py-0.2 rounded-full">
                                     {dm}
                                   </span>
                                 ))}
                               </div>
                             </div>
-                            <div className="md:col-span-2 pt-1 border-t border-slate-800/60 space-y-1">
+                            <div className="md:col-span-2 pt-1 border-t border-border/60 space-y-1">
                               <span className="text-[10px] text-slate-500 uppercase font-bold block">Verified Core USP</span>
                               <p className="text-sky-300 text-[11px] bg-sky-950/30 p-2 rounded-xl border border-sky-800/40 italic">
                                 "{currentPlanData.source_facts_matrix?.verified_usp || companyContext?.usp || 'Zero-human overhead multi-agent executive automation with verifiable ledger auditability.'}"
                               </p>
                             </div>
-                            <div className="md:col-span-2 text-[10px] text-slate-400 flex items-center gap-1.5">
+                            <div className="md:col-span-2 text-[10px] text-muted-foreground flex items-center gap-1.5">
                               <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />
                               <span>{currentPlanData.source_facts_matrix?.backend_provenance || 'Verified against internal knowledge base vectors and executive ledger before presenting to human leadership.'}</span>
                             </div>
@@ -2191,7 +2191,7 @@ export default function CEOView({
 
                         {/* Round-by-Round Critique Loop Deliberation */}
                         <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-2">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block mb-2">
                             Pre-Review Critique Deliberation Iterations ({(currentPlanData.critique_loop_history || []).length || 2} Rounds)
                           </span>
                           <div className="space-y-3">
@@ -2269,7 +2269,7 @@ export default function CEOView({
                                   className={`p-3.5 rounded-2xl border transition-all ${
                                     isConsensusRound
                                       ? 'bg-emerald-950/20 border-emerald-500/40'
-                                      : 'bg-slate-950/70 border-slate-800'
+                                      : 'bg-background/70 border-border'
                                   }`}
                                 >
                                   <div className="flex items-center justify-between mb-2">
@@ -2295,8 +2295,8 @@ export default function CEOView({
                                         key={cIdx}
                                         className={`p-2.5 rounded-xl border text-xs space-y-1 ${
                                           c.status === 'APPROVED' || c.verdict === 'WE_CAN_DO_IT'
-                                            ? 'bg-slate-900/90 border-emerald-800/50'
-                                            : 'bg-slate-900/90 border-amber-800/40'
+                                            ? 'bg-card/90 border-emerald-800/50'
+                                            : 'bg-card/90 border-amber-800/40'
                                         }`}
                                       >
                                         <div className="flex items-center justify-between">
@@ -2309,7 +2309,7 @@ export default function CEOView({
                                             {c.status === 'APPROVED' || c.verdict === 'WE_CAN_DO_IT' ? '✓ Can Do' : 'Hardening'}
                                           </span>
                                         </div>
-                                        <p className="text-[10px] text-slate-300 leading-snug">
+                                        <p className="text-[10px] text-foreground/85 leading-snug">
                                           {c.findings}
                                         </p>
                                       </div>
@@ -2318,11 +2318,11 @@ export default function CEOView({
 
                                   {/* Resolved improvements */}
                                   {roundEntry.resolved_issues && roundEntry.resolved_issues.length > 0 && (
-                                    <div className="mt-2.5 pt-2 border-t border-slate-800/80 text-[10px]">
-                                      <span className="text-slate-400 font-bold uppercase block mb-1">
+                                    <div className="mt-2.5 pt-2 border-t border-border/80 text-[10px]">
+                                      <span className="text-muted-foreground font-bold uppercase block mb-1">
                                         {isConsensusRound ? 'Consensus Outcome:' : 'Automated Hardening Applied to Plan:'}
                                       </span>
-                                      <ul className="space-y-0.5 text-slate-300">
+                                      <ul className="space-y-0.5 text-foreground/85">
                                         {roundEntry.resolved_issues.map((res: string, resIdx: number) => (
                                           <li key={resIdx} className="flex items-start gap-1.5">
                                             <Check className="h-3 w-3 text-emerald-400 shrink-0 mt-0.5" />
@@ -2341,17 +2341,17 @@ export default function CEOView({
                     </Card>
 
                     {/* HUMAN-IN-THE-LOOP FEEDBACK / REVIEW BOX */}
-                    <Card className="bg-slate-900/90 border-slate-800 rounded-3xl p-5 shadow-lg border-2 border-indigo-500/40 space-y-4">
+                    <Card className="bg-card/90 border-border rounded-3xl p-5 shadow-lg border-2 border-primary/40 space-y-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Edit3 className="h-4 w-4 text-indigo-400" />
+                          <Edit3 className="h-4 w-4 text-primary" />
                           <h4 className="text-sm font-bold text-white">Executive Review & Feedback Loop</h4>
                         </div>
-                        <span className="text-[10px] bg-indigo-950/80 text-indigo-300 border border-indigo-800/60 px-2 py-0.5 rounded-full font-semibold">
+                        <span className="text-[10px] bg-indigo-950/80 text-primary border border-indigo-800/60 px-2 py-0.5 rounded-full font-semibold">
                           Human Decision Gate
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 leading-relaxed">
+                      <p className="text-xs text-muted-foreground leading-relaxed">
                         Review the generated plan above. You can provide feedback or specific constraints below to iteratively refine the strategy until you are satisfied. When ready, click <span className="text-emerald-400 font-semibold">"Approve Plan & Summon Council Meeting"</span>.
                       </p>
 
@@ -2359,7 +2359,7 @@ export default function CEOView({
                         placeholder="e.g. Prioritize Sales AI outbound SDR outreach in the UK and reduce broad brand campaigns by $3,000..."
                         value={userPlanFeedback}
                         onChange={(e) => setUserPlanFeedback(e.target.value)}
-                        className="bg-slate-950/80 border-slate-800 text-white rounded-xl text-xs min-h-[75px] focus:border-indigo-500"
+                        className="bg-background/80 border-border text-white rounded-xl text-xs min-h-[75px] focus:border-primary"
                       />
 
                       <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-1">
@@ -2367,7 +2367,7 @@ export default function CEOView({
                           variant="outline"
                           onClick={handleRefinePlan}
                           disabled={isRefiningPlan || !userPlanFeedback.trim()}
-                          className="w-full sm:w-auto border-indigo-700/60 hover:bg-indigo-950/40 text-indigo-300 text-xs font-bold rounded-xl h-9 flex items-center justify-center gap-1.5"
+                          className="w-full sm:w-auto border-indigo-700/60 hover:bg-primary/10 text-primary text-xs font-bold rounded-xl h-9 flex items-center justify-center gap-1.5"
                         >
                           {isRefiningPlan ? (
                             <>
@@ -2411,8 +2411,8 @@ export default function CEOView({
           {interactiveStep === 2 && currentMeetingData && (
             <div className="space-y-6 animate-in fade-in">
               {/* Council Meeting Session Card */}
-              <Card className="bg-slate-900/90 border-slate-800 rounded-3xl overflow-hidden shadow-xl border-t-2 border-t-emerald-500">
-                <CardHeader className="pb-3 border-b border-slate-800/60">
+              <Card className="bg-card/90 border-border rounded-3xl overflow-hidden shadow-xl border-t-2 border-t-emerald-500">
+                <CardHeader className="pb-3 border-b border-border/60">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
                       <div className="p-2 bg-emerald-950/70 border border-emerald-800/60 rounded-xl text-emerald-400">
@@ -2420,21 +2420,21 @@ export default function CEOView({
                       </div>
                       <div>
                         <CardTitle className="text-base text-white font-bold">Executive Council In Session</CardTitle>
-                        <CardDescription className="text-slate-400 text-xs">
+                        <CardDescription className="text-muted-foreground text-xs">
                           {currentMeetingData.title}
                         </CardDescription>
                       </div>
                     </div>
 
                     {/* View Switcher: Live Transcript vs Minutes of Meeting (MOM) */}
-                    <div className="flex items-center bg-slate-950/80 p-1 rounded-2xl border border-slate-800 text-xs">
+                    <div className="flex items-center bg-background/80 p-1 rounded-2xl border border-border text-xs">
                       <button
                         type="button"
                         onClick={() => setMeetingViewTab('TRANSCRIPT')}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all ${
                           meetingViewTab === 'TRANSCRIPT'
                             ? 'bg-emerald-600 text-white shadow-sm'
-                            : 'text-slate-400 hover:text-white'
+                            : 'text-muted-foreground hover:text-white'
                         }`}
                       >
                         <MessageSquare className="h-3.5 w-3.5" />
@@ -2448,7 +2448,7 @@ export default function CEOView({
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all ${
                           meetingViewTab === 'MOM'
                             ? 'bg-emerald-600 text-white shadow-sm'
-                            : 'text-slate-400 hover:text-white'
+                            : 'text-muted-foreground hover:text-white'
                         }`}
                       >
                         <BookOpen className="h-3.5 w-3.5" />
@@ -2460,9 +2460,9 @@ export default function CEOView({
 
                 <CardContent className="pt-4 space-y-6">
                   {/* Selective Agent Summoning Roster */}
-                  <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800/80 space-y-3">
+                  <div className="p-4 bg-background/80 rounded-2xl border border-border/80 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <span className="text-xs uppercase font-bold text-slate-400 tracking-wider">
+                      <span className="text-xs uppercase font-bold text-muted-foreground tracking-wider">
                         Selective Attendance Roster ({currentMeetingData.summoned_agents?.length || currentMeetingData.participants?.length || 0} Summoned Specialists)
                       </span>
                       <span className="text-[10px] text-slate-500 font-mono">
@@ -2472,7 +2472,7 @@ export default function CEOView({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                       {(currentMeetingData.summoned_agents || currentMeetingData.participants || []).map((p: any, idx: number) => (
-                        <div key={idx} className="p-2.5 bg-slate-900/60 rounded-xl border border-slate-800 flex items-start gap-2.5">
+                        <div key={idx} className="p-2.5 bg-card/60 rounded-xl border border-border flex items-start gap-2.5">
                           <img
                             src={p.avatar}
                             alt={p.name}
@@ -2485,7 +2485,7 @@ export default function CEOView({
                                 {p.agent_role}
                               </span>
                             </div>
-                            <p className="text-[10px] text-slate-400 truncate">{p.title}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">{p.title}</p>
                             {p.attendance_reason && (
                               <p className="text-[9px] text-emerald-400/90 line-clamp-1 pt-0.5 italic">
                                 {p.attendance_reason}
@@ -2498,12 +2498,12 @@ export default function CEOView({
 
                     {/* Excused Specialist Roles if any */}
                     {currentMeetingData.excused_agents && currentMeetingData.excused_agents.length > 0 && (
-                      <div className="pt-2 border-t border-slate-800/60 flex flex-wrap items-center gap-2">
+                      <div className="pt-2 border-t border-border/60 flex flex-wrap items-center gap-2">
                         <span className="text-[10px] uppercase font-bold text-slate-500">Excused Agents (Out of Scope):</span>
                         {currentMeetingData.excused_agents.map((ea: any, idx: number) => (
                           <span
                             key={idx}
-                            className="text-[10px] bg-slate-900/80 text-slate-400 border border-slate-800 px-2 py-0.5 rounded-full"
+                            className="text-[10px] bg-card/80 text-muted-foreground border border-border px-2 py-0.5 rounded-full"
                             title={ea.excuse_reason || "Not required for this directive"}
                           >
                             {ea.name} ({ea.agent_role}) - <span className="text-slate-500 italic">Off-duty</span>
@@ -2515,9 +2515,9 @@ export default function CEOView({
 
                   {/* ROI Scorecard Banner */}
                   {currentMeetingData.roi_scorecard && (
-                    <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800/80 space-y-3">
+                    <div className="p-4 bg-background/80 rounded-2xl border border-border/80 space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs uppercase font-bold text-slate-400 tracking-wider">
+                        <span className="text-xs uppercase font-bold text-muted-foreground tracking-wider">
                           Council Deliberated ROI Optimization
                         </span>
                         <span className="text-xs font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2.5 py-0.5 rounded-full">
@@ -2526,24 +2526,24 @@ export default function CEOView({
                       </div>
 
                       <div className="grid grid-cols-3 gap-3 text-center">
-                        <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-                          <span className="text-[10px] text-slate-400 block uppercase font-bold">Baseline ROI</span>
-                          <p className="text-sm font-bold text-slate-300">{currentMeetingData.roi_scorecard.initial_roi}x</p>
+                        <div className="p-2.5 rounded-xl bg-card/60 border border-border">
+                          <span className="text-[10px] text-muted-foreground block uppercase font-bold">Baseline ROI</span>
+                          <p className="text-sm font-bold text-foreground/85">{currentMeetingData.roi_scorecard.initial_roi}x</p>
                         </div>
                         <div className="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-800/40">
                           <span className="text-[10px] text-emerald-400 block uppercase font-bold">Optimized ROI</span>
                           <p className="text-sm font-bold text-white">{currentMeetingData.roi_scorecard.optimized_roi}x</p>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-                          <span className="text-[10px] text-slate-400 block uppercase font-bold">Payback Period</span>
+                        <div className="p-2.5 rounded-xl bg-card/60 border border-border">
+                          <span className="text-[10px] text-muted-foreground block uppercase font-bold">Payback Period</span>
                           <p className="text-sm font-bold text-sky-400">~{currentMeetingData.roi_scorecard.payback_months} months</p>
                         </div>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-800/60 space-y-1">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Key Optimization Levers:</span>
+                      <div className="pt-2 border-t border-border/60 space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">Key Optimization Levers:</span>
                         {currentMeetingData.roi_scorecard.key_optimizations?.map((opt: string, idx: number) => (
-                          <p key={idx} className="text-xs text-slate-300 flex items-start gap-1.5">
+                          <p key={idx} className="text-xs text-foreground/85 flex items-start gap-1.5">
                             <span className="text-emerald-400">💡</span>
                             <span>{opt}</span>
                           </p>
@@ -2556,7 +2556,7 @@ export default function CEOView({
                   {meetingViewTab === 'TRANSCRIPT' && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs uppercase font-bold text-slate-400 tracking-wider block">
+                        <span className="text-xs uppercase font-bold text-muted-foreground tracking-wider block">
                           Real-Time Deliberation Dialogue ({currentMeetingData.dialogue?.length || 0} Exchanges)
                         </span>
                         {isRevealingTurns && (
@@ -2571,7 +2571,7 @@ export default function CEOView({
                         {currentMeetingData.dialogue
                           ?.slice(0, revealedTurnsCount > 0 ? revealedTurnsCount : currentMeetingData.dialogue.length)
                           .map((turn: any, idx: number) => (
-                            <div key={idx} className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl flex items-start gap-3.5 shadow-sm animate-in fade-in">
+                            <div key={idx} className="p-4 bg-background/80 border border-border rounded-2xl flex items-start gap-3.5 shadow-sm animate-in fade-in">
                               <img
                                 src={turn.avatar}
                                 alt={turn.speaker_name}
@@ -2581,16 +2581,16 @@ export default function CEOView({
                                 <div className="flex flex-wrap items-center justify-between gap-1.5">
                                   <div className="flex items-center gap-2">
                                     <span className="text-xs font-bold text-white">{turn.speaker_name}</span>
-                                    <span className="text-[10px] text-slate-400 font-medium">({turn.title})</span>
+                                    <span className="text-[10px] text-muted-foreground font-medium">({turn.title})</span>
                                   </div>
                                   <div className="flex items-center gap-1.5">
-                                    <span className="text-[9px] bg-slate-900 border border-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-mono">
+                                    <span className="text-[9px] bg-card border border-border text-foreground/85 px-2 py-0.5 rounded-full font-mono">
                                       {turn.domain_tag}
                                     </span>
                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
                                       turn.sentiment === 'POSITIVE' ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/40' :
                                       turn.sentiment === 'CAUTION' ? 'bg-amber-950/60 text-amber-300 border border-amber-800/40' :
-                                      'bg-slate-900 text-slate-400 border border-slate-800'
+                                      'bg-card text-muted-foreground border border-border'
                                     }`}>
                                       {turn.sentiment}
                                     </span>
@@ -2599,11 +2599,11 @@ export default function CEOView({
 
                                 {/* Agent Internal Analysis & Thinking Box */}
                                 {turn.agent_thought && (
-                                  <div className="p-2.5 bg-slate-900/70 border border-slate-800 rounded-xl text-[11px] text-slate-300 flex items-start gap-2">
-                                    <Brain className="h-3.5 w-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
+                                  <div className="p-2.5 bg-card/70 border border-border rounded-xl text-[11px] text-foreground/85 flex items-start gap-2">
+                                    <Brain className="h-3.5 w-3.5 text-primary flex-shrink-0 mt-0.5" />
                                     <div className="min-w-0">
-                                      <span className="font-bold text-indigo-300 block text-[10px] uppercase">Internal Reasoning & Calculations:</span>
-                                      <p className="italic text-slate-300">{turn.agent_thought}</p>
+                                      <span className="font-bold text-primary block text-[10px] uppercase">Internal Reasoning & Calculations:</span>
+                                      <p className="italic text-foreground/85">{turn.agent_thought}</p>
                                     </div>
                                   </div>
                                 )}
@@ -2618,7 +2618,7 @@ export default function CEOView({
                                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
                                     <span className="text-[9px] text-slate-500 uppercase font-bold">Cited Sources:</span>
                                     {turn.sources_cited.map((src: string, sIdx: number) => (
-                                      <span key={sIdx} className="text-[9px] bg-slate-900 text-sky-400 border border-sky-950 px-2 py-0.5 rounded-md">
+                                      <span key={sIdx} className="text-[9px] bg-card text-sky-400 border border-sky-950 px-2 py-0.5 rounded-md">
                                         📄 {src}
                                       </span>
                                     ))}
@@ -2634,14 +2634,14 @@ export default function CEOView({
                   {/* TAB 2: OFFICIAL MINUTES OF MEETING (MOM) DOCUMENT */}
                   {meetingViewTab === 'MOM' && (
                     <div className="space-y-4 animate-in fade-in">
-                      <div className="p-5 bg-slate-950/90 rounded-2xl border border-slate-800 space-y-4">
+                      <div className="p-5 bg-background/90 rounded-2xl border border-border space-y-4">
                         {/* MOM Header */}
-                        <div className="border-b border-slate-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="border-b border-border pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           <div>
                             <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider block">Official Executive Record</span>
                             <h3 className="text-sm font-bold text-white">Minutes of Meeting (MOM): {currentMeetingData.mom_document?.topic || currentMeetingData.title}</h3>
                           </div>
-                          <div className="text-right text-[11px] text-slate-400">
+                          <div className="text-right text-[11px] text-muted-foreground">
                             <div>Chairperson: <strong className="text-slate-200">{currentMeetingData.mom_document?.chairperson || 'CEO Orchestrator'}</strong></div>
                             <div>Date: <strong className="text-slate-200">{currentMeetingData.mom_document?.date || 'Recorded'}</strong></div>
                           </div>
@@ -2649,15 +2649,15 @@ export default function CEOView({
 
                         {/* Executive Summary */}
                         <div className="space-y-1.5">
-                          <h4 className="text-xs uppercase font-bold text-slate-400 tracking-wider">Executive Deliberation Summary</h4>
-                          <p className="text-xs text-slate-300 leading-relaxed bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+                          <h4 className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Executive Deliberation Summary</h4>
+                          <p className="text-xs text-foreground/85 leading-relaxed bg-card/60 p-3 rounded-xl border border-border/80">
                             {currentMeetingData.mom_document?.deliberation_summary || currentMeetingData.consensus_summary}
                           </p>
                         </div>
 
                         {/* Consensus Decisions */}
                         <div className="space-y-2">
-                          <h4 className="text-xs uppercase font-bold text-slate-400 tracking-wider">Council Resolutions & Consensus Decisions</h4>
+                          <h4 className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Council Resolutions & Consensus Decisions</h4>
                           <div className="space-y-1.5">
                             {(currentMeetingData.mom_document?.consensus_decisions || [currentMeetingData.consensus_summary]).map((decision: string, idx: number) => (
                               <div key={idx} className="flex items-start gap-2 p-2.5 bg-emerald-950/20 border border-emerald-800/30 rounded-xl text-xs text-emerald-300">
@@ -2670,10 +2670,10 @@ export default function CEOView({
 
                         {/* Action Items Matrix Table */}
                         <div className="space-y-2">
-                          <h4 className="text-xs uppercase font-bold text-slate-400 tracking-wider">Action Items & Ownership Matrix</h4>
-                          <div className="overflow-x-auto rounded-xl border border-slate-800">
+                          <h4 className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Action Items & Ownership Matrix</h4>
+                          <div className="overflow-x-auto rounded-xl border border-border">
                             <table className="w-full text-left text-xs">
-                              <thead className="bg-slate-900/90 text-slate-400 uppercase text-[10px] font-bold">
+                              <thead className="bg-card/90 text-muted-foreground uppercase text-[10px] font-bold">
                                 <tr>
                                   <th className="py-2.5 px-3">Item #</th>
                                   <th className="py-2.5 px-3">Task Deliverable</th>
@@ -2682,17 +2682,17 @@ export default function CEOView({
                                   <th className="py-2.5 px-3">Budget Cap</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+                              <tbody className="divide-y divide-slate-800 bg-background/60 text-slate-200">
                                 {(currentMeetingData.mom_document?.action_items_matrix || [
                                   { item_no: "ACT-1", task: "Outbound SDR prospect verification", owner: "Sales AI", deadline: "Day 5", budget_cap: "$10,625" },
                                   { item_no: "ACT-2", task: "Brand messaging matrix synthesis", owner: "Marketing AI", deadline: "Day 7", budget_cap: "$10,625" },
                                   { item_no: "ACT-3", task: "Burn envelope verification", owner: "CFO AI", deadline: "Day 7", budget_cap: "$1,875" }
                                 ]).map((act: any, idx: number) => (
-                                  <tr key={idx} className="hover:bg-slate-900/40">
+                                  <tr key={idx} className="hover:bg-card/40">
                                     <td className="py-2 px-3 font-mono text-[11px] text-sky-400">{act.item_no}</td>
                                     <td className="py-2 px-3 font-medium">{act.task}</td>
-                                    <td className="py-2 px-3 text-slate-300 font-bold">{act.owner}</td>
-                                    <td className="py-2 px-3 text-slate-400">{act.deadline}</td>
+                                    <td className="py-2 px-3 text-foreground/85 font-bold">{act.owner}</td>
+                                    <td className="py-2 px-3 text-muted-foreground">{act.deadline}</td>
                                     <td className="py-2 px-3 font-mono text-emerald-400">{act.budget_cap || act.budget_allocation}</td>
                                   </tr>
                                 ))}
@@ -2704,7 +2704,7 @@ export default function CEOView({
                         {/* Red Team Risk Assessment & Safety Tripwires */}
                         {currentMeetingData.mom_document?.risk_assessment_tripwires && (
                           <div className="space-y-2">
-                            <h4 className="text-xs uppercase font-bold text-slate-400 tracking-wider">Red Team Risk Audit & Policy Tripwires</h4>
+                            <h4 className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Red Team Risk Audit & Policy Tripwires</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                               {currentMeetingData.mom_document.risk_assessment_tripwires.map((rw: any, idx: number) => (
                                 <div key={idx} className="p-3 bg-amber-950/20 border border-amber-800/40 rounded-xl space-y-1 text-xs">
@@ -2712,8 +2712,8 @@ export default function CEOView({
                                     <AlertTriangle className="h-3.5 w-3.5" />
                                     <span>{rw.risk}</span>
                                   </div>
-                                  <p className="text-[11px] text-slate-300">
-                                    <strong className="text-slate-400">Enforced Guardrail:</strong> {rw.mitigation}
+                                  <p className="text-[11px] text-foreground/85">
+                                    <strong className="text-muted-foreground">Enforced Guardrail:</strong> {rw.mitigation}
                                   </p>
                                   <div className="text-[10px] text-slate-500">Auditor: {rw.owner || 'Red Team AI'}</div>
                                 </div>
@@ -2728,7 +2728,7 @@ export default function CEOView({
               </Card>
 
               {/* HUMAN-IN-THE-LOOP COUNCIL REVIEW & FEEDBACK BOX (ANTIGRAVITY STYLE) */}
-              <Card className="bg-slate-900/90 border-slate-800 rounded-3xl p-5 shadow-lg border-2 border-emerald-500/40 space-y-4">
+              <Card className="bg-card/90 border-border rounded-3xl p-5 shadow-lg border-2 border-emerald-500/40 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <MessageSquare className="h-4 w-4 text-emerald-400" />
@@ -2738,7 +2738,7 @@ export default function CEOView({
                     Human Decision Gate
                   </span>
                 </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
+                <p className="text-xs text-muted-foreground leading-relaxed">
                   Review the council's dialogue and Minutes of Meeting (MOM). If you'd like adjustments (e.g. asking CFO AI to shift capital, Marketing AI to re-weight channels, or Red Team AI to verify additional security tripwires), type instructions below and re-convene. When satisfied, click <span className="text-emerald-400 font-semibold">"Approve Council Decisions & Deploy Workforce"</span>.
                 </p>
 
@@ -2746,7 +2746,7 @@ export default function CEOView({
                   placeholder="e.g. Ask CFO AI to allocate 15% more budget to Sales AI outbound SDRs, and ensure Red Team AI signs off on GDPR compliance..."
                   value={userMeetingFeedback}
                   onChange={(e) => setUserMeetingFeedback(e.target.value)}
-                  className="bg-slate-950/80 border-slate-800 text-white rounded-xl text-xs min-h-[75px] focus:border-emerald-500"
+                  className="bg-background/80 border-border text-white rounded-xl text-xs min-h-[75px] focus:border-emerald-500"
                 />
 
                 <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-1">
@@ -2795,7 +2795,7 @@ export default function CEOView({
           {interactiveStep === 3 && (
             <div className="space-y-6 animate-in fade-in">
               {/* Executive Cockpit Header & Execution Controls */}
-              <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4 border-t-2 border-t-emerald-500">
+              <div className="bg-card/90 border border-border rounded-3xl p-5 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4 border-t-2 border-t-emerald-500">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className={`h-2.5 w-2.5 rounded-full ${
@@ -2813,7 +2813,7 @@ export default function CEOView({
                       {currentPlanData?.strategy_variant || selectedPlanDetails?.strategy_variant || 'BALANCED'}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-muted-foreground">
                     Topological multi-agent pipeline executing live. Human review & irreversible gates operational.
                   </p>
                 </div>
@@ -2821,7 +2821,7 @@ export default function CEOView({
                 {/* Progress & Live Triggers */}
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="text-right">
-                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Overall Completion</span>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">Overall Completion</span>
                     <span className="text-base font-bold text-white">{teamStatusData?.overall_progress_pct || 86}%</span>
                   </div>
                   <div className="w-24 bg-slate-800 rounded-full h-2 overflow-hidden">
@@ -2847,7 +2847,7 @@ export default function CEOView({
                           size="sm"
                           onClick={handlePauseWorkflow}
                           variant="outline"
-                          className="border-slate-700 bg-slate-800/40 hover:bg-slate-800 text-slate-300 text-xs h-8 rounded-xl"
+                          className="border-slate-700 bg-slate-800/40 hover:bg-slate-800 text-foreground/85 text-xs h-8 rounded-xl"
                         >
                           <Pause className="h-3 w-3" />
                         </Button>
@@ -2878,7 +2878,7 @@ export default function CEOView({
                       onClick={handleEscalateToBoardroom}
                       disabled={isEscalating}
                       variant="outline"
-                      className="border-slate-700 bg-slate-800/40 hover:bg-slate-800 text-slate-300 text-xs h-8 rounded-xl"
+                      className="border-slate-700 bg-slate-800/40 hover:bg-slate-800 text-foreground/85 text-xs h-8 rounded-xl"
                     >
                       {isEscalating ? <Loader2 className="animate-spin h-3 w-3 mr-1" /> : <Users className="h-3 w-3 mr-1" />}
                       Boardroom
@@ -2889,7 +2889,7 @@ export default function CEOView({
                       variant="outline"
                       onClick={() => fetchTeamStatus()}
                       disabled={isRefreshingTeam}
-                      className="border-slate-700 hover:bg-slate-800 text-xs text-slate-300 h-8 rounded-xl"
+                      className="border-slate-700 hover:bg-slate-800 text-xs text-foreground/85 h-8 rounded-xl"
                     >
                       <RefreshCw className={`h-3 w-3 ${isRefreshingTeam ? 'animate-spin' : ''}`} />
                     </Button>
@@ -2909,7 +2909,7 @@ export default function CEOView({
               )}
 
               {/* View Switcher: Departmental Command vs Topological DAG vs Workforce Specialists vs Human Gates */}
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/80 border border-slate-800 p-2 rounded-2xl">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-card/80 border border-border p-2 rounded-2xl">
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
@@ -2917,7 +2917,7 @@ export default function CEOView({
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
                       stage3ViewTab === 'OPERATIONS'
                         ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-white'
+                        : 'text-muted-foreground hover:text-white'
                     }`}
                   >
                     <Briefcase className="h-3.5 w-3.5" />
@@ -2933,7 +2933,7 @@ export default function CEOView({
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
                       stage3ViewTab === 'DAG'
                         ? 'bg-sky-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-white'
+                        : 'text-muted-foreground hover:text-white'
                     }`}
                   >
                     <Layers className="h-3.5 w-3.5" />
@@ -2949,7 +2949,7 @@ export default function CEOView({
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
                       stage3ViewTab === 'WORKFORCE'
                         ? 'bg-sky-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-white'
+                        : 'text-muted-foreground hover:text-white'
                     }`}
                   >
                     <Users className="h-3.5 w-3.5" />
@@ -2965,7 +2965,7 @@ export default function CEOView({
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
                       stage3ViewTab === 'HUMAN_GATES'
                         ? 'bg-emerald-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-white'
+                        : 'text-muted-foreground hover:text-white'
                     }`}
                   >
                     <ShieldCheck className="h-3.5 w-3.5" />
@@ -2984,19 +2984,19 @@ export default function CEOView({
               {/* 1. TOPOLOGICAL DAG GRAPH CANVAS */}
               {stage3ViewTab === 'DAG' && (
                 <div className="space-y-6 animate-in fade-in">
-                  <Card className="bg-slate-900/90 border-slate-800 rounded-3xl p-6 shadow-lg relative">
+                  <Card className="bg-card/90 border-border rounded-3xl p-6 shadow-lg relative">
                     <div className="flex items-center justify-between mb-4">
-                      <span className="text-xs uppercase font-bold tracking-wider text-slate-400">
+                      <span className="text-xs uppercase font-bold tracking-wider text-muted-foreground">
                         Topological Execution Graph (DAG Canvas)
                       </span>
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-muted-foreground">
                         {effectiveNodes.length} policy-checked steps
                       </span>
                     </div>
 
                     <div
                       ref={containerRef}
-                      className="bg-slate-950/70 border border-slate-800/80 rounded-2xl min-h-[360px] p-6 overflow-x-auto flex justify-between gap-10 items-center"
+                      className="bg-background/70 border border-border/80 rounded-2xl min-h-[360px] p-6 overflow-x-auto flex justify-between gap-10 items-center"
                     >
                       {dagLevels.length === 0 ? (
                         <div className="w-full text-center py-16 text-slate-500 text-xs">
@@ -3026,7 +3026,7 @@ export default function CEOView({
                                       ? 'bg-sky-950/30 border-sky-500/50'
                                       : nodeState === 'FAILED'
                                       ? 'bg-rose-950/30 border-rose-500/50'
-                                      : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-800/50'
+                                      : 'bg-card/80 border-border hover:border-slate-700 hover:bg-slate-800/50'
                                   }`}
                                 >
                                   <div className="flex items-center justify-between mb-1.5">
@@ -3045,7 +3045,7 @@ export default function CEOView({
                                         </span>
                                       ) : (
                                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                                          isIrreversible ? 'bg-amber-950/60 text-amber-400 border border-amber-800/40' : 'bg-slate-800 text-slate-400'
+                                          isIrreversible ? 'bg-amber-950/60 text-amber-400 border border-amber-800/40' : 'bg-slate-800 text-muted-foreground'
                                         }`}>
                                           {isIrreversible ? 'R3/R4 Gate' : 'R1 Auto'}
                                         </span>
@@ -3053,15 +3053,15 @@ export default function CEOView({
                                     </div>
                                   </div>
                                   <h4 className="font-bold text-xs text-white leading-tight line-clamp-2">{node.name}</h4>
-                                  <div className="flex items-center gap-1 mt-1 text-[11px] text-slate-300">
+                                  <div className="flex items-center gap-1 mt-1 text-[11px] text-foreground/85">
                                     <Bot className="h-3 w-3 text-sky-400 shrink-0" />
                                     <span className="truncate">{node.parameters?.assigned_agent || getAssignedAgent(node.department)}</span>
                                   </div>
 
                                   {/* Live Agent Transcript Ticker on Node Card */}
-                                  <div className="mt-2.5 pt-2 border-t border-slate-800/80 space-y-1">
+                                  <div className="mt-2.5 pt-2 border-t border-border/80 space-y-1">
                                     <div className="flex items-center justify-between text-[9px]">
-                                      <span className="text-slate-400 font-mono flex items-center gap-1">
+                                      <span className="text-muted-foreground font-mono flex items-center gap-1">
                                         <span className={`h-1.5 w-1.5 rounded-full ${nodeState === 'IN_PROGRESS' ? 'bg-emerald-400 animate-ping' : nodeState === 'COMPLETED' ? 'bg-sky-400' : 'bg-slate-600'}`} />
                                         Live Transcript
                                       </span>
@@ -3069,11 +3069,11 @@ export default function CEOView({
                                         {node.parameters?.live_transcript?.[node.parameters?.live_transcript?.length - 1]?.timestamp || 'T+00:03'}
                                       </span>
                                     </div>
-                                    <div className="text-[10px] text-slate-300 font-mono bg-slate-950/90 px-2 py-1.5 rounded-lg border border-slate-800/60 leading-relaxed">
+                                    <div className="text-[10px] text-foreground/85 font-mono bg-background/90 px-2 py-1.5 rounded-lg border border-border/60 leading-relaxed">
                                       <div className="text-sky-400 font-bold text-[9px] truncate">
                                         [{node.parameters?.live_transcript?.[node.parameters?.live_transcript?.length - 1]?.phase || (nodeState === 'COMPLETED' ? 'VERIFICATION_AUDIT' : 'AUTONOMOUS_EXECUTION')}]
                                       </div>
-                                      <p className="text-slate-300 line-clamp-2 text-[10px] mt-0.5">
+                                      <p className="text-foreground/85 line-clamp-2 text-[10px] mt-0.5">
                                         {node.parameters?.live_transcript?.[node.parameters?.live_transcript?.length - 1]?.thought ||
                                          node.parameters?.live_transcript?.[node.parameters?.live_transcript?.length - 1]?.action ||
                                          `Executing ${node.capability_id} with verified consensus check.`}
@@ -3095,8 +3095,8 @@ export default function CEOView({
 
                   {/* Node Inspector Drawer */}
                   {activeNode && (
-                    <Card className="bg-slate-900/90 border-slate-800 rounded-3xl p-5 shadow-xl animate-in fade-in border-t-2 border-t-sky-500 space-y-4">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <Card className="bg-card/90 border-border rounded-3xl p-5 shadow-xl animate-in fade-in border-t-2 border-t-sky-500 space-y-4">
+                      <div className="flex items-center justify-between border-b border-border pb-3">
                         <div className="flex items-center gap-3">
                           <div className={`p-2 rounded-xl border ${getDeptColor(activeNode.department)}`}>
                             <Bot className="h-5 w-5" />
@@ -3106,34 +3106,34 @@ export default function CEOView({
                               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${getDeptColor(activeNode.department)}`}>
                                 {activeNode.department}
                               </span>
-                              <span className="text-xs font-semibold text-slate-300">
+                              <span className="text-xs font-semibold text-foreground/85">
                                 {activeNode.parameters?.assigned_agent || getAssignedAgent(activeNode.department)}
                               </span>
                             </div>
                             <h3 className="text-base font-bold text-white mt-0.5">{activeNode.name}</h3>
                           </div>
                         </div>
-                        <Button size="sm" variant="ghost" onClick={() => setSelectedNodeId(null)} className="text-slate-400 text-xs">
+                        <Button size="sm" variant="ghost" onClick={() => setSelectedNodeId(null)} className="text-muted-foreground text-xs">
                           Close
                         </Button>
                       </div>
 
                       {/* Node Properties Pills */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 py-2 text-xs border-b border-slate-800">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 py-2 text-xs border-b border-border">
                         <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400">Capability</span>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground">Capability</span>
                           <p className="font-bold text-white mt-0.5 font-mono text-xs">{activeNode.capability_id}</p>
                         </div>
                         <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400">Target Metric</span>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground">Target Metric</span>
                           <p className="font-bold text-emerald-400 mt-0.5">{activeNode.parameters?.target_metric || '+15% enterprise velocity'}</p>
                         </div>
                         <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400">Estimated Duration</span>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground">Estimated Duration</span>
                           <p className="font-bold text-white mt-0.5">{activeNode.estimated_duration_seconds}s</p>
                         </div>
                         <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400">Execution Policy</span>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground">Execution Policy</span>
                           <p className="font-bold text-white mt-0.5">{activeNode.is_compensable ? 'Compensable ✓' : 'Deterministic R1'}</p>
                         </div>
                       </div>
@@ -3151,12 +3151,12 @@ export default function CEOView({
                               Live Stream
                             </span>
                           </div>
-                          <span className="text-[10px] text-slate-400 font-mono">
+                          <span className="text-[10px] text-muted-foreground font-mono">
                             Agent: {activeNode.parameters?.assigned_agent || getAssignedAgent(activeNode.department)}
                           </span>
                         </div>
 
-                        <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 font-mono text-xs space-y-3 max-h-72 overflow-y-auto">
+                        <div className="bg-background border border-border rounded-2xl p-4 font-mono text-xs space-y-3 max-h-72 overflow-y-auto">
                           {(activeNode.parameters?.live_transcript || [
                             {
                               step: 1,
@@ -3186,28 +3186,28 @@ export default function CEOView({
                               result: "Block committed. Status: SUCCESS. Consensus check 'WE_CAN_DO_IT' passed."
                             }
                           ]).map((item: any, idx: number) => (
-                            <div key={idx} className="p-3 bg-slate-900/80 rounded-xl border border-slate-800/80 space-y-1.5 text-xs">
+                            <div key={idx} className="p-3 bg-card/80 rounded-xl border border-border/80 space-y-1.5 text-xs">
                               <div className="flex items-center justify-between text-[11px]">
                                 <span className="text-sky-400 font-bold flex items-center gap-1">
                                   <span>Step {item.step || idx + 1}</span>
                                   <span className="text-slate-500">•</span>
-                                  <span className="text-slate-400">{item.timestamp}</span>
+                                  <span className="text-muted-foreground">{item.timestamp}</span>
                                 </span>
                                 <span className="text-[10px] bg-sky-950/60 border border-sky-800/50 text-sky-300 px-2 py-0.5 rounded-full font-bold">
                                   {item.phase}
                                 </span>
                               </div>
                               {item.thought && (
-                                <div className="text-slate-300 pl-2 border-l-2 border-sky-500/60 text-[11px] leading-relaxed">
+                                <div className="text-foreground/85 pl-2 border-l-2 border-sky-500/60 text-[11px] leading-relaxed">
                                   <span className="text-slate-500 uppercase text-[9px] font-bold block mb-0.5">Agent Thought</span>
                                   "{item.thought}"
                                 </div>
                               )}
                               <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
-                                <span className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-amber-300">
+                                <span className="bg-background px-2 py-0.5 rounded border border-border text-amber-300">
                                   Action: <span className="text-white font-bold">{item.action}</span>
                                 </span>
-                                <span className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-purple-300">
+                                <span className="bg-background px-2 py-0.5 rounded border border-border text-purple-300">
                                   Tool: <span className="text-white font-bold">{item.tool}</span>
                                 </span>
                               </div>
@@ -3228,8 +3228,8 @@ export default function CEOView({
                         `Verified USP: ${(companyContext?.usp || 'Zero-human overhead multi-agent executive automation').slice(0, 45)}...`,
                         `Target Persona: ${companyContext?.target_decision_makers?.[0] || 'CEO / VP Sales'}`
                       ]).length > 0 && (
-                        <div className="pt-2 border-t border-slate-800">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">
+                        <div className="pt-2 border-t border-border">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1.5">
                             Cited Grounding & Fact Provenance
                           </span>
                           <div className="flex flex-wrap gap-1.5">
@@ -3238,7 +3238,7 @@ export default function CEOView({
                               `Verified USP: ${(companyContext?.usp || 'Zero-human overhead multi-agent executive automation').slice(0, 45)}...`,
                               `Target Persona: ${companyContext?.target_decision_makers?.[0] || 'CEO / VP Sales'}`
                             ]).map((src: string, srcIdx: number) => (
-                              <span key={srcIdx} className="text-[10px] bg-slate-950 border border-slate-800 text-slate-300 px-2 py-1 rounded-lg flex items-center gap-1 font-mono">
+                              <span key={srcIdx} className="text-[10px] bg-background border border-border text-foreground/85 px-2 py-1 rounded-lg flex items-center gap-1 font-mono">
                                 <BookOpen className="h-3 w-3 text-sky-400" />
                                 {src}
                               </span>
@@ -3248,9 +3248,9 @@ export default function CEOView({
                       )}
 
                       {/* Collapsible Canonical Node Parameters */}
-                      <div className="pt-2 border-t border-slate-800">
-                        <span className="text-[10px] uppercase font-bold text-slate-400">Canonical Node Parameters</span>
-                        <pre className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80 text-[10px] text-slate-300 font-mono mt-1 overflow-x-auto max-h-36">
+                      <div className="pt-2 border-t border-border">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground">Canonical Node Parameters</span>
+                        <pre className="bg-background/80 p-3 rounded-xl border border-border/80 text-[10px] text-foreground/85 font-mono mt-1 overflow-x-auto max-h-36">
                           {JSON.stringify(activeNode.parameters, null, 2)}
                         </pre>
                       </div>
@@ -3259,16 +3259,16 @@ export default function CEOView({
 
                   {/* Real-time SSE Live Event Stream */}
                   {liveStreamEvents.length > 0 && (
-                    <Card className="bg-slate-900/90 border-slate-800 rounded-3xl p-5 shadow-lg">
-                      <span className="text-xs uppercase font-bold tracking-wider text-slate-400 block mb-3">
+                    <Card className="bg-card/90 border-border rounded-3xl p-5 shadow-lg">
+                      <span className="text-xs uppercase font-bold tracking-wider text-muted-foreground block mb-3">
                         Live Executive Event Stream (SSE)
                       </span>
                       <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                         {liveStreamEvents.map((evt, idx) => (
-                          <div key={idx} className="p-2.5 bg-slate-950/60 border border-slate-800/80 rounded-xl flex items-center justify-between text-xs">
+                          <div key={idx} className="p-2.5 bg-background/60 border border-border/80 rounded-xl flex items-center justify-between text-xs">
                             <div className="flex items-center gap-2">
                               <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
-                              <span className="font-mono text-slate-300 text-xs">{evt.event_type}</span>
+                              <span className="font-mono text-foreground/85 text-xs">{evt.event_type}</span>
                             </div>
                             <span className="text-xs text-slate-500 font-mono">seq #{evt.sequence_num || evt.id?.slice(0, 6)}</span>
                           </div>
@@ -3284,10 +3284,10 @@ export default function CEOView({
                 <div className="space-y-6 animate-in fade-in">
                   {/* Top Executive Operations Ribbon */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4 shadow">
+                    <div className="bg-card/90 border border-border/80 rounded-2xl p-4 shadow">
                       <div className="flex items-center gap-2 mb-1">
                         <Calendar className="h-4 w-4 text-purple-400" />
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Social Calendar</span>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Social Calendar</span>
                       </div>
                       <div className="flex items-baseline gap-2">
                         <span className="text-xl font-extrabold text-white">
@@ -3300,10 +3300,10 @@ export default function CEOView({
                       </span>
                     </div>
 
-                    <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4 shadow">
+                    <div className="bg-card/90 border border-border/80 rounded-2xl p-4 shadow">
                       <div className="flex items-center gap-2 mb-1">
                         <TrendingUp className="h-4 w-4 text-emerald-400" />
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Active Deals</span>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Active Deals</span>
                       </div>
                       <div className="flex items-baseline gap-2">
                         <span className="text-xl font-extrabold text-white">
@@ -3316,10 +3316,10 @@ export default function CEOView({
                       </span>
                     </div>
 
-                    <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4 shadow">
+                    <div className="bg-card/90 border border-border/80 rounded-2xl p-4 shadow">
                       <div className="flex items-center gap-2 mb-1">
                         <Headphones className="h-4 w-4 text-sky-400" />
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Support Posture</span>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Support Posture</span>
                       </div>
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm font-bold text-sky-300">
@@ -3332,10 +3332,10 @@ export default function CEOView({
                       </span>
                     </div>
 
-                    <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4 shadow">
+                    <div className="bg-card/90 border border-border/80 rounded-2xl p-4 shadow">
                       <div className="flex items-center gap-2 mb-1">
                         <Mail className="h-4 w-4 text-amber-400" />
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Outbound Delivery</span>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Outbound Delivery</span>
                       </div>
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm font-bold text-amber-300 uppercase">
@@ -3354,7 +3354,7 @@ export default function CEOView({
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                     {/* PILLAR 1: MARKETING & CAMPAIGN PLANNER AI */}
-                    <Card className="bg-slate-900/90 border-slate-800 rounded-3xl p-5 shadow-xl border-t-2 border-t-purple-500 flex flex-col justify-between">
+                    <Card className="bg-card/90 border-border rounded-3xl p-5 shadow-xl border-t-2 border-t-purple-500 flex flex-col justify-between">
                       <div className="space-y-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
@@ -3368,7 +3368,7 @@ export default function CEOView({
                                   Marketing AI
                                 </span>
                               </div>
-                              <p className="text-xs text-slate-400">Scheduled episodic multi-platform campaign posts grounded in approved USP.</p>
+                              <p className="text-xs text-muted-foreground">Scheduled episodic multi-platform campaign posts grounded in approved USP.</p>
                             </div>
                           </div>
 
@@ -3391,7 +3391,7 @@ export default function CEOView({
                               return (
                                 <div
                                   key={post.id || idx}
-                                  className="p-3 bg-slate-950/80 border border-slate-800 rounded-2xl hover:border-purple-800/50 transition-all space-y-2"
+                                  className="p-3 bg-background/80 border border-border rounded-2xl hover:border-purple-800/50 transition-all space-y-2"
                                 >
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
@@ -3402,7 +3402,7 @@ export default function CEOView({
                                         post.platform === 'linkedin' ? 'bg-blue-950/80 text-blue-300 border-blue-800/50' :
                                         post.platform === 'twitter' ? 'bg-sky-950/80 text-sky-300 border-sky-800/50' :
                                         post.platform === 'instagram' ? 'bg-pink-950/80 text-pink-300 border-pink-800/50' :
-                                        'bg-indigo-950/80 text-indigo-300 border-indigo-800/50'
+                                        'bg-indigo-950/80 text-primary border-indigo-800/50'
                                       }`}>
                                         {post.platform}
                                       </span>
@@ -3417,7 +3417,7 @@ export default function CEOView({
                                     </span>
                                   </div>
 
-                                  <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                                  <p className="text-xs text-foreground/85 leading-relaxed font-sans">
                                     {isExpanded ? post.content : post.snippet}
                                   </p>
 
@@ -3435,8 +3435,8 @@ export default function CEOView({
                               );
                             })
                           ) : (
-                            <div className="p-6 text-center bg-slate-950/60 rounded-2xl border border-slate-800 space-y-3">
-                              <p className="text-xs text-slate-400">No scheduled posts generated yet for this strategic plan.</p>
+                            <div className="p-6 text-center bg-background/60 rounded-2xl border border-border space-y-3">
+                              <p className="text-xs text-muted-foreground">No scheduled posts generated yet for this strategic plan.</p>
                               <Button
                                 size="sm"
                                 onClick={() => handleScheduleCampaign(14)}
@@ -3450,7 +3450,7 @@ export default function CEOView({
                         </div>
                       </div>
 
-                      <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 mt-2">
+                      <div className="pt-3 border-t border-border/80 flex items-center justify-between text-xs text-muted-foreground mt-2">
                         <span>Calendar Synced with Multi-Agent DAG</span>
                         <button
                           type="button"
@@ -3463,7 +3463,7 @@ export default function CEOView({
                     </Card>
 
                     {/* PILLAR 2: SALES PIPELINE & DEAL ROOMS */}
-                    <Card className="bg-slate-900/90 border-slate-800 rounded-3xl p-5 shadow-xl border-t-2 border-t-emerald-500 flex flex-col justify-between">
+                    <Card className="bg-card/90 border-border rounded-3xl p-5 shadow-xl border-t-2 border-t-emerald-500 flex flex-col justify-between">
                       <div className="space-y-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
@@ -3477,7 +3477,7 @@ export default function CEOView({
                                   Sales AI
                                 </span>
                               </div>
-                              <p className="text-xs text-slate-400">B2B ICP accounts with buying committee intelligence and stage cadence.</p>
+                              <p className="text-xs text-muted-foreground">B2B ICP accounts with buying committee intelligence and stage cadence.</p>
                             </div>
                           </div>
 
@@ -3491,19 +3491,19 @@ export default function CEOView({
                         </div>
 
                         {/* Pipeline Stage Funnel Bar */}
-                        <div className="p-2.5 bg-slate-950/80 border border-slate-800 rounded-2xl flex items-center justify-between text-xs font-mono">
+                        <div className="p-2.5 bg-background/80 border border-border rounded-2xl flex items-center justify-between text-xs font-mono">
                           <div className="flex items-center gap-1.5">
                             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                            <span className="text-slate-300 font-bold text-[11px]">Funnel Status:</span>
+                            <span className="text-foreground/85 font-bold text-[11px]">Funnel Status:</span>
                           </div>
                           <div className="flex items-center gap-2 text-[10px]">
-                            <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-300">
+                            <span className="bg-slate-800 px-2 py-0.5 rounded text-foreground/85">
                               Ready: <strong className="text-white">{operationsData?.sales_pipeline?.stages_breakdown?.outreach_ready || 3}</strong>
                             </span>
-                            <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-300">
+                            <span className="bg-slate-800 px-2 py-0.5 rounded text-foreground/85">
                               In Cadence: <strong className="text-emerald-400">{operationsData?.sales_pipeline?.stages_breakdown?.in_cadence || 0}</strong>
                             </span>
-                            <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-300">
+                            <span className="bg-slate-800 px-2 py-0.5 rounded text-foreground/85">
                               Replied: <strong className="text-sky-400">{operationsData?.sales_pipeline?.stages_breakdown?.replied || 0}</strong>
                             </span>
                           </div>
@@ -3514,13 +3514,13 @@ export default function CEOView({
                           {(operationsData?.sales_pipeline?.deal_rooms || []).map((deal: any, dIdx: number) => (
                             <div
                               key={deal.id || dIdx}
-                              className="p-3 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-2 hover:border-emerald-800/50 transition-all"
+                              className="p-3 bg-background/80 border border-border rounded-2xl space-y-2 hover:border-emerald-800/50 transition-all"
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <div>
                                   <div className="flex items-center gap-2">
                                     <h5 className="text-xs font-bold text-white">{deal.company_name}</h5>
-                                    <span className="text-[10px] text-slate-400 font-mono">({deal.domain})</span>
+                                    <span className="text-[10px] text-muted-foreground font-mono">({deal.domain})</span>
                                   </div>
                                   <span className="text-[10px] text-emerald-400 font-semibold block">
                                     ICP Fit: {Math.round((deal.icp_fit_score || 0.94) * 100)}% • Win Prob: {Math.round((deal.calibrated_win_prob || 0.45) * 100)}%
@@ -3536,7 +3536,7 @@ export default function CEOView({
                               </div>
 
                               {deal.next_best_action && (
-                                <p className="text-[11px] text-slate-300 bg-slate-900/80 px-2.5 py-1.5 rounded-xl border border-slate-800/80">
+                                <p className="text-[11px] text-foreground/85 bg-card/80 px-2.5 py-1.5 rounded-xl border border-border/80">
                                   ⚡ <strong className="text-white">Next Action:</strong> {deal.next_best_action.action?.replace('_', ' ')} target ({deal.next_best_action.persona}) — {deal.next_best_action.reason}
                                 </p>
                               )}
@@ -3565,7 +3565,7 @@ export default function CEOView({
                                 <button
                                   type="button"
                                   onClick={() => setActiveView('deal-rooms')}
-                                  className="text-[10px] text-slate-400 hover:text-white font-semibold ml-2"
+                                  className="text-[10px] text-muted-foreground hover:text-white font-semibold ml-2"
                                 >
                                   Open Room →
                                 </button>
@@ -3575,7 +3575,7 @@ export default function CEOView({
                         </div>
                       </div>
 
-                      <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 mt-2">
+                      <div className="pt-3 border-t border-border/80 flex items-center justify-between text-xs text-muted-foreground mt-2">
                         <span>Autonomous SDR Enrichment Engaged</span>
                         <button
                           type="button"
@@ -3588,7 +3588,7 @@ export default function CEOView({
                     </Card>
 
                     {/* PILLAR 3: CUSTOMER SUPPORT READINESS */}
-                    <Card className="bg-slate-900/90 border-slate-800 rounded-3xl p-5 shadow-xl border-t-2 border-t-sky-500 flex flex-col justify-between">
+                    <Card className="bg-card/90 border-border rounded-3xl p-5 shadow-xl border-t-2 border-t-sky-500 flex flex-col justify-between">
                       <div className="space-y-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
@@ -3602,7 +3602,7 @@ export default function CEOView({
                                   Customer Support AI
                                 </span>
                               </div>
-                              <p className="text-xs text-slate-400">Set executive triage mode and prime campaign response playbooks.</p>
+                              <p className="text-xs text-muted-foreground">Set executive triage mode and prime campaign response playbooks.</p>
                             </div>
                           </div>
 
@@ -3613,7 +3613,7 @@ export default function CEOView({
 
                         {/* Interactive Triage Policy Selector */}
                         <div className="space-y-2">
-                          <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                          <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
                             Executive Triage Policy
                           </label>
                           <div className="grid grid-cols-2 gap-2.5">
@@ -3624,7 +3624,7 @@ export default function CEOView({
                               className={`p-3 rounded-2xl border text-left transition-all ${
                                 (operationsData?.support?.reply_mode || 'review_first') === 'review_first'
                                   ? 'bg-sky-950/80 border-sky-500 text-white shadow-md'
-                                  : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                                  : 'bg-background/60 border-border text-muted-foreground hover:border-slate-700'
                               }`}
                             >
                               <div className="flex items-center justify-between mb-1">
@@ -3633,7 +3633,7 @@ export default function CEOView({
                                   <Check className="h-3.5 w-3.5 text-sky-400" />
                                 )}
                               </div>
-                              <p className="text-[10px] text-slate-400 leading-snug">
+                              <p className="text-[10px] text-muted-foreground leading-snug">
                                 AI drafts replies; human approval mandatory before dispatch.
                               </p>
                             </button>
@@ -3645,7 +3645,7 @@ export default function CEOView({
                               className={`p-3 rounded-2xl border text-left transition-all ${
                                 operationsData?.support?.reply_mode === 'auto_send'
                                   ? 'bg-emerald-950/80 border-emerald-500 text-white shadow-md'
-                                  : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                                  : 'bg-background/60 border-border text-muted-foreground hover:border-slate-700'
                               }`}
                             >
                               <div className="flex items-center justify-between mb-1">
@@ -3654,7 +3654,7 @@ export default function CEOView({
                                   <Check className="h-3.5 w-3.5 text-emerald-400" />
                                 )}
                               </div>
-                              <p className="text-[10px] text-slate-400 leading-snug">
+                              <p className="text-[10px] text-muted-foreground leading-snug">
                                 Direct autonomous responses under verified policy boundaries.
                               </p>
                             </button>
@@ -3663,27 +3663,27 @@ export default function CEOView({
 
                         {/* Primed Campaign FAQ Playbook */}
                         <div className="space-y-2">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
                             Primed Campaign FAQ Playbook
                           </span>
-                          <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-2">
+                          <div className="p-3 bg-background/80 border border-border rounded-2xl space-y-2">
                             <div className="flex items-center justify-between text-xs">
                               <span className="font-bold text-white">Campaign FAQ: {companyContext?.company_name || 'Strategic Focus'}</span>
                               <span className="text-[9px] bg-emerald-950 text-emerald-300 border border-emerald-800/60 px-2 py-0.5 rounded-full font-bold">
                                 ARMED IN CONTEXT
                               </span>
                             </div>
-                            <p className="text-xs text-slate-300 leading-relaxed font-mono text-[11px]">
+                            <p className="text-xs text-foreground/85 leading-relaxed font-mono text-[11px]">
                               Q: How does the system integrate? → Connects directly via authenticated APIs with strict human-in-the-loop review.
                             </p>
-                            <p className="text-xs text-slate-300 leading-relaxed font-mono text-[11px]">
+                            <p className="text-xs text-foreground/85 leading-relaxed font-mono text-[11px]">
                               Q: What is the onboarding timeline? → Full operational execution begins in under 48 hours.
                             </p>
                           </div>
                         </div>
                       </div>
 
-                      <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 mt-2">
+                      <div className="pt-3 border-t border-border/80 flex items-center justify-between text-xs text-muted-foreground mt-2">
                         <span>Omni-Channel Auto-Replies: WhatsApp, Email, Web</span>
                         <button
                           type="button"
@@ -3696,7 +3696,7 @@ export default function CEOView({
                     </Card>
 
                     {/* PILLAR 4: EXECUTIVE EMAIL DISPATCH CENTER */}
-                    <Card className="bg-slate-900/90 border-slate-800 rounded-3xl p-5 shadow-xl border-t-2 border-t-amber-500 flex flex-col justify-between">
+                    <Card className="bg-card/90 border-border rounded-3xl p-5 shadow-xl border-t-2 border-t-amber-500 flex flex-col justify-between">
                       <div className="space-y-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
@@ -3716,7 +3716,7 @@ export default function CEOView({
                                     : 'SIMULATION PREVIEW SAFE'}
                                 </span>
                               </div>
-                              <p className="text-xs text-slate-400">Preview, test send, and authorize outbound executive email sequences.</p>
+                              <p className="text-xs text-muted-foreground">Preview, test send, and authorize outbound executive email sequences.</p>
                             </div>
                           </div>
 
@@ -3732,8 +3732,8 @@ export default function CEOView({
                         </div>
 
                         {/* Test Email Preview Input */}
-                        <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-2">
-                          <span className="text-[11px] font-bold text-slate-300 block">
+                        <div className="p-3 bg-background/80 border border-border rounded-2xl space-y-2">
+                          <span className="text-[11px] font-bold text-foreground/85 block">
                             Send Executive Preview Test Email
                           </span>
                           <div className="flex items-center gap-2">
@@ -3742,7 +3742,7 @@ export default function CEOView({
                               value={testEmailAddress}
                               onChange={(e) => setTestEmailAddress(e.target.value)}
                               placeholder="Enter your email to test (e.g. executive@company.com)"
-                              className="bg-slate-900 border-slate-800 text-xs text-white rounded-xl h-8"
+                              className="bg-card border-border text-xs text-white rounded-xl h-8"
                             />
                             <Button
                               size="sm"
@@ -3760,18 +3760,18 @@ export default function CEOView({
                           {(operationsData?.email_dispatch?.drafts || []).map((draft: any, draftIdx: number) => (
                             <div
                               key={draft.lead_id || draftIdx}
-                              className="p-3 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-1.5 hover:border-amber-800/50 transition-all text-xs"
+                              className="p-3 bg-background/80 border border-border rounded-2xl space-y-1.5 hover:border-amber-800/50 transition-all text-xs"
                             >
                               <div className="flex items-center justify-between">
                                 <span className="font-bold text-white text-[11px]">
                                   To: {draft.lead_name} ({draft.company})
                                 </span>
-                                <span className="text-[10px] text-slate-400 font-mono">{draft.email}</span>
+                                <span className="text-[10px] text-muted-foreground font-mono">{draft.email}</span>
                               </div>
                               <p className="text-[11px] text-amber-300/90 font-medium">
                                 Subject: {draft.subject}
                               </p>
-                              <p className="text-[11px] text-slate-300 truncate">
+                              <p className="text-[11px] text-foreground/85 truncate">
                                 {draft.body}
                               </p>
                               <div className="flex items-center justify-between pt-1 border-t border-slate-900">
@@ -3793,7 +3793,7 @@ export default function CEOView({
                         </div>
                       </div>
 
-                      <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 mt-2">
+                      <div className="pt-3 border-t border-border/80 flex items-center justify-between text-xs text-muted-foreground mt-2">
                         <span>Ledger Delivery Auditing Enabled</span>
                         <span className="text-amber-400 font-mono text-[10px]">
                           {operationsData?.email_dispatch?.recent_logs?.length || 0} Recent Logs
@@ -3812,7 +3812,7 @@ export default function CEOView({
                     {(teamStatusData?.employees || []).map((empEntry: any, idx: number) => {
                       const emp = empEntry.employee;
                       return (
-                        <Card key={idx} className="bg-slate-900/90 border-slate-800 rounded-3xl overflow-hidden shadow-lg border-t border-t-slate-700/60 space-y-3 p-5">
+                        <Card key={idx} className="bg-card/90 border-border rounded-3xl overflow-hidden shadow-lg border-t border-t-slate-700/60 space-y-3 p-5">
                           {/* Employee Profile Header */}
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3">
@@ -3828,7 +3828,7 @@ export default function CEOView({
                                     {emp.department}
                                   </span>
                                 </div>
-                                <p className="text-xs text-slate-400 font-medium">{emp.title}</p>
+                                <p className="text-xs text-muted-foreground font-medium">{emp.title}</p>
                                 <span className="text-[10px] text-slate-500 block">{emp.specialty}</span>
                               </div>
                             </div>
@@ -3843,9 +3843,9 @@ export default function CEOView({
                           </div>
 
                           {/* Active Task & Progress Bar */}
-                          <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-2">
+                          <div className="p-3 bg-background/80 rounded-2xl border border-border space-y-2">
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-[10px] uppercase font-bold text-slate-400">Active Task</span>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Active Task</span>
                               <span className="text-xs font-bold text-white">{empEntry.progress_pct}%</span>
                             </div>
                             <p className="text-xs text-slate-200 leading-relaxed font-medium">
@@ -3864,7 +3864,7 @@ export default function CEOView({
                           {/* Deliverables Preview Box */}
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
                                 Live Deliverables
                               </span>
                               <button
@@ -3876,11 +3876,11 @@ export default function CEOView({
                             </div>
 
                             {empEntry.deliverables?.map((deliv: any, dIdx: number) => (
-                              <div key={dIdx} className="p-2.5 bg-slate-950/60 border border-slate-800/80 rounded-xl space-y-1 text-xs">
+                              <div key={dIdx} className="p-2.5 bg-background/60 border border-border/80 rounded-xl space-y-1 text-xs">
                                 <span className="font-bold text-white text-[11px] block">{deliv.title}</span>
                                 <div className="space-y-1 pt-0.5">
                                   {deliv.items?.slice(0, 2).map((item: any, iIdx: number) => (
-                                    <div key={iIdx} className="flex items-center justify-between text-[11px] text-slate-300 bg-slate-900/60 px-2 py-1 rounded-lg border border-slate-800/60">
+                                    <div key={iIdx} className="flex items-center justify-between text-[11px] text-foreground/85 bg-card/60 px-2 py-1 rounded-lg border border-border/60">
                                       {item.name ? (
                                         <>
                                           <span className="font-semibold text-white truncate">{item.name} ({item.company})</span>
@@ -3888,17 +3888,17 @@ export default function CEOView({
                                         </>
                                       ) : item.metric ? (
                                         <>
-                                          <span className="text-slate-400">{item.metric}</span>
+                                          <span className="text-muted-foreground">{item.metric}</span>
                                           <span className="font-bold text-white">{item.value}</span>
                                         </>
                                       ) : item.platform ? (
                                         <>
-                                          <span className="uppercase text-[9px] font-bold text-indigo-400">{item.platform}</span>
-                                          <span className="text-slate-300 truncate max-w-[200px]">{item.snippet}</span>
+                                          <span className="uppercase text-[9px] font-bold text-primary">{item.platform}</span>
+                                          <span className="text-foreground/85 truncate max-w-[200px]">{item.snippet}</span>
                                         </>
                                       ) : (
                                         <>
-                                          <span className="text-slate-300">{item.check}</span>
+                                          <span className="text-foreground/85">{item.check}</span>
                                           <span className="text-emerald-400 font-bold text-[10px]">{item.status}</span>
                                         </>
                                       )}
@@ -3919,13 +3919,13 @@ export default function CEOView({
               {stage3ViewTab === 'HUMAN_GATES' && (
                 <div className="space-y-6 animate-in fade-in">
                   {/* Irreversible Policy Action Gates (R3/R4 Gatekeeper) */}
-                  <Card className="bg-slate-900/90 border-slate-800 rounded-3xl p-5 shadow-lg border-t-2 border-t-amber-500 space-y-4">
+                  <Card className="bg-card/90 border-border rounded-3xl p-5 shadow-lg border-t-2 border-t-amber-500 space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <ShieldCheck className="h-5 w-5 text-amber-400" />
                         <div>
                           <h4 className="text-sm font-bold text-white">Irreversible Policy Action Gates (R3/R4)</h4>
-                          <p className="text-xs text-slate-400">External funds allocation and customer outreach require explicit executive clearance.</p>
+                          <p className="text-xs text-muted-foreground">External funds allocation and customer outreach require explicit executive clearance.</p>
                         </div>
                       </div>
                       <span className="text-[10px] bg-amber-950/80 text-amber-300 border border-amber-800/60 px-2.5 py-1 rounded-full font-mono font-bold">
@@ -3938,7 +3938,7 @@ export default function CEOView({
                         const gateKey = gateNode.id;
                         const decision = approvedGateIds[gateKey];
                         return (
-                          <div key={gIdx} className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-3">
+                          <div key={gIdx} className="p-4 bg-background/80 border border-border rounded-2xl space-y-3">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-white">{gateNode.name}</span>
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
@@ -3950,11 +3950,11 @@ export default function CEOView({
                               </span>
                             </div>
 
-                            <p className="text-[11px] text-slate-400 font-mono">
+                            <p className="text-[11px] text-muted-foreground font-mono">
                               Capability: {gateNode.capability_id} ({gateNode.department})
                             </p>
 
-                            <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-800/60">
+                            <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/60">
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -3981,18 +3981,18 @@ export default function CEOView({
                   </Card>
 
                   {/* In-Flight Executive Directive Intervention Box */}
-                  <Card className="bg-slate-900/90 border-slate-800 rounded-3xl p-5 shadow-lg border-2 border-indigo-500/40 space-y-4">
+                  <Card className="bg-card/90 border-border rounded-3xl p-5 shadow-lg border-2 border-primary/40 space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Edit3 className="h-4 w-4 text-indigo-400" />
+                        <Edit3 className="h-4 w-4 text-primary" />
                         <h4 className="text-sm font-bold text-white">In-Flight Executive Steering Intervention</h4>
                       </div>
-                      <span className="text-[10px] bg-indigo-950/80 text-indigo-300 border border-indigo-800/60 px-2 py-0.5 rounded-full font-semibold">
+                      <span className="text-[10px] bg-indigo-950/80 text-primary border border-indigo-800/60 px-2 py-0.5 rounded-full font-semibold">
                         Real-Time Steering Gate
                       </span>
                     </div>
 
-                    <p className="text-xs text-slate-400 leading-relaxed">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
                       Inject live operational steering into the running DAG without stopping execution. The orchestrator will dynamically re-route sub-tasks and enforce constraints.
                     </p>
 
@@ -4007,14 +4007,14 @@ export default function CEOView({
                       placeholder="e.g. Shift 20% more SDR outreach to VP-level targets in Apex Dynamics and enforce double confirmation on LinkedIn messaging..."
                       value={executiveInterventionNote}
                       onChange={(e) => setExecutiveInterventionNote(e.target.value)}
-                      className="bg-slate-950/80 border-slate-800 text-white rounded-xl text-xs min-h-[75px] focus:border-indigo-500"
+                      className="bg-background/80 border-border text-white rounded-xl text-xs min-h-[75px] focus:border-primary"
                     />
 
                     <div className="flex justify-end pt-1">
                       <Button
                         onClick={handleSendIntervention}
                         disabled={isSendingIntervention || !executiveInterventionNote.trim()}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl h-9 px-4 flex items-center gap-1.5 shadow"
+                        className="bg-primary text-primary-foreground hover:bg-primary-hover text-white text-xs font-bold rounded-xl h-9 px-4 flex items-center gap-1.5 shadow"
                       >
                         {isSendingIntervention ? (
                           <>
@@ -4040,7 +4040,7 @@ export default function CEOView({
                     variant="outline"
                     size="sm"
                     onClick={() => setInteractiveStep(1)}
-                    className="border-slate-800 hover:bg-slate-800 text-xs text-slate-300 rounded-xl"
+                    className="border-border hover:bg-slate-800 text-xs text-foreground/85 rounded-xl"
                   >
                     ← View Strategy Plan
                   </Button>
@@ -4048,7 +4048,7 @@ export default function CEOView({
                     variant="outline"
                     size="sm"
                     onClick={() => setInteractiveStep(2)}
-                    className="border-slate-800 hover:bg-slate-800 text-xs text-slate-300 rounded-xl"
+                    className="border-border hover:bg-slate-800 text-xs text-foreground/85 rounded-xl"
                   >
                     ← Review Council Dialogue
                   </Button>
@@ -4076,8 +4076,8 @@ export default function CEOView({
             const emp = empEntry?.employee;
             if (!emp) return null;
             return (
-              <Card className="bg-slate-900 border-slate-700 max-w-3xl w-full rounded-3xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <Card className="bg-card border-slate-700 max-w-3xl w-full rounded-3xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between border-b border-border pb-3">
                   <div className="flex items-center gap-3">
                     <img
                       src={emp.avatar}
@@ -4091,17 +4091,17 @@ export default function CEOView({
                           {emp.department}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400">{emp.title} — Deliverables Ledger</p>
+                      <p className="text-xs text-muted-foreground">{emp.title} — Deliverables Ledger</p>
                     </div>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={() => setActiveDeliverableEmp(null)} className="text-slate-400 hover:text-white">
+                  <Button size="sm" variant="ghost" onClick={() => setActiveDeliverableEmp(null)} className="text-muted-foreground hover:text-white">
                     ✕
                   </Button>
                 </div>
 
                 <div className="space-y-4 text-xs">
-                  <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-1">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Current Work Assignment</span>
+                  <div className="p-3 bg-background/80 rounded-2xl border border-border space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground">Current Work Assignment</span>
                     <p className="text-xs text-slate-200">{empEntry.active_task}</p>
                     <span className="text-[10px] text-sky-400 font-semibold block pt-1">
                       Status: {empEntry.status_badge} ({empEntry.progress_pct}% progress)
@@ -4109,14 +4109,14 @@ export default function CEOView({
                   </div>
 
                   <div className="space-y-3">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-300 block">
+                    <span className="text-xs font-bold uppercase tracking-wider text-foreground/85 block">
                       Production Deliverables Generated
                     </span>
                     {empEntry.deliverables?.map((deliv: any, idx: number) => (
-                      <div key={idx} className="p-4 bg-slate-950/90 rounded-2xl border border-slate-800 space-y-3">
+                      <div key={idx} className="p-4 bg-background/90 rounded-2xl border border-border space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-sm text-white">{deliv.title}</span>
-                          <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-mono uppercase">
+                          <span className="text-[10px] bg-slate-800 text-foreground/85 px-2 py-0.5 rounded-full font-mono uppercase">
                             {deliv.type}
                           </span>
                         </div>
@@ -4125,7 +4125,7 @@ export default function CEOView({
                           <div className="overflow-x-auto">
                             <table className="w-full text-left text-xs">
                               <thead>
-                                <tr className="border-b border-slate-800 text-slate-400 text-[10px] uppercase">
+                                <tr className="border-b border-border text-muted-foreground text-[10px] uppercase">
                                   <th className="pb-2 font-bold">Contact Name</th>
                                   <th className="pb-2 font-bold">Target Company</th>
                                   <th className="pb-2 font-bold">Verified Email</th>
@@ -4135,9 +4135,9 @@ export default function CEOView({
                               </thead>
                               <tbody className="divide-y divide-slate-800/60">
                                 {deliv.items?.map((item: any, iIdx: number) => (
-                                  <tr key={iIdx} className="text-slate-300 hover:bg-slate-900/40">
+                                  <tr key={iIdx} className="text-foreground/85 hover:bg-card/40">
                                     <td className="py-2 font-medium text-white">{item.name}</td>
-                                    <td className="py-2 text-slate-300">{item.company}</td>
+                                    <td className="py-2 text-foreground/85">{item.company}</td>
                                     <td className="py-2 font-mono text-[11px] text-sky-300">{item.email}</td>
                                     <td className="py-2 text-center">
                                       <span className="bg-emerald-950/60 text-emerald-400 font-bold px-1.5 py-0.5 rounded text-[10px] border border-emerald-800/40">
@@ -4145,7 +4145,7 @@ export default function CEOView({
                                       </span>
                                     </td>
                                     <td className="py-2 text-right">
-                                      <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+                                      <span className="text-[10px] uppercase font-bold text-muted-foreground bg-slate-800 px-2 py-0.5 rounded-full">
                                         {item.status}
                                       </span>
                                     </td>
@@ -4157,8 +4157,8 @@ export default function CEOView({
                         ) : deliv.type === 'CONTENT' ? (
                           <div className="space-y-2">
                             {deliv.items?.map((item: any, iIdx: number) => (
-                              <div key={iIdx} className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 space-y-1">
-                                <span className="text-[10px] font-bold uppercase text-indigo-400">{item.platform}</span>
+                              <div key={iIdx} className="p-3 bg-card/60 rounded-xl border border-border space-y-1">
+                                <span className="text-[10px] font-bold uppercase text-primary">{item.platform}</span>
                                 <p className="text-xs text-slate-200 leading-relaxed font-sans">{item.snippet}</p>
                               </div>
                             ))}
@@ -4166,8 +4166,8 @@ export default function CEOView({
                         ) : (
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             {deliv.items?.map((item: any, iIdx: number) => (
-                              <div key={iIdx} className="p-2.5 bg-slate-900/60 rounded-xl border border-slate-800 text-center">
-                                <span className="text-[10px] text-slate-400 block">{item.metric || item.check}</span>
+                              <div key={iIdx} className="p-2.5 bg-card/60 rounded-xl border border-border text-center">
+                                <span className="text-[10px] text-muted-foreground block">{item.metric || item.check}</span>
                                 <p className="text-xs font-bold text-white mt-0.5">{item.value || item.status}</p>
                               </div>
                             ))}
@@ -4178,7 +4178,7 @@ export default function CEOView({
                   </div>
                 </div>
 
-                <div className="pt-2 flex justify-end border-t border-slate-800">
+                <div className="pt-2 flex justify-end border-t border-border">
                   <Button onClick={() => setActiveDeliverableEmp(null)} className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold">
                     Close Inspector
                   </Button>
@@ -4192,45 +4192,45 @@ export default function CEOView({
       {/* 3. Pre-Execution Dry Run Modal */}
       {showDryRunModal && dryRunResult && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <Card className="bg-slate-900 border-slate-700 max-w-2xl w-full rounded-3xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <Card className="bg-card border-slate-700 max-w-2xl w-full rounded-3xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <Shield className="h-5 w-5 text-sky-400" />
                 <h3 className="text-lg font-bold text-white">Pre-Execution Dry Run Simulation</h3>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => setShowDryRunModal(false)} className="text-slate-400">
+              <Button size="sm" variant="ghost" onClick={() => setShowDryRunModal(false)} className="text-muted-foreground">
                 ✕
               </Button>
             </div>
 
             <div className="grid grid-cols-3 gap-3 text-xs">
-              <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800">
-                <span className="text-xs text-slate-400">Simulation Status</span>
+              <div className="p-3 bg-background/80 rounded-xl border border-border">
+                <span className="text-xs text-muted-foreground">Simulation Status</span>
                 <p className={`font-bold mt-0.5 ${dryRunResult.simulation_status === 'PASSED' ? 'text-emerald-400' : 'text-rose-400'}`}>
                   {dryRunResult.simulation_status}
                 </p>
               </div>
-              <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800">
-                <span className="text-xs text-slate-400">Estimated Duration</span>
+              <div className="p-3 bg-background/80 rounded-xl border border-border">
+                <span className="text-xs text-muted-foreground">Estimated Duration</span>
                 <p className="font-bold text-white mt-0.5">{dryRunResult.total_estimated_duration_seconds}s</p>
               </div>
-              <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800">
-                <span className="text-xs text-slate-400">Estimated Cost</span>
+              <div className="p-3 bg-background/80 rounded-xl border border-border">
+                <span className="text-xs text-muted-foreground">Estimated Cost</span>
                 <p className="font-bold text-white mt-0.5">${dryRunResult.total_estimated_cost_usd}</p>
               </div>
             </div>
 
             {/* Approval Checkpoints Required */}
             <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+              <span className="text-xs font-bold uppercase tracking-wider text-foreground/85">
                 Required Governance Approval Checkpoints ({dryRunResult.approval_checkpoints_count})
               </span>
               <div className="mt-2 space-y-2">
                 {dryRunResult.approval_checkpoints.map((cp: any, idx: number) => (
-                  <div key={idx} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl flex items-center justify-between text-xs">
+                  <div key={idx} className="p-3 bg-background/80 border border-border rounded-xl flex items-center justify-between text-xs">
                     <div>
                       <p className="font-bold text-white">{cp.node_name}</p>
-                      <p className="text-xs text-slate-400">{cp.capability_id} — {cp.side_effect_class}</p>
+                      <p className="text-xs text-muted-foreground">{cp.capability_id} — {cp.side_effect_class}</p>
                     </div>
                     <span className="text-xs font-bold px-2 py-0.5 rounded bg-amber-950/60 text-amber-400 border border-amber-800/40">
                       {cp.required_keys === 2 ? 'Dual-Key ($R4)' : 'Single-Key ($R3)'}
@@ -4240,7 +4240,7 @@ export default function CEOView({
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end gap-2 border-t border-slate-800">
+            <div className="pt-2 flex justify-end gap-2 border-t border-border">
               <Button onClick={() => setShowDryRunModal(false)} variant="outline" className="border-slate-700 text-xs">
                 Dismiss
               </Button>
@@ -4261,22 +4261,22 @@ export default function CEOView({
       {/* 4. Strategic Brief & Post-Mortem Modal */}
       {showPostMortemModal && postMortemBrief && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <Card className="bg-slate-900 border-slate-700 max-w-3xl w-full rounded-3xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <Card className="bg-card border-slate-700 max-w-3xl w-full rounded-3xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-emerald-400" />
                 <h3 className="text-lg font-bold text-white">Boardroom Strategic Brief & Post-Mortem</h3>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => setShowPostMortemModal(false)} className="text-slate-400">
+              <Button size="sm" variant="ghost" onClick={() => setShowPostMortemModal(false)} className="text-muted-foreground">
                 ✕
               </Button>
             </div>
 
-            <div className="bg-slate-950/80 p-5 rounded-2xl border border-slate-800 text-slate-300 text-xs whitespace-pre-line leading-relaxed font-sans">
+            <div className="bg-background/80 p-5 rounded-2xl border border-border text-foreground/85 text-xs whitespace-pre-line leading-relaxed font-sans">
               {postMortemBrief.executive_brief_markdown}
             </div>
 
-            <div className="pt-2 flex justify-end gap-2 border-t border-slate-800">
+            <div className="pt-2 flex justify-end gap-2 border-t border-border">
               <Button onClick={() => setShowPostMortemModal(false)} className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold">
                 Close Brief
               </Button>
@@ -4288,16 +4288,16 @@ export default function CEOView({
       {/* 5. Executive Council Deliberation Transcript Modal */}
       {showCouncilModal && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <Card className="bg-slate-900 border-slate-700 max-w-4xl w-full rounded-3xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <Card className="bg-card border-slate-700 max-w-4xl w-full rounded-3xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-emerald-400" />
                 <div>
                   <h3 className="text-base font-bold text-white">Executive Council Deliberation Transcript</h3>
-                  <p className="text-xs text-slate-400">Cross-agent domain critique, ROI optimization, and resource allocation</p>
+                  <p className="text-xs text-muted-foreground">Cross-agent domain critique, ROI optimization, and resource allocation</p>
                 </div>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => setShowCouncilModal(false)} className="text-slate-400 hover:text-white">
+              <Button size="sm" variant="ghost" onClick={() => setShowCouncilModal(false)} className="text-muted-foreground hover:text-white">
                 ✕
               </Button>
             </div>
@@ -4314,18 +4314,18 @@ export default function CEOView({
 
             {/* Agent Deliberations Cards */}
             <div className="space-y-3">
-              <span className="text-xs uppercase font-bold text-slate-400 tracking-wider">
+              <span className="text-xs uppercase font-bold text-muted-foreground tracking-wider">
                 Agent Domain Critiques & ROI Recommendations ({agentDeliberations.length})
               </span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {agentDeliberations.map((delib: any, idx: number) => (
-                  <div key={idx} className="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-2">
+                  <div key={idx} className="p-4 bg-background/70 border border-border rounded-2xl space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Bot className="h-4 w-4 text-sky-400" />
                         <div>
                           <h4 className="text-xs font-bold text-white">{delib.agent}</h4>
-                          <span className="text-[10px] text-slate-400">{delib.role}</span>
+                          <span className="text-[10px] text-muted-foreground">{delib.role}</span>
                         </div>
                       </div>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getDeptColor(delib.department)}`}>
@@ -4333,9 +4333,9 @@ export default function CEOView({
                       </span>
                     </div>
 
-                    <div className="text-xs text-slate-300 space-y-1.5 pt-1 border-t border-slate-800/60">
+                    <div className="text-xs text-foreground/85 space-y-1.5 pt-1 border-t border-border/60">
                       <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Domain Feasibility</span>
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">Domain Feasibility</span>
                         <p className="text-xs text-slate-200">{delib.domain_perspective}</p>
                       </div>
 
@@ -4356,7 +4356,7 @@ export default function CEOView({
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end gap-2 border-t border-slate-800">
+            <div className="pt-2 flex justify-end gap-2 border-t border-border">
               <Button onClick={() => setShowCouncilModal(false)} className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold">
                 Close Deliberation
               </Button>
@@ -4367,29 +4367,29 @@ export default function CEOView({
 
       {/* Delete Workspace Confirmation Modal */}
       {deleteConfirmWfId && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <Card className="bg-slate-900 border-rose-900/60 max-w-md w-full p-6 shadow-2xl rounded-3xl space-y-4 animate-in fade-in zoom-in-95 border-2">
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <Card className="bg-card border-rose-900/60 max-w-md w-full p-6 shadow-2xl rounded-3xl space-y-4 animate-in fade-in zoom-in-95 border-2">
             <div className="flex items-center gap-3 text-rose-400">
               <div className="p-2.5 bg-rose-950/80 border border-rose-800/60 rounded-2xl">
                 <Trash2 className="h-5 w-5" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-white">Delete Executive Directive?</h3>
-                <p className="text-[11px] text-slate-400">This action cannot be undone.</p>
+                <p className="text-[11px] text-muted-foreground">This action cannot be undone.</p>
               </div>
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed">
+            <p className="text-xs text-foreground/85 leading-relaxed">
               Are you sure you want to permanently delete this CEO workspace? All strategic plans, council deliberation transcripts, MOM artifacts, and task node records will be permanently removed.
             </p>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setDeleteConfirmWfId(null)}
                 disabled={isDeletingWf}
-                className="border-slate-700 hover:bg-slate-800 text-slate-300 text-xs rounded-xl"
+                className="border-slate-700 hover:bg-slate-800 text-foreground/85 text-xs rounded-xl"
               >
                 Cancel
               </Button>

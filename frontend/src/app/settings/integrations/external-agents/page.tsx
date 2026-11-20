@@ -470,7 +470,7 @@ export default function ExternalAgentsPage() {
           <div className="rounded-xl border p-4 bg-muted/20 space-y-2">
             <h3 className="font-semibold text-sm">1. Post Inbound Status & Replies</h3>
             <p className="text-muted-foreground">External bots can report execution progress, errors, or final deliverables with attachments.</p>
-            <pre className="p-3 rounded-lg bg-zinc-950 text-zinc-100 overflow-x-auto">
+            <pre className="p-3 rounded-lg bg-background text-zinc-100 overflow-x-auto">
 {`POST /api/v1/controller/replies
 Authorization: Bearer <octa_mcp_key>
 Content-Type: application/json
@@ -495,7 +495,7 @@ Content-Type: application/json
           <div className="rounded-xl border p-4 bg-muted/20 space-y-2">
             <h3 className="font-semibold text-sm">2. Give OctaOS your webhook so it can call you</h3>
             <p className="text-muted-foreground">OctaOS POSTs agent.message to this URL as soon as a message is sent. It does not wait for the next check-in.</p>
-            <pre className="p-3 rounded-lg bg-zinc-950 text-zinc-100 overflow-x-auto">
+            <pre className="p-3 rounded-lg bg-background text-zinc-100 overflow-x-auto">
 {`POST /api/v1/integrations/external-agents/webhook
 Authorization: Bearer <octa_mcp_key>
 Content-Type: application/json
@@ -515,7 +515,7 @@ OctaOS then POSTs:
           <div className="rounded-xl border p-4 bg-muted/20 space-y-2">
             <h3 className="font-semibold text-sm">3. Universal Media & Document Transfer</h3>
             <p className="text-muted-foreground">Transfer any safe file type (CAD, PDF, audio, video, zip, csv) via the MCP tool gateway.</p>
-            <pre className="p-3 rounded-lg bg-zinc-950 text-zinc-100 overflow-x-auto">
+            <pre className="p-3 rounded-lg bg-background text-zinc-100 overflow-x-auto">
 {`// MCP Tool: octaos_upload_media_or_document
 {
   "filename": "quarterly_financials.xlsx",

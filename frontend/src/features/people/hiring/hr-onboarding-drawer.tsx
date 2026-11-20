@@ -421,7 +421,7 @@ export default function HROnboardingDrawer({
                     Hired
                   </span>
                 ) : (
-                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/25">
                     {instance.current_state}
                   </span>
                 )}

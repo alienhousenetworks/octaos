@@ -144,21 +144,21 @@ export default function AgentConsole({ agent, API_URL, fetchWithAuth }: AgentCon
   };
 
   return (
-    <div className="flex min-h-[min(760px,calc(100vh-220px))] flex-col overflow-hidden rounded-2xl border border-gray-800 bg-gray-950/70">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-800 px-4 py-3 sm:px-5">
+    <div className="flex min-h-[min(760px,calc(100vh-220px))] flex-col overflow-hidden rounded-2xl border border-border bg-gray-950/70">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary"><Bot className="size-5" /></div>
           <div className="min-w-0">
             <h3 className="truncate text-sm font-semibold text-white">{agent.name}</h3>
-            <p className="mt-0.5 text-xs text-gray-400">{agent.model || 'Configured model'} · Agent chat</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{agent.model || 'Configured model'} · Agent chat</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 rounded-lg border border-gray-800 px-2.5 py-2 text-[11px] text-gray-300">
+          <label className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-2 text-[11px] text-foreground/85">
             <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} className="accent-primary" />
             Dry run
           </label>
-          <Button variant="outline" size="sm" disabled={loading || messages.length === 0} onClick={clearChat} className="border-gray-800 text-xs">
+          <Button variant="outline" size="sm" disabled={loading || messages.length === 0} onClick={clearChat} className="border-border text-xs">
             <Trash2 className="mr-1.5 size-3.5" /> New chat
           </Button>
         </div>
@@ -169,11 +169,11 @@ export default function AgentConsole({ agent, API_URL, fetchWithAuth }: AgentCon
           <div className="mx-auto flex max-w-2xl flex-col items-center py-8 text-center sm:py-14">
             <div className="mb-4 flex size-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary"><Sparkles className="size-7" /></div>
             <h2 className="text-xl font-semibold tracking-tight text-white">Chat with {agent.name}</h2>
-            <p className="mt-2 max-w-lg text-sm leading-6 text-gray-400">Your messages use this agent’s saved instructions, model, and granted tools. The conversation is saved in this browser for this agent.</p>
+            <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">Your messages use this agent’s saved instructions, model, and granted tools. The conversation is saved in this browser for this agent.</p>
             <div className="mt-7 grid w-full gap-2 text-left sm:grid-cols-3">
               {starterPrompts.map((starter) => (
                 <button key={starter} type="button" onClick={() => void sendMessage(starter)} disabled={loading}
-                  className="rounded-xl border border-gray-800 bg-gray-900/70 p-3 text-left text-xs leading-5 text-gray-300 transition hover:border-primary/40 hover:bg-gray-900 disabled:opacity-50">
+                  className="rounded-xl border border-border bg-gray-900/70 p-3 text-left text-xs leading-5 text-foreground/85 transition hover:border-primary/40 hover:bg-gray-900 disabled:opacity-50">
                   <Sparkles className="mb-2 size-4 text-primary" />{starter}
                 </button>
               ))}
@@ -184,7 +184,7 @@ export default function AgentConsole({ agent, API_URL, fetchWithAuth }: AgentCon
         {messages.map((message) => (
           <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {message.role === 'assistant' && <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary"><Bot className="size-4" /></div>}
-            <div className={`max-w-[88%] rounded-2xl px-4 py-3 sm:max-w-[78%] ${message.role === 'user' ? 'bg-primary text-primary-foreground' : message.status === 'error' ? 'border border-red-500/30 bg-red-950/20 text-red-100' : 'border border-gray-800 bg-gray-900/80 text-gray-100'}`}>
+            <div className={`max-w-[88%] rounded-2xl px-4 py-3 sm:max-w-[78%] ${message.role === 'user' ? 'bg-primary text-primary-foreground' : message.status === 'error' ? 'border border-red-500/30 bg-red-950/20 text-red-100' : 'border border-border bg-gray-900/80 text-gray-100'}`}>
               <div className="mb-1.5 flex items-center gap-2 text-[10px] opacity-70">
                 {message.role === 'user' ? <UserRound className="size-3" /> : message.status === 'error' ? <AlertCircle className="size-3" /> : <CheckCircle2 className="size-3" />}
                 <span>{message.role === 'user' ? 'You' : agent.name}</span>
@@ -192,25 +192,25 @@ export default function AgentConsole({ agent, API_URL, fetchWithAuth }: AgentCon
               </div>
               <div className="whitespace-pre-wrap break-words text-sm leading-6">{message.content}</div>
             </div>
-            {message.role === 'user' && <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-gray-300"><UserRound className="size-4" /></div>}
+            {message.role === 'user' && <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-foreground/85"><UserRound className="size-4" /></div>}
           </div>
         ))}
-        {loading && <div className="flex gap-3"><div className="flex size-8 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary"><Bot className="size-4" /></div><div className="rounded-2xl border border-gray-800 bg-gray-900/80 px-4 py-3 text-sm text-gray-400"><span className="inline-flex items-center gap-2"><Loader2 className="size-4 animate-spin" /> {agent.name} is thinking…</span></div></div>}
+        {loading && <div className="flex gap-3"><div className="flex size-8 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary"><Bot className="size-4" /></div><div className="rounded-2xl border border-border bg-gray-900/80 px-4 py-3 text-sm text-muted-foreground"><span className="inline-flex items-center gap-2"><Loader2 className="size-4 animate-spin" /> {agent.name} is thinking…</span></div></div>}
         <div ref={endRef} />
       </div>
 
       {(executionId || durationMs !== null || toolCalls.length > 0) && (
-        <div className="mx-3 mb-2 rounded-xl border border-gray-800 bg-gray-900/50 p-3 text-xs sm:mx-5">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-gray-400">
-            {executionId && <span className="inline-flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-primary" /> Run: <code className="text-gray-300">{executionId.slice(0, 18)}</code></span>}
+        <div className="mx-3 mb-2 rounded-xl border border-border bg-gray-900/50 p-3 text-xs sm:mx-5">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-muted-foreground">
+            {executionId && <span className="inline-flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-primary" /> Run: <code className="text-foreground/85">{executionId.slice(0, 18)}</code></span>}
             {durationMs !== null && <span className="inline-flex items-center gap-1.5"><Clock className="size-3.5" /> {durationMs} ms</span>}
             {toolCalls.length > 0 && <span className="inline-flex items-center gap-1.5"><Wrench className="size-3.5" /> {toolCalls.length} tool result(s)</span>}
           </div>
-          {toolCalls.length > 0 && <div className="mt-2 space-y-1">{toolCalls.map((call, index) => <div key={`${call.tool}-${index}`} className="rounded-md bg-black/20 px-2 py-1.5 text-gray-300"><span className="font-medium">{call.tool}</span>{call.status ? ` · ${call.status}` : ''}</div>)}</div>}
+          {toolCalls.length > 0 && <div className="mt-2 space-y-1">{toolCalls.map((call, index) => <div key={`${call.tool}-${index}`} className="rounded-md bg-black/20 px-2 py-1.5 text-foreground/85"><span className="font-medium">{call.tool}</span>{call.status ? ` · ${call.status}` : ''}</div>)}</div>}
         </div>
       )}
 
-      <div className="border-t border-gray-800 bg-gray-950 p-3 sm:p-5">
+      <div className="border-t border-border bg-gray-950 p-3 sm:p-5">
         <form onSubmit={(e) => { e.preventDefault(); void sendMessage(e.currentTarget.querySelector('textarea')?.value); }} className="mx-auto max-w-4xl">
           <div className="rounded-2xl border border-gray-700 bg-gray-900/90 p-2 transition focus-within:border-primary/50">
             <Textarea ref={inputRef} value={prompt} onChange={(e) => setPrompt(e.target.value)}

@@ -332,25 +332,25 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
   return (
     <div className="space-y-6">
       {/* Sub-header navigation */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-800 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2.5">
             <Layers className="h-6 w-6 text-amber-500" />
             Dynamic HR Document Intelligence & Workflow Builder
           </h2>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Configurable, graph-driven onboarding workflows — upload arbitrary templates, collect candidate evidence, and govern reviews.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-gray-900 border border-gray-800 rounded-xl p-1">
+          <div className="flex items-center gap-1.5 bg-gray-900 border border-border rounded-xl p-1">
             <Button
               size="sm"
               variant={subTab === 'templates' ? 'default' : 'ghost'}
               onClick={() => setSubTab('templates')}
               className={`rounded-lg text-xs font-semibold h-8 px-3 ${
-                subTab === 'templates' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold' : 'text-gray-300 hover:text-white'
+                subTab === 'templates' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold' : 'text-foreground/85 hover:text-white'
               }`}
             >
               <FileText className="h-3.5 w-3.5 mr-1.5" />
@@ -362,7 +362,7 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
               variant={subTab === 'builder' ? 'default' : 'ghost'}
               onClick={() => setSubTab('builder')}
               className={`rounded-lg text-xs font-semibold h-8 px-3 ${
-                subTab === 'builder' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold' : 'text-gray-300 hover:text-white'
+                subTab === 'builder' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold' : 'text-foreground/85 hover:text-white'
               }`}
             >
               <Workflow className="h-3.5 w-3.5 mr-1.5" />
@@ -374,7 +374,7 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
               variant={subTab === 'onboarding' ? 'default' : 'ghost'}
               onClick={() => setSubTab('onboarding')}
               className={`rounded-lg text-xs font-semibold h-8 px-3 ${
-                subTab === 'onboarding' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold' : 'text-gray-300 hover:text-white'
+                subTab === 'onboarding' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold' : 'text-foreground/85 hover:text-white'
               }`}
             >
               <GitBranch className="h-3.5 w-3.5 mr-1.5" />
@@ -386,7 +386,7 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
               variant={subTab === 'review' ? 'default' : 'ghost'}
               onClick={() => setSubTab('review')}
               className={`rounded-lg text-xs font-semibold h-8 px-3 ${
-                subTab === 'review' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold' : 'text-gray-300 hover:text-white'
+                subTab === 'review' ? 'bg-amber-500 hover:bg-amber-600 text-black font-bold' : 'text-foreground/85 hover:text-white'
               }`}
             >
               <Eye className="h-3.5 w-3.5 mr-1.5" />
@@ -400,10 +400,10 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
               setSubTab('builder');
               setOpenAiPromptModal(true);
             }}
-            className="rounded-xl text-xs font-bold h-9 px-3.5 bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shadow-md shadow-indigo-600/25 border border-indigo-400/30 cursor-pointer transition-all"
+            className="rounded-xl text-xs font-bold h-9 px-3.5 bg-primary text-primary-foreground hover:bg-primary-hover text-white flex items-center gap-1.5 shadow-md shadow-indigo-600/25 border border-indigo-400/30 cursor-pointer transition-all"
             title="Open AI Pipeline Architect to synthesize DAG from natural language"
           >
-            <Sparkles className="h-4 w-4 text-indigo-200" />
+            <Sparkles className="h-4 w-4 text-foreground" />
             Build with AI
           </Button>
         </div>
@@ -414,12 +414,12 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-xs font-medium text-gray-400">Filter Category:</span>
-              <Badge variant="outline" className="border-gray-800 text-gray-300 cursor-pointer hover:border-amber-500">All</Badge>
-              <Badge variant="outline" className="border-gray-800 text-gray-300 cursor-pointer hover:border-amber-500">Agreements</Badge>
-              <Badge variant="outline" className="border-gray-800 text-gray-300 cursor-pointer hover:border-amber-500">Offer Letters</Badge>
-              <Badge variant="outline" className="border-gray-800 text-gray-300 cursor-pointer hover:border-amber-500">Compliance & NDAs</Badge>
-              <Badge variant="outline" className="border-gray-800 text-gray-300 cursor-pointer hover:border-amber-500">Contractors</Badge>
+              <span className="text-xs font-medium text-muted-foreground">Filter Category:</span>
+              <Badge variant="outline" className="border-border text-foreground/85 cursor-pointer hover:border-amber-500">All</Badge>
+              <Badge variant="outline" className="border-border text-foreground/85 cursor-pointer hover:border-amber-500">Agreements</Badge>
+              <Badge variant="outline" className="border-border text-foreground/85 cursor-pointer hover:border-amber-500">Offer Letters</Badge>
+              <Badge variant="outline" className="border-border text-foreground/85 cursor-pointer hover:border-amber-500">Compliance & NDAs</Badge>
+              <Badge variant="outline" className="border-border text-foreground/85 cursor-pointer hover:border-amber-500">Contractors</Badge>
             </div>
 
             <Button
@@ -433,7 +433,7 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {templates.map((tpl) => (
-              <Card key={tpl.id} className="bg-gray-950 border border-gray-800 hover:border-gray-700 transition-all rounded-2xl">
+              <Card key={tpl.id} className="bg-gray-950 border border-border hover:border-gray-700 transition-all rounded-2xl">
                 <CardHeader className="p-4 pb-2">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
@@ -442,7 +442,7 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
                       </div>
                       <div>
                         <CardTitle className="text-sm font-semibold text-white">{tpl.name}</CardTitle>
-                        <CardDescription className="text-xs text-gray-400 font-mono mt-0.5">
+                        <CardDescription className="text-xs text-muted-foreground font-mono mt-0.5">
                           {tpl.folder_path} • v{tpl.latest_version} ({tpl.format.toUpperCase()})
                         </CardDescription>
                       </div>
@@ -455,7 +455,7 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
                 <CardContent className="p-4 pt-2 space-y-3">
                   <div className="flex flex-wrap gap-1.5">
                     {tpl.tags.map((tag: string, i: number) => (
-                      <span key={i} className="text-[10px] px-2 py-0.5 rounded-md bg-gray-900 border border-gray-800 text-gray-400">
+                      <span key={i} className="text-[10px] px-2 py-0.5 rounded-md bg-gray-900 border border-border text-muted-foreground">
                         #{tag}
                       </span>
                     ))}
@@ -479,20 +479,20 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
           {/* Upload & AI Analysis Modal */}
           {uploadModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-              <Card className="bg-gray-950 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                <CardHeader className="p-6 border-b border-gray-800">
+              <Card className="bg-gray-950 border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <CardHeader className="p-6 border-b border-border">
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
                         <Sparkles className="h-5 w-5 text-amber-500" />
                         AI Template Intelligence Upload
                       </CardTitle>
-                      <CardDescription className="text-xs text-gray-400 mt-1">
+                      <CardDescription className="text-xs text-muted-foreground mt-1">
                         Upload your DOCX template. OctaOS preserves formatting, identifies variables, and maps canonical fields.
                       </CardDescription>
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => setUploadModalOpen(false)}>
-                      <X className="h-4 w-4 text-gray-400" />
+                      <X className="h-4 w-4 text-muted-foreground" />
                     </Button>
                   </div>
                 </CardHeader>
@@ -502,20 +502,20 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="text-xs text-gray-400 block mb-1.5">Template Name</label>
+                          <label className="text-xs text-muted-foreground block mb-1.5">Template Name</label>
                           <Input
                             placeholder="e.g. Senior Leadership Offer Letter"
                             value={uploadName}
                             onChange={(e) => setUploadName(e.target.value)}
-                            className="bg-gray-900 border-gray-800 text-xs h-9"
+                            className="bg-gray-900 border-border text-xs h-9"
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-gray-400 block mb-1.5">Document Purpose / Category</label>
+                          <label className="text-xs text-muted-foreground block mb-1.5">Document Purpose / Category</label>
                           <select
                             value={uploadCategory}
                             onChange={(e) => setUploadCategory(e.target.value)}
-                            className="w-full bg-gray-900 border border-gray-800 text-xs rounded-md h-9 px-3 text-gray-300"
+                            className="w-full bg-gray-900 border border-border text-xs rounded-md h-9 px-3 text-foreground/85"
                           >
                             <option value="offer">Offer Letter</option>
                             <option value="agreement">Employment Agreement</option>
@@ -527,7 +527,7 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
                         </div>
                       </div>
 
-                      <div className="border-2 border-dashed border-gray-800 rounded-2xl p-8 text-center bg-gray-900/40 hover:bg-gray-900/60 transition-all cursor-pointer">
+                      <div className="border-2 border-dashed border-border rounded-2xl p-8 text-center bg-gray-900/40 hover:bg-background transition-all cursor-pointer">
                         <Upload className="h-8 w-8 text-amber-500 mx-auto mb-2 opacity-80" />
                         <p className="text-sm font-semibold text-white">Select existing DOCX or HTML template</p>
                         <p className="text-xs text-gray-500 mt-1">Supports tables, content controls, headers, and custom placeholders</p>
@@ -560,16 +560,16 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
 
                       <div className="space-y-2">
                         <h4 className="text-xs font-semibold text-white uppercase tracking-wider">Proposed Canonical Field Mappings</h4>
-                        <div className="border border-gray-800 rounded-xl divide-y divide-gray-800 overflow-hidden text-xs">
+                        <div className="border border-border rounded-xl divide-y divide-gray-800 overflow-hidden text-xs">
                           {analysisResult.placeholders.map((p: any, i: number) => (
-                            <div key={i} className="p-2.5 bg-gray-900/60 flex items-center justify-between">
+                            <div key={i} className="p-2.5 bg-background flex items-center justify-between">
                               <div>
                                 <span className="font-mono text-amber-400 font-semibold">{p.expr}</span>
-                                <span className="text-gray-400 mx-2">→</span>
+                                <span className="text-muted-foreground mx-2">→</span>
                                 <span className="font-mono text-emerald-400">{p.canonical}</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="border-gray-700 text-gray-400 text-[10px]">{p.type}</Badge>
+                                <Badge variant="outline" className="border-gray-700 text-muted-foreground text-[10px]">{p.type}</Badge>
                                 <span className="text-emerald-400 text-[11px] font-semibold">{p.conf} conf</span>
                               </div>
                             </div>
@@ -581,10 +581,10 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
                         <h4 className="text-xs font-semibold text-white uppercase tracking-wider">Detected Legal & Sensitive Clauses</h4>
                         <div className="space-y-1.5">
                           {analysisResult.detected_clauses.map((c: any, i: number) => (
-                            <div key={i} className="p-2.5 bg-gray-900/40 border border-gray-800 rounded-xl flex items-center justify-between text-xs">
+                            <div key={i} className="p-2.5 bg-gray-900/40 border border-border rounded-xl flex items-center justify-between text-xs">
                               <div>
                                 <span className="font-semibold text-white">{c.title}</span>
-                                <p className="text-[11px] text-gray-400">{c.type} Clause</p>
+                                <p className="text-[11px] text-muted-foreground">{c.type} Clause</p>
                               </div>
                               <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px]">
                                 {c.status}
@@ -594,7 +594,7 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
                         </div>
                       </div>
 
-                      <div className="flex justify-end gap-2 pt-4 border-t border-gray-800">
+                      <div className="flex justify-end gap-2 pt-4 border-t border-border">
                         <Button variant="ghost" size="sm" onClick={() => setAnalysisResult(null)}>Re-upload</Button>
                         <Button
                           size="sm"
@@ -631,11 +631,11 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {instances.map((inst) => (
-              <Card key={inst.id} className="bg-gray-950 border border-gray-800 rounded-2xl p-5 space-y-4">
+              <Card key={inst.id} className="bg-gray-950 border border-border rounded-2xl p-5 space-y-4">
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-base font-bold text-white">{inst.candidate_name}</h3>
-                    <p className="text-xs text-gray-400">{inst.role_title} • {inst.employment_type.toUpperCase()}</p>
+                    <p className="text-xs text-muted-foreground">{inst.role_title} • {inst.employment_type.toUpperCase()}</p>
                   </div>
                   <Badge className={`text-xs ${
                     inst.current_state === 'scheduled'
@@ -646,8 +646,8 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
                   </Badge>
                 </div>
 
-                <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2 text-xs">
-                  <div className="flex items-center justify-between text-gray-400">
+                <div className="bg-gray-900 border border-border rounded-xl p-3 space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-muted-foreground">
                     <span>Public Portal Access Link:</span>
                     <span className="text-[11px] text-gray-500">{inst.expires_in}</span>
                   </div>
@@ -655,7 +655,7 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
                     <Input
                       readOnly
                       value={`https://app.octaos.ai/public/portal/${inst.portal_token}`}
-                      className="bg-gray-950 border-gray-800 text-[11px] font-mono h-8"
+                      className="bg-gray-950 border-border text-[11px] font-mono h-8"
                     />
                     <Button
                       size="sm"
@@ -676,10 +676,10 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
                       <AlertTriangle className="h-4 w-4" />
                       Evidence Discrepancy Flagged
                     </div>
-                    <p className="text-xs text-gray-300">
+                    <p className="text-xs text-foreground/85">
                       Candidate entered: <span className="text-amber-300 font-semibold">{inst.conflict_details.candidate_value}</span>, but official document OCR extracted: <span className="text-emerald-300 font-semibold">{inst.conflict_details.extracted_value}</span>.
                     </p>
-                    <p className="text-[11px] text-gray-400">Source: {inst.conflict_details.source}</p>
+                    <p className="text-[11px] text-muted-foreground">Source: {inst.conflict_details.source}</p>
                     <div className="flex gap-2 pt-1">
                       <Button
                         size="sm"
@@ -694,7 +694,7 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
                         size="sm"
                         variant="ghost"
                         onClick={() => setSubTab('review')}
-                        className="h-7 text-xs text-gray-400 hover:text-white"
+                        className="h-7 text-xs text-muted-foreground hover:text-white"
                       >
                         Inspect in Studio
                       </Button>
@@ -707,7 +707,7 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
                   <Button
                     size="sm"
                     onClick={() => setSubTab('review')}
-                    className="bg-gray-900 hover:bg-gray-800 text-amber-400 border border-gray-800 text-xs h-8"
+                    className="bg-gray-900 hover:bg-gray-800 text-amber-400 border border-border text-xs h-8"
                   >
                     Open Review Studio →
                   </Button>
@@ -723,7 +723,7 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-3 space-y-4">
             {/* Review Studio Header Controls */}
-            <div className="bg-gray-950 border border-gray-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="bg-gray-950 border border-border rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h3 className="text-base font-bold text-white">{studioDraft.document_name}</h3>
                 <div className="flex items-center gap-2 mt-1">
@@ -772,7 +772,7 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
             </div>
 
             {/* A4 Paginated Document Canvas */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 flex justify-center">
+            <div className="bg-gray-900 border border-border rounded-2xl p-8 flex justify-center">
               <div className="bg-white text-neutral-900 shadow-2xl rounded-sm p-12 max-w-[640px] w-full min-h-[820px] font-serif space-y-5">
                 <div className="border-b border-neutral-300 pb-4 text-center">
                   <h1 className="text-xl font-bold tracking-wide uppercase text-neutral-900">OctaCorp Global Technologies</h1>
@@ -810,9 +810,9 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
 
           {/* Right Inspector & Revision Sidebar */}
           <div className="space-y-4">
-            <Card className="bg-gray-950 border border-gray-800 rounded-2xl">
-              <CardHeader className="p-4 border-b border-gray-800">
-                <CardTitle className="text-xs font-bold uppercase tracking-wider text-gray-400">
+            <Card className="bg-gray-950 border border-border rounded-2xl">
+              <CardHeader className="p-4 border-b border-border">
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Reconciled Snapshot
                 </CardTitle>
               </CardHeader>
@@ -836,20 +836,20 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
               </CardContent>
             </Card>
 
-            <Card className="bg-gray-950 border border-gray-800 rounded-2xl">
-              <CardHeader className="p-4 border-b border-gray-800">
-                <CardTitle className="text-xs font-bold uppercase tracking-wider text-gray-400">
+            <Card className="bg-gray-950 border border-border rounded-2xl">
+              <CardHeader className="p-4 border-b border-border">
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Audit & Revision History
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 space-y-3">
                 {studioDraft.revisions.map((rev: any, i: number) => (
                   <div key={i} className="text-xs border-l-2 border-amber-500/50 pl-2.5 py-1 space-y-0.5">
-                    <div className="flex items-center justify-between text-gray-400">
-                      <span className="font-semibold text-gray-300">{rev.user}</span>
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span className="font-semibold text-foreground/85">{rev.user}</span>
                       <span className="text-[10px] text-gray-500">{rev.time}</span>
                     </div>
-                    <p className="text-[11px] text-gray-400 leading-snug">{rev.action}</p>
+                    <p className="text-[11px] text-muted-foreground leading-snug">{rev.action}</p>
                   </div>
                 ))}
               </CardContent>
@@ -859,13 +859,13 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
           {/* Edit Paragraph Modal */}
           {editingParagraphIdx !== null && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-              <Card className="bg-gray-950 border border-gray-800 rounded-2xl w-full max-w-lg p-5 space-y-4">
+              <Card className="bg-gray-950 border border-border rounded-2xl w-full max-w-lg p-5 space-y-4">
                 <h3 className="text-sm font-bold text-white">Edit Paragraph {editingParagraphIdx + 1}</h3>
                 <textarea
                   rows={4}
                   value={editText}
                   onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditText(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-800 text-xs text-white rounded-xl p-3 focus:outline-none focus:border-amber-500"
+                  className="w-full bg-gray-900 border border-border text-xs text-white rounded-xl p-3 focus:outline-none focus:border-amber-500"
                 />
                 <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-300 text-xs">
                   ⚠️ Note: Saving changes to this document will automatically invalidate any prior approval for this version.
@@ -883,7 +883,7 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
           {/* Schedule Dispatch Modal */}
           {scheduleModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-              <Card className="bg-gray-950 border border-gray-800 rounded-2xl w-full max-w-md p-5 space-y-4">
+              <Card className="bg-gray-950 border border-border rounded-2xl w-full max-w-md p-5 space-y-4">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <Clock className="h-4 w-4 text-amber-500" />
                   Schedule Document Dispatch
@@ -891,21 +891,21 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
 
                 <div className="space-y-3 text-xs">
                   <div>
-                    <label className="text-gray-400 block mb-1">Release Date & Time</label>
+                    <label className="text-muted-foreground block mb-1">Release Date & Time</label>
                     <Input
                       type="datetime-local"
                       value={scheduledDate}
                       onChange={(e) => setScheduledDate(e.target.value)}
-                      className="bg-gray-900 border-gray-800 text-xs h-9"
+                      className="bg-gray-900 border-border text-xs h-9"
                     />
                   </div>
 
                   <div>
-                    <label className="text-gray-400 block mb-1">Target Timezone</label>
+                    <label className="text-muted-foreground block mb-1">Target Timezone</label>
                     <select
                       value={scheduledTimezone}
                       onChange={(e) => setScheduledTimezone(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-800 text-xs rounded-md h-9 px-3 text-gray-300"
+                      className="w-full bg-gray-900 border border-border text-xs rounded-md h-9 px-3 text-foreground/85"
                     >
                       <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
                       <option value="America/New_York">America/New_York (EST)</option>
@@ -914,9 +914,9 @@ export default function HRWorkflowHub({ API_URL, fetchWithAuth }: HRWorkflowHubP
                     </select>
                   </div>
 
-                  <div className="p-3 bg-gray-900 border border-gray-800 rounded-xl space-y-1">
+                  <div className="p-3 bg-gray-900 border border-border rounded-xl space-y-1">
                     <span className="font-semibold text-emerald-400">Pre-Flight Revalidation:</span>
-                    <p className="text-gray-400 text-[11px]">
+                    <p className="text-muted-foreground text-[11px]">
                       Prior to release, the orchestrator will verify that content SHA-256 matches the approval hash.
                     </p>
                   </div>

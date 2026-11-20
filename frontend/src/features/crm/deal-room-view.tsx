@@ -489,7 +489,7 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth, initialRoo
           <button 
             type="button" 
             onClick={() => setActionMessage(null)} 
-            className="text-slate-400 hover:text-slate-700 p-1"
+            className="text-muted-foreground hover:text-slate-700 p-1"
           >
             &times;
           </button>
@@ -500,13 +500,13 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth, initialRoo
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 w-full sm:w-auto flex-1 max-w-md">
           <div className="relative w-full">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground pointer-events-none" />
             <Input
               placeholder="Search deal rooms by company name or domain..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && fetchDealRooms()}
-              className="pl-9 bg-slate-50 border-slate-200 text-xs h-9 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 rounded-xl"
+              className="pl-9 bg-slate-50 border-slate-200 text-xs h-9 text-slate-900 placeholder:text-muted-foreground focus:bg-white focus:border-blue-500 rounded-xl"
             />
           </div>
 
@@ -697,7 +697,7 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth, initialRoo
                             <Button 
                               variant="ghost" 
                               size="sm" 
-                              className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 fetchRoomDetails(r.id);
@@ -802,7 +802,7 @@ export default function DealRoomView({ token, API_URL, fetchWithAuth, initialRoo
                 <div>
                   <div className="flex items-center justify-between mb-2.5">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                      <span className="w-1.5 h-3 bg-indigo-600 rounded-sm" />
+                      <span className="w-1.5 h-3 bg-primary text-primary-foreground rounded-sm" />
                       Buying Committee ({(selectedRoom.committee || []).length} Stakeholders)
                     </h4>
                     

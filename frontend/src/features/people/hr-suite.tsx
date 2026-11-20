@@ -471,9 +471,9 @@ export default function HREnterpriseSuite({
             </div>
 
             {/* Leave Requests Table */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden">
+            <div className="rounded-xl border border-border bg-card/40 overflow-hidden">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider font-semibold">
+                <thead className="bg-card border-b border-border text-muted-foreground uppercase text-[10px] tracking-wider font-semibold">
                   <tr>
                     <th className="py-3 px-4">Employee</th>
                     <th className="py-3 px-4">Leave Type</th>
@@ -484,12 +484,12 @@ export default function HREnterpriseSuite({
                     <th className="py-3 px-4 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800 text-slate-300">
+                <tbody className="divide-y divide-slate-800 text-foreground/85">
                   {leaves.map((l) => (
                     <tr key={l.id} className="hover:bg-slate-800/30 transition-colors">
                       <td className="py-3 px-4 font-medium text-white">{l.employee_name}</td>
                       <td className="py-3 px-4">{l.leave_type}</td>
-                      <td className="py-3 px-4 text-slate-400">{l.start_date} → {l.end_date}</td>
+                      <td className="py-3 px-4 text-muted-foreground">{l.start_date} → {l.end_date}</td>
                       <td className="py-3 px-4 font-semibold">{l.days_requested} d</td>
                       <td className="py-3 px-4">
                         {typeof l.coverage_score === 'number' && Number.isFinite(l.coverage_score) ? (
@@ -556,19 +556,19 @@ export default function HREnterpriseSuite({
 
       {/* ── COPILOT EXPANDABLE DRAWER (CMD+J) ── */}
       {isCopilotOpen && (
-        <div className="fixed inset-y-0 right-0 w-full sm:w-[460px] bg-slate-900/95 border-l border-slate-800 shadow-2xl backdrop-blur-xl z-50 flex flex-col">
+        <div className="fixed inset-y-0 right-0 w-full sm:w-[460px] bg-card/95 border-l border-border shadow-2xl backdrop-blur-xl z-50 flex flex-col">
           {/* Drawer Header */}
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
+          <div className="p-4 border-b border-border flex items-center justify-between bg-background/40">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-400" />
               <div>
                 <h3 className="text-sm font-semibold text-foreground">Universal HR Copilot</h3>
-                <span className="text-[10px] text-slate-400">Multi-agent orchestrator with HITL approvals</span>
+                <span className="text-[10px] text-muted-foreground">Multi-agent orchestrator with HITL approvals</span>
               </div>
             </div>
             <button
               onClick={() => setIsCopilotOpen(false)}
-              className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800"
+              className="text-muted-foreground hover:text-white p-1 rounded hover:bg-slate-800"
             >
               <X className="w-4 h-4" />
             </button>
@@ -594,7 +594,7 @@ export default function HREnterpriseSuite({
 
                 {/* Proposed Action Card */}
                 {m.action && (
-                  <div className="mt-3 p-2.5 rounded bg-slate-900 border border-slate-700 space-y-2">
+                  <div className="mt-3 p-2.5 rounded bg-card border border-slate-700 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-semibold text-white">{m.action.title}</span>
                       {m.action.executed ? (
@@ -630,7 +630,7 @@ export default function HREnterpriseSuite({
                             notify.error('Failed to submit approval');
                           }
                         }}
-                        className="w-full h-7 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px]"
+                        className="w-full h-7 bg-primary text-primary-foreground hover:bg-primary-hover text-white text-[11px]"
                       >
                         Submit for Enterprise Approval
                       </Button>
@@ -641,25 +641,25 @@ export default function HREnterpriseSuite({
             ))}
             {copilotLoading && (
               <div className="text-xs text-muted-foreground flex items-center gap-2 italic">
-                <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-primary" />
                 Specialist agent analyzing workforce data...
               </div>
             )}
           </div>
 
           {/* Drawer Input */}
-          <div className="p-3 border-t border-slate-800 bg-slate-950/60 flex items-center gap-2">
+          <div className="p-3 border-t border-border bg-background/60 flex items-center gap-2">
             <Input
               placeholder="Ask anything across 16 HR submodules..."
               value={copilotInput}
               onChange={(e) => setCopilotInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSendCopilot()}
-              className="bg-slate-900 border-slate-800 text-xs text-white"
+              className="bg-card border-border text-xs text-white"
             />
             <Button
               onClick={() => handleSendCopilot()}
               disabled={copilotLoading}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white h-9 px-3"
+              className="bg-primary text-primary-foreground hover:bg-primary-hover text-white h-9 px-3"
             >
               <Send className="w-3.5 h-3.5" />
             </Button>
@@ -670,34 +670,34 @@ export default function HREnterpriseSuite({
       {/* ── MODAL: ADD EMPLOYEE ── */}
       {isAddEmployeeOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 space-y-4">
+          <div className="bg-card border border-border rounded-xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-white">Add New Employee Profile</h3>
-              <button onClick={() => setIsAddEmployeeOpen(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setIsAddEmployeeOpen(false)} className="text-muted-foreground hover:text-white">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <form onSubmit={handleCreateEmployee} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-slate-400">First Name</label>
+                  <label className="text-muted-foreground">First Name</label>
                   <Input value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} required className="bg-background border-border text-foreground mt-1" />
                 </div>
                 <div>
-                  <label className="text-slate-400">Last Name</label>
+                  <label className="text-muted-foreground">Last Name</label>
                   <Input value={newLastName} onChange={(e) => setNewLastName(e.target.value)} required className="bg-slate-800 border-slate-700 text-white mt-1 text-xs" />
                 </div>
               </div>
               <div>
-                <label className="text-slate-400">Work Email</label>
+                <label className="text-muted-foreground">Work Email</label>
                 <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required className="bg-slate-800 border-slate-700 text-white mt-1 text-xs" />
               </div>
               <div>
-                <label className="text-slate-400">Job Title</label>
+                <label className="text-muted-foreground">Job Title</label>
                 <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} required placeholder="e.g., Staff Engineer" className="bg-slate-800 border-slate-700 text-white mt-1 text-xs" />
               </div>
               <div>
-                <label className="text-slate-400">Department</label>
+                <label className="text-muted-foreground">Department</label>
                 <Input value={newDept} onChange={(e) => setNewDept(e.target.value)} className="bg-slate-800 border-slate-700 text-white mt-1 text-xs" />
               </div>
               <div className="pt-2 flex justify-end gap-2">
@@ -716,10 +716,10 @@ export default function HREnterpriseSuite({
       {/* ── MODAL: SUBMIT LEAVE REQUEST ── */}
       {isLeaveModalOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 space-y-4">
+          <div className="bg-card border border-border rounded-xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-white">Submit Leave Request</h3>
-              <button onClick={() => setIsLeaveModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setIsLeaveModalOpen(false)} className="text-muted-foreground hover:text-white">
                 <X className="w-4 h-4" />
               </button>
             </div>

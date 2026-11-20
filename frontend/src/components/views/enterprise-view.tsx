@@ -367,7 +367,7 @@ export default function EnterpriseView({
       />
       <div className={mode === 'control' ? 'grid grid-cols-1 gap-6 md:grid-cols-[210px_minmax(0,1fr)]' : ''}>
       {mode === 'control' && (
-        <nav className="flex gap-1 overflow-auto md:flex-col bg-[#111318] p-2 rounded-xl border border-white/[0.08] h-fit" aria-label="Enterprise sections">
+        <nav className="flex gap-1 overflow-auto md:flex-col bg-[#11161c] p-2 rounded-xl border border-white/[0.08] h-fit" aria-label="Enterprise sections">
           {tabs.map((item) => (
             <button
               key={item.id}
@@ -376,7 +376,7 @@ export default function EnterpriseView({
               className={`rounded-lg px-3 py-2 text-left text-xs font-medium transition-colors ${
                 tab === item.id
                   ? 'bg-zinc-800 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+                  : 'text-muted-foreground hover:text-zinc-200 hover:bg-card/60'
               }`}
             >
               {item.label}
@@ -413,7 +413,7 @@ export default function EnterpriseView({
                 </div>
               </div>
               {a.payload?.draft && (
-                <pre className="text-xs whitespace-pre-wrap text-zinc-300 bg-black/50 p-2 rounded max-h-40 overflow-auto">
+                <pre className="text-xs whitespace-pre-wrap text-foreground/85 bg-black/50 p-2 rounded max-h-40 overflow-auto">
                   {a.payload.draft}
                 </pre>
               )}
@@ -482,9 +482,9 @@ export default function EnterpriseView({
                 </div>
 
                 <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-xs text-zinc-400 mr-1">Active AI Employees:</span>
+                  <span className="text-xs text-muted-foreground mr-1">Active AI Employees:</span>
                   {[
-                    { id: 'marketing', label: 'Campaign Planner', icon: Calendar, color: 'text-violet-400 border-violet-500/30 bg-violet-500/10' },
+                    { id: 'marketing', label: 'Campaign Planner', icon: Calendar, color: 'text-primary border-violet-500/30 bg-violet-500/10' },
                     { id: 'sales', label: 'Sales SDR', icon: TrendingUp, color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' },
                     { id: 'hr', label: 'HR Recruiter', icon: Briefcase, color: 'text-amber-400 border-amber-500/30 bg-amber-500/10' },
                     { id: 'support', label: 'Customer Support', icon: MessageSquare, color: 'text-blue-400 border-blue-500/30 bg-blue-500/10' },
@@ -497,7 +497,7 @@ export default function EnterpriseView({
                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${
                           active
                             ? ag.color
-                            : 'bg-zinc-900/60 text-zinc-500 border-zinc-800 line-through opacity-60'
+                            : 'bg-card/60 text-zinc-500 border-border line-through opacity-60'
                         }`}
                       >
                         <AgIcon size={12} />
@@ -559,7 +559,7 @@ export default function EnterpriseView({
                   name: 'Campaign Planner AI',
                   persona: 'Jules — Senior Copywriter & Multi-channel Autopilot',
                   icon: Calendar,
-                  color: 'text-violet-400 bg-violet-600/10 border-violet-500/20',
+                  color: 'text-primary bg-violet-600/10 border-violet-500/20',
                   priceInr: '₹3,999',
                   priceUsd: '$49',
                   quota: '10,000 actions/mo',
@@ -623,7 +623,7 @@ export default function EnterpriseView({
                 return (
                   <Card
                     key={ag.id}
-                    className={`p-5 bg-zinc-950/70 border transition-all ${
+                    className={`p-5 bg-background/70 border transition-all ${
                       active ? 'border-emerald-500/30 bg-emerald-950/10' : 'border-white/10 hover:border-white/20'
                     }`}
                   >
@@ -641,19 +641,19 @@ export default function EnterpriseView({
                               </span>
                             )}
                           </div>
-                          <span className="text-xs text-zinc-400 block">{ag.persona}</span>
+                          <span className="text-xs text-muted-foreground block">{ag.persona}</span>
                         </div>
                       </div>
 
                       <div className="text-right shrink-0">
                         <div className="text-base font-bold text-white">{ag.priceInr}</div>
-                        <span className="text-[10px] text-zinc-400 block">{ag.priceUsd} / mo</span>
+                        <span className="text-[10px] text-muted-foreground block">{ag.priceUsd} / mo</span>
                       </div>
                     </div>
 
                     <div className="my-3 space-y-1.5 border-t border-b border-white/5 py-3">
                       {ag.points.map((pt, idx) => (
-                        <div key={idx} className="flex items-start gap-2 text-xs text-zinc-300">
+                        <div key={idx} className="flex items-start gap-2 text-xs text-foreground/85">
                           <CheckCircle2 size={13} className="text-emerald-400 mt-0.5 shrink-0" />
                           <span>{pt}</span>
                         </div>
@@ -673,7 +673,7 @@ export default function EnterpriseView({
                         size="sm"
                         variant="outline"
                         onClick={() => changePlan(ag.code)}
-                        className="border-white/10 hover:bg-white/5 text-xs text-zinc-300"
+                        className="border-white/10 hover:bg-white/5 text-xs text-foreground/85"
                       >
                         Instant Activate
                       </Button>
@@ -688,15 +688,15 @@ export default function EnterpriseView({
           <Card className="p-6 bg-gradient-to-br from-zinc-950 via-zinc-900 to-black border-violet-500/20 shadow-2xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10">
               <div className="flex items-center gap-2">
-                <Layers size={18} className="text-violet-400" />
+                <Layers size={18} className="text-primary" />
                 <h3 className="text-base font-semibold text-white">Build Your Custom AI Team (A-la-carte)</h3>
               </div>
-              <span className="text-xs text-violet-400 bg-violet-500/10 px-2.5 py-1 rounded-full border border-violet-500/20">
+              <span className="text-xs text-primary bg-violet-500/10 px-2.5 py-1 rounded-full border border-violet-500/20">
                 10% Discount on 2+ Agents
               </span>
             </div>
 
-            <p className="text-xs text-zinc-400">
+            <p className="text-xs text-muted-foreground">
               Select any custom combination of agents. Your team quota and multi-agent bundling discount are calculated in real time.
             </p>
 
@@ -717,7 +717,7 @@ export default function EnterpriseView({
                     className={`cursor-pointer p-4 rounded-xl border transition-all flex items-center justify-between ${
                       isSelected
                         ? 'bg-violet-950/20 border-violet-500/40 shadow-inner'
-                        : 'bg-zinc-900/40 border-white/5 opacity-60 hover:opacity-100'
+                        : 'bg-card/40 border-white/5 opacity-60 hover:opacity-100'
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
@@ -726,10 +726,10 @@ export default function EnterpriseView({
                       </div>
                       <div>
                         <span className="text-xs font-semibold text-white block">{ag.name}</span>
-                        <span className="text-[11px] text-zinc-400 font-mono">₹{ag.priceInr.toLocaleString()}</span>
+                        <span className="text-[11px] text-muted-foreground font-mono">₹{ag.priceInr.toLocaleString()}</span>
                       </div>
                     </div>
-                    <AgIcon size={16} className={isSelected ? 'text-violet-400' : 'text-zinc-600'} />
+                    <AgIcon size={16} className={isSelected ? 'text-primary' : 'text-zinc-600'} />
                   </div>
                 );
               })}
@@ -742,7 +742,7 @@ export default function EnterpriseView({
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-white/[0.02] border border-white/5 mt-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-400">Selected Team:</span>
+                      <span className="text-xs text-muted-foreground">Selected Team:</span>
                       <span className="text-xs font-bold text-white">{totals.count} AI Employees</span>
                       {totals.hasDiscount && (
                         <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-bold">
@@ -752,7 +752,7 @@ export default function EnterpriseView({
                     </div>
                     <div className="flex items-baseline gap-2 mt-0.5">
                       <span className="text-xl font-bold text-white">₹{totals.finalInr.toLocaleString()}</span>
-                      <span className="text-xs text-zinc-400">/ month (${totals.finalUsd} USD)</span>
+                      <span className="text-xs text-muted-foreground">/ month (${totals.finalUsd} USD)</span>
                       {totals.hasDiscount && (
                         <span className="text-xs text-zinc-500 line-through">₹{totals.rawInr.toLocaleString()}</span>
                       )}
@@ -771,7 +771,7 @@ export default function EnterpriseView({
                       size="sm"
                       variant="outline"
                       onClick={() => activateAgentsDirect(selectedAgents)}
-                      className="border-white/10 hover:bg-white/5 text-xs text-zinc-300 flex-1 sm:flex-initial"
+                      className="border-white/10 hover:bg-white/5 text-xs text-foreground/85 flex-1 sm:flex-initial"
                     >
                       Activate Custom Team
                     </Button>
@@ -784,18 +784,18 @@ export default function EnterpriseView({
           {/* All-in-One Full Workforce Option */}
           <Card className="p-6 bg-gradient-to-r from-violet-950/30 to-indigo-950/30 border-violet-500/30 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
             <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-500/10 text-violet-400 border border-violet-500/20 mb-2">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-500/10 text-primary border border-violet-500/20 mb-2">
                 <Sparkles size={12} /> Complete Enterprise Bundle
               </div>
               <h3 className="text-lg font-bold text-white">All-In-One AI Workforce (Full Access)</h3>
-              <p className="text-xs text-zinc-400 mt-1 max-w-xl">
+              <p className="text-xs text-muted-foreground mt-1 max-w-xl">
                 Unlocks the complete suite: Campaign Planner, Sales AI SDR, HR Recruiter, Customer Support, plus CEO Workspace and Executive Boardroom. Highest quota (100,000 actions/mo).
               </p>
             </div>
 
             <div className="text-left md:text-right shrink-0 space-y-2">
               <div className="text-2xl font-bold text-white">
-                ₹11,999 <span className="text-xs text-zinc-400 font-normal">/ mo ($149)</span>
+                ₹11,999 <span className="text-xs text-muted-foreground font-normal">/ mo ($149)</span>
               </div>
               <div className="flex gap-2">
                 <Button
@@ -809,7 +809,7 @@ export default function EnterpriseView({
                   size="sm"
                   variant="outline"
                   onClick={() => changePlan('all_access')}
-                  className="border-white/10 hover:bg-white/5 text-xs text-zinc-300"
+                  className="border-white/10 hover:bg-white/5 text-xs text-foreground/85"
                 >
                   Activate All
                 </Button>
@@ -865,7 +865,7 @@ export default function EnterpriseView({
             <div>ROI multiple: {roi.roi_multiple ?? '—'}</div>
             <div className="pt-2 font-medium text-white">Quality samples</div>
             {(roi.quality_samples || []).slice(0, 5).map((s: any) => (
-              <div key={s.id} className="text-zinc-400">
+              <div key={s.id} className="text-muted-foreground">
                 {s.agent} · {s.task_type} · conf {s.confidence} · {s.result_status || 'pending'}
               </div>
             ))}

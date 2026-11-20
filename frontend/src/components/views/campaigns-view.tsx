@@ -96,7 +96,7 @@ const BUFFER_API_PLATFORMS = [
   { id: 'youtube', label: 'YouTube', color: 'text-red-500' },
   { id: 'pinterest', label: 'Pinterest', color: 'text-red-600' },
   { id: 'bluesky', label: 'Bluesky', color: 'text-sky-500' },
-  { id: 'mastodon', label: 'Mastodon', color: 'text-violet-500' },
+  { id: 'mastodon', label: 'Mastodon', color: 'text-primary' },
   { id: 'googlebusiness', label: 'Google Business Profile', color: 'text-emerald-600' },
 ] as const;
 
@@ -2029,8 +2029,8 @@ export default function CampaignsView({
             </div>
 
             {/* Right: Stage Milestone Activity Log Feed (7 cols) */}
-            <div className="lg:col-span-7 flex flex-col rounded-lg border border-border/60 bg-slate-950 p-3.5 text-slate-200">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
+            <div className="lg:col-span-7 flex flex-col rounded-lg border border-border/60 bg-background p-3.5 text-slate-200">
+              <div className="flex items-center justify-between border-b border-border pb-2 mb-2">
                 <div className="flex items-center gap-2">
                   <span className="relative flex size-2">
                     {activeCampaignJob.status === 'in_progress' && (
@@ -2038,11 +2038,11 @@ export default function CampaignsView({
                     )}
                     <span className={`relative inline-flex size-2 rounded-full ${activeCampaignJob.status === 'in_progress' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
                   </span>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground/85">
                     Stage Milestone Feed
                   </h3>
                 </div>
-                <span className="text-[11px] text-slate-400 font-mono">
+                <span className="text-[11px] text-muted-foreground font-mono">
                   {activeCampaignJob.logs?.length || 0} Events
                 </span>
               </div>
@@ -2064,7 +2064,7 @@ export default function CampaignsView({
                     return (
                       <div
                         key={index}
-                        className="group flex items-start gap-2 rounded border border-slate-800/60 bg-slate-900/60 p-2 hover:bg-slate-900 transition-colors"
+                        className="group flex items-start gap-2 rounded border border-border/60 bg-card/60 p-2 hover:bg-card transition-colors"
                       >
                         <span className="shrink-0 text-[10px] text-slate-500 font-mono mt-0.5">
                           {timeStr}
@@ -3212,7 +3212,7 @@ export default function CampaignsView({
                     <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 p-2 text-xs">
                       <div className="flex items-center gap-2 min-w-0">
                         {createPostVideoUrl ? (
-                          <Film className="size-4 shrink-0 text-indigo-500" />
+                          <Film className="size-4 shrink-0 text-primary" />
                         ) : (
                           <ImageIcon className="size-4 shrink-0 text-blue-500" />
                         )}

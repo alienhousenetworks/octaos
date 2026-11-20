@@ -83,7 +83,7 @@ export default function VirtualInfluencerStudio({
       platform: 'instagram',
     },
     {
-      title: 'PropTech & Real Estate Host',
+      title: 'Industry Research Host',
       name: 'Aria Chen',
       direction: 'Sophisticated architectural curator presenting modern luxury spaces and PropTech market analyses with calm, editorial elegance.',
       audience: 'High Net Worth Investors and Commercial Property Buyers',
@@ -160,7 +160,7 @@ export default function VirtualInfluencerStudio({
             <h2 className="text-xl font-bold tracking-tight text-white">
               Synthesize Brand-Safe Virtual Creators & Video Reels
             </h2>
-            <p className="text-xs text-slate-300 leading-relaxed">
+            <p className="text-xs text-foreground/85 leading-relaxed">
               Generate original fictional brand ambassadors with consistent visual traits, 9:16 vertical video reel scripts, and built-in regulatory synthetic disclosures. Never hallucinates real human identity.
             </p>
           </div>
@@ -409,7 +409,7 @@ export default function VirtualInfluencerStudio({
                       playsInline
                       className="w-full max-h-80 object-contain mx-auto"
                     />
-                    <p className="p-1.5 text-[10px] text-slate-400 font-mono text-center">
+                    <p className="p-1.5 text-[10px] text-muted-foreground font-mono text-center">
                       9:16 Vertical Video Reel
                     </p>
                   </div>

@@ -564,19 +564,19 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
       )}
 
       {/* Banner / Header */}
-      <div className="rounded-xl border border-indigo-500/20 bg-gradient-to-r from-indigo-950/30 via-purple-950/20 to-zinc-900 p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="rounded-xl border border-primary/25 bg-gradient-to-r from-[#171e26] via-[#11161c] to-[#0d1116] p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold uppercase tracking-wider bg-primary/15 text-primary border border-primary/30">
               Enterprise Protocol Gateway
             </span>
             <span className="text-zinc-500 text-xs">•</span>
-            <span className="text-zinc-400 text-xs font-mono">MCP Specification 2024-11-05</span>
+            <span className="text-muted-foreground text-xs font-mono">MCP Specification 2024-11-05</span>
           </div>
           <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2.5">
             OctaOS Governed Dynamic MCP Hub
           </h2>
-          <p className="text-xs text-zinc-300 max-w-2xl leading-relaxed">
+          <p className="text-xs text-foreground/85 max-w-2xl leading-relaxed">
             Allow external AI assistants (Claude Desktop, Cursor, Windsurf, Zed, LangChain, custom agents) and automation platforms to discover business capabilities, inspect schema metadata, and execute full CRUD operations under strict multi-tenant isolation and field-level permissions.
           </p>
         </div>
@@ -587,9 +587,9 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
             disabled={syncing}
             variant="outline"
             size="sm"
-            className="h-9 border-white/10 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 text-xs font-medium gap-2"
+            className="h-9 border-white/10 bg-card/80 hover:bg-zinc-800 text-foreground/85 text-xs font-medium gap-2"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-indigo-400' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-primary' : ''}`} />
             Sync Schemas
           </Button>
 
@@ -599,7 +599,7 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
               setWizardOpen(true);
             }}
             size="sm"
-            className="h-9 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium gap-2 shadow-lg shadow-indigo-600/20"
+            className="h-9 bg-primary text-primary-foreground hover:bg-primary-hover text-white text-xs font-medium gap-2 shadow-lg shadow-none"
           >
             <Plus className="w-3.5 h-3.5" />
             Connect New AI / Client
@@ -612,9 +612,9 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
       {/* ------------------------------------------------------------- */}
       <div className="rounded-xl border border-white/[0.08] bg-[#0c0d12] overflow-hidden shadow-2xl">
         {/* Terminal Card Header */}
-        <div className="p-4 border-b border-white/[0.08] flex flex-col md:flex-row md:items-center justify-between gap-4 bg-zinc-950/70">
+        <div className="p-4 border-b border-white/[0.08] flex flex-col md:flex-row md:items-center justify-between gap-4 bg-background/70">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-zinc-900 border border-white/10 text-emerald-400">
+            <div className="p-2 rounded-lg bg-card border border-white/10 text-emerald-400">
               <Terminal className="w-5 h-5" />
             </div>
             <div>
@@ -635,7 +635,7 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-zinc-400 mt-0.5">
+              <p className="text-[11px] text-muted-foreground mt-0.5">
                 Live communication, hands-off execution, and safety guardrails for Claude, Grok, ChatGPT, DeepSeek, and custom software.
               </p>
             </div>
@@ -672,7 +672,7 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
               disabled={pingingTerminal || !processStatus?.is_active}
               variant="outline"
               size="sm"
-              className="h-8 border-white/10 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs gap-1.5"
+              className="h-8 border-white/10 bg-card hover:bg-zinc-800 text-foreground/85 text-xs gap-1.5"
             >
               <Zap className={`w-3.5 h-3.5 text-amber-400 ${pingingTerminal ? 'animate-bounce' : ''}`} />
               Test Ping
@@ -684,7 +684,7 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
               disabled={clearingTerminal}
               variant="ghost"
               size="sm"
-              className="h-8 text-zinc-400 hover:text-white hover:bg-white/5 text-xs gap-1.5"
+              className="h-8 text-muted-foreground hover:text-white hover:bg-white/5 text-xs gap-1.5"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Clear
@@ -693,7 +693,7 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
         </div>
 
         {/* Filter bar and Window header */}
-        <div className="px-4 py-2 border-b border-white/[0.05] bg-zinc-950/90 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="px-4 py-2 border-b border-white/[0.05] bg-background/90 flex flex-wrap items-center justify-between gap-3 text-xs">
           {/* Mac window dots */}
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80 inline-block" />
@@ -712,8 +712,8 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
                 onClick={() => setTerminalFilter(cat)}
                 className={`px-2 py-0.5 rounded text-[10px] font-mono capitalize transition-all ${
                   terminalFilter === cat
-                    ? 'bg-indigo-600 text-white font-semibold'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+                    ? 'bg-primary text-primary-foreground text-white font-semibold'
+                    : 'text-muted-foreground hover:text-zinc-200 hover:bg-white/5'
                 }`}
               >
                 {cat}
@@ -748,7 +748,7 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
                   ? 'text-rose-400'
                   : entry.level === 'success'
                   ? 'text-emerald-400'
-                  : 'text-zinc-400';
+                  : 'text-muted-foreground';
 
               return (
                 <div key={entry.id} className="flex items-start gap-2.5 py-0.5 group hover:bg-white/[0.02] rounded px-1.5 -mx-1.5">
@@ -760,14 +760,14 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
                   >
                     {entry.category}
                   </span>
-                  <span className="text-zinc-400 shrink-0 text-[10px]">
+                  <span className="text-muted-foreground shrink-0 text-[10px]">
                     {entry.source} <span className="text-zinc-600">→</span> {entry.target}:
                   </span>
                   <span className={`flex-1 break-words ${levelBadge}`}>
                     {entry.message}
                   </span>
                   {entry.details && Object.keys(entry.details).length > 0 && (
-                    <span className="text-[10px] text-zinc-600 group-hover:text-zinc-400 transition-colors">
+                    <span className="text-[10px] text-zinc-600 group-hover:text-muted-foreground transition-colors">
                       {JSON.stringify(entry.details)}
                     </span>
                   )}
@@ -779,22 +779,22 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
       </div>
 
       {/* External MCP Server Registry */}
-      <div className="rounded-xl border border-indigo-500/20 bg-[#111318] overflow-hidden">
+      <div className="rounded-xl border border-primary/25 bg-[#11161c] overflow-hidden">
         <div className="p-4 border-b border-white/[0.08] flex items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <Globe className="w-4 h-4 text-indigo-400" />
+              <Globe className="w-4 h-4 text-primary" />
               <h3 className="text-sm font-semibold text-white">External MCP Servers</h3>
-              <span className="text-xs font-mono text-zinc-400">({externalServers.length})</span>
+              <span className="text-xs font-mono text-muted-foreground">({externalServers.length})</span>
             </div>
-            <p className="text-[11px] text-zinc-400 mt-1">
+            <p className="text-[11px] text-muted-foreground mt-1">
               Add any compatible MCP server by URL or stdio command. Provider names are not hardcoded.
             </p>
           </div>
           <Button
             onClick={() => setServerDialogOpen(true)}
             size="sm"
-            className="h-8 bg-indigo-600 hover:bg-indigo-500 text-white text-xs gap-1.5"
+            className="h-8 bg-primary text-primary-foreground hover:bg-primary-hover text-white text-xs gap-1.5"
           >
             <Plus className="w-3.5 h-3.5" /> Add MCP Server
           </Button>
@@ -812,10 +812,10 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
                   <div className="flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full ${server.status === 'active' ? 'bg-emerald-400' : server.status === 'degraded' ? 'bg-amber-400' : 'bg-zinc-600'}`} />
                     <span className="text-sm font-medium text-white">{server.name}</span>
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">{server.transport}</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-foreground/85">{server.transport}</span>
                     <span className="text-[10px] font-mono text-zinc-500">{server.slug}</span>
                   </div>
-                  <p className="mt-1 text-[11px] text-zinc-400 truncate max-w-3xl">{server.target || 'Configured stdio server'}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground truncate max-w-3xl">{server.target || 'Configured stdio server'}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Button
@@ -823,7 +823,7 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
                     disabled={testingServerId === server.id}
                     variant="outline"
                     size="sm"
-                    className="h-7 text-[11px] border-white/10 hover:bg-zinc-800 text-zinc-300"
+                    className="h-7 text-[11px] border-white/10 hover:bg-zinc-800 text-foreground/85"
                   >
                     {testingServerId === server.id ? 'Testing...' : 'Discover Tools'}
                   </Button>
@@ -859,33 +859,33 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
               setWizardStep(2);
               setWizardOpen(true);
             }}
-            className="cursor-pointer rounded-xl border border-white/[0.08] bg-[#111318] p-4 hover:border-indigo-500/40 hover:bg-zinc-900/60 transition-all flex flex-col justify-between group"
+            className="cursor-pointer rounded-xl border border-white/[0.08] bg-[#11161c] p-4 hover:border-primary/40 hover:bg-card/60 transition-all flex flex-col justify-between group"
           >
             <div className="flex items-center justify-between mb-2">
-              <div className="p-2 rounded-lg bg-zinc-800/80 border border-white/5 text-indigo-400 group-hover:text-indigo-300">
+              <div className="p-2 rounded-lg bg-zinc-800/80 border border-white/5 text-primary group-hover:text-primary">
                 <item.icon className="w-4 h-4" />
               </div>
-              <span className="text-[10px] font-mono text-zinc-500 group-hover:text-indigo-400 flex items-center gap-1">
+              <span className="text-[10px] font-mono text-zinc-500 group-hover:text-primary flex items-center gap-1">
                 One-Click <ArrowRight className="w-3 h-3" />
               </span>
             </div>
             <div>
               <div className="text-sm font-semibold text-white">{item.name}</div>
-              <div className="text-xs text-zinc-400 mt-0.5">{item.desc}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{item.desc}</div>
             </div>
           </div>
         ))}
       </div>
 
       {/* Active MCP Credentials Table */}
-      <div className="rounded-xl border border-white/[0.08] bg-[#111318] overflow-hidden">
+      <div className="rounded-xl border border-white/[0.08] bg-[#11161c] overflow-hidden">
         <div className="p-4 border-b border-white/[0.08] flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Key className="w-4 h-4 text-indigo-400" />
+            <Key className="w-4 h-4 text-primary" />
             <h3 className="text-sm font-semibold text-white">Active MCP Client Credentials</h3>
-            <span className="text-xs font-mono text-zinc-400">({credentials.length})</span>
+            <span className="text-xs font-mono text-muted-foreground">({credentials.length})</span>
           </div>
-          <span className="text-xs text-zinc-400">
+          <span className="text-xs text-muted-foreground">
             Keys are scoped to your isolated tenant and governed by the Policy Kernel.
           </span>
         </div>
@@ -897,7 +897,7 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-zinc-900/50 text-zinc-400 font-mono text-[11px] border-b border-white/5">
+              <thead className="bg-card/50 text-muted-foreground font-mono text-[11px] border-b border-white/5">
                 <tr>
                   <th className="py-3 px-4">Credential Name</th>
                   <th className="py-3 px-4">Client Type</th>
@@ -907,21 +907,21 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5 text-zinc-300">
+              <tbody className="divide-y divide-white/5 text-foreground/85">
                 {credentials.map((c) => (
                   <tr key={c.id} className="hover:bg-zinc-800/20 transition-colors">
                     <td className="py-3 px-4 font-medium text-white flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full ${c.is_active ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
                       {c.name}
                     </td>
-                    <td className="py-3 px-4 font-mono text-zinc-400">{c.client_type}</td>
-                    <td className="py-3 px-4 font-mono text-indigo-300">{c.key_prefix}...</td>
+                    <td className="py-3 px-4 font-mono text-muted-foreground">{c.client_type}</td>
+                    <td className="py-3 px-4 font-mono text-primary">{c.key_prefix}...</td>
                     <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-zinc-800 border border-white/10 text-zinc-300">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-zinc-800 border border-white/10 text-foreground/85">
                         {c.role}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-zinc-400 font-mono text-[11px]">
+                    <td className="py-3 px-4 text-muted-foreground font-mono text-[11px]">
                       {c.last_used_at ? new Date(c.last_used_at).toLocaleDateString() : 'Never'}
                     </td>
                     <td className="py-3 px-4 text-right space-x-2">
@@ -930,7 +930,7 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
                         disabled={testingId === c.id}
                         variant="outline"
                         size="sm"
-                        className="h-7 text-[11px] border-white/10 hover:bg-zinc-800 text-zinc-300"
+                        className="h-7 text-[11px] border-white/10 hover:bg-zinc-800 text-foreground/85"
                       >
                         {testingId === c.id ? 'Testing...' : 'Test'}
                       </Button>
@@ -959,10 +959,10 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
       </div>
 
       {/* Discovered Dynamic Catalog Section */}
-      <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-5 space-y-4">
+      <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Database className="w-4 h-4 text-indigo-400" />
+            <Database className="w-4 h-4 text-primary" />
             <h3 className="text-sm font-semibold text-white">Discovered Dynamic Capabilities & Objects</h3>
           </div>
           <span className="text-xs font-mono text-zinc-500">
@@ -973,17 +973,17 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {connectors.flatMap((c) =>
             (c.objects || []).map((o: DiscoveredObject) => (
-              <div key={o.object_name} className="p-3.5 rounded-lg border border-white/5 bg-zinc-900/60 space-y-2">
+              <div key={o.object_name} className="p-3.5 rounded-lg border border-white/5 bg-card/60 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-white capitalize">{o.display_name}</span>
-                  <span className="text-[10px] font-mono text-zinc-400 px-1.5 py-0.5 rounded bg-zinc-800">
+                  <span className="text-[10px] font-mono text-muted-foreground px-1.5 py-0.5 rounded bg-zinc-800">
                     {o.object_name}
                   </span>
                 </div>
-                <p className="text-[11px] text-zinc-400 line-clamp-2">{o.description}</p>
+                <p className="text-[11px] text-muted-foreground line-clamp-2">{o.description}</p>
                 <div className="flex flex-wrap gap-1 pt-1">
                   {o.supported_operations.map((op) => (
-                    <span key={op} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                    <span key={op} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/25">
                       {op}
                     </span>
                   ))}
@@ -995,7 +995,7 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
       </div>
 
       {/* Bidirectional Universal AI Collaboration Engine Section */}
-      <div className="rounded-xl border border-purple-500/20 bg-[#111318] p-5 space-y-4">
+      <div className="rounded-xl border border-purple-500/20 bg-[#11161c] p-5 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-purple-400" />
@@ -1009,7 +1009,7 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
           </span>
         </div>
 
-        <p className="text-xs text-zinc-400 leading-relaxed">
+        <p className="text-xs text-muted-foreground leading-relaxed">
           OctaOS AI Employees (Sales AI, Marketing AI, Support AI, HR AI, CEO AI) can collaborate with connected frontier models (Claude, Grok, ChatGPT, DeepSeek) on deep reasoning and market research, while external models can safely delegate execution tasks to OctaOS with human-in-the-loop policy gates.
         </p>
 
@@ -1021,14 +1021,14 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
             { provider: 'openai', display_name: 'OpenAI ChatGPT / o1', default_model: 'gpt-4o', status: 'not_configured', is_connected: false, supported_capabilities: ['reasoning', 'coding', 'tools'], cost_ceiling_usd: 50 },
             { provider: 'deepseek', display_name: 'DeepSeek AI', default_model: 'deepseek-chat', status: 'not_configured', is_connected: false, supported_capabilities: ['deep_reasoning', 'mathematical_logic'], cost_ceiling_usd: 20 },
           ]).map((prov: any) => (
-            <div key={prov.provider} className="p-3.5 rounded-lg border border-white/5 bg-zinc-900/60 space-y-2">
+            <div key={prov.provider} className="p-3.5 rounded-lg border border-white/5 bg-card/60 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-white">{prov.display_name}</span>
-                <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-medium ${prov.is_connected ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/50' : 'bg-zinc-800 text-zinc-400'}`}>
+                <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-medium ${prov.is_connected ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/50' : 'bg-zinc-800 text-muted-foreground'}`}>
                   {prov.is_connected ? '● Connected' : '○ Not Configured'}
                 </span>
               </div>
-              <div className="text-[10px] font-mono text-zinc-400">
+              <div className="text-[10px] font-mono text-muted-foreground">
                 Model: <span className="text-zinc-200">{prov.default_model}</span>
               </div>
               <div className="flex flex-wrap gap-1 pt-1">
@@ -1048,27 +1048,27 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
 
         {/* Collaboration Pipeline Features */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-          <div className="p-3 rounded-lg border border-white/5 bg-zinc-900/40 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-xs font-medium text-indigo-300">
+          <div className="p-3 rounded-lg border border-white/5 bg-card/40 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
               <ArrowRight className="w-3.5 h-3.5" /> 1. Outbound Delegation
             </div>
-            <p className="text-[11px] text-zinc-400">
+            <p className="text-[11px] text-muted-foreground">
               Sales AI & Marketing AI discover active providers, redact sensitive tenant context, and delegate complex research or coding subtasks.
             </p>
           </div>
-          <div className="p-3 rounded-lg border border-white/5 bg-zinc-900/40 space-y-1.5">
+          <div className="p-3 rounded-lg border border-white/5 bg-card/40 space-y-1.5">
             <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-300">
               <Shield className="w-3.5 h-3.5" /> 2. Result-to-Execution Bridge
             </div>
-            <p className="text-[11px] text-zinc-400">
+            <p className="text-[11px] text-muted-foreground">
               External AI proposals are evaluated by PolicyEngine. High-risk actions require human approval; executed tools log concrete verification evidence.
             </p>
           </div>
-          <div className="p-3 rounded-lg border border-white/5 bg-zinc-900/40 space-y-1.5">
+          <div className="p-3 rounded-lg border border-white/5 bg-card/40 space-y-1.5">
             <div className="flex items-center gap-1.5 text-xs font-medium text-amber-300">
               <ShieldAlert className="w-3.5 h-3.5" /> 3. Loop & Cycle Guard
             </div>
-            <p className="text-[11px] text-zinc-400">
+            <p className="text-[11px] text-muted-foreground">
               Maximum delegation depth of 3, max 5 child tasks per parent, duplicate task fingerprinting, and lineage cycle prevention ensure zero runaway costs.
             </p>
           </div>
@@ -1077,12 +1077,12 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
 
       {/* Add External MCP Server Modal */}
       <Dialog open={serverDialogOpen} onOpenChange={setServerDialogOpen}>
-        <DialogContent className="sm:max-w-xl bg-zinc-950 border border-indigo-500/30 text-white">
+        <DialogContent className="sm:max-w-xl bg-background border border-primary/30 text-white">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold flex items-center gap-2">
-              <Globe className="w-4 h-4 text-indigo-400" /> Add External MCP Server
+              <Globe className="w-4 h-4 text-primary" /> Add External MCP Server
             </DialogTitle>
-            <DialogDescription className="text-xs text-zinc-400">
+            <DialogDescription className="text-xs text-muted-foreground">
               Connect any MCP-compatible server. HTTP/SSE headers and stdio environment variables are encrypted at rest.
             </DialogDescription>
           </DialogHeader>
@@ -1090,21 +1090,21 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
           <div className="space-y-3 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-300">Display Name</label>
-                <Input value={serverName} onChange={(event) => setServerName(event.target.value)} placeholder="HeyGen MCP" className="bg-zinc-900 border-white/10 text-xs text-white" />
+                <label className="text-xs font-medium text-foreground/85">Display Name</label>
+                <Input value={serverName} onChange={(event) => setServerName(event.target.value)} placeholder="HeyGen MCP" className="bg-card border-white/10 text-xs text-white" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-300">Slug (optional)</label>
-                <Input value={serverSlug} onChange={(event) => setServerSlug(event.target.value)} placeholder="heygen" className="bg-zinc-900 border-white/10 text-xs text-white" />
+                <label className="text-xs font-medium text-foreground/85">Slug (optional)</label>
+                <Input value={serverSlug} onChange={(event) => setServerSlug(event.target.value)} placeholder="heygen" className="bg-card border-white/10 text-xs text-white" />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-300">Transport</label>
+              <label className="text-xs font-medium text-foreground/85">Transport</label>
               <select
                 value={serverTransport}
                 onChange={(event) => setServerTransport(event.target.value as 'streamable_http' | 'sse' | 'stdio')}
-                className="w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-xs text-white"
+                className="w-full rounded-md border border-white/10 bg-card px-3 py-2 text-xs text-white"
               >
                 <option value="streamable_http">Streamable HTTP</option>
                 <option value="sse">Legacy SSE</option>
@@ -1115,36 +1115,36 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
             {serverTransport === 'stdio' ? (
               <>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-300">Command</label>
-                  <Input value={serverCommand} onChange={(event) => setServerCommand(event.target.value)} placeholder="npx -y @provider/mcp-server" className="bg-zinc-900 border-white/10 text-xs text-white font-mono" />
+                  <label className="text-xs font-medium text-foreground/85">Command</label>
+                  <Input value={serverCommand} onChange={(event) => setServerCommand(event.target.value)} placeholder="npx -y @provider/mcp-server" className="bg-card border-white/10 text-xs text-white font-mono" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-300">Arguments (space separated)</label>
-                  <Input value={serverArgs} onChange={(event) => setServerArgs(event.target.value)} placeholder="--api-key $MCP_API_KEY" className="bg-zinc-900 border-white/10 text-xs text-white font-mono" />
+                  <label className="text-xs font-medium text-foreground/85">Arguments (space separated)</label>
+                  <Input value={serverArgs} onChange={(event) => setServerArgs(event.target.value)} placeholder="--api-key $MCP_API_KEY" className="bg-card border-white/10 text-xs text-white font-mono" />
                 </div>
               </>
             ) : (
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-300">Server Endpoint</label>
-                <Input value={serverEndpoint} onChange={(event) => setServerEndpoint(event.target.value)} placeholder="https://provider.example.com/mcp" className="bg-zinc-900 border-white/10 text-xs text-white font-mono" />
+                <label className="text-xs font-medium text-foreground/85">Server Endpoint</label>
+                <Input value={serverEndpoint} onChange={(event) => setServerEndpoint(event.target.value)} placeholder="https://provider.example.com/mcp" className="bg-card border-white/10 text-xs text-white font-mono" />
               </div>
             )}
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-300">Headers JSON (optional)</label>
-                <textarea value={serverHeaders} onChange={(event) => setServerHeaders(event.target.value)} placeholder={'{"Authorization":"Bearer ..."}'} className="min-h-20 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-[11px] text-white font-mono" />
+                <label className="text-xs font-medium text-foreground/85">Headers JSON (optional)</label>
+                <textarea value={serverHeaders} onChange={(event) => setServerHeaders(event.target.value)} placeholder={'{"Authorization":"Bearer ..."}'} className="min-h-20 w-full rounded-md border border-white/10 bg-card px-3 py-2 text-[11px] text-white font-mono" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-300">Environment JSON (stdio)</label>
-                <textarea value={serverEnv} onChange={(event) => setServerEnv(event.target.value)} placeholder={'{"API_KEY":"..."}'} className="min-h-20 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-[11px] text-white font-mono" />
+                <label className="text-xs font-medium text-foreground/85">Environment JSON (stdio)</label>
+                <textarea value={serverEnv} onChange={(event) => setServerEnv(event.target.value)} placeholder={'{"API_KEY":"..."}'} className="min-h-20 w-full rounded-md border border-white/10 bg-card px-3 py-2 text-[11px] text-white font-mono" />
               </div>
             </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
-            <Button variant="ghost" size="sm" onClick={() => setServerDialogOpen(false)} className="text-zinc-400 text-xs">Cancel</Button>
-            <Button size="sm" disabled={serverSaving || !serverName.trim()} onClick={handleAddExternalServer} className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs">
+            <Button variant="ghost" size="sm" onClick={() => setServerDialogOpen(false)} className="text-muted-foreground text-xs">Cancel</Button>
+            <Button size="sm" disabled={serverSaving || !serverName.trim()} onClick={handleAddExternalServer} className="bg-primary text-primary-foreground hover:bg-primary-hover text-white text-xs">
               {serverSaving ? 'Adding...' : 'Add MCP Server'}
             </Button>
           </div>
@@ -1153,13 +1153,13 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
 
       {/* One-Click Connect Wizard Modal */}
       <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
-        <DialogContent className="sm:max-w-xl bg-zinc-950 border border-white/10 text-white">
+        <DialogContent className="sm:max-w-xl bg-background border border-white/10 text-white">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-400" />
+              <Sparkles className="w-4 h-4 text-primary" />
               Connect AI Assistant / Client via MCP
             </DialogTitle>
-            <DialogDescription className="text-xs text-zinc-400">
+            <DialogDescription className="text-xs text-muted-foreground">
               Configure access credentials, choose transports, and copy setup commands.
             </DialogDescription>
           </DialogHeader>
@@ -1167,7 +1167,7 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
           <div className="space-y-4 py-2">
             {/* Step 1: Client & Transport */}
             <div>
-              <label className="text-xs font-medium text-zinc-300 mb-1.5 block">Client & Environment</label>
+              <label className="text-xs font-medium text-foreground/85 mb-1.5 block">Client & Environment</label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {[
                   { id: 'claude_desktop', label: 'Claude Desktop', transport: 'stdio' },
@@ -1185,8 +1185,8 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
                     }}
                     className={`p-2.5 rounded-lg border text-xs text-left transition-all ${
                       selectedClient === c.id
-                        ? 'border-indigo-500 bg-indigo-950/40 text-white font-medium'
-                        : 'border-white/5 bg-zinc-900 text-zinc-400 hover:text-zinc-200'
+                        ? 'border-primary bg-primary/10 text-white font-medium'
+                        : 'border-white/5 bg-card text-muted-foreground hover:text-zinc-200'
                     }`}
                   >
                     {c.label}
@@ -1197,17 +1197,17 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
 
             {/* Step 2: Key Details & Scoped Role */}
             <div className="space-y-2">
-              <label className="text-xs font-medium text-zinc-300 block">Credential Name</label>
+              <label className="text-xs font-medium text-foreground/85 block">Credential Name</label>
               <Input
                 placeholder="e.g. Claude Desktop - Enterprise Workflows"
                 value={keyName}
                 onChange={(e) => setKeyName(e.target.value)}
-                className="bg-zinc-900 border-white/10 text-xs text-white"
+                className="bg-card border-white/10 text-xs text-white"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-medium text-zinc-300 block">Access & Risk Tier</label>
+              <label className="text-xs font-medium text-foreground/85 block">Access & Risk Tier</label>
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { id: 'read_only', label: 'Read-Only', desc: 'Query and read data only' },
@@ -1219,23 +1219,23 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
                     onClick={() => setSelectedRole(r.id)}
                     className={`p-2.5 rounded-lg border text-left transition-all ${
                       selectedRole === r.id
-                        ? 'border-indigo-500 bg-indigo-950/40 text-white'
-                        : 'border-white/5 bg-zinc-900 text-zinc-400 hover:text-zinc-200'
+                        ? 'border-primary bg-primary/10 text-white'
+                        : 'border-white/5 bg-card text-muted-foreground hover:text-zinc-200'
                     }`}
                   >
                     <div className="text-xs font-semibold">{r.label}</div>
-                    <div className="text-[10px] text-zinc-400 mt-0.5">{r.desc}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">{r.desc}</div>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="p-3 rounded-lg bg-zinc-900/60 border border-white/5 flex items-center justify-between">
+            <div className="p-3 rounded-lg bg-card/60 border border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-emerald-400" />
                 <div>
                   <div className="text-xs font-medium text-white">Field Masking & Privacy</div>
-                  <div className="text-[11px] text-zinc-400">Passwords, OTPs, and private keys automatically redacted.</div>
+                  <div className="text-[11px] text-muted-foreground">Passwords, OTPs, and private keys automatically redacted.</div>
                 </div>
               </div>
               <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
@@ -1245,14 +1245,14 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
-            <Button variant="ghost" size="sm" onClick={() => setWizardOpen(false)} className="text-zinc-400 text-xs">
+            <Button variant="ghost" size="sm" onClick={() => setWizardOpen(false)} className="text-muted-foreground text-xs">
               Cancel
             </Button>
             <Button
               size="sm"
               disabled={!keyName.trim()}
               onClick={handleCreateCredential}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium"
+              className="bg-primary text-primary-foreground hover:bg-primary-hover text-white text-xs font-medium"
             >
               Generate Scoped Key
             </Button>
@@ -1262,13 +1262,13 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
 
       {/* Newly Generated Key Reveal Dialog */}
       <Dialog open={!!newKeyData} onOpenChange={() => setNewKeyData(null)}>
-        <DialogContent className="sm:max-w-xl bg-zinc-950 border border-indigo-500/30 text-white">
+        <DialogContent className="sm:max-w-xl bg-background border border-primary/30 text-white">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold flex items-center gap-2 text-white">
               <CheckCircle2 className="w-5 h-5 text-emerald-400" />
               One-Click MCP Connection Ready!
             </DialogTitle>
-            <DialogDescription className="text-xs text-zinc-400">
+            <DialogDescription className="text-xs text-muted-foreground">
               Save this secret key now. For your security, OctaOS hashes this token and will not display it again.
             </DialogDescription>
           </DialogHeader>
@@ -1276,18 +1276,18 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
           {newKeyData && (
             <div className="space-y-4 py-2">
               <div className="space-y-1.5">
-                <label className="text-xs font-mono text-zinc-400">OctaOS MCP API Key</label>
+                <label className="text-xs font-mono text-muted-foreground">OctaOS MCP API Key</label>
                 <div className="flex items-center gap-2">
                   <Input
                     readOnly
                     value={newKeyData.raw_key}
-                    className="font-mono text-xs bg-zinc-900 border-white/10 text-emerald-300"
+                    className="font-mono text-xs bg-card border-white/10 text-emerald-300"
                   />
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => copyToClipboard(newKeyData.raw_key, 'key')}
-                    className="h-9 px-3 border-white/10 bg-zinc-900 text-zinc-300 text-xs gap-1.5"
+                    className="h-9 px-3 border-white/10 bg-card text-foreground/85 text-xs gap-1.5"
                   >
                     {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     {copiedKey ? 'Copied!' : 'Copy'}
@@ -1298,18 +1298,18 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
               {/* Client Configuration Snippet */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-mono text-zinc-400">
+                  <label className="text-xs font-mono text-muted-foreground">
                     Configuration File Snippet ({selectedClient === 'claude_desktop' ? 'claude_desktop_config.json' : 'mcpServers config'})
                   </label>
                   <button
                     onClick={() => copyToClipboard(generateClientConfigSnippet(selectedClient, selectedTransport), 'config')}
-                    className="text-[11px] font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                    className="text-[11px] font-mono text-primary hover:text-primary flex items-center gap-1"
                   >
                     {copiedConfig ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                     {copiedConfig ? 'Copied' : 'Copy JSON'}
                   </button>
                 </div>
-                <pre className="p-3 rounded-lg bg-black border border-white/10 font-mono text-[11px] text-zinc-300 overflow-x-auto">
+                <pre className="p-3 rounded-lg bg-black border border-white/10 font-mono text-[11px] text-foreground/85 overflow-x-auto">
                   {generateClientConfigSnippet(selectedClient, selectedTransport)}
                 </pre>
               </div>
@@ -1320,7 +1320,7 @@ curl -X POST "${baseUrl}/api/v1/plugin/gateway/execute" \\
             <Button
               size="sm"
               onClick={() => setNewKeyData(null)}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium"
+              className="bg-primary text-primary-foreground hover:bg-primary-hover text-white text-xs font-medium"
             >
               Done & Save
             </Button>

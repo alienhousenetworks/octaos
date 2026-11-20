@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createId } from "@/lib/id";
-import { Activity, ArrowDownToLine, CheckCircle2, Clock3, FileArchive, FileText, LoaderCircle, RefreshCw, UploadCloud, XCircle } from "lucide-react";
+import { Activity, ArrowDownToLine, CheckCircle2, FileText, LoaderCircle, RefreshCw, UploadCloud, XCircle } from "lucide-react";
+import { HanddrawnEmptyCanvas, HanddrawnWorkflowSketch } from "@/components/handdraw/handdraw-illustrations";
 
 type Run = { id: string; title: string; status: string; file_count: number; total_bytes: number; created_at?: string | null; completed_at?: string | null; finding_count: number };
 type Finding = { id: string; severity: string; title: string; observation: string; why_it_matters: string; recommended_action: string; evidence: Array<{ file?: string; field?: string; metric?: string; value?: unknown }> };
@@ -87,64 +88,67 @@ export default function DataIntelligencePage() {
     } catch (e) { setError(e instanceof Error ? e.message : "Export failed."); }
   };
 
-  return <main className="min-h-screen bg-[#f7f8f7] text-[#171a17]">
+  return <main className="min-h-screen bg-background text-foreground">
     <div className="mx-auto max-w-[1440px] px-5 py-8 md:px-10">
-      <header className="mb-8 flex flex-col justify-between gap-4 border-b border-[#e0e4df] pb-6 md:flex-row md:items-end">
+      <header className="mb-8 flex flex-col justify-between gap-4 border-b border-border pb-6 md:flex-row md:items-end">
         <div>
-          <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#647064]"><Activity size={15}/> Orchestra / Data Intelligence</div>
-          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Business data workspace</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#626a62]">Upload files, inspect what was actually extracted, review evidence-linked findings, and export a report. Unsupported content is marked—not guessed.</p>
+          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-info"><Activity size={15}/> Data Intelligence</div>
+          <h1 className="font-heading text-3xl font-semibold tracking-tight md:text-4xl">Business data workspace</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Upload files, inspect what was actually extracted, review evidence-linked findings, and export a report. Unsupported content is marked—not guessed.</p>
         </div>
-        <button onClick={() => void loadRuns()} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#d8ded7] bg-white px-4 text-sm font-medium hover:bg-[#f0f2ef]"><RefreshCw size={15}/> Refresh runs</button>
+        <div className="flex items-center gap-4">
+          <HanddrawnWorkflowSketch className="hidden lg:block" />
+          <button onClick={() => void loadRuns()} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-surface-hover"><RefreshCw size={15}/> Refresh runs</button>
+        </div>
       </header>
 
-      {error && <div role="alert" className="mb-5 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><XCircle className="mt-0.5 shrink-0" size={17}/>{error}</div>}
-      {notice && <div role="status" className="mb-5 flex items-start gap-2 rounded-lg border border-[#d9e6d2] bg-[#f1f7ed] p-3 text-sm text-[#31522a]"><CheckCircle2 className="mt-0.5 shrink-0" size={17}/>{notice}</div>}
+      {error && <div role="alert" className="mb-5 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"><XCircle className="mt-0.5 shrink-0" size={17}/>{error}</div>}
+      {notice && <div role="status" className="mb-5 flex items-start gap-2 rounded-md border border-success/30 bg-success/10 p-3 text-sm text-success"><CheckCircle2 className="mt-0.5 shrink-0" size={17}/>{notice}</div>}
 
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(360px,0.8fr)_minmax(0,1.2fr)]">
-        <section className="rounded-2xl border border-[#e0e4df] bg-white p-5 shadow-sm md:p-6">
-          <div className="mb-5 flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-[#eff7e9] text-[#4c742e]"><UploadCloud size={20}/></div><div><h2 className="font-semibold">Start an analysis</h2><p className="text-sm text-[#687068]">Multiple files or one ZIP folder</p></div></div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="report-title">Report name</label>
-          <input id="report-title" value={title} onChange={e => setTitle(e.target.value)} maxLength={255} className="mb-4 h-11 w-full rounded-lg border border-[#d8ded7] px-3 text-sm outline-none focus:border-[#7ba85a] focus:ring-2 focus:ring-[#dcebd1]"/>
+        <section className="rounded-lg border border-border bg-card p-5 md:p-6">
+          <div className="mb-5 flex items-center gap-3"><div className="grid size-10 place-items-center rounded-md border border-primary/25 bg-primary/10 text-primary"><UploadCloud size={20}/></div><div><h2 className="font-heading font-semibold">Start an analysis</h2><p className="text-sm text-muted-foreground">Multiple files or one ZIP folder</p></div></div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor="report-title">Report name</label>
+          <input id="report-title" value={title} onChange={e => setTitle(e.target.value)} maxLength={255} className="mb-4 h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"/>
           <input ref={inputRef} type="file" multiple accept=".csv,.tsv,.json,.jsonl,.ndjson,.txt,.md,.log,.pdf,.docx,.xlsx,.xlsm,.pptx,.zip" onChange={e => { setFiles(Array.from(e.target.files || [])); setError(""); }} className="sr-only" id="data-files"/>
-          <label htmlFor="data-files" className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#b9c7b4] bg-[#fafcf9] px-5 text-center transition hover:border-[#789e5c] hover:bg-[#f5f9f1]">
-            <UploadCloud size={27} className="mb-3 text-[#567a3e]"/>
+          <label htmlFor="data-files" className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border-strong bg-background/60 px-5 text-center transition hover:border-primary/60 hover:bg-surface-hover/50">
+            <UploadCloud size={26} className="mb-3 text-primary"/>
             <span className="text-sm font-semibold">Choose files to analyze</span>
-            <span className="mt-1 text-xs text-[#687068]">CSV, TSV, JSON, PDF, DOCX, XLSX, PPTX, text, ZIP</span>
-            <span className="mt-3 rounded-md border border-[#dce3d8] bg-white px-3 py-1.5 text-xs font-medium">Browse files</span>
+            <span className="mt-1 text-xs text-muted-foreground">CSV, TSV, JSON, PDF, DOCX, XLSX, PPTX, text, ZIP</span>
+            <span className="mt-3 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium">Browse files</span>
           </label>
-          {files.length > 0 && <div className="mt-4 rounded-xl border border-[#e0e4df]">
-            <div className="flex items-center justify-between border-b border-[#e0e4df] px-3 py-2 text-xs font-semibold"><span>{files.length} selected</span><span>{formatBytes(files.reduce((n, f) => n + f.size, 0))}</span></div>
-            <ul className="max-h-48 divide-y divide-[#edf0ec] overflow-auto">{files.map((file, i) => <li key={`${file.name}-${i}`} className="flex items-center gap-2 px-3 py-2 text-xs"><FileText size={14} className="shrink-0 text-[#687068]"/><span className="min-w-0 flex-1 truncate">{file.name}</span><span className="shrink-0 text-[#687068]">{formatBytes(file.size)}</span></li>)}</ul>
-            <button onClick={() => { setFiles([]); if (inputRef.current) inputRef.current.value = ""; }} className="m-3 text-xs font-medium text-[#646d64] underline">Clear selection</button>
+          {files.length > 0 && <div className="mt-4 rounded-md border border-border bg-background">
+            <div className="flex items-center justify-between border-b border-border px-3 py-2 text-xs font-semibold"><span>{files.length} selected</span><span className="font-mono">{formatBytes(files.reduce((n, f) => n + f.size, 0))}</span></div>
+            <ul className="max-h-48 divide-y divide-border overflow-auto">{files.map((file, i) => <li key={`${file.name}-${i}`} className="flex items-center gap-2 px-3 py-2 text-xs"><FileText size={14} className="shrink-0 text-muted-foreground"/><span className="min-w-0 flex-1 truncate">{file.name}</span><span className="shrink-0 font-mono text-muted-foreground">{formatBytes(file.size)}</span></li>)}</ul>
+            <button onClick={() => { setFiles([]); if (inputRef.current) inputRef.current.value = ""; }} className="m-3 text-xs font-medium text-muted-foreground underline hover:text-foreground">Clear selection</button>
           </div>}
-          <button onClick={() => void submit()} disabled={loading || !files.length} className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#202820] px-4 text-sm font-semibold text-white transition hover:bg-[#344334] disabled:cursor-not-allowed disabled:opacity-50">
+          <button onClick={() => void submit()} disabled={loading || !files.length} className="mt-5 flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50">
             {loading ? <><LoaderCircle className="animate-spin" size={17}/> Analyzing files…</> : <><Activity size={16}/> Analyze and generate report</>}
           </button>
-          <div className="mt-4 space-y-2 text-xs leading-5 text-[#697169]"><p>Limits are enforced server-side: per-file, total size, archive expansion, file count and row count.</p><p>Raw uploads are processed in memory and are not retained by this endpoint. Only hashes, extraction metadata, profiles and reports are stored.</p></div>
+          <div className="mt-4 space-y-2 text-xs leading-5 text-muted-foreground"><p>Limits are enforced server-side: per-file, total size, archive expansion, file count and row count.</p><p>Raw uploads are processed in memory and are not retained by this endpoint. Only hashes, extraction metadata, profiles and reports are stored.</p></div>
         </section>
 
-        <section className="rounded-2xl border border-[#e0e4df] bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-[#e0e4df] px-5 py-4 md:px-6"><div><h2 className="font-semibold">Recent analysis runs</h2><p className="mt-1 text-xs text-[#687068]">Tenant-scoped history</p></div><span className="rounded-md bg-[#f0f2ef] px-2.5 py-1 text-xs font-medium">{runs.length} runs</span></div>
-          {loadingRuns ? <div className="flex items-center gap-2 p-6 text-sm text-[#687068]"><LoaderCircle size={16} className="animate-spin"/> Loading runs…</div> : runs.length === 0 ? <div className="p-8 text-center"><FileArchive size={26} className="mx-auto mb-3 text-[#7b857b]"/><p className="text-sm font-medium">No analysis runs yet</p><p className="mt-1 text-xs text-[#687068]">Upload a dataset or ZIP archive to create your first report.</p></div> :
-            <div className="divide-y divide-[#edf0ec]">{runs.map(run => <button key={run.id} onClick={() => void openRun(run)} className={`block w-full px-5 py-4 text-left transition hover:bg-[#f8faf7] md:px-6 ${selected?.run.id === run.id ? "bg-[#f5f9f1]" : ""}`}>
-              <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-semibold">{run.title}</span><span className="rounded-full border border-[#dce3d8] px-2 py-0.5 text-[11px] text-[#586358]">{statusLabel(run.status)}</span></div>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#687068]"><span>{run.file_count} files</span><span>{formatBytes(run.total_bytes)}</span><span>{run.finding_count} findings</span><span>{run.created_at ? new Date(run.created_at).toLocaleString() : "Date unavailable"}</span></div>
+        <section className="rounded-lg border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4 md:px-6"><div><h2 className="font-heading font-semibold">Recent analysis runs</h2><p className="mt-1 text-xs text-muted-foreground">Tenant-scoped history</p></div><span className="rounded-md border border-border bg-background px-2.5 py-1 font-mono text-xs font-medium">{runs.length} runs</span></div>
+          {loadingRuns ? <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground"><LoaderCircle size={16} className="animate-spin text-primary"/> Loading runs…</div> : runs.length === 0 ? <div className="p-8 text-center"><HanddrawnEmptyCanvas /><p className="text-sm font-medium">No analysis runs yet</p><p className="mt-1 text-xs text-muted-foreground">Upload a dataset or ZIP archive to create your first report.</p></div> :
+            <div className="divide-y divide-border">{runs.map(run => <button key={run.id} onClick={() => void openRun(run)} className={`block w-full px-5 py-4 text-left transition hover:bg-surface-hover md:px-6 ${selected?.run.id === run.id ? "bg-surface-hover border-l-2 border-l-primary" : ""}`}>
+              <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-semibold">{run.title}</span><span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">{statusLabel(run.status)}</span></div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground"><span>{run.file_count} files</span><span>{formatBytes(run.total_bytes)}</span><span>{run.finding_count} findings</span><span>{run.created_at ? new Date(run.created_at).toLocaleString() : "Date unavailable"}</span></div>
             </button>)}</div>}
         </section>
       </div>
 
-      {selected && <section className="mt-6 rounded-2xl border border-[#e0e4df] bg-white shadow-sm">
-        <div className="flex flex-col justify-between gap-4 border-b border-[#e0e4df] p-5 md:flex-row md:items-center md:px-6"><div><div className="text-xs font-semibold uppercase tracking-[0.15em] text-[#657065]">Report detail</div><h2 className="mt-1 text-xl font-semibold">{selected.run.title}</h2><p className="mt-1 text-xs text-[#687068]">Run ID: {selected.run.id}</p></div><div className="flex flex-wrap gap-2"><button onClick={() => void download("md")} className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#d8ded7] px-3 text-sm font-medium hover:bg-[#f5f7f4]"><ArrowDownToLine size={15}/> Markdown</button><button onClick={() => void download("json")} className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#d8ded7] px-3 text-sm font-medium hover:bg-[#f5f7f4]"><ArrowDownToLine size={15}/> JSON</button></div></div>
+      {selected && <section className="mt-6 rounded-lg border border-border bg-card">
+        <div className="flex flex-col justify-between gap-4 border-b border-border p-5 md:flex-row md:items-center md:px-6"><div><div className="text-xs font-medium text-info">Report detail</div><h2 className="mt-1 font-heading text-xl font-semibold">{selected.run.title}</h2><p className="mt-1 font-mono text-xs text-muted-foreground">Run ID: {selected.run.id}</p></div><div className="flex flex-wrap gap-2"><button onClick={() => void download("md")} className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-surface-hover"><ArrowDownToLine size={15}/> Markdown</button><button onClick={() => void download("json")} className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-surface-hover"><ArrowDownToLine size={15}/> JSON</button></div></div>
         <div className="grid gap-4 p-5 sm:grid-cols-3 md:px-6">{[
           ["Files processed", String((selected.report.coverage as Record<string, unknown> | undefined)?.files_parsed ?? "—")],
           ["Total findings", String(selected.findings?.length ?? 0)],
           ["Status", statusLabel(selected.run.status)],
-        ].map(([label, value]) => <div key={label} className="rounded-xl border border-[#e6eae4] bg-[#fafbf9] p-4"><div className="text-xs text-[#687068]">{label}</div><div className="mt-2 text-2xl font-semibold">{value}</div></div>)}</div>
+        ].map(([label, value]) => <div key={label} className="rounded-md border border-border bg-background p-4"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-2 font-mono text-2xl font-semibold tabular-nums">{value}</div></div>)}</div>
         <div className="px-5 pb-6 md:px-6">
-          <h3 className="mb-3 font-semibold">Evidence-linked findings</h3>
-          {!selected.findings?.length ? <p className="rounded-lg bg-[#f7f8f7] p-4 text-sm text-[#687068]">No deterministic findings were produced from the available content. Check extraction coverage before interpreting this as a clean bill of health.</p> : <div className="space-y-3">{selected.findings.map(f => <article key={f.id} className="rounded-xl border border-[#e0e4df] p-4"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${f.severity === "high" ? "bg-[#fbe9e7] text-[#963e32]" : f.severity === "medium" ? "bg-[#fff2d8] text-[#805c16]" : "bg-[#edf1eb] text-[#53634f]"}`}>{f.severity}</span><h4 className="text-sm font-semibold">{f.title}</h4></div><p className="mt-3 text-sm leading-6"><strong>Observed:</strong> {f.observation}</p><p className="mt-2 text-sm leading-6 text-[#596359]"><strong>Why it matters:</strong> {f.why_it_matters}</p><p className="mt-2 text-sm leading-6 text-[#596359]"><strong>Recommended action:</strong> {f.recommended_action}</p>{f.evidence?.length > 0 && <div className="mt-3 rounded-lg bg-[#f7f8f6] p-3"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#687068]">Source evidence</div>{f.evidence.map((e, i) => <div key={i} className="text-xs leading-5 text-[#596359]">{e.file}{e.field ? ` · ${e.field}` : ""} · {e.metric}: {String(e.value)}</div>)}</div>}</article>)}</div>}
-          <div className="mt-6 rounded-xl border border-[#e0e4df] p-4"><h3 className="text-sm font-semibold">Method and limitations</h3><p className="mt-2 text-xs leading-5 text-[#687068]">{String((selected.report as Record<string, unknown>).methodology || "Methodology not provided.")}</p><ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-[#687068]">{(((selected.report as Record<string, unknown>).limitations as string[]) || []).map((item, i) => <li key={i}>{item}</li>)}</ul></div>
+          <h3 className="mb-3 font-heading font-semibold">Evidence-linked findings</h3>
+          {!selected.findings?.length ? <p className="rounded-md border border-border bg-background p-4 text-sm text-muted-foreground">No deterministic findings were produced from the available content. Check extraction coverage before interpreting this as a clean bill of health.</p> : <div className="space-y-3">{selected.findings.map(f => <article key={f.id} className="rounded-md border border-border bg-background p-4"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-md px-2 py-0.5 text-xs font-medium ${f.severity === "high" ? "bg-destructive/15 text-destructive" : f.severity === "medium" ? "bg-warning/15 text-warning" : "bg-muted text-muted-foreground"}`}>{f.severity}</span><h4 className="text-sm font-semibold">{f.title}</h4></div><p className="mt-3 text-sm leading-6"><strong>Observed:</strong> {f.observation}</p><p className="mt-2 text-sm leading-6 text-muted-foreground"><strong>Why it matters:</strong> {f.why_it_matters}</p><p className="mt-2 text-sm leading-6 text-muted-foreground"><strong>Recommended action:</strong> {f.recommended_action}</p>{f.evidence?.length > 0 && <div className="mt-3 rounded-md border border-border bg-card p-3"><div className="mb-1 text-xs font-medium text-info">Source evidence</div>{f.evidence.map((e, i) => <div key={i} className="font-mono text-xs leading-5 text-muted-foreground">{e.file}{e.field ? ` · ${e.field}` : ""} · {e.metric}: {String(e.value)}</div>)}</div>}</article>)}</div>}
+          <div className="mt-6 rounded-md border border-border bg-background p-4"><h3 className="text-sm font-semibold">Method and limitations</h3><p className="mt-2 text-xs leading-5 text-muted-foreground">{String((selected.report as Record<string, unknown>).methodology || "Methodology not provided.")}</p><ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-muted-foreground">{(((selected.report as Record<string, unknown>).limitations as string[]) || []).map((item, i) => <li key={i}>{item}</li>)}</ul></div>
         </div>
       </section>}
     </div>

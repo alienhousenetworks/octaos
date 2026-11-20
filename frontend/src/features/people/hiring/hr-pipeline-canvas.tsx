@@ -218,8 +218,8 @@ export const NODE_PALETTE_CATEGORIES = [
         label: 'HR Review',
         desc: 'Inspect, edit, and request draft changes',
         icon: Eye,
-        color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30',
-        badgeColor: 'bg-indigo-500/20 text-indigo-300',
+        color: 'text-primary bg-primary/10 border-primary/30',
+        badgeColor: 'bg-primary/15 text-primary',
         defaultConfig: {
           reviewer_role: 'hr_specialist',
           editable_fields: ['compensation.annual_ctc', 'role.start_date'],
@@ -286,8 +286,8 @@ export const NODE_PALETTE_CATEGORIES = [
         label: 'Export / Archive',
         desc: 'Generate final artifacts and store in vault',
         icon: Archive,
-        color: 'text-slate-400 bg-slate-500/10 border-slate-500/30',
-        badgeColor: 'bg-slate-500/20 text-slate-300',
+        color: 'text-muted-foreground bg-slate-500/10 border-slate-500/30',
+        badgeColor: 'bg-slate-500/20 text-foreground/85',
         defaultConfig: {
           formats: ['pdf', 'docx'],
           retention_years: 7,
@@ -1146,14 +1146,14 @@ export default function HRPipelineCanvas({
 
   return (
     <div
-      className={`flex flex-col bg-gray-950 border border-gray-800 shadow-2xl transition-all duration-200 ${
+      className={`flex flex-col bg-gray-950 border border-border shadow-2xl transition-all duration-200 ${
         isFullscreen
           ? 'fixed inset-0 z-[100] h-screen w-screen rounded-none border-0'
           : 'h-[calc(100vh-170px)] min-h-[680px] rounded-3xl overflow-hidden'
       }`}
     >
       {/* ─── 1. TOP TOOLBAR ────────────────────────────────────────────────── */}
-      <div className="h-14 border-b border-gray-800 bg-gray-900/90 px-4 flex items-center justify-between z-20 shrink-0">
+      <div className="h-14 border-b border-border bg-gray-900/90 px-4 flex items-center justify-between z-20 shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
             <Layers className="h-4 w-4" />
@@ -1178,7 +1178,7 @@ export default function HRPipelineCanvas({
                 {isPublished ? `v${pipelineVersion} Published` : 'Draft Mode'}
               </span>
               {aiProvenance && (
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md border bg-indigo-500/10 text-indigo-400 border-indigo-500/30 flex items-center gap-1">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md border bg-primary/10 text-primary border-primary/30 flex items-center gap-1">
                   <Sparkles className="h-2.5 w-2.5" />
                   {aiProvenance}
                 </span>
@@ -1191,13 +1191,13 @@ export default function HRPipelineCanvas({
         {/* Action Controls */}
         <div className="flex items-center gap-2">
           {/* Zoom & History Controls */}
-          <div className="flex items-center gap-1 bg-gray-950/80 p-1 rounded-xl border border-gray-800">
+          <div className="flex items-center gap-1 bg-gray-950/80 p-1 rounded-xl border border-border">
             <Button
               size="sm"
               variant="ghost"
               onClick={handleUndo}
               disabled={historyIndex <= 0}
-              className="h-7 w-7 p-0 text-gray-400 hover:text-white disabled:opacity-30"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-white disabled:opacity-30"
               title="Undo"
             >
               <Undo2 className="h-3.5 w-3.5" />
@@ -1207,7 +1207,7 @@ export default function HRPipelineCanvas({
               variant="ghost"
               onClick={handleRedo}
               disabled={historyIndex >= history.length - 1}
-              className="h-7 w-7 p-0 text-gray-400 hover:text-white disabled:opacity-30"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-white disabled:opacity-30"
               title="Redo"
             >
               <Redo2 className="h-3.5 w-3.5" />
@@ -1217,17 +1217,17 @@ export default function HRPipelineCanvas({
               size="sm"
               variant="ghost"
               onClick={() => setZoom((z) => Math.max(0.4, z - 0.1))}
-              className="h-7 w-7 p-0 text-gray-400 hover:text-white"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-white"
               title="Zoom Out"
             >
               <ZoomOut className="h-3.5 w-3.5" />
             </Button>
-            <span className="text-[10px] font-mono text-gray-400 w-10 text-center">{Math.round(zoom * 100)}%</span>
+            <span className="text-[10px] font-mono text-muted-foreground w-10 text-center">{Math.round(zoom * 100)}%</span>
             <Button
               size="sm"
               variant="ghost"
               onClick={() => setZoom((z) => Math.min(2.0, z + 0.1))}
-              className="h-7 w-7 p-0 text-gray-400 hover:text-white"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-white"
               title="Zoom In"
             >
               <ZoomIn className="h-3.5 w-3.5" />
@@ -1239,7 +1239,7 @@ export default function HRPipelineCanvas({
                 setZoom(1);
                 setPan({ x: 20, y: 40 });
               }}
-              className="h-7 w-7 p-0 text-gray-400 hover:text-white"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-white"
               title="Reset Zoom (100%)"
             >
               <RotateCcw className="h-3.5 w-3.5" />
@@ -1249,7 +1249,7 @@ export default function HRPipelineCanvas({
               size="sm"
               variant="ghost"
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="h-7 w-7 p-0 text-gray-400 hover:text-white"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-white"
               title={isFullscreen ? 'Exit Full Screen (Esc)' : 'Open Canvas in Full Screen'}
             >
               {isFullscreen ? <Minimize2 className="h-3.5 w-3.5 text-amber-400" /> : <Maximize2 className="h-3.5 w-3.5" />}
@@ -1259,10 +1259,10 @@ export default function HRPipelineCanvas({
           <Button
             size="sm"
             onClick={() => setAiPromptDialogOpen(true)}
-            className="h-8 text-xs border border-indigo-500/50 bg-indigo-600/25 hover:bg-indigo-600/40 text-indigo-200 hover:text-white flex items-center gap-1.5 shadow-md shadow-indigo-500/20 font-bold cursor-pointer transition-all"
+            className="h-8 text-xs border border-primary/50 bg-primary text-primary-foreground/25 hover:bg-primary text-primary-foreground/40 text-foreground hover:text-white flex items-center gap-1.5 shadow-md shadow-indigo-500/20 font-bold cursor-pointer transition-all"
             title="Open AI Pipeline Architect to synthesize DAG from natural language prompt"
           >
-            <Sparkles className="h-3.5 w-3.5 text-indigo-400 animate-pulse" />
+            <Sparkles className="h-3.5 w-3.5 text-primary animate-pulse" />
             Build with AI
           </Button>
 
@@ -1271,10 +1271,10 @@ export default function HRPipelineCanvas({
               size="sm"
               variant="outline"
               onClick={onImportClick}
-              className="h-8 text-xs border-indigo-500/40 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 flex items-center gap-1.5 cursor-pointer font-semibold"
+              className="h-8 text-xs border-primary/40 bg-primary/10 text-primary hover:bg-primary-hover/20 flex items-center gap-1.5 cursor-pointer font-semibold"
               title="Clone an existing company workflow into this canvas"
             >
-              <FolderDown className="h-3.5 w-3.5 text-indigo-400" />
+              <FolderDown className="h-3.5 w-3.5 text-primary" />
               Import Workflow
             </Button>
           )}
@@ -1283,7 +1283,7 @@ export default function HRPipelineCanvas({
             size="sm"
             variant="outline"
             onClick={handleAutoLayout}
-            className="h-8 text-xs border-gray-800 bg-gray-900 text-gray-300 hover:text-white hover:bg-gray-800"
+            className="h-8 text-xs border-border bg-gray-900 text-foreground/85 hover:text-white hover:bg-gray-800"
           >
             Auto-Layout
           </Button>
@@ -1292,7 +1292,7 @@ export default function HRPipelineCanvas({
             size="sm"
             variant="outline"
             onClick={handleValidateGraph}
-            className="h-8 text-xs border-gray-800 bg-gray-900 text-gray-300 hover:text-white hover:bg-gray-800 flex items-center gap-1.5"
+            className="h-8 text-xs border-border bg-gray-900 text-foreground/85 hover:text-white hover:bg-gray-800 flex items-center gap-1.5"
           >
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
             Validate
@@ -1313,7 +1313,7 @@ export default function HRPipelineCanvas({
             size="sm"
             variant="outline"
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className={`h-8 text-xs border-gray-800 bg-gray-900 text-gray-300 hover:text-white hover:bg-gray-800 flex items-center gap-1.5 transition-all ${
+            className={`h-8 text-xs border-border bg-gray-900 text-foreground/85 hover:text-white hover:bg-gray-800 flex items-center gap-1.5 transition-all ${
               isFullscreen ? 'border-amber-500/60 bg-amber-500/20 text-amber-300 shadow-sm' : ''
             }`}
             title={isFullscreen ? 'Exit Full Screen (Esc)' : 'Open Canvas in Full Screen'}
@@ -1345,15 +1345,15 @@ export default function HRPipelineCanvas({
       {/* ─── 2. MAIN WORKSPACE (PALETTE | CANVAS | INSPECTOR) ────────────────── */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* ─── LEFT: CATEGORIZED NODE PALETTE (SCROLLABLE) ──────────────────── */}
-        <div className="w-64 border-r border-gray-800 bg-gray-950/95 flex flex-col shrink-0 z-10 h-full overflow-hidden">
-          <div className="p-3 border-b border-gray-800 shrink-0 bg-gray-900/40">
+        <div className="w-64 border-r border-border bg-gray-950/95 flex flex-col shrink-0 z-10 h-full overflow-hidden">
+          <div className="p-3 border-b border-border shrink-0 bg-gray-900/40">
             <div className="relative">
               <Search className="h-3.5 w-3.5 text-gray-500 absolute left-2.5 top-2.5" />
               <Input
                 placeholder="Search node types..."
                 value={paletteSearch}
                 onChange={(e) => setPaletteSearch(e.target.value)}
-                className="h-8 text-xs bg-gray-900 border-gray-800 pl-8 rounded-xl text-gray-200"
+                className="h-8 text-xs bg-gray-900 border-border pl-8 rounded-xl text-gray-200"
               />
             </div>
             <div className="flex items-center justify-between mt-2 text-[10px] text-gray-500 px-1 font-mono uppercase tracking-wider">
@@ -1383,7 +1383,7 @@ export default function HRPipelineCanvas({
                         [catGroup.category]: !prev[catGroup.category],
                       }))
                     }
-                    className="w-full flex items-center justify-between text-[11px] font-bold text-gray-400 hover:text-white px-2 py-1 uppercase tracking-wider"
+                    className="w-full flex items-center justify-between text-[11px] font-bold text-muted-foreground hover:text-white px-2 py-1 uppercase tracking-wider"
                   >
                     <span>{catGroup.category}</span>
                     {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
@@ -1397,7 +1397,7 @@ export default function HRPipelineCanvas({
                           <div
                             key={item.type}
                             onClick={() => handleAddNodeFromPalette(item.type, item.label, item.defaultConfig)}
-                            className="p-2.5 rounded-xl border border-gray-850 bg-gray-900/60 hover:bg-gray-900 hover:border-gray-700 transition-all cursor-pointer group flex items-start gap-2.5 select-none"
+                            className="p-2.5 rounded-xl border border-gray-850 bg-background hover:bg-gray-900 hover:border-gray-700 transition-all cursor-pointer group flex items-start gap-2.5 select-none"
                           >
                             <div className={`p-1.5 rounded-lg border shrink-0 ${item.color}`}>
                               <Icon className="h-3.5 w-3.5" />
@@ -1454,7 +1454,7 @@ export default function HRPipelineCanvas({
                   <path d="M 0 1 L 9 5 L 0 9 z" fill="#f59e0b" />
                 </marker>
                 <marker id="arrow-traversed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                  <path d="M 0 1 L 9 5 L 0 9 z" fill="#10b981" />
+                  <path d="M 0 1 L 9 5 L 0 9 z" fill="#e5a93c" />
                 </marker>
               </defs>
 
@@ -1482,7 +1482,7 @@ export default function HRPipelineCanvas({
                     <path
                       d={pathD}
                       fill="none"
-                      stroke={isTraversed ? '#10b981' : edge.condition ? '#f59e0b' : '#3f3f46'}
+                      stroke={isTraversed ? '#e5a93c' : edge.condition ? '#f59e0b' : '#3f3f46'}
                       strokeWidth={isTraversed ? '3' : '2'}
                       strokeDasharray={isTraversed ? '6 4' : 'none'}
                       className={isTraversed ? 'animate-[dash_1s_linear_infinite]' : ''}
@@ -1503,7 +1503,7 @@ export default function HRPipelineCanvas({
                           className={`text-[9px] font-mono px-2 py-0.5 rounded-full border shadow-sm transition-all truncate max-w-[120px] ${
                             edge.condition
                               ? 'bg-amber-950/80 border-amber-500/40 text-amber-300 hover:bg-rose-950 hover:text-rose-300 hover:border-rose-500'
-                              : 'bg-gray-900 border-gray-700 text-gray-400 hover:bg-rose-950 hover:text-rose-300 hover:border-rose-500'
+                              : 'bg-gray-900 border-gray-700 text-muted-foreground hover:bg-rose-950 hover:text-rose-300 hover:border-rose-500'
                           }`}
                           title={edge.condition ? `Condition: ${edge.condition} (Click to remove connection)` : 'Click to delete connection'}
                         >
@@ -1557,7 +1557,7 @@ export default function HRPipelineCanvas({
                       ? 'bg-gray-900 border-amber-500 shadow-xl shadow-amber-500/10 ring-2 ring-amber-500/30'
                       : isSimTraversed
                       ? 'bg-gray-900 border-emerald-500/80 shadow-lg shadow-emerald-500/10'
-                      : 'bg-gray-900/90 border-gray-800 hover:border-gray-700 hover:bg-gray-900'
+                      : 'bg-gray-900/90 border-border hover:border-gray-700 hover:bg-gray-900'
                   }`}
                 >
                   {/* Left Target Connection Handle */}
@@ -1579,12 +1579,12 @@ export default function HRPipelineCanvas({
                   )}
 
                   {/* Node Header */}
-                  <div className="p-3 pb-2 border-b border-gray-800/80 flex items-center justify-between">
+                  <div className="p-3 pb-2 border-b border-border/80 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className={`p-1 rounded-md border ${meta.color}`}>
                         <Icon className="h-3 w-3" />
                       </div>
-                      <span className="text-[10px] font-mono text-gray-400 uppercase tracking-wider truncate max-w-[110px]">
+                      <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider truncate max-w-[110px]">
                         {meta.label}
                       </span>
                     </div>
@@ -1618,7 +1618,7 @@ export default function HRPipelineCanvas({
                     <p className="text-xs font-bold text-white leading-tight line-clamp-2">{node.name}</p>
 
                     {/* Node Config Summary */}
-                    <div className="text-[10px] text-gray-400 font-mono truncate">
+                    <div className="text-[10px] text-muted-foreground font-mono truncate">
                       {node.type === 'generate_document' && (
                         <span>Tpl: {node.config?.template_name || 'Select Template'}</span>
                       )}
@@ -1654,7 +1654,7 @@ export default function HRPipelineCanvas({
           </div>
 
           {/* Minimap & Status Overlay */}
-          <div className="absolute bottom-4 left-4 bg-gray-900/90 border border-gray-800 rounded-xl px-3 py-1.5 flex items-center gap-3 text-[11px] text-gray-400 font-mono z-10 backdrop-blur-sm shadow-xl">
+          <div className="absolute bottom-4 left-4 bg-gray-900/90 border border-border rounded-xl px-3 py-1.5 flex items-center gap-3 text-[11px] text-muted-foreground font-mono z-10 backdrop-blur-sm shadow-xl">
             <span>{nodes.length} Nodes</span>
             <span>•</span>
             <span>{edges.length} Edges</span>
@@ -1671,7 +1671,7 @@ export default function HRPipelineCanvas({
                 setPan({ x: 20, y: 40 });
                 setZoom(1);
               }}
-              className="text-[10px] text-gray-400 hover:text-white underline cursor-pointer"
+              className="text-[10px] text-muted-foreground hover:text-white underline cursor-pointer"
               title="Reset view to center"
             >
               Center View
@@ -1681,13 +1681,13 @@ export default function HRPipelineCanvas({
 
         {/* ─── 3. RIGHT: SELECTED NODE SETTINGS INSPECTOR ────────────────────── */}
         {selectedNode && (
-          <div className="w-80 border-l border-gray-800 bg-gray-950/95 flex flex-col shrink-0 z-10 h-full overflow-hidden">
-            <div className="p-4 border-b border-gray-800 flex items-center justify-between shrink-0 bg-gray-900/40">
+          <div className="w-80 border-l border-border bg-gray-950/95 flex flex-col shrink-0 z-10 h-full overflow-hidden">
+            <div className="p-4 border-b border-border flex items-center justify-between shrink-0 bg-gray-900/40">
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 text-amber-500" />
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider">Node Configuration</h3>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => setSelectedNodeId(null)} className="h-7 w-7 p-0 text-gray-400">
+              <Button size="sm" variant="ghost" onClick={() => setSelectedNodeId(null)} className="h-7 w-7 p-0 text-muted-foreground">
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -1695,17 +1695,17 @@ export default function HRPipelineCanvas({
             <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 text-xs [scrollbar-width:thin] [scrollbar-color:#3f3f46_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-800 hover:[&::-webkit-scrollbar-thumb]:bg-gray-700">
               {/* Node Display Name */}
               <div>
-                <label className="text-gray-400 block mb-1 text-[11px]">Display Name</label>
+                <label className="text-muted-foreground block mb-1 text-[11px]">Display Name</label>
                 <Input
                   value={selectedNode.name}
                   onChange={(e) => handleUpdateNodeName(e.target.value)}
-                  className="h-8 text-xs bg-gray-900 border-gray-800 text-white rounded-xl"
+                  className="h-8 text-xs bg-gray-900 border-border text-white rounded-xl"
                 />
               </div>
 
               <div>
-                <span className="text-gray-400 block mb-1 text-[11px]">Node Type</span>
-                <span className="inline-block text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-gray-900 border border-gray-800 text-amber-400">
+                <span className="text-muted-foreground block mb-1 text-[11px]">Node Type</span>
+                <span className="inline-block text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-gray-900 border border-border text-amber-400">
                   {selectedNode.type}
                 </span>
               </div>
@@ -1716,11 +1716,11 @@ export default function HRPipelineCanvas({
               {selectedNode.type === 'generate_document' && (
                 <div className="space-y-3 pt-2 border-t border-gray-850">
                   <div>
-                    <label className="text-gray-400 block mb-1 text-[11px]">Select Document Template</label>
+                    <label className="text-muted-foreground block mb-1 text-[11px]">Select Document Template</label>
                     <select
                       value={selectedNode.config.template_name || ''}
                       onChange={(e) => handleUpdateNodeConfig({ template_name: e.target.value })}
-                      className="w-full h-8 bg-gray-900 border border-gray-800 text-xs text-white rounded-xl px-2"
+                      className="w-full h-8 bg-gray-900 border border-border text-xs text-white rounded-xl px-2"
                     >
                       <option value="Executive Employment Agreement">Executive Employment Agreement (DOCX)</option>
                       <option value="Standard Offer Letter">Standard Offer Letter (DOCX)</option>
@@ -1735,12 +1735,12 @@ export default function HRPipelineCanvas({
                   </div>
 
                   <div>
-                    <label className="text-gray-400 block mb-1 text-[11px]">AI Fill Instructions</label>
+                    <label className="text-muted-foreground block mb-1 text-[11px]">AI Fill Instructions</label>
                     <textarea
                       rows={3}
                       value={selectedNode.config.ai_fill_instructions || ''}
                       onChange={(e) => handleUpdateNodeConfig({ ai_fill_instructions: e.target.value })}
-                      className="w-full bg-gray-900 border border-gray-800 text-xs text-gray-200 rounded-xl p-2 font-mono"
+                      className="w-full bg-gray-900 border border-border text-xs text-gray-200 rounded-xl p-2 font-mono"
                     />
                     <p className="text-[10px] text-gray-500 mt-1">
                       Governs field mapping and structure preservation. Model cannot invent missing values.
@@ -1750,7 +1750,7 @@ export default function HRPipelineCanvas({
                   {/* Variable Mappings CRUD */}
                   <div className="pt-2 border-t border-gray-850">
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-gray-300 font-semibold text-[11px]">Field & Variable Mappings</label>
+                      <label className="text-foreground/85 font-semibold text-[11px]">Field & Variable Mappings</label>
                       <Button
                         size="sm"
                         variant="ghost"
@@ -1762,21 +1762,21 @@ export default function HRPipelineCanvas({
                     </div>
 
                     {showAddVar && (
-                      <div className="p-2.5 rounded-xl bg-gray-900 border border-gray-800 space-y-2 mb-2">
+                      <div className="p-2.5 rounded-xl bg-gray-900 border border-border space-y-2 mb-2">
                         <Input
                           placeholder="Template Token (e.g. {{candidate_name}})"
                           value={newVarToken}
                           onChange={(e) => setNewVarToken(e.target.value)}
-                          className="h-7 text-[11px] bg-gray-950 border-gray-800 text-white rounded-lg"
+                          className="h-7 text-[11px] bg-gray-950 border-border text-white rounded-lg"
                         />
                         <Input
                           placeholder="Source Path (e.g. candidate.full_name)"
                           value={newVarSource}
                           onChange={(e) => setNewVarSource(e.target.value)}
-                          className="h-7 text-[11px] bg-gray-950 border-gray-800 text-white rounded-lg"
+                          className="h-7 text-[11px] bg-gray-950 border-border text-white rounded-lg"
                         />
                         <div className="flex justify-end gap-1.5 pt-1">
-                          <Button size="sm" variant="ghost" onClick={() => setShowAddVar(false)} className="h-6 text-[10px] px-2 text-gray-400">
+                          <Button size="sm" variant="ghost" onClick={() => setShowAddVar(false)} className="h-6 text-[10px] px-2 text-muted-foreground">
                             Cancel
                           </Button>
                           <Button size="sm" onClick={handleAddFieldMapping} className="h-6 text-[10px] px-2 bg-amber-500 hover:bg-amber-600 text-black font-semibold">
@@ -1792,11 +1792,11 @@ export default function HRPipelineCanvas({
                         '{{annual_ctc}}': 'offer.annual_ctc',
                         '{{joining_date}}': 'offer.joining_date',
                       }).map(([token, source]: [string, any], idx) => (
-                        <div key={idx} className="flex items-center justify-between p-1.5 rounded-lg bg-gray-900 border border-gray-800 text-[11px]">
+                        <div key={idx} className="flex items-center justify-between p-1.5 rounded-lg bg-gray-900 border border-border text-[11px]">
                           <div className="truncate flex-1 mr-2">
                             <span className="font-mono text-amber-300">{token}</span>
                             <span className="text-gray-500 mx-1">→</span>
-                            <span className="text-gray-300 font-mono text-[10px]">{source}</span>
+                            <span className="text-foreground/85 font-mono text-[10px]">{source}</span>
                           </div>
                           <button
                             onClick={() => handleDeleteFieldMapping(token)}
@@ -1811,11 +1811,11 @@ export default function HRPipelineCanvas({
                   </div>
 
                   <div>
-                    <label className="text-gray-400 block mb-1 text-[11px]">Output Format</label>
+                    <label className="text-muted-foreground block mb-1 text-[11px]">Output Format</label>
                     <select
                       value={selectedNode.config.output_format || 'both'}
                       onChange={(e) => handleUpdateNodeConfig({ output_format: e.target.value })}
-                      className="w-full h-8 bg-gray-900 border border-gray-800 text-xs text-white rounded-xl px-2"
+                      className="w-full h-8 bg-gray-900 border border-border text-xs text-white rounded-xl px-2"
                     >
                       <option value="both">Both Editable DOCX and Signed PDF</option>
                       <option value="docx">DOCX Only (Editable Draft)</option>
@@ -1824,11 +1824,11 @@ export default function HRPipelineCanvas({
                   </div>
 
                   <div>
-                    <label className="text-gray-400 block mb-1 text-[11px]">Missing Data Handling</label>
+                    <label className="text-muted-foreground block mb-1 text-[11px]">Missing Data Handling</label>
                     <select
                       value={selectedNode.config.missing_data_policy || 'route_to_hr'}
                       onChange={(e) => handleUpdateNodeConfig({ missing_data_policy: e.target.value })}
-                      className="w-full h-8 bg-gray-900 border border-gray-800 text-xs text-white rounded-xl px-2"
+                      className="w-full h-8 bg-gray-900 border border-border text-xs text-white rounded-xl px-2"
                     >
                       <option value="route_to_hr">Route to HR Review Studio with conflict alert</option>
                       <option value="stop_and_request">Stop workflow and request candidate upload</option>
@@ -1843,7 +1843,7 @@ export default function HRPipelineCanvas({
                 <div className="space-y-3 pt-2 border-t border-gray-850">
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-gray-300 font-semibold text-[11px]">Required Documents (CRUD)</label>
+                      <label className="text-foreground/85 font-semibold text-[11px]">Required Documents (CRUD)</label>
                       <Button
                         size="sm"
                         variant="ghost"
@@ -1855,18 +1855,18 @@ export default function HRPipelineCanvas({
                     </div>
 
                     {showAddDoc && (
-                      <div className="p-2.5 rounded-xl bg-gray-900 border border-gray-800 space-y-2 mb-2">
+                      <div className="p-2.5 rounded-xl bg-gray-900 border border-border space-y-2 mb-2">
                         <Input
                           placeholder="Document Title (e.g. Degree Certificate)"
                           value={newDocTitle}
                           onChange={(e) => setNewDocTitle(e.target.value)}
-                          className="h-7 text-[11px] bg-gray-950 border-gray-800 text-white rounded-lg"
+                          className="h-7 text-[11px] bg-gray-950 border-border text-white rounded-lg"
                         />
                         <div className="grid grid-cols-2 gap-2">
                           <select
                             value={newDocCategory}
                             onChange={(e) => setNewDocCategory(e.target.value)}
-                            className="h-7 text-[10px] bg-gray-950 border border-gray-800 text-white rounded-lg px-1.5"
+                            className="h-7 text-[10px] bg-gray-950 border border-border text-white rounded-lg px-1.5"
                           >
                             <option value="degree_certificate">Degree / Education</option>
                             <option value="pan_card">PAN Card</option>
@@ -1876,18 +1876,18 @@ export default function HRPipelineCanvas({
                             <option value="id_proof">Government ID</option>
                             <option value="other">Other Document</option>
                           </select>
-                          <label className="flex items-center gap-1.5 text-[10px] text-gray-300 cursor-pointer">
+                          <label className="flex items-center gap-1.5 text-[10px] text-foreground/85 cursor-pointer">
                             <input
                               type="checkbox"
                               checked={newDocMandatory}
                               onChange={(e) => setNewDocMandatory(e.target.checked)}
-                              className="rounded bg-gray-950 border-gray-800 text-amber-500"
+                              className="rounded bg-gray-950 border-border text-amber-500"
                             />
                             Mandatory
                           </label>
                         </div>
                         <div className="flex justify-end gap-1.5 pt-1">
-                          <Button size="sm" variant="ghost" onClick={() => setShowAddDoc(false)} className="h-6 text-[10px] px-2 text-gray-400">
+                          <Button size="sm" variant="ghost" onClick={() => setShowAddDoc(false)} className="h-6 text-[10px] px-2 text-muted-foreground">
                             Cancel
                           </Button>
                           <Button size="sm" onClick={handleAddRequiredDoc} className="h-6 text-[10px] px-2 bg-amber-500 hover:bg-amber-600 text-black font-semibold">
@@ -1903,11 +1903,11 @@ export default function HRPipelineCanvas({
                         const category = typeof doc === 'object' ? doc.category : 'document';
                         const isMandatory = typeof doc === 'object' ? doc.is_mandatory !== false : true;
                         return (
-                          <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-gray-900 border border-gray-800 text-xs">
+                          <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-gray-900 border border-border text-xs">
                             <div className="truncate flex-1 mr-2">
                               <span className="text-white block truncate">{title}</span>
                               <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-[9px] uppercase font-mono px-1.5 py-0.2 rounded bg-gray-800 text-gray-400">
+                                <span className="text-[9px] uppercase font-mono px-1.5 py-0.2 rounded bg-gray-800 text-muted-foreground">
                                   {category}
                                 </span>
                                 {isMandatory ? (
@@ -1931,12 +1931,12 @@ export default function HRPipelineCanvas({
                   </div>
 
                   <div>
-                    <label className="text-gray-400 block mb-1 text-[11px]">Submission Deadline (Days)</label>
+                    <label className="text-muted-foreground block mb-1 text-[11px]">Submission Deadline (Days)</label>
                     <Input
                       type="number"
                       value={selectedNode.config.deadline_days || 5}
                       onChange={(e) => handleUpdateNodeConfig({ deadline_days: parseInt(e.target.value) || 5 })}
-                      className="h-8 text-xs bg-gray-900 border-gray-800 text-white rounded-xl"
+                      className="h-8 text-xs bg-gray-900 border-border text-white rounded-xl"
                     />
                   </div>
                 </div>
@@ -1951,7 +1951,7 @@ export default function HRPipelineCanvas({
 
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-gray-300 font-semibold text-[11px]">Intake Fields (CRUD & Reorder)</label>
+                      <label className="text-foreground/85 font-semibold text-[11px]">Intake Fields (CRUD & Reorder)</label>
                       <Button
                         size="sm"
                         variant="ghost"
@@ -1963,24 +1963,24 @@ export default function HRPipelineCanvas({
                     </div>
 
                     {showAddField && (
-                      <div className="p-2.5 rounded-xl bg-gray-900 border border-gray-800 space-y-2 mb-2">
+                      <div className="p-2.5 rounded-xl bg-gray-900 border border-border space-y-2 mb-2">
                         <Input
                           placeholder="Canonical Key (e.g. candidate.github_url)"
                           value={newFieldKey}
                           onChange={(e) => setNewFieldKey(e.target.value)}
-                          className="h-7 text-[11px] bg-gray-950 border-gray-800 text-white rounded-lg"
+                          className="h-7 text-[11px] bg-gray-950 border-border text-white rounded-lg"
                         />
                         <Input
                           placeholder="Field Label (e.g. GitHub Repository URL)"
                           value={newFieldLabel}
                           onChange={(e) => setNewFieldLabel(e.target.value)}
-                          className="h-7 text-[11px] bg-gray-950 border-gray-800 text-white rounded-lg"
+                          className="h-7 text-[11px] bg-gray-950 border-border text-white rounded-lg"
                         />
                         <div className="grid grid-cols-2 gap-2">
                           <select
                             value={newFieldType}
                             onChange={(e) => setNewFieldType(e.target.value)}
-                            className="h-7 text-[10px] bg-gray-950 border border-gray-800 text-white rounded-lg px-1.5"
+                            className="h-7 text-[10px] bg-gray-950 border border-border text-white rounded-lg px-1.5"
                           >
                             <option value="text">Text</option>
                             <option value="number">Number</option>
@@ -1989,18 +1989,18 @@ export default function HRPipelineCanvas({
                             <option value="tel">Phone</option>
                             <option value="file">File Upload</option>
                           </select>
-                          <label className="flex items-center gap-1.5 text-[10px] text-gray-300 cursor-pointer">
+                          <label className="flex items-center gap-1.5 text-[10px] text-foreground/85 cursor-pointer">
                             <input
                               type="checkbox"
                               checked={newFieldRequired}
                               onChange={(e) => setNewFieldRequired(e.target.checked)}
-                              className="rounded bg-gray-950 border-gray-800 text-purple-500"
+                              className="rounded bg-gray-950 border-border text-purple-500"
                             />
                             Required Field
                           </label>
                         </div>
                         <div className="flex justify-end gap-1.5 pt-1">
-                          <Button size="sm" variant="ghost" onClick={() => setShowAddField(false)} className="h-6 text-[10px] px-2 text-gray-400">
+                          <Button size="sm" variant="ghost" onClick={() => setShowAddField(false)} className="h-6 text-[10px] px-2 text-muted-foreground">
                             Cancel
                           </Button>
                           <Button size="sm" onClick={handleAddIntakeField} className="h-6 text-[10px] px-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold">
@@ -2017,7 +2017,7 @@ export default function HRPipelineCanvas({
                         const dType = typeof field === 'object' ? field.data_type || 'text' : 'text';
                         const req = typeof field === 'object' ? field.is_required !== false : true;
                         return (
-                          <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-gray-900 border border-gray-800 text-xs">
+                          <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-gray-900 border border-border text-xs">
                             <div className="flex items-center gap-1.5 mr-2">
                               <div className="flex flex-col">
                                 <button
@@ -2039,7 +2039,7 @@ export default function HRPipelineCanvas({
                               </div>
                               <div className="truncate">
                                 <span className="text-white block font-medium truncate">{label}</span>
-                                <div className="flex items-center gap-1 text-[9px] font-mono text-gray-400">
+                                <div className="flex items-center gap-1 text-[9px] font-mono text-muted-foreground">
                                   <span>{key}</span>
                                   <span>•</span>
                                   <span className="text-purple-300">{dType}</span>
@@ -2065,12 +2065,12 @@ export default function HRPipelineCanvas({
                   </div>
 
                   <div className="flex items-center justify-between pt-1">
-                    <span className="text-[11px] text-gray-300">Deduplicate Across Templates</span>
+                    <span className="text-[11px] text-foreground/85">Deduplicate Across Templates</span>
                     <input
                       type="checkbox"
                       checked={selectedNode.config.deduplicate_fields !== false}
                       onChange={(e) => handleUpdateNodeConfig({ deduplicate_fields: e.target.checked })}
-                      className="rounded bg-gray-900 border-gray-800 text-amber-500"
+                      className="rounded bg-gray-900 border-border text-amber-500"
                     />
                   </div>
                 </div>
@@ -2085,7 +2085,7 @@ export default function HRPipelineCanvas({
 
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-gray-300 font-semibold text-[11px]">Extraction Rules (CRUD)</label>
+                      <label className="text-foreground/85 font-semibold text-[11px]">Extraction Rules (CRUD)</label>
                       <Button
                         size="sm"
                         variant="ghost"
@@ -2097,21 +2097,21 @@ export default function HRPipelineCanvas({
                     </div>
 
                     {showAddOcr && (
-                      <div className="p-2.5 rounded-xl bg-gray-900 border border-gray-800 space-y-2 mb-2">
+                      <div className="p-2.5 rounded-xl bg-gray-900 border border-border space-y-2 mb-2">
                         <Input
                           placeholder="Target OCR Field (e.g. pan_number)"
                           value={newOcrField}
                           onChange={(e) => setNewOcrField(e.target.value)}
-                          className="h-7 text-[11px] bg-gray-950 border-gray-800 text-white rounded-lg"
+                          className="h-7 text-[11px] bg-gray-950 border-border text-white rounded-lg"
                         />
                         <Input
                           placeholder="Regex Pattern (e.g. ^[A-Z]{5}[0-9]{4}[A-Z]$)"
                           value={newOcrRegex}
                           onChange={(e) => setNewOcrRegex(e.target.value)}
-                          className="h-7 text-[11px] bg-gray-950 border-gray-800 text-white font-mono rounded-lg"
+                          className="h-7 text-[11px] bg-gray-950 border-border text-white font-mono rounded-lg"
                         />
                         <div className="flex items-center justify-between">
-                          <label className="text-[10px] text-gray-400">Min Confidence: {(newOcrConfidence * 100).toFixed(0)}%</label>
+                          <label className="text-[10px] text-muted-foreground">Min Confidence: {(newOcrConfidence * 100).toFixed(0)}%</label>
                           <input
                             type="range"
                             min="0.5"
@@ -2123,7 +2123,7 @@ export default function HRPipelineCanvas({
                           />
                         </div>
                         <div className="flex justify-end gap-1.5 pt-1">
-                          <Button size="sm" variant="ghost" onClick={() => setShowAddOcr(false)} className="h-6 text-[10px] px-2 text-gray-400">
+                          <Button size="sm" variant="ghost" onClick={() => setShowAddOcr(false)} className="h-6 text-[10px] px-2 text-muted-foreground">
                             Cancel
                           </Button>
                           <Button size="sm" onClick={handleAddExtractionRule} className="h-6 text-[10px] px-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold">
@@ -2138,10 +2138,10 @@ export default function HRPipelineCanvas({
                         { target_field: 'pan_number', validation_pattern: '^[A-Z]{5}[0-9]{4}[A-Z]$', min_confidence: 0.85 },
                         { target_field: 'degree_gpa', min_confidence: 0.80 },
                       ]).map((rule: any, idx: number) => (
-                        <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-gray-900 border border-gray-800 text-xs">
+                        <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-gray-900 border border-border text-xs">
                           <div className="truncate flex-1 mr-2">
                             <span className="text-white block font-mono font-medium truncate">{rule.target_field}</span>
-                            <div className="flex items-center gap-1.5 text-[9px] text-gray-400 font-mono mt-0.5">
+                            <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground font-mono mt-0.5">
                               {rule.validation_pattern && <span className="text-cyan-300">regex: {rule.validation_pattern}</span>}
                               <span>•</span>
                               <span>min: {Math.round((rule.min_confidence || 0.85) * 100)}%</span>
@@ -2165,31 +2165,31 @@ export default function HRPipelineCanvas({
               {selectedNode.type === 'candidate_email' && (
                 <div className="space-y-3 pt-2 border-t border-gray-850">
                   <div>
-                    <label className="text-gray-400 block mb-1 text-[11px]">Subject Line</label>
+                    <label className="text-muted-foreground block mb-1 text-[11px]">Subject Line</label>
                     <Input
                       value={selectedNode.config.subject || ''}
                       onChange={(e) => handleUpdateNodeConfig({ subject: e.target.value })}
-                      className="h-8 text-xs bg-gray-900 border-gray-800 text-white rounded-xl"
+                      className="h-8 text-xs bg-gray-900 border-border text-white rounded-xl"
                     />
                   </div>
 
                   <div>
-                    <label className="text-gray-400 block mb-1 text-[11px]">Email Template</label>
+                    <label className="text-muted-foreground block mb-1 text-[11px]">Email Template</label>
                     <textarea
                       rows={4}
                       value={selectedNode.config.email_template || ''}
                       onChange={(e) => handleUpdateNodeConfig({ email_template: e.target.value })}
-                      className="w-full bg-gray-900 border border-gray-800 text-xs text-gray-200 rounded-xl p-2 font-mono"
+                      className="w-full bg-gray-900 border border-border text-xs text-gray-200 rounded-xl p-2 font-mono"
                     />
                   </div>
 
                   <div className="flex items-center justify-between pt-1">
-                    <span className="text-[11px] text-gray-300">Include Secure Candidate Portal Link</span>
+                    <span className="text-[11px] text-foreground/85">Include Secure Candidate Portal Link</span>
                     <input
                       type="checkbox"
                       checked={selectedNode.config.include_portal_link !== false}
                       onChange={(e) => handleUpdateNodeConfig({ include_portal_link: e.target.checked })}
-                      className="rounded bg-gray-900 border-gray-800 text-amber-500"
+                      className="rounded bg-gray-900 border-border text-amber-500"
                     />
                   </div>
                 </div>
@@ -2199,11 +2199,11 @@ export default function HRPipelineCanvas({
               {selectedNode.type === 'approval' && (
                 <div className="space-y-3 pt-2 border-t border-gray-850">
                   <div>
-                    <label className="text-gray-400 block mb-1 text-[11px]">Required Sign-off Role</label>
+                    <label className="text-muted-foreground block mb-1 text-[11px]">Required Sign-off Role</label>
                     <select
                       value={selectedNode.config.required_role || 'hr_director'}
                       onChange={(e) => handleUpdateNodeConfig({ required_role: e.target.value })}
-                      className="w-full h-8 bg-gray-900 border border-gray-800 text-xs text-white rounded-xl px-2"
+                      className="w-full h-8 bg-gray-900 border border-border text-xs text-white rounded-xl px-2"
                     >
                       <option value="hr_director">HR Director / Head of People</option>
                       <option value="vp_department">Department VP</option>
@@ -2222,11 +2222,11 @@ export default function HRPipelineCanvas({
               {selectedNode.type === 'hr_review' && (
                 <div className="space-y-3 pt-2 border-t border-gray-850">
                   <div>
-                    <label className="text-gray-400 block mb-1 text-[11px]">Reviewer Role</label>
+                    <label className="text-muted-foreground block mb-1 text-[11px]">Reviewer Role</label>
                     <select
                       value={selectedNode.config.reviewer_role || 'hr_specialist'}
                       onChange={(e) => handleUpdateNodeConfig({ reviewer_role: e.target.value })}
-                      className="w-full h-8 bg-gray-900 border border-gray-800 text-xs text-white rounded-xl px-2"
+                      className="w-full h-8 bg-gray-900 border border-border text-xs text-white rounded-xl px-2"
                     >
                       <option value="hr_specialist">HR Operations Specialist</option>
                       <option value="talent_lead">Talent Acquisition Lead</option>
@@ -2235,12 +2235,12 @@ export default function HRPipelineCanvas({
                   </div>
 
                   <div className="flex items-center justify-between pt-1">
-                    <span className="text-[11px] text-gray-300">Invalidate Prior Approval on Edit</span>
+                    <span className="text-[11px] text-foreground/85">Invalidate Prior Approval on Edit</span>
                     <input
                       type="checkbox"
                       checked={selectedNode.config.invalidate_prior_approvals_on_edit !== false}
                       onChange={(e) => handleUpdateNodeConfig({ invalidate_prior_approvals_on_edit: e.target.checked })}
-                      className="rounded bg-gray-900 border-gray-800 text-amber-500"
+                      className="rounded bg-gray-900 border-border text-amber-500"
                     />
                   </div>
                 </div>
@@ -2250,11 +2250,11 @@ export default function HRPipelineCanvas({
               {selectedNode.type === 'condition_branch' && (
                 <div className="space-y-3 pt-2 border-t border-gray-850">
                   <div>
-                    <label className="text-gray-400 block mb-1 text-[11px]">Branch Routing Key</label>
+                    <label className="text-muted-foreground block mb-1 text-[11px]">Branch Routing Key</label>
                     <select
                       value={selectedNode.config.branch_attribute || 'employment_type'}
                       onChange={(e) => handleUpdateNodeConfig({ branch_attribute: e.target.value })}
-                      className="w-full h-8 bg-gray-900 border border-gray-800 text-xs text-white rounded-xl px-2"
+                      className="w-full h-8 bg-gray-900 border border-border text-xs text-white rounded-xl px-2"
                     >
                       <option value="employment_type">context.employment_type (permanent / contractor)</option>
                       <option value="department">context.department</option>
@@ -2272,11 +2272,11 @@ export default function HRPipelineCanvas({
               {selectedNode.type === 'wait_schedule' && (
                 <div className="space-y-3 pt-2 border-t border-gray-850">
                   <div>
-                    <label className="text-gray-400 block mb-1 text-[11px]">Wait Type</label>
+                    <label className="text-muted-foreground block mb-1 text-[11px]">Wait Type</label>
                     <select
                       value={selectedNode.config.wait_type || 'interval'}
                       onChange={(e) => handleUpdateNodeConfig({ wait_type: e.target.value })}
-                      className="w-full h-8 bg-gray-900 border border-gray-800 text-xs text-white rounded-xl px-2"
+                      className="w-full h-8 bg-gray-900 border border-border text-xs text-white rounded-xl px-2"
                     >
                       <option value="interval">Relative Interval (Hours)</option>
                       <option value="specific_date">Specific Scheduled Date/Time</option>
@@ -2284,11 +2284,11 @@ export default function HRPipelineCanvas({
                     </select>
                   </div>
                   <div>
-                    <label className="text-gray-400 block mb-1 text-[11px]">Target Timezone</label>
+                    <label className="text-muted-foreground block mb-1 text-[11px]">Target Timezone</label>
                     <select
                       value={selectedNode.config.timezone || 'Asia/Kolkata'}
                       onChange={(e) => handleUpdateNodeConfig({ timezone: e.target.value })}
-                      className="w-full h-8 bg-gray-900 border border-gray-800 text-xs text-white rounded-xl px-2"
+                      className="w-full h-8 bg-gray-900 border border-border text-xs text-white rounded-xl px-2"
                     >
                       <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
                       <option value="UTC">UTC</option>
@@ -2303,11 +2303,11 @@ export default function HRPipelineCanvas({
               {selectedNode.type === 'end' && (
                 <div className="space-y-3 pt-2 border-t border-gray-850">
                   <div>
-                    <label className="text-gray-400 block mb-1 text-[11px]">Final Candidate State</label>
+                    <label className="text-muted-foreground block mb-1 text-[11px]">Final Candidate State</label>
                     <select
                       value={selectedNode.config.completion_state || 'hired'}
                       onChange={(e) => handleUpdateNodeConfig({ completion_state: e.target.value })}
-                      className="w-full h-8 bg-gray-900 border border-gray-800 text-xs text-white rounded-xl px-2"
+                      className="w-full h-8 bg-gray-900 border border-border text-xs text-white rounded-xl px-2"
                     >
                       <option value="hired">Hired (Onboarding Completed)</option>
                       <option value="contract_active">Contractor Active</option>
@@ -2334,25 +2334,25 @@ export default function HRPipelineCanvas({
 
       {/* ─── 4. TEST RUN SIMULATOR DRAWER ──────────────────────────────────── */}
       {simDrawerOpen && (
-        <div className="fixed inset-y-0 right-0 w-96 bg-gray-950 border-l border-gray-800 shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-200">
-          <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900/80">
+        <div className="fixed inset-y-0 right-0 w-96 bg-gray-950 border-l border-border shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-200">
+          <div className="p-4 border-b border-border flex items-center justify-between bg-gray-900/80">
             <div className="flex items-center gap-2">
               <Play className="h-4 w-4 text-amber-500" />
               <h3 className="text-sm font-bold text-white">DAG Test Run Simulator</h3>
             </div>
             <Button size="sm" variant="ghost" onClick={() => setSimDrawerOpen(false)} className="h-7 w-7 p-0">
-              <X className="h-4 w-4 text-gray-400" />
+              <X className="h-4 w-4 text-muted-foreground" />
             </Button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
-            <p className="text-gray-400">
+            <p className="text-muted-foreground">
               Simulate visual graph traversal against sample candidate attributes. Traversed paths will highlight live on the canvas.
             </p>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-gray-300 font-semibold text-[11px]">Candidate Context (JSON)</label>
+                <label className="text-foreground/85 font-semibold text-[11px]">Candidate Context (JSON)</label>
                 <div className="flex gap-1.5">
                   <button
                     onClick={() =>
@@ -2381,7 +2381,7 @@ export default function HRPipelineCanvas({
                 rows={6}
                 value={simContext}
                 onChange={(e) => setSimContext(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-800 text-xs font-mono rounded-xl p-2.5 text-gray-200"
+                className="w-full bg-gray-900 border border-border text-xs font-mono rounded-xl p-2.5 text-gray-200"
               />
             </div>
 
@@ -2401,10 +2401,10 @@ export default function HRPipelineCanvas({
                 </div>
 
                 <div>
-                  <span className="text-gray-400 font-semibold block mb-1">Evaluated Documents:</span>
+                  <span className="text-muted-foreground font-semibold block mb-1">Evaluated Documents:</span>
                   <div className="space-y-1">
                     {simEvaluatedDocs.map((doc, idx) => (
-                      <div key={idx} className="p-2 rounded-lg bg-gray-900 border border-gray-800 text-gray-200 flex items-center gap-2">
+                      <div key={idx} className="p-2 rounded-lg bg-gray-900 border border-border text-gray-200 flex items-center gap-2">
                         <FileText className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                         <span className="truncate">{doc}</span>
                       </div>
@@ -2413,10 +2413,10 @@ export default function HRPipelineCanvas({
                 </div>
 
                 <div>
-                  <span className="text-gray-400 font-semibold block mb-1">Synthesized Candidate Fields:</span>
+                  <span className="text-muted-foreground font-semibold block mb-1">Synthesized Candidate Fields:</span>
                   <div className="flex flex-wrap gap-1">
                     {simSynthesizedFields.map((f, idx) => (
-                      <span key={idx} className="text-[10px] font-mono px-2 py-0.5 rounded bg-gray-900 border border-gray-800 text-amber-300">
+                      <span key={idx} className="text-[10px] font-mono px-2 py-0.5 rounded bg-gray-900 border border-border text-amber-300">
                         {f}
                       </span>
                     ))}
@@ -2441,23 +2441,23 @@ export default function HRPipelineCanvas({
           }}
         >
           <div
-            className="relative w-full max-w-2xl bg-gray-950 border border-gray-800 rounded-2xl shadow-2xl p-6 text-white my-auto flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-150"
+            className="relative w-full max-w-2xl bg-gray-950 border border-border rounded-2xl shadow-2xl p-6 text-white my-auto flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-start justify-between pb-3 border-b border-gray-800">
+            <div className="flex items-start justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/25 text-primary">
                   <Wand2 className="h-6 w-6" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     AI Pipeline Architect
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-semibold">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30 font-semibold">
                       Prompt-to-DAG
                     </span>
                   </h3>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Describe any hiring, onboarding, or document workflow. The AI synthesizes a full DAG with stages, forms, OCR extractions, approvals, and contract templates.
                   </p>
                 </div>
@@ -2465,7 +2465,7 @@ export default function HRPipelineCanvas({
               <button
                 type="button"
                 onClick={() => !aiGenerating && setAiPromptDialogOpen(false)}
-                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 transition-colors"
+                className="text-muted-foreground hover:text-white p-1 rounded-lg hover:bg-gray-800 transition-colors"
                 title="Close (Esc)"
               >
                 <X className="h-5 w-5" />
@@ -2475,20 +2475,20 @@ export default function HRPipelineCanvas({
             {/* Body */}
             <div className="space-y-4 py-1">
               <div>
-                <label className="text-xs font-semibold text-gray-300 block mb-1.5">
+                <label className="text-xs font-semibold text-foreground/85 block mb-1.5">
                   Target Requisition / Role Title
                 </label>
                 <Input
                   value={aiJobRole}
                   onChange={(e) => setAiJobRole(e.target.value)}
                   placeholder="e.g. Python Backend Developer, DevOps Engineer, Lead Architect"
-                  className="h-10 text-xs bg-gray-900 border-gray-800 text-white rounded-xl focus:border-indigo-500"
+                  className="h-10 text-xs bg-gray-900 border-border text-white rounded-xl focus:border-primary"
                 />
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-gray-300">
+                  <label className="text-xs font-semibold text-foreground/85">
                     Paste / Write Workflow Requirements Prompt
                   </label>
                   <span className="text-[10px] text-gray-500 font-mono">
@@ -2500,14 +2500,14 @@ export default function HRPipelineCanvas({
                   value={aiPromptText}
                   onChange={(e) => setAiPromptText(e.target.value)}
                   placeholder="Paste what workflow you want (e.g. Build an engineering onboarding flow with code submission, PAN/Aadhaar OCR extraction, VP approval, and employment agreement generation)..."
-                  className="w-full bg-gray-900 border border-gray-800 text-xs text-gray-200 rounded-xl p-3.5 font-sans focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all leading-relaxed resize-none shadow-inner"
+                  className="w-full bg-gray-900 border border-border text-xs text-gray-200 rounded-xl p-3.5 font-sans focus:outline-none focus:border-primary focus:ring-1 focus:ring-indigo-500 transition-all leading-relaxed resize-none shadow-inner"
                 />
               </div>
 
               {/* Quick Prompt Presets */}
               <div className="space-y-2">
-                <span className="text-[11px] text-gray-400 font-medium flex items-center gap-1.5">
-                  <Sparkles className="h-3 w-3 text-indigo-400" />
+                <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3 text-primary" />
                   Quick Enterprise Presets (Click to Load):
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -2517,12 +2517,12 @@ export default function HRPipelineCanvas({
                       setAiJobRole('Python Backend Developer');
                       setAiPromptText('Build an engineering hiring workflow for Python Backend Developers with technical assignment submission, AI extraction of GitHub/Pan/experience, executive approval by VP of Eng, and NDA + offer generation');
                     }}
-                    className="p-2.5 bg-gray-900/80 hover:bg-gray-900 border border-gray-800 hover:border-indigo-500/50 rounded-xl text-left transition-all group"
+                    className="p-2.5 bg-gray-900/80 hover:bg-gray-900 border border-border hover:border-primary/50 rounded-xl text-left transition-all group"
                   >
-                    <div className="text-xs font-semibold text-gray-200 group-hover:text-indigo-300">
+                    <div className="text-xs font-semibold text-gray-200 group-hover:text-primary">
                       🐍 Python Backend
                     </div>
-                    <div className="text-[10px] text-gray-400 mt-1 line-clamp-2">
+                    <div className="text-[10px] text-muted-foreground mt-1 line-clamp-2">
                       Assignment submission, GitHub/PAN OCR, VP sign-off, NDA & Offer
                     </div>
                   </button>
@@ -2533,12 +2533,12 @@ export default function HRPipelineCanvas({
                       setAiJobRole('Lead Architect');
                       setAiPromptText('Create an executive hiring workflow for Lead Architects with credential verification, compensation committee approval, background check document uploads, and executive employment agreement generation');
                     }}
-                    className="p-2.5 bg-gray-900/80 hover:bg-gray-900 border border-gray-800 hover:border-indigo-500/50 rounded-xl text-left transition-all group"
+                    className="p-2.5 bg-gray-900/80 hover:bg-gray-900 border border-border hover:border-primary/50 rounded-xl text-left transition-all group"
                   >
-                    <div className="text-xs font-semibold text-gray-200 group-hover:text-indigo-300">
+                    <div className="text-xs font-semibold text-gray-200 group-hover:text-primary">
                       🏛 Lead Architect
                     </div>
-                    <div className="text-[10px] text-gray-400 mt-1 line-clamp-2">
+                    <div className="text-[10px] text-muted-foreground mt-1 line-clamp-2">
                       Credential check, Comp Committee, Executive agreement
                     </div>
                   </button>
@@ -2549,12 +2549,12 @@ export default function HRPipelineCanvas({
                       setAiJobRole('Contract Backend Engineer');
                       setAiPromptText('Design a rapid contractor onboarding pipeline with GST/tax extraction, legal review, and Independent Contractor MSA contract generation');
                     }}
-                    className="p-2.5 bg-gray-900/80 hover:bg-gray-900 border border-gray-800 hover:border-indigo-500/50 rounded-xl text-left transition-all group"
+                    className="p-2.5 bg-gray-900/80 hover:bg-gray-900 border border-border hover:border-primary/50 rounded-xl text-left transition-all group"
                   >
-                    <div className="text-xs font-semibold text-gray-200 group-hover:text-indigo-300">
+                    <div className="text-xs font-semibold text-gray-200 group-hover:text-primary">
                       ⚡ Contractor MSA
                     </div>
-                    <div className="text-[10px] text-gray-400 mt-1 line-clamp-2">
+                    <div className="text-[10px] text-muted-foreground mt-1 line-clamp-2">
                       GST/Tax extraction, Legal review, Independent Contractor MSA
                     </div>
                   </button>
@@ -2563,7 +2563,7 @@ export default function HRPipelineCanvas({
             </div>
 
             {/* Footer */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-800 pt-4 mt-1">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4 mt-1">
               <span className="text-[11px] text-gray-500 flex items-center gap-1.5">
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
                 Human-in-the-loop: Produces draft DAG in canvas for instant review & editing
@@ -2573,7 +2573,7 @@ export default function HRPipelineCanvas({
                   variant="ghost"
                   size="sm"
                   onClick={() => setAiPromptDialogOpen(false)}
-                  className="h-9 px-4 text-xs text-gray-400 hover:text-white rounded-xl"
+                  className="h-9 px-4 text-xs text-muted-foreground hover:text-white rounded-xl"
                   disabled={aiGenerating}
                 >
                   Cancel
@@ -2582,7 +2582,7 @@ export default function HRPipelineCanvas({
                   size="sm"
                   onClick={handleAiGeneratePipeline}
                   disabled={aiGenerating || !aiPromptText.trim()}
-                  className="h-9 px-4 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center gap-2 shadow-md shadow-indigo-600/20 rounded-xl disabled:opacity-50"
+                  className="h-9 px-4 text-xs bg-primary text-primary-foreground hover:bg-primary-hover text-white font-bold flex items-center gap-2 shadow-md shadow-none rounded-xl disabled:opacity-50"
                 >
                   {aiGenerating ? (
                     <>

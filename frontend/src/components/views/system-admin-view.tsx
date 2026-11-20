@@ -217,7 +217,7 @@ export default function SystemAdminView({
         <Button 
           onClick={loadAllData} 
           variant="outline" 
-          className="border-gray-800 hover:bg-gray-800 text-gray-300 rounded-xl flex items-center gap-2"
+          className="border-border hover:bg-gray-800 text-foreground/85 rounded-xl flex items-center gap-2"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh Panel
@@ -310,22 +310,22 @@ export default function SystemAdminView({
         {activeTab === 'tenants' ? (
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-gray-950/40 border-b border-gray-800">
-                <TableRow className="border-gray-800 hover:bg-transparent">
-                  <TableHead className="text-gray-400 font-bold text-xs p-4">Company Name</TableHead>
-                  <TableHead className="text-gray-400 font-bold text-xs p-4">Subdomain</TableHead>
-                  <TableHead className="text-gray-400 font-bold text-xs p-4">Users Count</TableHead>
-                  <TableHead className="text-gray-400 font-bold text-xs p-4">Keys Configured</TableHead>
-                  <TableHead className="text-gray-400 font-bold text-xs p-4">LLM Spend</TableHead>
-                  <TableHead className="text-gray-400 font-bold text-xs p-4">Status</TableHead>
-                  <TableHead className="text-gray-400 font-bold text-xs p-4 text-right">Actions</TableHead>
+              <TableHeader className="bg-gray-950/40 border-b border-border">
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-muted-foreground font-bold text-xs p-4">Company Name</TableHead>
+                  <TableHead className="text-muted-foreground font-bold text-xs p-4">Subdomain</TableHead>
+                  <TableHead className="text-muted-foreground font-bold text-xs p-4">Users Count</TableHead>
+                  <TableHead className="text-muted-foreground font-bold text-xs p-4">Keys Configured</TableHead>
+                  <TableHead className="text-muted-foreground font-bold text-xs p-4">LLM Spend</TableHead>
+                  <TableHead className="text-muted-foreground font-bold text-xs p-4">Status</TableHead>
+                  <TableHead className="text-muted-foreground font-bold text-xs p-4 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-gray-800">
                 {tenants.map(tenant => (
-                  <TableRow key={tenant.id} className="border-gray-800 hover:bg-gray-900/20">
+                  <TableRow key={tenant.id} className="border-border hover:bg-gray-900/20">
                     <TableCell className="p-4 font-bold text-white text-xs">{tenant.name}</TableCell>
-                    <TableCell className="p-4 font-mono text-gray-300 text-xs">{tenant.subdomain || 'N/A'}</TableCell>
+                    <TableCell className="p-4 font-mono text-foreground/85 text-xs">{tenant.subdomain || 'N/A'}</TableCell>
                     <TableCell className="p-4 text-xs font-semibold">{tenant.users_count}</TableCell>
                     <TableCell className="p-4">
                       {tenant.configured_keys && tenant.configured_keys.length > 0 ? (
@@ -380,19 +380,19 @@ export default function SystemAdminView({
         ) : activeTab === 'users' ? (
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-gray-950/40 border-b border-gray-800">
-                <TableRow className="border-gray-800 hover:bg-transparent">
-                  <TableHead className="text-gray-400 font-bold text-xs p-4">User</TableHead>
-                  <TableHead className="text-gray-400 font-bold text-xs p-4">Role</TableHead>
-                  <TableHead className="text-gray-400 font-bold text-xs p-4">Company / Tenant</TableHead>
-                  <TableHead className="text-gray-400 font-bold text-xs p-4">Global Admin</TableHead>
-                  <TableHead className="text-gray-400 font-bold text-xs p-4">Account Status</TableHead>
-                  <TableHead className="text-gray-400 font-bold text-xs p-4 text-right">Actions</TableHead>
+              <TableHeader className="bg-gray-950/40 border-b border-border">
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-muted-foreground font-bold text-xs p-4">User</TableHead>
+                  <TableHead className="text-muted-foreground font-bold text-xs p-4">Role</TableHead>
+                  <TableHead className="text-muted-foreground font-bold text-xs p-4">Company / Tenant</TableHead>
+                  <TableHead className="text-muted-foreground font-bold text-xs p-4">Global Admin</TableHead>
+                  <TableHead className="text-muted-foreground font-bold text-xs p-4">Account Status</TableHead>
+                  <TableHead className="text-muted-foreground font-bold text-xs p-4 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-gray-800">
                 {users.map(user => (
-                  <TableRow key={user.id} className="border-gray-800 hover:bg-gray-900/20">
+                  <TableRow key={user.id} className="border-border hover:bg-gray-900/20">
                     <TableCell className="p-4">
                       <div>
                         <div className="text-xs text-white font-bold">{user.name || 'No Name'}</div>
@@ -446,14 +446,14 @@ export default function SystemAdminView({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card className="glass-panel border-violet-500/20 rounded-2xl p-6 space-y-4">
                 <div className="flex items-center gap-2">
-                  <ImageIcon className="h-5 w-5 text-violet-400" />
+                  <ImageIcon className="h-5 w-5 text-primary" />
                   <h3 className="text-white font-bold text-sm">Site Logo</h3>
                 </div>
-                <p className="text-gray-400 text-xs">Displayed in the sidebar and on the login/signup pages. Recommended: PNG or SVG, min 120px height.</p>
+                <p className="text-muted-foreground text-xs">Displayed in the sidebar and on the login/signup pages. Recommended: PNG or SVG, min 120px height.</p>
 
                 {logoUrl ? (
                   <div className="space-y-3">
-                    <div className="bg-gray-900/60 rounded-xl p-4 flex items-center justify-center border border-gray-800">
+                    <div className="bg-background rounded-xl p-4 flex items-center justify-center border border-border">
                       <img src={logoUrl} alt="Current Logo" className="h-14 max-w-full object-contain" />
                     </div>
                     <div className="flex gap-2">
@@ -461,7 +461,7 @@ export default function SystemAdminView({
                         size="sm"
                         onClick={() => logoInputRef.current?.click()}
                         disabled={uploadingLogo}
-                        className="flex-1 bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5"
+                        className="flex-1 bg-violet-600/20 hover:bg-violet-600/30 text-primary-hover border border-violet-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5"
                       >
                         {uploadingLogo ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload size={12} />}
                         Replace Logo
@@ -479,7 +479,7 @@ export default function SystemAdminView({
                   <Button
                     onClick={() => logoInputRef.current?.click()}
                     disabled={uploadingLogo}
-                    className="w-full bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-dashed border-violet-500/40 rounded-xl h-20 text-xs font-bold flex flex-col items-center justify-center gap-2"
+                    className="w-full bg-violet-600/20 hover:bg-violet-600/30 text-primary-hover border border-dashed border-violet-500/40 rounded-xl h-20 text-xs font-bold flex flex-col items-center justify-center gap-2"
                   >
                     {uploadingLogo ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload size={20} />}
                     {uploadingLogo ? 'Uploading...' : 'Click to Upload Logo'}
@@ -500,13 +500,13 @@ export default function SystemAdminView({
                   <Zap className="h-5 w-5 text-amber-400" />
                   <h3 className="text-white font-bold text-sm">Site Favicon</h3>
                 </div>
-                <p className="text-gray-400 text-xs">Shown in browser tabs and bookmarks. Recommended: ICO, PNG, or SVG, 32×32px or 64×64px.</p>
+                <p className="text-muted-foreground text-xs">Shown in browser tabs and bookmarks. Recommended: ICO, PNG, or SVG, 32×32px or 64×64px.</p>
 
                 {faviconUrl ? (
                   <div className="space-y-3">
-                    <div className="bg-gray-900/60 rounded-xl p-4 flex items-center justify-center border border-gray-800 gap-4">
+                    <div className="bg-background rounded-xl p-4 flex items-center justify-center border border-border gap-4">
                       <img src={faviconUrl} alt="Current Favicon" className="h-8 w-8 object-contain" />
-                      <span className="text-gray-400 text-xs">Tab icon preview</span>
+                      <span className="text-muted-foreground text-xs">Tab icon preview</span>
                     </div>
                     <div className="flex gap-2">
                       <Button

@@ -327,7 +327,7 @@ export default function HRPipelinePanel({
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">
+                  <span className="text-xs font-bold text-foreground/85 uppercase tracking-wider">
                     Resume Ingestion Completed for &quot;{ingestionBatch.role}&quot;
                   </span>
                   <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
@@ -337,7 +337,7 @@ export default function HRPipelinePanel({
                 <h3 className="text-sm md:text-base font-bold text-white mt-0.5 flex items-center gap-2">
                   <span>Completed: Processed {ingestionBatch.processed_files || 118} candidate(s)</span>
                 </h3>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   All profiles parsed, skill-indexed, and anchored into your hiring pipeline. Ready for stage-based screening and workflow automation.
                 </p>
               </div>
@@ -348,7 +348,7 @@ export default function HRPipelinePanel({
                 size="sm"
                 variant="outline"
                 onClick={() => loadPipelineSummary(selectedReqId)}
-                className="h-8 text-xs border-gray-800 bg-gray-900 text-gray-300 hover:text-white hover:bg-gray-800 flex items-center gap-1.5"
+                className="h-8 text-xs border-border bg-gray-900 text-foreground/85 hover:text-white hover:bg-gray-800 flex items-center gap-1.5"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
                 Refresh Pipeline
@@ -372,14 +372,14 @@ export default function HRPipelinePanel({
       {/* ─── 2. REQUISITIONS BAR & TIME TO FILL METRICS ─────────────────────── */}
       <div className="grid gap-3 md:grid-cols-3">
         {/* Active Requisitions Dropdown / Manager */}
-        <Card className="bg-gray-950 border-gray-800 md:col-span-2">
+        <Card className="bg-gray-950 border-border md:col-span-2">
           <CardHeader className="py-3 px-4 border-b border-gray-850">
             <div className="flex items-center justify-between">
               <CardTitle className="text-white text-xs font-bold uppercase tracking-wider flex items-center gap-2">
                 <Briefcase className="h-4 w-4 text-amber-500" />
                 Job Requisitions
               </CardTitle>
-              <span className="text-[10px] text-gray-400 font-mono">
+              <span className="text-[10px] text-muted-foreground font-mono">
                 {requisitions.length} Open Requisition(s)
               </span>
             </div>
@@ -389,7 +389,7 @@ export default function HRPipelinePanel({
               <select
                 value={selectedReqId}
                 onChange={(e) => handleSelectRequisition(e.target.value)}
-                className="flex-1 h-9 bg-gray-900 border border-gray-800 text-xs text-white rounded-xl px-3 focus:outline-none focus:border-amber-500 font-medium"
+                className="flex-1 h-9 bg-gray-900 border border-border text-xs text-white rounded-xl px-3 focus:outline-none focus:border-amber-500 font-medium"
               >
                 {requisitions.map((req) => (
                   <option key={req.id} value={req.id}>
@@ -403,7 +403,7 @@ export default function HRPipelinePanel({
                   value={newReqTitle}
                   onChange={(e) => setNewReqTitle(e.target.value)}
                   placeholder="New requisition title..."
-                  className="h-9 text-xs bg-gray-900 border-gray-800 text-white rounded-xl w-48"
+                  className="h-9 text-xs bg-gray-900 border-border text-white rounded-xl w-48"
                 />
                 <Button
                   onClick={handleCreateRequisition}
@@ -416,7 +416,7 @@ export default function HRPipelinePanel({
             </div>
 
             {selectedReq && (
-              <div className="flex items-center gap-3 text-xs text-gray-400 font-mono">
+              <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
                 <span>Role: <strong className="text-white font-sans">{selectedReq.title}</strong></span>
                 <span>•</span>
                 <span>Status: <strong className="text-emerald-400 uppercase">{selectedReq.status}</strong></span>
@@ -428,7 +428,7 @@ export default function HRPipelinePanel({
         </Card>
 
         {/* Time to Fill Metric Card */}
-        <Card className="bg-gray-950 border-gray-800">
+        <Card className="bg-gray-950 border-border">
           <CardHeader className="py-3 px-4 border-b border-gray-850">
             <CardTitle className="text-white text-xs font-bold uppercase tracking-wider flex items-center gap-2">
               <Clock className="h-4 w-4 text-cyan-400" />
@@ -437,16 +437,16 @@ export default function HRPipelinePanel({
           </CardHeader>
           <CardContent className="p-4 flex flex-col justify-center">
             {timeToFillMetric?.status === 'insufficient_data' ? (
-              <p className="text-xs text-gray-400 leading-relaxed">
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Insufficient data. Confirm when the requisition actually opened before this number is shown.
               </p>
             ) : timeToFillMetric?.status === 'ok' ? (
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold text-white font-mono">{timeToFillMetric.value}</span>
-                <span className="text-xs text-gray-400">{timeToFillMetric.unit}</span>
+                <span className="text-xs text-muted-foreground">{timeToFillMetric.unit}</span>
               </div>
             ) : (
-              <p className="text-xs text-gray-400 leading-relaxed">
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Insufficient data. Confirm when the requisition actually opened before this number is shown.
               </p>
             )}
@@ -455,9 +455,9 @@ export default function HRPipelinePanel({
       </div>
 
       {/* ─── 3. INTERACTIVE STAGE FUNNEL STEPPER ───────────────────────────── */}
-      <div className="rounded-2xl border border-gray-800 bg-gray-950 p-3 shadow-lg">
+      <div className="rounded-2xl border border-border bg-gray-950 p-3 shadow-lg">
         <div className="flex items-center justify-between mb-2 px-1">
-          <span className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+          <span className="text-xs font-bold text-foreground/85 uppercase tracking-wider flex items-center gap-2">
             <Layers className="h-4 w-4 text-amber-500" />
             Live Candidate Funnel
           </span>
@@ -467,7 +467,7 @@ export default function HRPipelinePanel({
               variant={activeStageFilter === 'all' ? 'default' : 'ghost'}
               onClick={() => setActiveStageFilter('all')}
               className={`h-6 text-[10px] px-2 rounded-lg ${
-                activeStageFilter === 'all' ? 'bg-gray-800 text-white' : 'text-gray-400'
+                activeStageFilter === 'all' ? 'bg-gray-800 text-white' : 'text-muted-foreground'
               }`}
             >
               All ({stageCounts.total || candidates.length})
@@ -486,7 +486,7 @@ export default function HRPipelinePanel({
                 className={`p-2.5 rounded-xl border text-left transition-all ${
                   isSelected
                     ? `${stage.color} ring-1 ring-amber-500/50 shadow-md`
-                    : 'bg-gray-900/60 border-gray-800/80 hover:bg-gray-900 hover:border-gray-700 text-gray-300'
+                    : 'bg-background border-border/80 hover:bg-gray-900 hover:border-gray-700 text-foreground/85'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -527,11 +527,11 @@ export default function HRPipelinePanel({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search candidates by name, email, or skill (e.g. FastAPI, Python)..."
-            className="h-9 pl-9 text-xs bg-gray-950 border-gray-800 text-white rounded-xl"
+            className="h-9 pl-9 text-xs bg-gray-950 border-border text-white rounded-xl"
           />
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-gray-400 font-mono">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
           <span>Showing {filteredCandidates.length} of {candidates.length} candidate(s)</span>
           {activeStageFilter !== 'all' && (
             <span className="text-amber-400 font-sans">• Filtered by {activeStageFilter.toUpperCase()}</span>
@@ -562,7 +562,7 @@ export default function HRPipelinePanel({
                   }`} />
                   <span className="text-xs font-bold text-white uppercase tracking-wider">{stage.label}</span>
                 </div>
-                <span className="text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-gray-800 text-gray-300">
+                <span className="text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-gray-900 border border-border text-foreground/85">
                   {stageCandidates.length}
                 </span>
               </div>
@@ -578,7 +578,7 @@ export default function HRPipelinePanel({
                   stageCandidates.map((candidate) => (
                     <div
                       key={candidate.id}
-                      className="rounded-xl border border-gray-800 bg-gray-900/90 hover:border-gray-700 hover:bg-gray-900 p-3 text-xs text-gray-200 shadow-md transition-all group"
+                      className="rounded-xl border border-border bg-gray-900/90 hover:border-gray-700 hover:bg-gray-900 p-3 text-xs text-gray-200 shadow-md transition-all group"
                     >
                       {/* Candidate Header */}
                       <div className="flex items-start justify-between gap-1 mb-1">
@@ -586,7 +586,7 @@ export default function HRPipelinePanel({
                           <p className="font-bold text-white text-xs group-hover:text-amber-400 transition-colors leading-tight">
                             {candidate.name || 'Candidate'}
                           </p>
-                          <p className="text-[11px] text-gray-400 truncate max-w-[150px]">
+                          <p className="text-[11px] text-muted-foreground truncate max-w-[150px]">
                             {candidate.email || 'Ingested Profile'}
                           </p>
                         </div>
@@ -600,7 +600,7 @@ export default function HRPipelinePanel({
                       {/* Experience and Skills */}
                       <div className="mt-2 space-y-1.5">
                         {candidate.experience_years !== undefined && candidate.experience_years !== null && (
-                          <div className="text-[10px] text-gray-400 flex items-center gap-1 font-mono">
+                          <div className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
                             <Clock className="h-3 w-3 text-gray-500" />
                             <span>{candidate.experience_years} yrs exp</span>
                           </div>
@@ -611,7 +611,7 @@ export default function HRPipelinePanel({
                             {candidate.skills.slice(0, 3).map((skill, sIdx) => (
                               <span
                                 key={sIdx}
-                                className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-gray-950 border border-gray-800 text-gray-300"
+                                className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-gray-950 border border-border text-foreground/85"
                               >
                                 {skill}
                               </span>
@@ -626,7 +626,7 @@ export default function HRPipelinePanel({
                       </div>
 
                       {/* Interactive Stage Transition Action Buttons */}
-                      <div className="mt-3 pt-2 border-t border-gray-800/80 flex flex-col gap-1.5">
+                      <div className="mt-3 pt-2 border-t border-border/80 flex flex-col gap-1.5">
                         {stage.key === 'sourced' && (
                           <div className="flex items-center gap-1.5">
                             <Button
@@ -731,7 +731,7 @@ export default function HRPipelinePanel({
                               size="sm"
                               variant="ghost"
                               onClick={() => handleTransitionCandidate(candidate, 'sourced')}
-                              className="h-5 text-[9px] px-1 text-gray-400 hover:text-white"
+                              className="h-5 text-[9px] px-1 text-muted-foreground hover:text-white"
                             >
                               Reopen
                             </Button>

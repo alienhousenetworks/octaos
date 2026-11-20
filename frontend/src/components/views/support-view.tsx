@@ -558,7 +558,7 @@ export default function SupportView({
       <div className="w-full space-y-6 min-h-[calc(100vh-12rem)] flex flex-col">
       
       {/* Header Panel with Live Presence, Mode & Navigation */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
         <div>
           <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2.5">
             <MessageSquare className="text-blue-400 h-8 w-8" /> Customer Support Center
@@ -568,7 +568,7 @@ export default function SupportView({
               </span>
             )}
           </h1>
-          <p className="text-gray-400 mt-1 text-xs">
+          <p className="text-muted-foreground mt-1 text-xs">
             Omnichannel Support · Knowledge Base RAG · Live Agent Handoff · Embeddable Web Widget
           </p>
         </div>
@@ -576,13 +576,13 @@ export default function SupportView({
         {/* Header Right Actions */}
         <div className="flex flex-wrap items-center gap-3">
           {/* Presence Toggle */}
-          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-gray-900/60 border border-gray-800 shadow-sm">
+          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-background border border-border shadow-sm">
             <span className={`w-2.5 h-2.5 rounded-full ${isAgentOnline ? 'bg-emerald-400 animate-ping' : 'bg-gray-500'}`} />
             <div className="flex flex-col">
               <span className="text-xs font-bold text-white">
                 {isAgentOnline ? 'Online for Live Chat' : 'Away / Offline'}
               </span>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-muted-foreground">
                 {isAgentOnline ? 'Receiving handoffs' : 'Tickets auto-escalate'}
               </span>
             </div>
@@ -602,13 +602,13 @@ export default function SupportView({
           </div>
 
           {/* Main View Switcher Tabs */}
-          <div className="flex rounded-2xl bg-gray-900/90 border border-gray-800 p-1">
+          <div className="flex rounded-2xl bg-gray-900/90 border border-border p-1">
             <button
               onClick={() => setActiveMainTab('tickets')}
               className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 ${
  activeMainTab === 'tickets'
  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
- : 'text-gray-400 hover:text-white'
+ : 'text-muted-foreground hover:text-white'
  }`}
             >
               <MessageSquare size={13} /> Tickets & Queue
@@ -618,7 +618,7 @@ export default function SupportView({
               className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 ${
  activeMainTab === 'widget'
  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
- : 'text-gray-400 hover:text-white'
+ : 'text-muted-foreground hover:text-white'
  }`}
             >
               <Code size={13} /> Embed Widget
@@ -628,7 +628,7 @@ export default function SupportView({
               className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 ${
  activeMainTab === 'studio'
  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
- : 'text-gray-400 hover:text-white'
+ : 'text-muted-foreground hover:text-white'
  }`}
             >
               <Sliders size={13} /> Support Agent Studio
@@ -644,7 +644,7 @@ export default function SupportView({
           {/* 1. Ticket List - 4 Cols */}
           <Card className="lg:col-span-4 flex flex-col h-full overflow-hidden glass-panel border-[rgba(255,255,255,0.06)] rounded-3xl p-2 shadow-2xl relative">
             {/* Search Input */}
-            <div className="p-2 border-b border-gray-800/80">
+            <div className="p-2 border-b border-border/80">
               <div className="relative">
                 <Search size={13} className="absolute left-2.5 top-2.5 text-gray-500" />
                 <Input
@@ -652,17 +652,17 @@ export default function SupportView({
                   placeholder="Search subject, name, contact..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="bg-gray-900/90 border-gray-800 text-white pl-8 pr-3 h-8 text-xs rounded-xl focus:border-blue-500"
+                  className="bg-gray-900/90 border-border text-white pl-8 pr-3 h-8 text-xs rounded-xl focus:border-blue-500"
                 />
               </div>
             </div>
 
             {/* Filter Pills */}
-            <div className="p-2 border-b border-gray-800/80 flex flex-wrap gap-1.5">
+            <div className="p-2 border-b border-border/80 flex flex-wrap gap-1.5">
               <button
                 onClick={() => setTicketFilter('all')}
                 className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
- ticketFilter === 'all' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-gray-200'
+ ticketFilter === 'all' ? 'bg-gray-800 text-white' : 'text-muted-foreground hover:text-gray-200'
  }`}
               >
                 All ({tickets.length})
@@ -674,7 +674,7 @@ export default function SupportView({
  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
  : pendingHandoffCount > 0
  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse'
- : 'text-gray-400 hover:text-gray-200'
+ : 'text-muted-foreground hover:text-gray-200'
  }`}
               >
                 <Headphones size={11} /> Live Requests ({pendingHandoffCount})
@@ -682,7 +682,7 @@ export default function SupportView({
               <button
                 onClick={() => setTicketFilter('human_handling')}
                 className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
- ticketFilter === 'human_handling' ? 'bg-blue-600/20 text-blue-300 border border-blue-500/40' : 'text-gray-400 hover:text-gray-200'
+ ticketFilter === 'human_handling' ? 'bg-blue-600/20 text-blue-300 border border-blue-500/40' : 'text-muted-foreground hover:text-gray-200'
  }`}
               >
                 Claimed ({activeHumanCount})
@@ -690,7 +690,7 @@ export default function SupportView({
               <button
                 onClick={() => setTicketFilter('resolved')}
                 className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
- ticketFilter === 'resolved' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'text-gray-400 hover:text-gray-200'
+ ticketFilter === 'resolved' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'text-muted-foreground hover:text-gray-200'
  }`}
               >
                 Resolved
@@ -698,7 +698,7 @@ export default function SupportView({
             </div>
 
             {/* Channel Filters */}
-            <div className="px-2 py-1.5 border-b border-gray-800/80 flex items-center gap-1 overflow-x-auto">
+            <div className="px-2 py-1.5 border-b border-border/80 flex items-center gap-1 overflow-x-auto">
               {(['all', 'widget', 'whatsapp', 'email'] as const).map(ch => (
                 <button
                   key={ch}
@@ -706,7 +706,7 @@ export default function SupportView({
                   className={`px-2 py-0.5 text-[10px] font-semibold rounded-md transition-colors uppercase ${
                     channelFilter === ch
                       ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40 font-bold'
-                      : 'text-gray-400 hover:text-gray-200'
+                      : 'text-muted-foreground hover:text-gray-200'
                   }`}
                 >
                   {ch === 'all' ? 'All Channels' : ch}
@@ -745,11 +745,11 @@ export default function SupportView({
  ? 'bg-blue-600/10 border-blue-500/50 shadow-lg glow-support' 
  : isPendingHuman
  ? 'bg-amber-500/10 hover:bg-amber-500/15 border-amber-500/30'
- : 'bg-gray-900/30 hover:bg-gray-800/40 border-gray-800/80 text-gray-300'
+ : 'bg-gray-900/30 hover:bg-gray-800/40 border-border/80 text-foreground/85'
  }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-gray-400 flex items-center gap-1">
+                      <span className="text-xs font-bold text-muted-foreground flex items-center gap-1">
                         {channelIcon} {(t.channel || 'widget').toUpperCase()}
                       </span>
                       {isPendingHuman ? (
@@ -762,7 +762,7 @@ export default function SupportView({
                         </span>
                       ) : (
                         <span className={`text-xs font-bold px-1.5 py-0.5 rounded uppercase ${
- t.priority === 'high' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-gray-800 text-gray-400'
+ t.priority === 'high' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-gray-800 text-muted-foreground'
  }`}>
                           {t.priority}
                         </span>
@@ -772,7 +772,7 @@ export default function SupportView({
                     <h4 className="font-bold text-xs text-white truncate mb-1">{t.subject}</h4>
                     
                     {/* Customer Info Snippet */}
-                    <div className="text-xs text-gray-400 truncate mb-1.5">
+                    <div className="text-xs text-muted-foreground truncate mb-1.5">
                       {t.customer_name ? `${t.customer_name} · ` : ''}{t.customer_contact || t.customer_email || 'Visitor'}
                     </div>
 
@@ -785,7 +785,7 @@ export default function SupportView({
                               ? 'bg-rose-500/15 text-rose-300 border border-rose-500/20'
                               : insights.sentiment === 'positive'
                               ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20'
-                              : 'bg-gray-800 text-gray-300'
+                              : 'bg-gray-800 text-foreground/85'
                           }`}>
                             {insights.sentiment}
                           </span>
@@ -796,7 +796,7 @@ export default function SupportView({
                           </span>
                         )}
                         {insights.category && (
-                          <span className="text-[10px] text-gray-400 truncate max-w-[130px] bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
+                          <span className="text-[10px] text-muted-foreground truncate max-w-[130px] bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
                             {insights.category}
                           </span>
                         )}
@@ -806,7 +806,7 @@ export default function SupportView({
                     <div className="flex items-center justify-between pt-1 border-t border-white/5">
                       <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${
  t.status === 'open' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
- t.status === 'resolved' ? 'bg-gray-500/20 text-gray-400' :
+ t.status === 'resolved' ? 'bg-gray-500/20 text-muted-foreground' :
  'bg-blue-500/10 text-blue-400 border border-blue-500/20'
  }`}>
                         {t.status.toUpperCase()}
@@ -826,7 +826,7 @@ export default function SupportView({
             {selectedTicketId && selectedTicket ? (
               <>
                 {/* Thread Header with Claim & Resolve CTA */}
-                <div className="px-5 py-3.5 bg-gray-950/60 border-b border-gray-800 flex items-center justify-between gap-4">
+                <div className="px-5 py-3.5 bg-gray-950/60 border-b border-border flex items-center justify-between gap-4">
                   <div className="truncate flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="font-bold text-white text-sm truncate">
@@ -836,9 +836,9 @@ export default function SupportView({
                         {selectedTicket.channel}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-400 mt-1 flex flex-wrap gap-3 items-center">
+                    <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-3 items-center">
                       {selectedTicket.customer_name && (
-                        <span>👤 <strong className="text-gray-300">{selectedTicket.customer_name}</strong></span>
+                        <span>👤 <strong className="text-foreground/85">{selectedTicket.customer_name}</strong></span>
                       )}
                       {selectedTicket.customer_email && (
                         <span>✉️ {selectedTicket.customer_email}</span>
@@ -882,7 +882,7 @@ export default function SupportView({
                     )}
 
                     {selectedTicket.status === 'resolved' && (
-                      <span className="text-xs bg-gray-800 text-gray-300 border border-gray-700 px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1">
+                      <span className="text-xs bg-gray-800 text-foreground/85 border border-gray-700 px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1">
                         <CheckCircle2 size={13} className="text-emerald-400" /> Resolved
                       </span>
                     )}
@@ -901,7 +901,7 @@ export default function SupportView({
                     if (isSys) {
                       return (
                         <div key={m.id} className="flex justify-center my-2">
-                          <span className="bg-gray-900/90 border border-gray-800 text-gray-400 text-xs px-3.5 py-1 rounded-full text-center max-w-[85%] leading-relaxed">
+                          <span className="bg-gray-900/90 border border-border text-muted-foreground text-xs px-3.5 py-1 rounded-full text-center max-w-[85%] leading-relaxed">
                             {m.content}
                           </span>
                         </div>
@@ -917,12 +917,12 @@ export default function SupportView({
                           className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed shadow-sm ${
  isAgent
  ? 'bg-blue-600 text-white rounded-tr-none shadow-lg shadow-blue-500/15'
- : 'bg-gray-900 border border-gray-800 text-gray-100 rounded-tl-none'
+ : 'bg-gray-900 border border-border text-gray-100 rounded-tl-none'
  }`}
                         >
                           <p className="whitespace-pre-wrap">{m.content}</p>
                           <div className="flex items-center justify-between gap-3 mt-1.5 pt-1 border-t border-white/10 text-xs">
-                            <span className={isAgent ? 'text-blue-200' : 'text-gray-400'}>
+                            <span className={isAgent ? 'text-blue-200' : 'text-muted-foreground'}>
                               {m.channel ? `${m.channel.toUpperCase()}` : ''} {m.delivery_status ? `· ${m.delivery_status}` : ''}
                             </span>
                             <span className={isAgent ? 'text-blue-200 font-medium' : 'text-gray-500'}>
@@ -936,7 +936,7 @@ export default function SupportView({
                 </div>
 
                 {/* AI Copilot & Suggested Reply Bar */}
-                <div className="px-4 py-2 bg-gradient-to-r from-blue-950/30 via-indigo-950/20 to-transparent border-t border-gray-800 flex flex-wrap items-center justify-between gap-2">
+                <div className="px-4 py-2 bg-gradient-to-r from-blue-950/30 via-indigo-950/20 to-transparent border-t border-border flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
@@ -953,20 +953,20 @@ export default function SupportView({
                       variant="ghost"
                       onClick={handleRunAiTriage}
                       disabled={triagingTicket}
-                      className="h-7 px-2.5 text-xs font-bold text-gray-300 hover:text-white bg-gray-900 border border-gray-800 rounded-lg flex items-center gap-1.5 transition-all"
+                      className="h-7 px-2.5 text-xs font-bold text-foreground/85 hover:text-white bg-gray-900 border border-border rounded-lg flex items-center gap-1.5 transition-all"
                     >
-                      {triagingTicket ? <Loader2 size={12} className="animate-spin text-gray-400" /> : <Bot size={12} className="text-cyan-400" />}
+                      {triagingTicket ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : <Bot size={12} className="text-cyan-400" />}
                       {triagingTicket ? 'Analyzing...' : 'AI Triage'}
                     </Button>
                   </div>
 
                   {selectedTicket.extra_data?.ai_insights && (
                     <div className="hidden sm:flex items-center gap-2 text-[11px]">
-                      <span className="text-gray-400 font-medium">
+                      <span className="text-muted-foreground font-medium">
                         Sentiment: <strong className="text-white capitalize">{selectedTicket.extra_data.ai_insights.sentiment}</strong>
                       </span>
                       <span className="text-gray-600">·</span>
-                      <span className="text-gray-400 font-medium">
+                      <span className="text-muted-foreground font-medium">
                         Category: <strong className="text-white">{selectedTicket.extra_data.ai_insights.category}</strong>
                       </span>
                     </div>
@@ -974,7 +974,7 @@ export default function SupportView({
                 </div>
 
                 {/* Reply Input Box */}
-                <div className="p-3 border-t border-gray-800 bg-gray-950/40">
+                <div className="p-3 border-t border-border bg-gray-950/40">
                   <div className="flex gap-2">
                     <Textarea
                       placeholder={
@@ -990,7 +990,7 @@ export default function SupportView({
                           handleSendManualReply();
                         }
                       }}
-                      className="bg-gray-900/80 border-gray-800 text-white focus:border-blue-500 rounded-xl min-h-[50px] text-xs resize-none flex-1"
+                      className="bg-gray-900/80 border-border text-white focus:border-blue-500 rounded-xl min-h-[50px] text-xs resize-none flex-1"
                     />
                     <Button
                       onClick={handleSendManualReply}
@@ -1007,7 +1007,7 @@ export default function SupportView({
               <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-gray-500">
                 <div className="text-4xl mb-3 animate-bounce">💬</div>
                 <h4 className="font-bold text-white text-sm">Select a ticket from the left</h4>
-                <p className="text-xs text-gray-400 max-w-xs mt-1">
+                <p className="text-xs text-muted-foreground max-w-xs mt-1">
                   Claim waiting live chat requests or respond to customer tickets.
                 </p>
               </div>
@@ -1027,7 +1027,7 @@ export default function SupportView({
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
                   <Code size={18} className="text-blue-400" /> Website & App Widget Integration
                 </h3>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Embed this floating AI Support & Live Chat button into any website, web application, WordPress, or Shopify site with a single script tag.
                 </p>
               </div>
@@ -1035,7 +1035,7 @@ export default function SupportView({
               {/* Code Snippet Box */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-foreground/85 flex items-center gap-1.5">
                     <Sparkles size={12} className="text-amber-400" /> Embed Code Snippet
                   </span>
                   <Button
@@ -1048,29 +1048,29 @@ export default function SupportView({
                   </Button>
                 </div>
 
-                <div className="bg-gray-950 border border-gray-800 rounded-2xl p-4 font-mono text-xs text-blue-300 overflow-x-auto relative">
+                <div className="bg-gray-950 border border-border rounded-2xl p-4 font-mono text-xs text-blue-300 overflow-x-auto relative">
                   <pre className="whitespace-pre-wrap">{embedCodeSnippet}</pre>
                 </div>
               </div>
 
               {/* Widget Customization Form */}
-              <div className="border-t border-gray-800/80 pt-4 space-y-4">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider text-gray-400">
+              <div className="border-t border-border/80 pt-4 space-y-4">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider text-muted-foreground">
                   Widget Branding & Behavior
                 </h4>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1">Widget Title</label>
+                    <label className="block text-xs font-semibold text-foreground/85 mb-1">Widget Title</label>
                     <Input
                       type="text"
                       value={supportSettings.widget_title}
                       onChange={e => setSupportSettings({ ...supportSettings, widget_title: e.target.value })}
-                      className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl"
+                      className="bg-gray-900 border-border text-white text-xs rounded-xl"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1">Brand Color (Hex)</label>
+                    <label className="block text-xs font-semibold text-foreground/85 mb-1">Brand Color (Hex)</label>
                     <div className="flex gap-2">
                       <input
                         type="color"
@@ -1082,18 +1082,18 @@ export default function SupportView({
                         type="text"
                         value={supportSettings.widget_color}
                         onChange={e => setSupportSettings({ ...supportSettings, widget_color: e.target.value })}
-                        className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl flex-1"
+                        className="bg-gray-900 border-border text-white text-xs rounded-xl flex-1"
                       />
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Welcome Message</label>
+                  <label className="block text-xs font-semibold text-foreground/85 mb-1">Welcome Message</label>
                   <Textarea
                     value={supportSettings.widget_welcome}
                     onChange={e => setSupportSettings({ ...supportSettings, widget_welcome: e.target.value })}
-                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl min-h-[60px] resize-none"
+                    className="bg-gray-900 border-border text-white text-xs rounded-xl min-h-[60px] resize-none"
                   />
                 </div>
 
@@ -1134,9 +1134,9 @@ export default function SupportView({
                 <span className="text-xs text-muted-foreground">Click the floating button below</span>
               </div>
 
-              <div className="flex-1 border border-dashed border-gray-800 rounded-2xl relative min-h-[460px] flex items-center justify-center p-6 text-center text-gray-500">
+              <div className="flex-1 border border-dashed border-border rounded-2xl relative min-h-[460px] flex items-center justify-center p-6 text-center text-gray-500">
                 <div className="space-y-2 max-w-xs">
-                  <p className="text-xs text-gray-400 font-semibold">Your Website Preview Area</p>
+                  <p className="text-xs text-muted-foreground font-semibold">Your Website Preview Area</p>
                   <p className="text-xs text-gray-500">
                     The support button floats in the bottom right corner of this sandbox. You can click to open and test the full AI chat, RAG, and ticket escalation experience!
                   </p>
@@ -1164,12 +1164,12 @@ export default function SupportView({
           {/* Left Panel: Agent Persona & Brand Customization - 7 Cols */}
           <div className="lg:col-span-7 space-y-5">
             <Card className="glass-panel border-white/5 p-6 rounded-3xl space-y-5">
-              <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+              <div className="flex items-center justify-between border-b border-border pb-3">
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
                     <Sliders size={18} className="text-blue-400" /> Support Agent Persona & Branding
                   </h3>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     Configure your tenant's dedicated AI support agent persona, communication tone, and channel signatures.
                   </p>
                 </div>
@@ -1188,22 +1188,22 @@ export default function SupportView({
               {/* Form Fields */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Agent Name</label>
+                  <label className="block text-xs font-semibold text-foreground/85 mb-1">Agent Name</label>
                   <Input
                     type="text"
                     value={studioConfig.agent_name}
                     onChange={e => setStudioConfig({ ...studioConfig, agent_name: e.target.value })}
-                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl"
+                    className="bg-gray-900 border-border text-white text-xs rounded-xl"
                     placeholder="e.g. Ava, Maya, Nova"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Company / Brand Name</label>
+                  <label className="block text-xs font-semibold text-foreground/85 mb-1">Company / Brand Name</label>
                   <Input
                     type="text"
                     value={studioConfig.company_name}
                     onChange={e => setStudioConfig({ ...studioConfig, company_name: e.target.value })}
-                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl"
+                    className="bg-gray-900 border-border text-white text-xs rounded-xl"
                   />
                 </div>
               </div>
@@ -1211,11 +1211,11 @@ export default function SupportView({
               {/* Tone & Avatar Selector */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Communication Tone</label>
+                  <label className="block text-xs font-semibold text-foreground/85 mb-1">Communication Tone</label>
                   <select
                     value={studioConfig.tone}
                     onChange={e => setStudioConfig({ ...studioConfig, tone: e.target.value })}
-                    className="w-full h-9 bg-gray-900 border border-gray-800 text-white text-xs rounded-xl px-3 focus:outline-none focus:border-blue-500"
+                    className="w-full h-9 bg-gray-900 border border-border text-white text-xs rounded-xl px-3 focus:outline-none focus:border-blue-500"
                   >
                     <option value="professional_friendly">Professional & Friendly</option>
                     <option value="concise_technical">Concise & Technical</option>
@@ -1225,11 +1225,11 @@ export default function SupportView({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Agent Avatar Icon</label>
+                  <label className="block text-xs font-semibold text-foreground/85 mb-1">Agent Avatar Icon</label>
                   <select
                     value={studioConfig.agent_avatar}
                     onChange={e => setStudioConfig({ ...studioConfig, agent_avatar: e.target.value })}
-                    className="w-full h-9 bg-gray-900 border border-gray-800 text-white text-xs rounded-xl px-3 focus:outline-none focus:border-blue-500"
+                    className="w-full h-9 bg-gray-900 border border-border text-white text-xs rounded-xl px-3 focus:outline-none focus:border-blue-500"
                   >
                     <option value="bot">Bot / Assistant</option>
                     <option value="sparkles">AI Sparkles</option>
@@ -1240,38 +1240,38 @@ export default function SupportView({
               </div>
 
               {/* Email Support Display & Signature */}
-              <div className="space-y-3 border-t border-gray-800 pt-3">
-                <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wider">Email Channel Identity</h4>
+              <div className="space-y-3 border-t border-border pt-3">
+                <h4 className="text-xs font-bold text-foreground/85 uppercase tracking-wider">Email Channel Identity</h4>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1">Inbound / Reply-to Email</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Inbound / Reply-to Email</label>
                   <Input
                     type="email"
                     value={studioConfig.support_email}
                     onChange={e => setStudioConfig({ ...studioConfig, support_email: e.target.value })}
-                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl"
+                    className="bg-gray-900 border-border text-white text-xs rounded-xl"
                     placeholder="support@company.com"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1">Email Outbound Signature</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Email Outbound Signature</label>
                   <Textarea
                     value={studioConfig.email_signature}
                     onChange={e => setStudioConfig({ ...studioConfig, email_signature: e.target.value })}
-                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl min-h-[70px] resize-none"
+                    className="bg-gray-900 border-border text-white text-xs rounded-xl min-h-[70px] resize-none"
                     placeholder="Best regards,\nYour Support Team"
                   />
                 </div>
               </div>
 
               {/* WhatsApp Welcome */}
-              <div className="space-y-3 border-t border-gray-800 pt-3">
-                <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wider">WhatsApp Channel Greeting</h4>
+              <div className="space-y-3 border-t border-border pt-3">
+                <h4 className="text-xs font-bold text-foreground/85 uppercase tracking-wider">WhatsApp Channel Greeting</h4>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1">Welcome Greeting Message</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Welcome Greeting Message</label>
                   <Textarea
                     value={studioConfig.whatsapp_welcome}
                     onChange={e => setStudioConfig({ ...studioConfig, whatsapp_welcome: e.target.value })}
-                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl min-h-[60px] resize-none"
+                    className="bg-gray-900 border-border text-white text-xs rounded-xl min-h-[60px] resize-none"
                   />
                 </div>
               </div>
@@ -1281,44 +1281,44 @@ export default function SupportView({
           {/* Right Panel: Human Handoff & SLA Escalation Policies - 5 Cols */}
           <div className="lg:col-span-5 space-y-5">
             <Card className="glass-panel border-white/5 p-6 rounded-3xl space-y-5">
-              <div className="border-b border-gray-800 pb-3">
+              <div className="border-b border-border pb-3">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
                   <Headphones size={18} className="text-emerald-400" /> Human Escalation & SLA
                 </h3>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Control how the AI transitions ownership to humans across WhatsApp, Email, and Web Widget.
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Handoff Acknowledgment Message</label>
+                  <label className="block text-xs font-semibold text-foreground/85 mb-1">Handoff Acknowledgment Message</label>
                   <p className="text-xs text-gray-500 mb-1.5">Sent immediately when `/human` is typed or handoff is triggered.</p>
                   <Textarea
                     value={studioConfig.handoff_trigger_message}
                     onChange={e => setStudioConfig({ ...studioConfig, handoff_trigger_message: e.target.value })}
-                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl min-h-[60px] resize-none"
+                    className="bg-gray-900 border-border text-white text-xs rounded-xl min-h-[60px] resize-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Escalation SLA Timeout (Seconds)</label>
+                  <label className="block text-xs font-semibold text-foreground/85 mb-1">Escalation SLA Timeout (Seconds)</label>
                   <p className="text-xs text-gray-500 mb-1.5">Default 300s (5 minutes). If no human agent claims the ticket before timeout, it automatically escalates to a priority ticket.</p>
                   <Input
                     type="number"
                     value={studioConfig.sla_timeout_seconds}
                     onChange={e => setStudioConfig({ ...studioConfig, sla_timeout_seconds: parseInt(e.target.value) || 300 })}
-                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl"
+                    className="bg-gray-900 border-border text-white text-xs rounded-xl"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">SLA Timeout Escalation Notice</label>
+                  <label className="block text-xs font-semibold text-foreground/85 mb-1">SLA Timeout Escalation Notice</label>
                   <p className="text-xs text-gray-500 mb-1.5">Sent to the customer when the 5-minute timer expires and team is alerted.</p>
                   <Textarea
                     value={studioConfig.sla_escalation_message}
                     onChange={e => setStudioConfig({ ...studioConfig, sla_escalation_message: e.target.value })}
-                    className="bg-gray-900 border-gray-800 text-white text-xs rounded-xl min-h-[70px] resize-none"
+                    className="bg-gray-900 border-border text-white text-xs rounded-xl min-h-[70px] resize-none"
                   />
                 </div>
 
@@ -1339,15 +1339,15 @@ export default function SupportView({
       {/* Customer Unified Cross-Channel History Modal */}
       {historyDrawerOpen && customerHistory && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-gray-950 border border-gray-800 rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
+          <div className="bg-gray-950 border border-border rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <History size={18} className="text-blue-400" />
                 <h3 className="font-bold text-white text-sm">Unified Customer Profile & Cross-Channel History</h3>
               </div>
               <button
                 onClick={() => setHistoryDrawerOpen(false)}
-                className="text-gray-400 hover:text-white p-1 rounded-lg"
+                className="text-muted-foreground hover:text-white p-1 rounded-lg"
               >
                 <X size={18} />
               </button>
@@ -1355,10 +1355,10 @@ export default function SupportView({
 
             <div className="p-6 overflow-y-auto space-y-5">
               {/* Profile Card */}
-              <div className="p-4 rounded-2xl bg-gray-900/60 border border-gray-800 space-y-2">
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Canonical Profile</h4>
+              <div className="p-4 rounded-2xl bg-background border border-border space-y-2">
+                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Canonical Profile</h4>
                 <div className="text-sm font-bold text-white">{customerHistory.customer?.name || 'Customer'}</div>
-                <div className="flex flex-wrap gap-3 text-xs text-gray-300">
+                <div className="flex flex-wrap gap-3 text-xs text-foreground/85">
                   {customerHistory.customer?.primary_email && <span>✉️ {customerHistory.customer.primary_email}</span>}
                   {customerHistory.customer?.primary_phone && <span>📱 {customerHistory.customer.primary_phone}</span>}
                 </div>
@@ -1366,14 +1366,14 @@ export default function SupportView({
 
               {/* Verified Identities */}
               <div className="space-y-2">
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Linked Channels & Identities</h4>
+                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Linked Channels & Identities</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {customerHistory.identities?.map((id: any) => (
-                    <div key={id.id} className="p-3 rounded-xl bg-gray-900/40 border border-gray-800 text-xs">
+                    <div key={id.id} className="p-3 rounded-xl bg-gray-900/40 border border-border text-xs">
                       <div className="font-bold text-white flex items-center gap-1.5 uppercase">
                         {id.channel === 'whatsapp' ? '🟢 WhatsApp' : id.channel === 'email' ? '✉️ Email' : '🌐 Widget'}
                       </div>
-                      <div className="text-gray-400 text-xs mt-0.5 truncate">{id.identifier}</div>
+                      <div className="text-muted-foreground text-xs mt-0.5 truncate">{id.identifier}</div>
                     </div>
                   ))}
                 </div>
@@ -1381,18 +1381,18 @@ export default function SupportView({
 
               {/* Unified Timeline */}
               <div className="space-y-2">
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Cross-Channel Tickets ({customerHistory.tickets?.length || 0})</h4>
+                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Cross-Channel Tickets ({customerHistory.tickets?.length || 0})</h4>
                 <div className="space-y-2">
                   {customerHistory.tickets?.map((t: any) => (
-                    <div key={t.id} className="p-3.5 rounded-xl bg-gray-900/30 border border-gray-800 text-xs space-y-1">
+                    <div key={t.id} className="p-3.5 rounded-xl bg-gray-900/30 border border-border text-xs space-y-1">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-white text-xs">{t.subject}</span>
                         <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 uppercase font-bold border border-blue-500/20">
                           {t.channel}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between text-xs text-gray-400">
-                        <span>Status: <strong className="text-gray-300">{t.status}</strong> · Owner: {t.owner_type || 'ai'}</span>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Status: <strong className="text-foreground/85">{t.status}</strong> · Owner: {t.owner_type || 'ai'}</span>
                         <span>{new Date(t.created_at).toLocaleDateString()}</span>
                       </div>
                     </div>

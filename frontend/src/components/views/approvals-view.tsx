@@ -251,14 +251,14 @@ export default function ApprovalsView({
       case 'price_quote':
         return <CreditCard className="w-3.5 h-3.5 text-emerald-400" />;
       default:
-        return <Bot className="w-3.5 h-3.5 text-violet-400" />;
+        return <Bot className="w-3.5 h-3.5 text-primary" />;
     }
   };
 
   const getConfidenceBadge = (confidence?: number | null) => {
     if (confidence === null || confidence === undefined) {
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-400 border border-zinc-700/60">
+        <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium px-2 py-0.5 rounded-md bg-zinc-800 text-muted-foreground border border-zinc-700/60">
           N/A Conf
         </span>
       );
@@ -298,7 +298,7 @@ export default function ApprovalsView({
       {/* Header & Breadcrumb */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
         <div>
-          <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mb-1">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono mb-1">
             <span>Operations</span>
             <span>/</span>
             <span className="text-zinc-200">Governance & Human-in-the-Loop</span>
@@ -311,7 +311,7 @@ export default function ApprovalsView({
               </span>
             )}
           </h1>
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Enterprise verification gates for autonomous AI agents, social posts, outbound communications, and financial decisions.
           </p>
         </div>
@@ -322,9 +322,9 @@ export default function ApprovalsView({
             disabled={loading}
             variant="outline"
             size="sm"
-            className="h-8 border-white/[0.08] bg-zinc-900/60 hover:bg-zinc-800 text-zinc-300 text-xs font-medium gap-1.5 rounded-md"
+            className="h-8 border-white/[0.08] bg-card/60 hover:bg-zinc-800 text-foreground/85 text-xs font-medium gap-1.5 rounded-md"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-zinc-400' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-muted-foreground' : ''}`} />
             Refresh Queue
           </Button>
         </div>
@@ -332,8 +332,8 @@ export default function ApprovalsView({
 
       {/* Metric Cards (GCP/Apple style KPI Strip) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
+        <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-medium">Pending Review</span>
             <Clock className="w-3.5 h-3.5 text-amber-400" />
           </div>
@@ -343,8 +343,8 @@ export default function ApprovalsView({
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
+        <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-medium">Approved Actions</span>
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
           </div>
@@ -354,25 +354,25 @@ export default function ApprovalsView({
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
+        <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-medium">Rejected Actions</span>
-            <XCircle className="w-3.5 h-3.5 text-zinc-400" />
+            <XCircle className="w-3.5 h-3.5 text-muted-foreground" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-semibold text-white tracking-tight">{metrics.rejected}</span>
-            <span className="text-[11px] text-zinc-400 font-medium">Blocked by policy</span>
+            <span className="text-[11px] text-muted-foreground font-medium">Blocked by policy</span>
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
+        <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-medium">Approval Ratio</span>
-            <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
+            <ShieldCheck className="w-3.5 h-3.5 text-primary" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-semibold text-white tracking-tight">{passRate}%</span>
-            <span className="text-[11px] text-zinc-400 font-medium">Of total decisions</span>
+            <span className="text-[11px] text-muted-foreground font-medium">Of total decisions</span>
           </div>
         </div>
       </div>
@@ -381,13 +381,13 @@ export default function ApprovalsView({
       <div className="space-y-3">
         {/* Apple/GCP Segmented Control */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="inline-flex p-1 rounded-lg bg-zinc-900/90 border border-white/[0.08]">
+          <div className="inline-flex p-1 rounded-lg bg-card/90 border border-white/[0.08]">
             <button
               onClick={() => setActiveTab('pending')}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 activeTab === 'pending'
                   ? 'bg-zinc-800 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  : 'text-muted-foreground hover:text-zinc-200'
               }`}
             >
               Pending ({metrics.pending})
@@ -397,7 +397,7 @@ export default function ApprovalsView({
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 activeTab === 'approved'
                   ? 'bg-zinc-800 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  : 'text-muted-foreground hover:text-zinc-200'
               }`}
             >
               Approved ({metrics.approved})
@@ -407,7 +407,7 @@ export default function ApprovalsView({
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 activeTab === 'rejected'
                   ? 'bg-zinc-800 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  : 'text-muted-foreground hover:text-zinc-200'
               }`}
             >
               Rejected ({metrics.rejected})
@@ -417,7 +417,7 @@ export default function ApprovalsView({
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 activeTab === 'all'
                   ? 'bg-zinc-800 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  : 'text-muted-foreground hover:text-zinc-200'
               }`}
             >
               All Records ({metrics.total})
@@ -426,18 +426,18 @@ export default function ApprovalsView({
 
           {/* Search Box */}
           <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search actions or agents…"
-              className="h-8 pl-8 text-xs bg-zinc-900/60 border-white/[0.08] focus:border-zinc-500 rounded-md placeholder:text-zinc-500"
+              className="h-8 pl-8 text-xs bg-card/60 border-white/[0.08] focus:border-zinc-500 rounded-md placeholder:text-zinc-500"
             />
           </div>
         </div>
 
         {/* Category Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs text-zinc-400 scrollbar-none">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs text-muted-foreground scrollbar-none">
           <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-semibold mr-1">Category:</span>
           {(
             [
@@ -454,7 +454,7 @@ export default function ApprovalsView({
               className={`px-2.5 py-1 rounded-md text-xs transition-colors whitespace-nowrap ${
                 selectedCategory === c.id
                   ? 'bg-white/[0.08] text-white font-medium border border-white/[0.12]'
-                  : 'text-zinc-400 hover:text-zinc-200 border border-transparent hover:border-white/[0.06]'
+                  : 'text-muted-foreground hover:text-zinc-200 border border-transparent hover:border-white/[0.06]'
               }`}
             >
               {c.label}
@@ -466,17 +466,17 @@ export default function ApprovalsView({
       {/* List of Approval Items */}
       <div className="space-y-3">
         {loading && items.length === 0 ? (
-          <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-12 text-center text-xs text-zinc-400">
+          <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-12 text-center text-xs text-muted-foreground">
             <RefreshCw className="w-5 h-5 mx-auto mb-2 animate-spin text-zinc-500" />
             Loading approval queue…
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="rounded-xl border border-white/[0.08] bg-[#111318] p-12 text-center">
-            <div className="w-10 h-10 rounded-full bg-zinc-800/80 text-zinc-400 flex items-center justify-center mx-auto mb-3">
+          <div className="rounded-xl border border-white/[0.08] bg-[#11161c] p-12 text-center">
+            <div className="w-10 h-10 rounded-full bg-zinc-800/80 text-muted-foreground flex items-center justify-center mx-auto mb-3">
               <CheckCircle2 className="w-5 h-5 text-emerald-400" />
             </div>
             <h3 className="text-sm font-medium text-white">No actions require attention</h3>
-            <p className="text-xs text-zinc-400 mt-1 max-w-sm mx-auto">
+            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
               {searchQuery || selectedCategory !== 'all'
                 ? 'No approval items match your current filter criteria.'
                 : 'All pending agent proposals have been reviewed and dispatched.'}
@@ -493,7 +493,7 @@ export default function ApprovalsView({
                 key={item.id}
                 className={`rounded-xl border transition-all ${
                   isPending
-                    ? 'border-white/[0.08] bg-[#111318] hover:border-white/[0.14]'
+                    ? 'border-white/[0.08] bg-[#11161c] hover:border-white/[0.14]'
                     : 'border-white/[0.05] bg-[#0e1014] opacity-90'
                 }`}
               >
@@ -503,14 +503,14 @@ export default function ApprovalsView({
                     <div className="space-y-1.5 flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         {/* Action Type Badge */}
-                        <span className="inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded-md bg-zinc-800/80 text-zinc-300 border border-zinc-700/50">
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded-md bg-zinc-800/80 text-foreground/85 border border-zinc-700/50">
                           {getActionIcon(item.action_type)}
                           {item.action_type}
                         </span>
 
                         {/* Agent Origin */}
                         {item.agent_name && (
-                          <span className="text-[11px] text-zinc-400 flex items-center gap-1 font-medium">
+                          <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium">
                             via <span className="text-zinc-200">{item.agent_name}</span>
                           </span>
                         )}
@@ -576,7 +576,7 @@ export default function ApprovalsView({
                           variant="outline"
                           onClick={() => handleReview(item.id, false)}
                           disabled={actionInProgress === item.id}
-                          className="h-8 border-white/[0.08] bg-zinc-900/60 hover:bg-rose-950/40 hover:text-rose-300 hover:border-rose-800/40 text-zinc-300 text-xs font-medium rounded-lg px-3"
+                          className="h-8 border-white/[0.08] bg-card/60 hover:bg-rose-950/40 hover:text-rose-300 hover:border-rose-800/40 text-foreground/85 text-xs font-medium rounded-lg px-3"
                         >
                           <XCircle className="w-3.5 h-3.5" />
                           Reject
@@ -592,14 +592,14 @@ export default function ApprovalsView({
                         {item.reviewed_at && (
                           <div>{new Date(item.reviewed_at).toLocaleDateString()} {new Date(item.reviewed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                         )}
-                        {item.reviewed_by && <div className="text-zinc-400">by {item.reviewed_by}</div>}
+                        {item.reviewed_by && <div className="text-muted-foreground">by {item.reviewed_by}</div>}
                       </div>
                     )}
                   </div>
 
                   {/* Summary Preview Snippet */}
                   {item.payload?.content || item.payload?.draft ? (
-                    <div className="mt-3 p-3 rounded-lg bg-black/40 border border-white/[0.06] text-xs text-zinc-300 font-sans leading-relaxed whitespace-pre-wrap line-clamp-3">
+                    <div className="mt-3 p-3 rounded-lg bg-black/40 border border-white/[0.06] text-xs text-foreground/85 font-sans leading-relaxed whitespace-pre-wrap line-clamp-3">
                       {item.payload.content || item.payload.draft}
                     </div>
                   ) : null}
@@ -612,7 +612,7 @@ export default function ApprovalsView({
 
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                      className="text-xs text-zinc-400 hover:text-zinc-200 flex items-center gap-1 font-medium transition-colors"
+                      className="text-xs text-muted-foreground hover:text-zinc-200 flex items-center gap-1 font-medium transition-colors"
                     >
                       {isExpanded ? (
                         <>
@@ -633,7 +633,7 @@ export default function ApprovalsView({
                     {/* Review Note / Rationale Input (if pending) */}
                     {isPending && (
                       <div className="space-y-1.5">
-                        <label className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold block">
+                        <label className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold block">
                           Reviewer Annotation & Audit Note (Optional)
                         </label>
                         <Input
@@ -642,7 +642,7 @@ export default function ApprovalsView({
                             setReviewNotes((prev) => ({ ...prev, [item.id]: e.target.value }))
                           }
                           placeholder="e.g. Cleared with Marketing lead; tone verified."
-                          className="h-8 text-xs bg-zinc-900/80 border-white/[0.08] focus:border-zinc-500 rounded-md"
+                          className="h-8 text-xs bg-card/80 border-white/[0.08] focus:border-zinc-500 rounded-md"
                         />
                       </div>
                     )}
@@ -659,7 +659,7 @@ export default function ApprovalsView({
                             <span className="text-[10px] text-emerald-300 font-mono">Fingerprint persisted</span>
                           )}
                         </div>
-                        <p className="text-xs text-zinc-400">
+                        <p className="text-xs text-muted-foreground">
                           Bind this approval to one run, bot, tool, target, payload and policy version. Saving recalculates the fingerprint and resets any previous decision.
                         </p>
                         <Textarea
@@ -672,7 +672,7 @@ export default function ApprovalsView({
                             policy_version: '1',
                           }, null, 2)}
                           onChange={(e) => setBindingDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                          className="min-h-40 text-xs font-mono bg-zinc-950 border-white/[0.1]"
+                          className="min-h-40 text-xs font-mono bg-background border-white/[0.1]"
                           aria-label="Exact action binding JSON"
                         />
                         <div className="flex justify-end">
@@ -692,15 +692,15 @@ export default function ApprovalsView({
                     {item.payload && (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold flex items-center gap-1.5">
-                            <FileText className="w-3.5 h-3.5 text-zinc-400" />
+                          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
+                            <FileText className="w-3.5 h-3.5 text-muted-foreground" />
                             Payload Specifications
                           </span>
                           <button
                             onClick={() =>
                               setShowRawPayload((prev) => ({ ...prev, [item.id]: !prev[item.id] }))
                             }
-                            className="text-[11px] text-indigo-400 hover:text-indigo-300 font-mono flex items-center gap-1"
+                            className="text-[11px] text-primary hover:text-primary font-mono flex items-center gap-1"
                           >
                             <Code2 className="w-3 h-3" />
                             {showRaw ? 'Show Formatted View' : 'View Raw JSON'}
@@ -708,7 +708,7 @@ export default function ApprovalsView({
                         </div>
 
                         {showRaw ? (
-                          <pre className="text-xs font-mono p-3 rounded-lg bg-black/60 border border-white/[0.08] text-zinc-300 overflow-x-auto max-h-64">
+                          <pre className="text-xs font-mono p-3 rounded-lg bg-black/60 border border-white/[0.08] text-foreground/85 overflow-x-auto max-h-64">
                             {JSON.stringify(item.payload, null, 2)}
                           </pre>
                         ) : (
@@ -728,7 +728,7 @@ export default function ApprovalsView({
 
                     {/* Historical Review Note if already completed */}
                     {item.review_note && (
-                      <div className="p-3 rounded-lg bg-zinc-900/60 border border-white/[0.06] text-xs">
+                      <div className="p-3 rounded-lg bg-card/60 border border-white/[0.06] text-xs">
                         <span className="text-zinc-500 block text-[11px] font-semibold uppercase tracking-wider">
                           Review Note:
                         </span>

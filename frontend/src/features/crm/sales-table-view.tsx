@@ -522,7 +522,7 @@ export default function SalesTableView({
                               e.stopPropagation();
                               onDeleteLead(lead.id);
                             }}
-                            className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
                             title="Delete Lead"
                           >
                             <Trash2 size={13} />
@@ -543,14 +543,14 @@ export default function SalesTableView({
         <span>
           Showing <strong className="text-slate-800">{filteredLeads.length}</strong> of <strong className="text-slate-800">{leads.length}</strong> accounts
         </span>
-        <span className="text-[11px] text-slate-400">
+        <span className="text-[11px] text-muted-foreground">
           Click any row to open the 360° Lead Dossier
         </span>
       </div>
 
       {/* ── FLOATING BULK ACTION BAR (Industry Standard Apollo / Linear Style) ── */}
       {selectedLeadIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-3 duration-200">
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40 bg-card text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-3 duration-200">
           <div className="flex items-center gap-2 border-r border-slate-700 pr-3">
             <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
             <span className="text-xs font-bold text-white">
@@ -598,7 +598,7 @@ export default function SalesTableView({
           <button
             type="button"
             onClick={() => setSelectedLeadIds([])}
-            className="text-slate-400 hover:text-white p-1 rounded-md transition-colors ml-1"
+            className="text-muted-foreground hover:text-white p-1 rounded-md transition-colors ml-1"
             title="Clear Selection"
           >
             <X size={15} />

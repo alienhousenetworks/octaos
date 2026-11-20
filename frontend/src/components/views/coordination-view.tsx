@@ -772,12 +772,12 @@ export default function CoordinationView({
       icon: Users,
       title: 'Council Member',
       label: 'Specialist Domain',
-      color: 'text-slate-300',
+      color: 'text-foreground/85',
       bg: 'bg-slate-800/40',
       border: 'border-slate-700/60',
       glow: 'shadow-slate-500/10',
       ring: 'ring-slate-400',
-      badge: 'from-slate-800 to-slate-900 border-slate-700 text-slate-300',
+      badge: 'from-slate-800 to-slate-900 border-slate-700 text-foreground/85',
     };
   };
 
@@ -856,7 +856,7 @@ export default function CoordinationView({
         : null;
 
       let stance = 'Observing';
-      let stanceColor = 'text-gray-400 bg-gray-900/60 border-gray-800';
+      let stanceColor = 'text-muted-foreground bg-background border-border';
       if (lastMsg) {
         const content = lastMsg.content || lastMsg.message || '';
         if (lastMsg.stance === 'oppose' || content.includes('🔴') || content.toLowerCase().includes('challenge') || content.toLowerCase().includes('dissent')) {
@@ -938,50 +938,50 @@ export default function CoordinationView({
               }>
                 <Plus size={15} /> Propose Decision Case
               </DialogTrigger>
-              <DialogContent className="border border-slate-800 text-white max-w-lg rounded-3xl p-6 bg-slate-950/95 shadow-2xl backdrop-blur-2xl">
+              <DialogContent className="border border-border text-white max-w-lg rounded-3xl p-6 bg-background/95 shadow-2xl backdrop-blur-2xl">
                 <DialogHeader>
                   <DialogTitle className="text-base font-bold text-white flex items-center gap-2">
-                    <ShieldCheck className="text-indigo-400 h-5 w-5" /> Propose New Decision Case
+                    <ShieldCheck className="text-primary h-5 w-5" /> Propose New Decision Case
                   </DialogTitle>
-                  <CardDescription className="text-xs text-slate-400">
+                  <CardDescription className="text-xs text-muted-foreground">
                     A durable decision case records the proposal, business rationale, financial exposure, and options before execution.
                   </CardDescription>
                 </DialogHeader>
                 <div className="space-y-3.5 mt-3">
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-300">Decision Title</label>
+                    <label className="text-xs font-semibold text-foreground/85">Decision Title</label>
                     <Input
                       placeholder="e.g. Authorize Outbound Enterprise Ad Campaign Spend"
                       value={newCaseTitle}
                       onChange={(e) => setNewCaseTitle(e.target.value)}
-                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-indigo-500"
+                      className="bg-card border-border text-white rounded-xl text-xs h-9 focus:border-primary"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-300">Proposal Summary</label>
+                    <label className="text-xs font-semibold text-foreground/85">Proposal Summary</label>
                     <Textarea
                       placeholder="Describe what action is being proposed and affected systems..."
                       value={newCaseProposal}
                       onChange={(e) => setNewCaseProposal(e.target.value)}
-                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs min-h-16 focus:border-indigo-500"
+                      className="bg-card border-border text-white rounded-xl text-xs min-h-16 focus:border-primary"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-300">Business Rationale</label>
+                    <label className="text-xs font-semibold text-foreground/85">Business Rationale</label>
                     <Textarea
                       placeholder="Why is this decision justified? What objective does it serve?"
                       value={newCaseRationale}
                       onChange={(e) => setNewCaseRationale(e.target.value)}
-                      className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs min-h-16 focus:border-indigo-500"
+                      className="bg-card border-border text-white rounded-xl text-xs min-h-16 focus:border-primary"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-semibold text-slate-300">Risk Tier</label>
+                      <label className="text-xs font-semibold text-foreground/85">Risk Tier</label>
                       <select
                         value={newCaseRiskClass}
                         onChange={(e) => setNewCaseRiskClass(e.target.value)}
-                        className="bg-slate-900 border border-slate-800 text-white rounded-xl text-xs h-9 px-2 focus:border-indigo-500"
+                        className="bg-card border border-border text-white rounded-xl text-xs h-9 px-2 focus:border-primary"
                       >
                         <option value="R1_INTERNAL_REVERSIBLE">R1: Internal Reversible</option>
                         <option value="R2_EXTERNAL_REVERSIBLE">R2: External Reversible</option>
@@ -990,23 +990,23 @@ export default function CoordinationView({
                       </select>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-semibold text-slate-300">Financial Exposure ($)</label>
+                      <label className="text-xs font-semibold text-foreground/85">Financial Exposure ($)</label>
                       <Input
                         type="number"
                         placeholder="5000"
                         value={newCaseExposure}
                         onChange={(e) => setNewCaseExposure(e.target.value)}
-                        className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-indigo-500"
+                        className="bg-card border-border text-white rounded-xl text-xs h-9 focus:border-primary"
                       />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-semibold text-slate-300">Reversibility</label>
+                      <label className="text-xs font-semibold text-foreground/85">Reversibility</label>
                       <select
                         value={newCaseReversibility}
                         onChange={(e) => setNewCaseReversibility(e.target.value)}
-                        className="bg-slate-900 border border-slate-800 text-white rounded-xl text-xs h-9 px-2 focus:border-indigo-500"
+                        className="bg-card border border-border text-white rounded-xl text-xs h-9 px-2 focus:border-primary"
                       >
                         <option value="HIGH">High (Easy Rollback)</option>
                         <option value="MEDIUM">Medium (Compensable)</option>
@@ -1015,13 +1015,13 @@ export default function CoordinationView({
                       </select>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-semibold text-slate-300">Cost of Delay ($/wk)</label>
+                      <label className="text-xs font-semibold text-foreground/85">Cost of Delay ($/wk)</label>
                       <Input
                         type="number"
                         placeholder="500"
                         value={newCaseCostOfDelay}
                         onChange={(e) => setNewCaseCostOfDelay(e.target.value)}
-                        className="bg-slate-900 border-slate-800 text-white rounded-xl text-xs h-9 focus:border-indigo-500"
+                        className="bg-card border-border text-white rounded-xl text-xs h-9 focus:border-primary"
                       />
                     </div>
                   </div>
@@ -1040,19 +1040,19 @@ export default function CoordinationView({
       </div>
 
       {/* 2. Top-Level Decision Assurance System Tabs */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
         <button
           onClick={() => setActiveSystemTab('CASES')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
             activeSystemTab === 'CASES'
-              ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+              ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
+              : 'text-muted-foreground hover:text-slate-200 hover:bg-slate-800/40'
           }`}
         >
           <FileText className="h-4 w-4" />
           Decision Cases
           {decisionCases.length > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-indigo-500/30 text-indigo-300 font-mono">
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-indigo-500/30 text-primary font-mono">
               {decisionCases.length}
             </span>
           )}
@@ -1063,7 +1063,7 @@ export default function CoordinationView({
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
             activeSystemTab === 'SCENARIOS'
               ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+              : 'text-muted-foreground hover:text-slate-200 hover:bg-slate-800/40'
           }`}
         >
           <Scale className="h-4 w-4" />
@@ -1075,7 +1075,7 @@ export default function CoordinationView({
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
             activeSystemTab === 'CHALLENGE'
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+              : 'text-muted-foreground hover:text-slate-200 hover:bg-slate-800/40'
           }`}
         >
           <ShieldAlert className="h-4 w-4" />
@@ -1087,7 +1087,7 @@ export default function CoordinationView({
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
             activeSystemTab === 'AUTHORITY'
               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+              : 'text-muted-foreground hover:text-slate-200 hover:bg-slate-800/40'
           }`}
         >
           <Gavel className="h-4 w-4" />
@@ -1099,7 +1099,7 @@ export default function CoordinationView({
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
             activeSystemTab === 'OUTCOMES'
               ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+              : 'text-muted-foreground hover:text-slate-200 hover:bg-slate-800/40'
           }`}
         >
           <CheckCircle2 className="h-4 w-4" />
@@ -1109,46 +1109,46 @@ export default function CoordinationView({
 
       {/* 3. Decision Cases Overview Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+        <div className="bg-card/60 border border-border rounded-2xl p-4">
+          <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold uppercase">
             <span>Active Cases</span>
-            <FileText className="h-4 w-4 text-indigo-400" />
+            <FileText className="h-4 w-4 text-primary" />
           </div>
           <div className="text-2xl font-bold text-white mt-1">{decisionCases.length}</div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Durable business decisions under review</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Durable business decisions under review</p>
         </div>
 
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+        <div className="bg-card/60 border border-border rounded-2xl p-4">
+          <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold uppercase">
             <span>Financial Exposure</span>
             <DollarSign className="h-4 w-4 text-amber-400" />
           </div>
           <div className="text-2xl font-bold text-white mt-1">
             ${decisionCases.reduce((acc, c) => acc + (c.financial_exposure || 0), 0).toLocaleString()}
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Capital exposure across proposed cases</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Capital exposure across proposed cases</p>
         </div>
 
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+        <div className="bg-card/60 border border-border rounded-2xl p-4">
+          <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold uppercase">
             <span>Pending Clearance</span>
             <Clock className="h-4 w-4 text-sky-400" />
           </div>
           <div className="text-2xl font-bold text-sky-400 mt-1">
             {decisionCases.filter(c => c.status === 'UNDER_ASSURANCE' || c.status === 'REQUIRE_APPROVAL').length}
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Awaiting independent review or signoff</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Awaiting independent review or signoff</p>
         </div>
 
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-xs text-slate-400 font-semibold uppercase">
+        <div className="bg-card/60 border border-border rounded-2xl p-4">
+          <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold uppercase">
             <span>Prediction Calibration</span>
             <Award className="h-4 w-4 text-emerald-400" />
           </div>
           <div className="text-2xl font-bold text-emerald-400 mt-1">
             0.08 Brier
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Calibrated forecast accuracy vs actuals</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Calibrated forecast accuracy vs actuals</p>
         </div>
       </div>
 
@@ -1157,21 +1157,21 @@ export default function CoordinationView({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start animate-in fade-in">
           {/* Left: Case List */}
           <div className="lg:col-span-1 space-y-3">
-            <div className="flex items-center justify-between text-xs text-slate-400 font-bold uppercase tracking-wider px-1">
+            <div className="flex items-center justify-between text-xs text-muted-foreground font-bold uppercase tracking-wider px-1">
               <span>Decision Cases ({decisionCases.length})</span>
             </div>
             {isLoadingCases ? (
-              <div className="p-8 text-center text-xs text-slate-400 flex items-center justify-center">
-                <Loader2 className="animate-spin h-4 w-4 mr-2 text-indigo-400" /> Loading decision cases...
+              <div className="p-8 text-center text-xs text-muted-foreground flex items-center justify-center">
+                <Loader2 className="animate-spin h-4 w-4 mr-2 text-primary" /> Loading decision cases...
               </div>
             ) : decisionCases.length === 0 ? (
-              <div className="bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl p-8 text-center space-y-2">
+              <div className="bg-card/50 border border-dashed border-border rounded-2xl p-8 text-center space-y-2">
                 <FileText className="h-8 w-8 text-slate-600 mx-auto" />
-                <p className="text-xs text-slate-400">No decision cases proposed yet.</p>
+                <p className="text-xs text-muted-foreground">No decision cases proposed yet.</p>
                 <Button
                   size="sm"
                   onClick={() => setIsCreateCaseOpen(true)}
-                  className="bg-indigo-600 text-white text-xs rounded-xl h-8 px-3"
+                  className="bg-primary text-primary-foreground text-white text-xs rounded-xl h-8 px-3"
                 >
                   Propose First Case
                 </Button>
@@ -1189,12 +1189,12 @@ export default function CoordinationView({
                       }}
                       className={`p-4 rounded-2xl border cursor-pointer transition-all ${
                         isSelected
-                          ? 'bg-slate-900 border-indigo-500/60 shadow-md shadow-indigo-500/10'
-                          : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700'
+                          ? 'bg-card border-primary/60 shadow-md shadow-indigo-500/10'
+                          : 'bg-card/60 border-border/80 hover:border-slate-700'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-mono font-bold text-indigo-400">{c.case_number}</span>
+                        <span className="text-[10px] font-mono font-bold text-primary">{c.case_number}</span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                           c.status === 'AUTHORIZED' ? 'bg-emerald-950/60 border-emerald-800 text-emerald-300' :
                           c.status === 'REJECTED' ? 'bg-rose-950/60 border-rose-800 text-rose-300' :
@@ -1204,12 +1204,12 @@ export default function CoordinationView({
                         </span>
                       </div>
                       <h4 className="text-xs font-bold text-white mt-1.5 line-clamp-1">{c.title}</h4>
-                      <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{c.proposal_summary}</p>
+                      <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">{c.proposal_summary}</p>
 
-                      <div className="flex items-center justify-between text-[10px] text-slate-500 pt-2 border-t border-slate-800/60 mt-2">
-                        <span className="font-semibold text-slate-300">${c.financial_exposure.toLocaleString()}</span>
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 pt-2 border-t border-border/60 mt-2">
+                        <span className="font-semibold text-foreground/85">${c.financial_exposure.toLocaleString()}</span>
                         <span>{c.reversibility} Reversibility</span>
-                        <span className="font-mono text-indigo-300">{c.risk_class.split('_')[0]}</span>
+                        <span className="font-mono text-primary">{c.risk_class.split('_')[0]}</span>
                       </div>
                     </div>
                   );
@@ -1221,14 +1221,14 @@ export default function CoordinationView({
           {/* Right: Selected Case Dossier */}
           <div className="lg:col-span-2 space-y-4">
             {selectedCase ? (
-              <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
-                <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="bg-card/80 border border-border rounded-3xl p-6 shadow-xl space-y-5">
+                <div className="flex items-start justify-between gap-3 border-b border-border pb-4">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono font-bold text-indigo-400 bg-indigo-950/60 border border-indigo-800/60 px-2 py-0.5 rounded-md">
+                      <span className="text-xs font-mono font-bold text-primary bg-indigo-950/60 border border-indigo-800/60 px-2 py-0.5 rounded-md">
                         {selectedCase.case_number}
                       </span>
-                      <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                      <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-slate-800 text-foreground/85 border border-slate-700">
                         {selectedCase.risk_class}
                       </span>
                       <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
@@ -1244,43 +1244,43 @@ export default function CoordinationView({
 
                   <div className="text-right shrink-0">
                     <span className="text-base font-bold text-white">${selectedCase.financial_exposure.toLocaleString()}</span>
-                    <p className="text-[10px] text-slate-400">Financial Exposure</p>
+                    <p className="text-[10px] text-muted-foreground">Financial Exposure</p>
                   </div>
                 </div>
 
                 {/* Proposal & Rationale */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                  <div className="p-3.5 bg-slate-950/60 border border-slate-800/80 rounded-2xl space-y-1">
-                    <span className="text-slate-400 font-semibold block uppercase text-[10px]">Proposal Summary</span>
+                  <div className="p-3.5 bg-background/60 border border-border/80 rounded-2xl space-y-1">
+                    <span className="text-muted-foreground font-semibold block uppercase text-[10px]">Proposal Summary</span>
                     <p className="text-slate-200 leading-relaxed">{selectedCase.proposal_summary}</p>
                   </div>
-                  <div className="p-3.5 bg-slate-950/60 border border-slate-800/80 rounded-2xl space-y-1">
-                    <span className="text-slate-400 font-semibold block uppercase text-[10px]">Business Rationale</span>
+                  <div className="p-3.5 bg-background/60 border border-border/80 rounded-2xl space-y-1">
+                    <span className="text-muted-foreground font-semibold block uppercase text-[10px]">Business Rationale</span>
                     <p className="text-slate-200 leading-relaxed">{selectedCase.business_rationale}</p>
                   </div>
                 </div>
 
                 {/* Quantitative Consequence Snapshot */}
-                <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl space-y-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                <div className="bg-background/60 border border-border/80 p-4 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-foreground/85">
                     <span className="flex items-center gap-1.5"><Scale className="h-4 w-4 text-sky-400" /> Quantitative Consequence Modeling</span>
                     <span className="text-[10px] text-slate-500 font-mono">P10 / Expected Value</span>
                   </div>
                   <div className="grid grid-cols-3 gap-3 pt-1">
-                    <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block">Downside P10 Exposure</span>
+                    <div className="p-2.5 bg-card rounded-xl border border-border">
+                      <span className="text-[10px] text-muted-foreground block">Downside P10 Exposure</span>
                       <span className="text-sm font-bold text-rose-400">
                         ${selectedCase.financial_assessment?.downside_p10 ? selectedCase.financial_assessment.downside_p10.toLocaleString() : '-'}
                       </span>
                     </div>
-                    <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block">Expected Value (EV)</span>
+                    <div className="p-2.5 bg-card rounded-xl border border-border">
+                      <span className="text-[10px] text-muted-foreground block">Expected Value (EV)</span>
                       <span className="text-sm font-bold text-emerald-400">
                         ${selectedCase.financial_assessment?.expected_value ? selectedCase.financial_assessment.expected_value.toLocaleString() : '-'}
                       </span>
                     </div>
-                    <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block">Cost of Delay</span>
+                    <div className="p-2.5 bg-card rounded-xl border border-border">
+                      <span className="text-[10px] text-muted-foreground block">Cost of Delay</span>
                       <span className="text-sm font-bold text-amber-400">
                         ${selectedCase.cost_of_delay_per_week?.toLocaleString() || '0'}/wk
                       </span>
@@ -1289,13 +1289,13 @@ export default function CoordinationView({
                 </div>
 
                 {/* Quick Action Navigation */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border">
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => setActiveSystemTab('SCENARIOS')}
-                      className="border-slate-800 hover:bg-slate-800 text-xs text-sky-300 rounded-xl"
+                      className="border-border hover:bg-slate-800 text-xs text-sky-300 rounded-xl"
                     >
                       <Scale className="h-3.5 w-3.5 mr-1" /> View Scenarios & Alternatives ({selectedCase.alternatives?.length || 0})
                     </Button>
@@ -1303,7 +1303,7 @@ export default function CoordinationView({
                       size="sm"
                       variant="outline"
                       onClick={() => setActiveSystemTab('CHALLENGE')}
-                      className="border-slate-800 hover:bg-slate-800 text-xs text-amber-300 rounded-xl"
+                      className="border-border hover:bg-slate-800 text-xs text-amber-300 rounded-xl"
                     >
                       <ShieldAlert className="h-3.5 w-3.5 mr-1" /> View Independent Challenge
                     </Button>
@@ -1319,7 +1319,7 @@ export default function CoordinationView({
                 </div>
               </div>
             ) : (
-              <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-12 text-center text-slate-500 text-xs">
+              <div className="bg-card/40 border border-border rounded-3xl p-12 text-center text-slate-500 text-xs">
                 Select a decision case on the left to inspect its consequence model, independent challenge checks, and authority state.
               </div>
             )}
@@ -1333,7 +1333,7 @@ export default function CoordinationView({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-white">Consequence Analysis & Modeled Options</h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Evaluating realistic options for {selectedCase?.case_number || 'active case'}: Do Nothing, Pilot Phase, and Full Scale.
               </p>
             </div>
@@ -1341,7 +1341,7 @@ export default function CoordinationView({
               size="sm"
               variant="outline"
               onClick={() => setActiveSystemTab('CASES')}
-              className="text-xs border-slate-800 text-slate-300 rounded-xl"
+              className="text-xs border-border text-foreground/85 rounded-xl"
             >
               ← Back to Case List
             </Button>
@@ -1357,8 +1357,8 @@ export default function CoordinationView({
                 key={alt.alternative_code}
                 className={`p-5 rounded-3xl border space-y-3 ${
                   alt.is_pilot
-                    ? 'bg-slate-900 border-sky-500/50 shadow-lg shadow-sky-500/10'
-                    : 'bg-slate-900/70 border-slate-800'
+                    ? 'bg-card border-sky-500/50 shadow-lg shadow-sky-500/10'
+                    : 'bg-card/70 border-border'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -1371,26 +1371,26 @@ export default function CoordinationView({
                     </span>
                   )}
                   {alt.is_do_nothing && (
-                    <span className="text-[10px] font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold text-muted-foreground bg-slate-800 px-2 py-0.5 rounded-full">
                       Baseline
                     </span>
                   )}
                 </div>
 
                 <h4 className="text-sm font-bold text-white">{alt.title}</h4>
-                <p className="text-xs text-slate-400 leading-relaxed">{alt.description}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">{alt.description}</p>
 
-                <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800/80 space-y-1.5 text-xs">
+                <div className="bg-background/80 p-3 rounded-2xl border border-border/80 space-y-1.5 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Allocated Cost:</span>
+                    <span className="text-muted-foreground">Allocated Cost:</span>
                     <span className="font-bold text-white">${alt.financial_model?.cost?.toLocaleString() || '0'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Expected Outcome:</span>
+                    <span className="text-muted-foreground">Expected Outcome:</span>
                     <span className="font-bold text-emerald-400">${alt.financial_model?.expected_outcome?.toLocaleString() || '0'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Reversibility:</span>
+                    <span className="text-muted-foreground">Reversibility:</span>
                     <span className="font-medium text-slate-200">{alt.reversibility || 'MEDIUM'}</span>
                   </div>
                 </div>
@@ -1419,7 +1419,7 @@ export default function CoordinationView({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-white">Independent Challenge & Deterministic Controls</h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Multi-disciplinary specialist validation without conversational roleplay.
               </p>
             </div>
@@ -1427,7 +1427,7 @@ export default function CoordinationView({
               size="sm"
               variant="outline"
               onClick={() => setActiveSystemTab('CASES')}
-              className="text-xs border-slate-800 text-slate-300 rounded-xl"
+              className="text-xs border-border text-foreground/85 rounded-xl"
             >
               ← Back to Case List
             </Button>
@@ -1435,75 +1435,75 @@ export default function CoordinationView({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Financial Control */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-3">
+            <div className="bg-card/80 border border-border rounded-3xl p-5 space-y-3">
               <div className="flex items-center gap-2 text-purple-400">
                 <DollarSign className="h-5 w-5" />
                 <h4 className="text-sm font-bold text-white">Financial Control Check</h4>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Unit economics, gross margin floors, and budget envelope headroom verification.
               </p>
               <div className="space-y-2 pt-1 text-xs">
-                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                  <span className="text-slate-400">Gross Margin Floor:</span>
+                <div className="p-2.5 bg-background rounded-xl border border-border flex justify-between">
+                  <span className="text-muted-foreground">Gross Margin Floor:</span>
                   <span className="text-emerald-400 font-bold">Passed (Floor &gt;45%)</span>
                 </div>
-                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                  <span className="text-slate-400">CAC Payback Horizon:</span>
+                <div className="p-2.5 bg-background rounded-xl border border-border flex justify-between">
+                  <span className="text-muted-foreground">CAC Payback Horizon:</span>
                   <span className="text-emerald-400 font-bold">&lt; 6.2 Months</span>
                 </div>
-                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                  <span className="text-slate-400">Envelope Headroom:</span>
+                <div className="p-2.5 bg-background rounded-xl border border-border flex justify-between">
+                  <span className="text-muted-foreground">Envelope Headroom:</span>
                   <span className="text-white font-bold">$18,400 Remaining</span>
                 </div>
               </div>
             </div>
 
             {/* Compliance & Policy */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-3">
+            <div className="bg-card/80 border border-border rounded-3xl p-5 space-y-3">
               <div className="flex items-center gap-2 text-amber-400">
                 <ShieldCheck className="h-5 w-5" />
                 <h4 className="text-sm font-bold text-white">Policy & Compliance Sentinel</h4>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Deterministic policy evaluation, suppression list screening, and regulatory filters.
               </p>
               <div className="space-y-2 pt-1 text-xs">
-                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                  <span className="text-slate-400">Suppression List Filter:</span>
+                <div className="p-2.5 bg-background rounded-xl border border-border flex justify-between">
+                  <span className="text-muted-foreground">Suppression List Filter:</span>
                   <span className="text-emerald-400 font-bold">0 Suppressed Targets</span>
                 </div>
-                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                  <span className="text-slate-400">Policy Precedence:</span>
+                <div className="p-2.5 bg-background rounded-xl border border-border flex justify-between">
+                  <span className="text-muted-foreground">Policy Precedence:</span>
                   <span className="text-emerald-400 font-bold">Strict Fail-Closed</span>
                 </div>
-                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                  <span className="text-slate-400">Kill-Switch Status:</span>
+                <div className="p-2.5 bg-background rounded-xl border border-border flex justify-between">
+                  <span className="text-muted-foreground">Kill-Switch Status:</span>
                   <span className="text-emerald-400 font-bold">Clear (Disengaged)</span>
                 </div>
               </div>
             </div>
 
             {/* Operational Feasibility */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-3">
+            <div className="bg-card/80 border border-border rounded-3xl p-5 space-y-3">
               <div className="flex items-center gap-2 text-sky-400">
                 <Server className="h-5 w-5" />
                 <h4 className="text-sm font-bold text-white">Operational Feasibility</h4>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 API integration health, channel rate limits, and workforce execution bandwidth.
               </p>
               <div className="space-y-2 pt-1 text-xs">
-                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                  <span className="text-slate-400">Credentials Active:</span>
+                <div className="p-2.5 bg-background rounded-xl border border-border flex justify-between">
+                  <span className="text-muted-foreground">Credentials Active:</span>
                   <span className="text-emerald-400 font-bold">Verified</span>
                 </div>
-                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                  <span className="text-slate-400">Rate Limit Headroom:</span>
+                <div className="p-2.5 bg-background rounded-xl border border-border flex justify-between">
+                  <span className="text-muted-foreground">Rate Limit Headroom:</span>
                   <span className="text-emerald-400 font-bold">88% Capacity</span>
                 </div>
-                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                  <span className="text-slate-400">Execution Outbox:</span>
+                <div className="p-2.5 bg-background rounded-xl border border-border flex justify-between">
+                  <span className="text-muted-foreground">Execution Outbox:</span>
                   <span className="text-emerald-400 font-bold">Idempotency Ready</span>
                 </div>
               </div>
@@ -1515,34 +1515,34 @@ export default function CoordinationView({
       {/* TAB: AUTHORITY & APPROVAL GATE */}
       {activeSystemTab === 'AUTHORITY' && (
         <div className="max-w-2xl mx-auto space-y-5 animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="bg-card border border-border rounded-3xl p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <Gavel className="h-5 w-5 text-emerald-400" />
                 <div>
                   <h3 className="text-sm font-bold text-white">Executive Authority Sign-Off Gate</h3>
-                  <p className="text-xs text-slate-400">Consequential actions require human-in-the-loop authorization.</p>
+                  <p className="text-xs text-muted-foreground">Consequential actions require human-in-the-loop authorization.</p>
                 </div>
               </div>
-              <span className="text-[10px] bg-slate-800 text-slate-300 font-mono px-2.5 py-1 rounded-full border border-slate-700">
+              <span className="text-[10px] bg-slate-800 text-foreground/85 font-mono px-2.5 py-1 rounded-full border border-slate-700">
                 Anti-Self-Approval Active
               </span>
             </div>
 
             <div className="space-y-3.5 text-xs">
-              <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase font-semibold">Active Decision Case</span>
+              <div className="p-3 bg-background rounded-2xl border border-border space-y-1">
+                <span className="text-[10px] text-muted-foreground uppercase font-semibold">Active Decision Case</span>
                 <span className="text-sm font-bold text-white block">{selectedCase?.title || 'No Case Selected'}</span>
-                <span className="text-slate-400 block text-[11px]">{selectedCase?.case_number} | Exposure: ${selectedCase?.financial_exposure?.toLocaleString()}</span>
+                <span className="text-muted-foreground block text-[11px]">{selectedCase?.case_number} | Exposure: ${selectedCase?.financial_exposure?.toLocaleString()}</span>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-slate-300">Selected Alternative</label>
+                  <label className="text-xs font-semibold text-foreground/85">Selected Alternative</label>
                   <select
                     value={grantSelectedAlt}
                     onChange={(e) => setGrantSelectedAlt(e.target.value)}
-                    className="bg-slate-950 border border-slate-800 text-white rounded-xl text-xs h-9 px-2 focus:border-emerald-500"
+                    className="bg-background border border-border text-white rounded-xl text-xs h-9 px-2 focus:border-emerald-500"
                   >
                     <option value="A">Option A: Do Nothing</option>
                     <option value="B">Option B: Pilot Phase (Recommended)</option>
@@ -1551,11 +1551,11 @@ export default function CoordinationView({
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-slate-300">Decision Clearance</label>
+                  <label className="text-xs font-semibold text-foreground/85">Decision Clearance</label>
                   <select
                     value={grantDecision}
                     onChange={(e) => setGrantDecision(e.target.value as any)}
-                    className="bg-slate-950 border border-slate-800 text-white rounded-xl text-xs h-9 px-2 focus:border-emerald-500"
+                    className="bg-background border border-border text-white rounded-xl text-xs h-9 px-2 focus:border-emerald-500"
                   >
                     <option value="APPROVE">APPROVE & AUTHORIZE EXECUTION</option>
                     <option value="REJECT">REJECT PROPOSAL</option>
@@ -1564,12 +1564,12 @@ export default function CoordinationView({
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-slate-300">Recorded Sign-Off Rationale</label>
+                <label className="text-xs font-semibold text-foreground/85">Recorded Sign-Off Rationale</label>
                 <Textarea
                   placeholder="Record your executive rationale for authorizing or rejecting this action..."
                   value={grantRationale}
                   onChange={(e) => setGrantRationale(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white rounded-xl text-xs min-h-20 focus:border-emerald-500"
+                  className="bg-background border-border text-white rounded-xl text-xs min-h-20 focus:border-emerald-500"
                 />
               </div>
 
@@ -1607,7 +1607,7 @@ export default function CoordinationView({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-white">Decision Outcome Review & Calibration</h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Comparing predicted consequences with actual business telemetry at 30, 90, and 180 days.
               </p>
             </div>
@@ -1615,7 +1615,7 @@ export default function CoordinationView({
               size="sm"
               variant="outline"
               onClick={() => setActiveSystemTab('CASES')}
-              className="text-xs border-slate-800 text-slate-300 rounded-xl"
+              className="text-xs border-border text-foreground/85 rounded-xl"
             >
               ← Back to Case List
             </Button>
@@ -1627,31 +1627,31 @@ export default function CoordinationView({
               { milestone: '90-Day Milestone', status: 'SCHEDULED', predicted: 'Net ARR: +$24k', actual: 'Pending Data', brier: '-', tripwire: 'Active Monitoring' },
               { milestone: '180-Day Milestone', status: 'SCHEDULED', predicted: 'Gross Margin: >55%', actual: 'Pending Data', brier: '-', tripwire: 'Active Monitoring' }
             ].map((m, idx) => (
-              <div key={idx} className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-3">
+              <div key={idx} className="bg-card/80 border border-border rounded-3xl p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-white">{m.milestone}</span>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    m.status === 'COMPLETED' ? 'bg-emerald-950 border-emerald-800 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-400'
+                    m.status === 'COMPLETED' ? 'bg-emerald-950 border-emerald-800 text-emerald-300' : 'bg-slate-800 border-slate-700 text-muted-foreground'
                   }`}>
                     {m.status}
                   </span>
                 </div>
-                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5 text-xs">
+                <div className="bg-background p-3 rounded-2xl border border-border space-y-1.5 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Forecast:</span>
+                    <span className="text-muted-foreground">Forecast:</span>
                     <span className="font-semibold text-white">{m.predicted}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Actual Measured:</span>
+                    <span className="text-muted-foreground">Actual Measured:</span>
                     <span className="font-semibold text-emerald-400">{m.actual}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Calibration Brier:</span>
-                    <span className="font-mono text-indigo-400">{m.brier}</span>
+                    <span className="text-muted-foreground">Calibration Brier:</span>
+                    <span className="font-mono text-primary">{m.brier}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Tripwires:</span>
-                    <span className="text-slate-300">{m.tripwire}</span>
+                    <span className="text-muted-foreground">Tripwires:</span>
+                    <span className="text-foreground/85">{m.tripwire}</span>
                   </div>
                 </div>
               </div>
@@ -1661,11 +1661,11 @@ export default function CoordinationView({
       )}
 
       {/* 4. Collapsible Historical Deliberations Archives */}
-      <div className="pt-4 border-t border-slate-800/80">
+      <div className="pt-4 border-t border-border/80">
         <details className="group">
-          <summary className="cursor-pointer text-xs font-semibold text-slate-400 hover:text-slate-200 flex items-center justify-between p-3 bg-slate-900/60 border border-slate-800 rounded-2xl">
+          <summary className="cursor-pointer text-xs font-semibold text-muted-foreground hover:text-slate-200 flex items-center justify-between p-3 bg-card/60 border border-border rounded-2xl">
             <span className="flex items-center gap-2">
-              <Layers className="h-4 w-4 text-slate-400" /> Historical Deliberation Archives & Minutes ({meetings.length} sessions)
+              <Layers className="h-4 w-4 text-muted-foreground" /> Historical Deliberation Archives & Minutes ({meetings.length} sessions)
             </span>
             <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
           </summary>
@@ -1673,8 +1673,8 @@ export default function CoordinationView({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left Column: Deliberations Sessions Library */}
         <div className="lg:col-span-1 space-y-4">
-          <Card className="border border-gray-800/80 rounded-3xl overflow-hidden shadow-2xl bg-gray-950/80 backdrop-blur-xl">
-            <CardHeader className="p-4 border-b border-gray-800/70">
+          <Card className="border border-border/80 rounded-3xl overflow-hidden shadow-2xl bg-gray-950/80 backdrop-blur-xl">
+            <CardHeader className="p-4 border-b border-border/70">
               <div className="flex items-center justify-between mb-2">
                 <CardTitle className="text-xs font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
                   <Activity size={14} className="text-amber-400" />
@@ -1693,7 +1693,7 @@ export default function CoordinationView({
                   placeholder="Filter sessions..."
                   value={sidebarSearch}
                   onChange={(e) => setSidebarSearch(e.target.value)}
-                  className="bg-gray-900/80 border-gray-800 text-white rounded-xl text-xs h-8 pl-8 placeholder:text-gray-600 focus:border-amber-500/60"
+                  className="bg-gray-900/80 border-border text-white rounded-xl text-xs h-8 pl-8 placeholder:text-gray-600 focus:border-amber-500/60"
                 />
               </div>
             </CardHeader>
@@ -1720,7 +1720,7 @@ export default function CoordinationView({
                         className={`p-3.5 rounded-2xl text-left border transition-all relative cursor-pointer ${
                           isSelected
                             ? 'bg-gradient-to-br from-amber-500/15 via-gray-900/90 to-gray-950 border-amber-500/60 text-white shadow-xl shadow-amber-950/20'
-                            : 'bg-gray-900/40 border-gray-800/60 text-gray-300 hover:border-gray-700/80 hover:bg-gray-900/70'
+                            : 'bg-gray-900/40 border-border/60 text-foreground/85 hover:border-gray-700/80 hover:bg-gray-900/70'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1.5">
@@ -1745,7 +1745,7 @@ export default function CoordinationView({
                           {m.title}
                         </h4>
 
-                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-800/60 text-[10px] text-gray-400">
+                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/60 text-[10px] text-muted-foreground">
                           <span className="flex items-center gap-1 font-mono">
                             <Users size={11} className="text-gray-500" />
                             {m.participants?.length || 0} Experts
@@ -1769,7 +1769,7 @@ export default function CoordinationView({
           {selectedMeeting ? (
             <>
               {/* Meeting Meta & Status Bar */}
-              <div className="rounded-3xl p-5 bg-gray-950/80 border border-gray-800/80 shadow-2xl backdrop-blur-xl">
+              <div className="rounded-3xl p-5 bg-gray-950/80 border border-border/80 shadow-2xl backdrop-blur-xl">
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                   <div className="space-y-1.5 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1803,7 +1803,7 @@ export default function CoordinationView({
                     </h2>
 
                     {selectedMeeting.context_summary && (
-                      <p className="text-xs text-gray-400 leading-relaxed font-mono bg-gray-900/60 p-3 rounded-2xl border border-gray-800/80">
+                      <p className="text-xs text-muted-foreground leading-relaxed font-mono bg-background p-3 rounded-2xl border border-border/80">
                         {selectedMeeting.context_summary}
                       </p>
                     )}
@@ -1825,7 +1825,7 @@ export default function CoordinationView({
                       variant="outline"
                       size="sm"
                       onClick={() => handleExportMeeting('md')}
-                      className="border-gray-800 text-gray-300 hover:bg-gray-800/80 text-xs h-9 px-3 rounded-xl cursor-pointer"
+                      className="border-border text-foreground/85 hover:bg-gray-800/80 text-xs h-9 px-3 rounded-xl cursor-pointer"
                     >
                       <Download size={13} className="mr-1.5" /> Export MD
                     </Button>
@@ -1833,7 +1833,7 @@ export default function CoordinationView({
                       variant="outline"
                       size="sm"
                       onClick={() => handleExportMeeting('json')}
-                      className="border-gray-800 text-gray-300 hover:bg-gray-800/80 text-xs h-9 px-3 rounded-xl cursor-pointer"
+                      className="border-border text-foreground/85 hover:bg-gray-800/80 text-xs h-9 px-3 rounded-xl cursor-pointer"
                     >
                       <Download size={13} className="mr-1.5" /> JSON
                     </Button>
@@ -1861,9 +1861,9 @@ export default function CoordinationView({
               </div>
 
               {/* 3. NEW EXECUTIVE COUNCIL CHAMBER HUD (Completely replaces the SVG table) */}
-              <div className="rounded-3xl p-5 bg-gradient-to-b from-gray-950 via-gray-900/60 to-gray-950 border border-gray-800/90 shadow-2xl relative overflow-hidden">
+              <div className="rounded-3xl p-5 bg-gradient-to-b from-gray-950 via-gray-900/60 to-gray-950 border border-border/90 shadow-2xl relative overflow-hidden">
                 {/* HUD Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-gray-800/60">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-border/60">
                   <div className="flex items-center gap-2.5">
                     <div className="h-8 w-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
                       <Crown size={15} className="text-amber-400" />
@@ -1871,11 +1871,11 @@ export default function CoordinationView({
                     <div>
                       <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
                         Executive Council Chamber
-                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 font-mono">
+                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-gray-800 text-foreground/85 font-mono">
                           {councilSeats.length} Seats Formed
                         </span>
                       </h3>
-                      <p className="text-[10px] text-gray-400">Click any executive seat to isolate cross-examination discourse</p>
+                      <p className="text-[10px] text-muted-foreground">Click any executive seat to isolate cross-examination discourse</p>
                     </div>
                   </div>
 
@@ -1914,7 +1914,7 @@ export default function CoordinationView({
                             ? 'bg-amber-500/15 border-amber-500 shadow-lg shadow-amber-500/20 ring-2 ring-amber-400 ring-offset-2 ring-offset-gray-950 scale-102'
                             : isFiltered
                             ? 'bg-amber-500/20 border-amber-400 ring-1 ring-amber-400'
-                            : 'bg-gray-900/40 border-gray-800/80 hover:border-gray-700 hover:bg-gray-900/80'
+                            : 'bg-gray-900/40 border-border/80 hover:border-gray-700 hover:bg-gray-900/80'
                         }`}
                       >
                         {/* Top: Icon & Speaking Beacon */}
@@ -1938,13 +1938,13 @@ export default function CoordinationView({
                           <h4 className="text-[11px] font-bold text-white truncate group-hover:text-amber-300 transition-colors">
                             {seat.name.replace(' Expert', '').replace(' AI', '')}
                           </h4>
-                          <span className="text-[9px] text-gray-400 truncate block">
+                          <span className="text-[9px] text-muted-foreground truncate block">
                             {seat.meta.title}
                           </span>
                         </div>
 
                         {/* Bottom: Dynamic Stance Chip */}
-                        <div className="mt-2.5 pt-2 border-t border-gray-800/60 flex items-center justify-between">
+                        <div className="mt-2.5 pt-2 border-t border-border/60 flex items-center justify-between">
                           <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-md border truncate ${seat.stanceColor}`}>
                             {seat.stance}
                           </span>
@@ -1955,7 +1955,7 @@ export default function CoordinationView({
                 </div>
 
                 {/* Consensus & Deliberation Phase Bar */}
-                <div className="mt-5 pt-4 border-t border-gray-800/70 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="mt-5 pt-4 border-t border-border/70 flex flex-col md:flex-row items-center justify-between gap-4">
                   {/* Phase Stepper */}
                   <div className="w-full md:w-auto flex-1 flex items-center justify-between gap-1 overflow-x-auto pb-1">
                     {PHASES_LIST.map((phase, idx) => {
@@ -1975,8 +1975,8 @@ export default function CoordinationView({
                               : isCurrent
                               ? 'bg-amber-500/20 border border-amber-500/50 text-amber-300 animate-pulse'
                               : isPast
-                              ? 'text-emerald-400 hover:bg-gray-900/60'
-                              : 'text-gray-600 hover:text-gray-400'
+                              ? 'text-emerald-400 hover:bg-background'
+                              : 'text-gray-600 hover:text-muted-foreground'
                           }`}
                         >
                           {isPast ? <Check size={11} className="text-emerald-400" /> : <Icon size={11} />}
@@ -1988,7 +1988,7 @@ export default function CoordinationView({
 
                   {/* Consensus Meter */}
                   {latestConfidence !== null && (
-                    <div className="flex items-center gap-3 shrink-0 bg-gray-900/70 px-3.5 py-1.5 rounded-2xl border border-gray-800/80">
+                    <div className="flex items-center gap-3 shrink-0 bg-gray-900/70 px-3.5 py-1.5 rounded-2xl border border-border/80">
                       <div className="text-right">
                         <span className="text-[9px] uppercase tracking-wider text-gray-500 font-extrabold block">Council Consensus</span>
                         <span className="text-xs font-black text-amber-400 font-mono">{latestConfidence}%</span>
@@ -2037,14 +2037,14 @@ export default function CoordinationView({
                 </div>
 
                 {/* Quick Presets */}
-                <div className="mt-2.5 pt-2 border-t border-gray-800/60 flex flex-wrap items-center gap-1.5">
+                <div className="mt-2.5 pt-2 border-t border-border/60 flex flex-wrap items-center gap-1.5">
                   <span className="text-[9px] uppercase tracking-wider text-gray-500 font-extrabold mr-1">Presets:</span>
                   {QUICK_DIRECTIVES.map((preset, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => setChairmanDirective(preset)}
-                      className="text-[10px] text-gray-300 hover:text-amber-300 bg-gray-900/80 hover:bg-gray-800 border border-gray-800/80 hover:border-amber-500/40 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                      className="text-[10px] text-foreground/85 hover:text-amber-300 bg-gray-900/80 hover:bg-gray-800 border border-border/80 hover:border-amber-500/40 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
                     >
                       {preset}
                     </button>
@@ -2053,14 +2053,14 @@ export default function CoordinationView({
               </div>
 
               {/* 5. Institutional Deliberation Deck Navigation Tabs */}
-              <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-gray-950/80 rounded-2xl border border-gray-800/80 shadow-md">
+              <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-gray-950/80 rounded-2xl border border-border/80 shadow-md">
                 <button
                   type="button"
                   onClick={() => setActiveDeckTab('debate')}
                   className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeDeckTab === 'debate'
                       ? 'bg-amber-500 text-black shadow-md'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
+                      : 'text-muted-foreground hover:text-white hover:bg-background'
                   }`}
                 >
                   <MessageSquare size={13} /> Live Debate Chamber ({selectedMeeting.transcript?.length || 0})
@@ -2073,7 +2073,7 @@ export default function CoordinationView({
                   className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeDeckTab === 'evidence'
                       ? 'bg-amber-500 text-black shadow-md'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
+                      : 'text-muted-foreground hover:text-white hover:bg-background'
                   }`}
                 >
                   <Database size={13} /> Evidence & Firecrawl ({evidenceList.length})
@@ -2085,7 +2085,7 @@ export default function CoordinationView({
                   className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeDeckTab === 'options'
                       ? 'bg-amber-500 text-black shadow-md'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
+                      : 'text-muted-foreground hover:text-white hover:bg-background'
                   }`}
                 >
                   <Sparkles size={13} /> Options Matrix ({optionsList.length})
@@ -2097,7 +2097,7 @@ export default function CoordinationView({
                   className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeDeckTab === 'redteam'
                       ? 'bg-amber-500 text-black shadow-md'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
+                      : 'text-muted-foreground hover:text-white hover:bg-background'
                   }`}
                 >
                   <ShieldAlert size={13} /> Red Team & Tripwires ({outcomesList.length > 0 ? outcomesList[0].tripwires?.length || 0 : 0})
@@ -2109,7 +2109,7 @@ export default function CoordinationView({
                   className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeDeckTab === 'dissents'
                       ? 'bg-amber-500 text-black shadow-md'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
+                      : 'text-muted-foreground hover:text-white hover:bg-background'
                   }`}
                 >
                   <AlertTriangle size={13} /> Dissent Register ({dissentList.length})
@@ -2121,7 +2121,7 @@ export default function CoordinationView({
                   className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeDeckTab === 'actions'
                       ? 'bg-amber-500 text-black shadow-md'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
+                      : 'text-muted-foreground hover:text-white hover:bg-background'
                   }`}
                 >
                   <ShieldCheck size={13} /> Governed Actions ({actionList.length})
@@ -2135,8 +2135,8 @@ export default function CoordinationView({
 
               {/* TAB 1: LIVE DEBATE CHAMBER (Streaming Arguments) */}
               {activeDeckTab === 'debate' && (
-                <Card className="border border-gray-800/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl backdrop-blur-xl">
-                  <CardHeader className="p-4 border-b border-gray-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <Card className="border border-border/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl backdrop-blur-xl">
+                  <CardHeader className="p-4 border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <CardTitle className="text-sm text-white font-black flex items-center gap-2">
                         <MessageSquare className="text-amber-400 h-4 w-4" />
@@ -2147,7 +2147,7 @@ export default function CoordinationView({
                           </span>
                         )}
                       </CardTitle>
-                      <CardDescription className="text-gray-400 text-xs mt-0.5">
+                      <CardDescription className="text-muted-foreground text-xs mt-0.5">
                         Multi-round cross-examination and consensus formation across Sales, Finance, Marketing, HR, Firecrawl Web Intelligence, and Red Team.
                       </CardDescription>
                     </div>
@@ -2160,7 +2160,7 @@ export default function CoordinationView({
                         className={`text-[11px] h-7 px-2.5 rounded-xl border ${
                           autoScroll
                             ? 'border-amber-500/40 text-amber-300 bg-amber-500/10'
-                            : 'border-gray-800 text-gray-400'
+                            : 'border-border text-muted-foreground'
                         }`}
                       >
                         {autoScroll ? 'Auto-scroll: ON' : 'Auto-scroll: PAUSED'}
@@ -2171,7 +2171,7 @@ export default function CoordinationView({
                           variant="ghost"
                           size="sm"
                           onClick={() => setSelectedAgentFilter('ALL')}
-                          className="text-[11px] h-7 px-2 text-gray-400 hover:text-white"
+                          className="text-[11px] h-7 px-2 text-muted-foreground hover:text-white"
                         >
                           Clear Filter
                         </Button>
@@ -2183,7 +2183,7 @@ export default function CoordinationView({
                     {filteredTranscript.length === 0 ? (
                       <div className="text-center py-16 text-gray-500 space-y-2">
                         <MessageSquare size={36} className="mx-auto text-gray-700 opacity-60" />
-                        <p className="text-xs font-bold text-gray-400">Deliberation transcript empty.</p>
+                        <p className="text-xs font-bold text-muted-foreground">Deliberation transcript empty.</p>
                         <p className="text-[11px] text-gray-600 max-w-sm mx-auto">
                           {isLiveDeliberating
                             ? 'Council specialists are analyzing evidence and synthesizing opening positions...'
@@ -2219,7 +2219,7 @@ export default function CoordinationView({
                                 <div>
                                   <div className="flex items-center gap-2">
                                     <span className="text-xs font-black text-white">{sender}</span>
-                                    <span className="text-[10px] text-gray-400 px-2 py-0.2 rounded-full bg-gray-900/80 border border-gray-800">
+                                    <span className="text-[10px] text-muted-foreground px-2 py-0.2 rounded-full bg-gray-900/80 border border-border">
                                       {meta.title}
                                     </span>
                                     {msg.target_agent && (
@@ -2256,7 +2256,7 @@ export default function CoordinationView({
 
                             {/* Clickable Citations & Findings */}
                             {((msg.sources && msg.sources.length > 0) || (msg.findings && msg.findings.length > 0)) && (
-                              <div className="mt-2.5 pt-2.5 border-t border-gray-800/60 flex flex-wrap items-center gap-2">
+                              <div className="mt-2.5 pt-2.5 border-t border-border/60 flex flex-wrap items-center gap-2">
                                 {msg.sources?.map((src, sIdx) => {
                                   const isWeb = src.startsWith('web:');
                                   const cleanUrl = isWeb ? src.replace('web:', '') : src;
@@ -2275,7 +2275,7 @@ export default function CoordinationView({
                                   ) : (
                                     <span
                                       key={sIdx}
-                                      className="text-[10px] text-gray-400 bg-gray-900/80 px-2 py-0.5 rounded-lg border border-gray-800 flex items-center gap-1"
+                                      className="text-[10px] text-muted-foreground bg-gray-900/80 px-2 py-0.5 rounded-lg border border-border flex items-center gap-1"
                                     >
                                       <Database size={10} /> {src}
                                     </span>
@@ -2294,13 +2294,13 @@ export default function CoordinationView({
 
               {/* TAB 2: EVIDENCE PACK & FIRECRAWL INTELLIGENCE */}
               {activeDeckTab === 'evidence' && (
-                <Card className="border border-gray-800/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl">
-                  <CardHeader className="p-4 border-b border-gray-800/60">
+                <Card className="border border-border/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl">
+                  <CardHeader className="p-4 border-b border-border/60">
                     <CardTitle className="text-sm text-white font-bold flex items-center gap-2">
                       <Database className="text-amber-400 h-4 w-4" />
                       Ground Truth Evidence Catalog & Firecrawl Search ({evidenceList.length})
                     </CardTitle>
-                    <CardDescription className="text-gray-400 text-xs">
+                    <CardDescription className="text-muted-foreground text-xs">
                       Live internet market research, competitor outbound benchmarks, database metrics, and knowledge documents.
                     </CardDescription>
                   </CardHeader>
@@ -2319,7 +2319,7 @@ export default function CoordinationView({
                               className={`p-4 rounded-2xl border flex flex-col justify-between space-y-2 ${
                                 isWeb
                                   ? 'bg-orange-950/15 border-orange-500/30 shadow-lg shadow-orange-950/20'
-                                  : 'bg-gray-900/40 border-gray-800/70'
+                                  : 'bg-gray-900/40 border-border/70'
                               }`}
                             >
                               <div>
@@ -2327,7 +2327,7 @@ export default function CoordinationView({
                                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase flex items-center gap-1 ${
                                     isWeb
                                       ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
-                                      : 'bg-gray-800 text-gray-300 border border-gray-700'
+                                      : 'bg-gray-800 text-foreground/85 border border-gray-700'
                                   }`}>
                                     {isWeb ? <Globe size={10} /> : <Database size={10} />}
                                     {isWeb ? 'Firecrawl Web Evidence' : ev.source_type.replace('_', ' ')}
@@ -2341,13 +2341,13 @@ export default function CoordinationView({
                                 <h4 className="text-xs font-bold text-white truncate mb-1">
                                   {cleanUrl}
                                 </h4>
-                                <p className="text-xs text-gray-300 line-clamp-3 leading-relaxed">
+                                <p className="text-xs text-foreground/85 line-clamp-3 leading-relaxed">
                                   {ev.excerpt || 'No excerpt provided.'}
                                 </p>
                               </div>
 
                               {isWeb && cleanUrl.startsWith('http') && (
-                                <div className="pt-2 border-t border-gray-800/40">
+                                <div className="pt-2 border-t border-border/40">
                                   <a
                                     href={cleanUrl}
                                     target="_blank"
@@ -2369,8 +2369,8 @@ export default function CoordinationView({
 
               {/* TAB 3: QUANTIFIED OPTIONS MATRIX */}
               {activeDeckTab === 'options' && (
-                <Card className="border border-gray-800/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl">
-                  <CardHeader className="p-4 border-b border-gray-800/60">
+                <Card className="border border-border/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl">
+                  <CardHeader className="p-4 border-b border-border/60">
                     <CardTitle className="text-sm text-white font-bold flex items-center gap-2">
                       <Sparkles className="text-amber-400 h-4 w-4" />
                       Quantified Options Matrix (EV & Downside P10 Modeling)
@@ -2393,7 +2393,7 @@ export default function CoordinationView({
                               className={`p-4 rounded-2xl border flex flex-col justify-between ${
                                 isTopOption
                                   ? 'bg-amber-950/20 border-amber-500/50 shadow-lg'
-                                  : 'bg-gray-900/40 border-gray-800/70'
+                                  : 'bg-gray-900/40 border-border/70'
                               }`}
                             >
                               <div>
@@ -2406,17 +2406,17 @@ export default function CoordinationView({
                                   </span>
                                 </div>
                                 <h4 className="text-xs font-bold text-white mb-1">{opt.title}</h4>
-                                <p className="text-xs text-gray-300 mb-3">{opt.description}</p>
+                                <p className="text-xs text-foreground/85 mb-3">{opt.description}</p>
 
-                                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-gray-950 border border-gray-800 text-[11px] mb-3">
+                                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-gray-950 border border-border text-[11px] mb-3">
                                   <div>
-                                    <span className="text-[9px] text-gray-400 block uppercase">Expected Value</span>
+                                    <span className="text-[9px] text-muted-foreground block uppercase">Expected Value</span>
                                     <span className="font-mono font-bold text-emerald-400">
                                       {ev !== null ? `$${Number(ev).toLocaleString()}` : 'N/A'}
                                     </span>
                                   </div>
                                   <div>
-                                    <span className="text-[9px] text-gray-400 block uppercase">Downside (P10)</span>
+                                    <span className="text-[9px] text-muted-foreground block uppercase">Downside (P10)</span>
                                     <span className="font-mono font-bold text-rose-400">
                                       {p10 !== null ? `$${Number(p10).toLocaleString()}` : 'N/A'}
                                     </span>
@@ -2426,7 +2426,7 @@ export default function CoordinationView({
 
                               <div>
                                 <div className="flex justify-between items-center text-[10px] mb-1">
-                                  <span className="text-gray-400">Weighted Council Score</span>
+                                  <span className="text-muted-foreground">Weighted Council Score</span>
                                   <span className="font-bold text-amber-400 font-mono">{(opt.weighted_score * 100).toFixed(0)}%</span>
                                 </div>
                                 <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
@@ -2447,15 +2447,15 @@ export default function CoordinationView({
 
               {/* TAB 4: RED TEAM & TRIPWIRES */}
               {activeDeckTab === 'redteam' && (
-                <Card className="border border-gray-800/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl">
-                  <CardHeader className="p-4 border-b border-gray-800/60">
+                <Card className="border border-border/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl">
+                  <CardHeader className="p-4 border-b border-border/60">
                     <CardTitle className="text-sm text-white font-bold flex items-center gap-2">
                       <ShieldAlert className="text-rose-400 h-4 w-4" />
                       Red Team Pre-Mortem & Tripwire Registry
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 space-y-4">
-                    <div className="p-3.5 rounded-2xl bg-rose-950/20 border border-rose-900/60 text-xs text-gray-300">
+                    <div className="p-3.5 rounded-2xl bg-rose-950/20 border border-rose-900/60 text-xs text-foreground/85">
                       Red Team assumes outbound initiatives failed catastrophically. The council establishes automated tripwires to prevent domain blacklisting and budget overrun.
                     </div>
                     {outcomesList.length === 0 ? (
@@ -2463,7 +2463,7 @@ export default function CoordinationView({
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         {outcomesList.map((out) => (
-                          <div key={out.id} className="p-4 rounded-2xl bg-gray-900/40 border border-gray-800 space-y-2">
+                          <div key={out.id} className="p-4 rounded-2xl bg-gray-900/40 border border-border space-y-2">
                             <span className="text-xs font-bold text-amber-300 font-mono block">
                               Milestone: {out.review_milestone}
                             </span>
@@ -2485,8 +2485,8 @@ export default function CoordinationView({
 
               {/* TAB 5: DISSENT REGISTER */}
               {activeDeckTab === 'dissents' && (
-                <Card className="border border-gray-800/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl">
-                  <CardHeader className="p-4 border-b border-gray-800/60">
+                <Card className="border border-border/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl">
+                  <CardHeader className="p-4 border-b border-border/60">
                     <CardTitle className="text-sm text-white font-bold flex items-center gap-2">
                       <AlertTriangle className="text-amber-400 h-4 w-4" />
                       Dissent Register & Architectural Decision Record (ADR)
@@ -2498,7 +2498,7 @@ export default function CoordinationView({
                     ) : (
                       <div className="space-y-3">
                         {dissentList.map((dis) => (
-                          <div key={dis.id} className="p-3.5 rounded-2xl bg-gray-900/40 border border-gray-800 space-y-2">
+                          <div key={dis.id} className="p-3.5 rounded-2xl bg-gray-900/40 border border-border space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-white">{dis.agent}</span>
                               {dis.requires_human_signoff && (
@@ -2507,7 +2507,7 @@ export default function CoordinationView({
                                 </span>
                               )}
                             </div>
-                            <p className="text-xs text-gray-300">{dis.dissent_position}</p>
+                            <p className="text-xs text-foreground/85">{dis.dissent_position}</p>
                             {dis.override_rationale && (
                               <p className="text-[11px] text-amber-300/90 bg-amber-500/10 p-2 rounded-xl border border-amber-500/20">
                                 Override Rationale: {dis.override_rationale}
@@ -2523,8 +2523,8 @@ export default function CoordinationView({
 
               {/* TAB 6: GOVERNED ACTIONS */}
               {activeDeckTab === 'actions' && (
-                <Card className="border border-gray-800/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl">
-                  <CardHeader className="p-4 border-b border-gray-800/60 flex items-center justify-between">
+                <Card className="border border-border/80 rounded-3xl overflow-hidden bg-gray-950/80 shadow-2xl">
+                  <CardHeader className="p-4 border-b border-border/60 flex items-center justify-between">
                     <div>
                       <CardTitle className="text-sm text-white font-bold flex items-center gap-2">
                         <ShieldCheck className="text-emerald-400 h-4 w-4" />
@@ -2544,7 +2544,7 @@ export default function CoordinationView({
                             className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                               isAwaiting
                                 ? 'bg-amber-950/20 border-amber-500/40 shadow-lg'
-                                : 'bg-gray-900/40 border-gray-800/70'
+                                : 'bg-gray-900/40 border-border/70'
                             }`}
                           >
                             <div className="space-y-1">
@@ -2560,7 +2560,7 @@ export default function CoordinationView({
                                 </span>
                                 <span className="text-xs font-bold text-white">Assigned: {act.assigned_to}</span>
                               </div>
-                              <p className="text-xs text-gray-300">{act.description}</p>
+                              <p className="text-xs text-foreground/85">{act.description}</p>
                             </div>
 
                             <div className="flex items-center gap-2 shrink-0">
@@ -2597,10 +2597,10 @@ export default function CoordinationView({
               )}
             </>
           ) : (
-            <Card className="border border-gray-800 p-16 text-center text-gray-500 rounded-3xl bg-gray-950/70">
+            <Card className="border border-border p-16 text-center text-gray-500 rounded-3xl bg-gray-950/70">
               <Users size={44} className="mx-auto text-gray-700 mb-3" />
               <h3 className="text-base font-bold text-white">No Boardroom Session Selected</h3>
-              <p className="text-xs mt-1 text-gray-400">Select an active deliberation from the sidebar or convene a new chamber.</p>
+              <p className="text-xs mt-1 text-muted-foreground">Select an active deliberation from the sidebar or convene a new chamber.</p>
             </Card>
           )}
         </div>
@@ -2611,28 +2611,28 @@ export default function CoordinationView({
 
       {/* Reject Action Modal Dialog */}
       <Dialog open={!!rejectActionId} onOpenChange={(open) => { if (!open) setRejectActionId(null); }}>
-        <DialogContent className="border border-gray-800 text-white max-w-md rounded-3xl p-6 bg-gray-950/95 shadow-2xl backdrop-blur-2xl">
+        <DialogContent className="border border-border text-white max-w-md rounded-3xl p-6 bg-gray-950/95 shadow-2xl backdrop-blur-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-white flex items-center gap-2">
               <AlertTriangle className="text-rose-400 h-5 w-5" /> Reject Action Item
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-3">
-            <p className="text-xs text-gray-300">
+            <p className="text-xs text-foreground/85">
               Provide a rationale for rejecting this governed action. The council will be notified to formulate an alternate proposal.
             </p>
             <Textarea
               placeholder="e.g. Budget exceeds quarterly limit, require cheaper email warmup provider..."
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              className="bg-gray-900 border-gray-800 text-white rounded-xl text-xs min-h-24 focus:border-rose-500"
+              className="bg-gray-900 border-border text-white rounded-xl text-xs min-h-24 focus:border-rose-500"
             />
             <div className="flex items-center justify-end gap-2 pt-2">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setRejectActionId(null)}
-                className="text-gray-400 hover:text-white text-xs h-9 px-4 rounded-xl"
+                className="text-muted-foreground hover:text-white text-xs h-9 px-4 rounded-xl"
               >
                 Cancel
               </Button>

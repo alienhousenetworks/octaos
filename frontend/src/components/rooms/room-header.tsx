@@ -128,26 +128,26 @@ export default function RoomHeader({
                         key={room.id}
                         onClick={() => onSelectRoom(room.slug)}
                         className={`flex items-center justify-between cursor-pointer text-xs py-2 ${
-                          room.slug === activeRoom.slug ? 'bg-indigo-600/20 text-indigo-300 font-semibold' : 'text-slate-300'
+                          room.slug === activeRoom.slug ? 'bg-primary/15 text-primary font-semibold' : 'text-foreground/85'
                         }`}
                       >
                         <div className="flex items-center gap-2 truncate">
-                          <Folder className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <Folder className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                           <span className="truncate">{room.name}</span>
                         </div>
-                        {room.slug === activeRoom.slug && <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
+                        {room.slug === activeRoom.slug && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
                       </DropdownMenuItem>
                     ))}
                     <DropdownMenuSeparator className="bg-slate-800" />
                     <DropdownMenuItem
                       onClick={onCreateNewRoom}
-                      className="text-xs text-indigo-400 cursor-pointer font-medium py-2 gap-2"
+                      className="text-xs text-primary cursor-pointer font-medium py-2 gap-2"
                     >
                       <Plus className="w-3.5 h-3.5" /> Create New Room
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={onOpenDirectory}
-                      className="text-xs text-slate-400 cursor-pointer py-1.5 gap-2"
+                      className="text-xs text-muted-foreground cursor-pointer py-1.5 gap-2"
                     >
                       <LayoutGrid className="w-3.5 h-3.5" /> View Folder Directory
                     </DropdownMenuItem>
@@ -185,7 +185,7 @@ export default function RoomHeader({
                 </DropdownMenu>
 
                 {/* Slug Badge */}
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-slate-800/80 text-slate-300 border border-slate-700">
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-slate-800/80 text-foreground/85 border border-slate-700">
                   #{activeRoom.slug}
                 </span>
 
@@ -199,19 +199,19 @@ export default function RoomHeader({
                     <Globe className="w-2.5 h-2.5" /> Public
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-muted-foreground border border-slate-700 flex items-center gap-1">
                     <Building2 className="w-2.5 h-2.5" /> Internal
                   </span>
                 )}
               </div>
 
               {/* Sub-meta: Creator & Creation Date */}
-              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-1">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mt-1">
                 <span className="flex items-center gap-1.5">
                   <User className="w-3 h-3 text-slate-500" />
                   <span>
                     Created by{' '}
-                    <strong className="text-slate-300 font-medium">
+                    <strong className="text-foreground/85 font-medium">
                       {activeRoom.creator_name || 'Staff Member'}
                     </strong>
                   </span>
@@ -224,7 +224,7 @@ export default function RoomHeader({
                 {activeRoom.description && (
                   <>
                     <span className="text-slate-600">•</span>
-                    <span className="text-slate-400 truncate max-w-xs">{activeRoom.description}</span>
+                    <span className="text-muted-foreground truncate max-w-xs">{activeRoom.description}</span>
                   </>
                 )}
               </div>

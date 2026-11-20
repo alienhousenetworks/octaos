@@ -198,15 +198,15 @@ export default function RoomAccessModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl bg-slate-900 border-slate-800 text-slate-100">
+      <DialogContent className="max-w-2xl bg-card border-border text-foreground">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+            <div className="p-2 rounded-lg bg-primary/10 text-primary border border-primary/25">
               <Shield className="w-5 h-5" />
             </div>
             <div>
               <DialogTitle className="text-xl font-bold">Room Access & Sharing</DialogTitle>
-              <DialogDescription className="text-slate-400 text-xs">
+              <DialogDescription className="text-muted-foreground text-xs">
                 Manage who can discover, view, and collaborate inside <span className="font-semibold text-slate-200">{room.name}</span> (#{room.slug})
               </DialogDescription>
             </div>
@@ -215,9 +215,9 @@ export default function RoomAccessModal({
 
         <div className="space-y-6 py-3">
           {/* General Access Level */}
-          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 space-y-3">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-              <Lock className="w-3.5 h-3.5 text-indigo-400" /> General Visibility
+          <div className="bg-background/60 p-4 rounded-xl border border-border/80 space-y-3">
+            <label className="text-xs font-semibold text-foreground/85 uppercase tracking-wider flex items-center gap-2">
+              <Lock className="w-3.5 h-3.5 text-primary" /> General Visibility
             </label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <button
@@ -225,14 +225,14 @@ export default function RoomAccessModal({
                 onClick={() => setVisibility('internal_public')}
                 className={`p-3 rounded-lg border text-left transition-all ${
                   visibility === 'internal_public'
-                    ? 'border-indigo-500 bg-indigo-500/10 text-slate-100'
-                    : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
+                    ? 'border-primary bg-primary/10 text-foreground'
+                    : 'border-border bg-card/60 text-muted-foreground hover:border-slate-700'
                 }`}
               >
                 <div className="flex items-center gap-2 font-medium text-sm text-slate-200 mb-1">
-                  <Building2 className="w-4 h-4 text-indigo-400" /> Internal Staff
+                  <Building2 className="w-4 h-4 text-primary" /> Internal Staff
                 </div>
-                <div className="text-[11px] text-slate-400 leading-snug">
+                <div className="text-[11px] text-muted-foreground leading-snug">
                   Anyone in your organization with section access can open this room.
                 </div>
               </button>
@@ -242,14 +242,14 @@ export default function RoomAccessModal({
                 onClick={() => setVisibility('private')}
                 className={`p-3 rounded-lg border text-left transition-all ${
                   visibility === 'private'
-                    ? 'border-amber-500 bg-amber-500/10 text-slate-100'
-                    : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
+                    ? 'border-amber-500 bg-amber-500/10 text-foreground'
+                    : 'border-border bg-card/60 text-muted-foreground hover:border-slate-700'
                 }`}
               >
                 <div className="flex items-center gap-2 font-medium text-sm text-slate-200 mb-1">
                   <Lock className="w-4 h-4 text-amber-400" /> Private Room
                 </div>
-                <div className="text-[11px] text-slate-400 leading-snug">
+                <div className="text-[11px] text-muted-foreground leading-snug">
                   Only the creator and invited staff members can access.
                 </div>
               </button>
@@ -259,14 +259,14 @@ export default function RoomAccessModal({
                 onClick={() => setVisibility('public')}
                 className={`p-3 rounded-lg border text-left transition-all ${
                   visibility === 'public'
-                    ? 'border-emerald-500 bg-emerald-500/10 text-slate-100'
-                    : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
+                    ? 'border-emerald-500 bg-emerald-500/10 text-foreground'
+                    : 'border-border bg-card/60 text-muted-foreground hover:border-slate-700'
                 }`}
               >
                 <div className="flex items-center gap-2 font-medium text-sm text-slate-200 mb-1">
                   <Globe className="w-4 h-4 text-emerald-400" /> Public Link
                 </div>
-                <div className="text-[11px] text-slate-400 leading-snug">
+                <div className="text-[11px] text-muted-foreground leading-snug">
                   Anyone with the share link can view and participate.
                 </div>
               </button>
@@ -276,15 +276,15 @@ export default function RoomAccessModal({
           {/* Members List */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                <Users className="w-3.5 h-3.5 text-indigo-400" /> People With Access
+              <label className="text-xs font-semibold text-foreground/85 uppercase tracking-wider flex items-center gap-2">
+                <Users className="w-3.5 h-3.5 text-primary" /> People With Access
               </label>
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-muted-foreground">
                 {1 + accessList.length} member{1 + accessList.length > 1 ? 's' : ''}
               </span>
             </div>
 
-            <div className="divide-y divide-slate-800/80 rounded-xl border border-slate-800 bg-slate-950/60 max-h-56 overflow-y-auto">
+            <div className="divide-y divide-slate-800/80 rounded-xl border border-border bg-background/60 max-h-56 overflow-y-auto">
               {/* Creator / Owner */}
               <div className="p-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -298,22 +298,22 @@ export default function RoomAccessModal({
                         Owner
                       </span>
                     </div>
-                    <div className="text-xs text-slate-400">{room.creator_email || 'Workspace Owner'}</div>
+                    <div className="text-xs text-muted-foreground">{room.creator_email || 'Workspace Owner'}</div>
                   </div>
                 </div>
-                <div className="text-xs text-slate-400 font-medium">Full Manager</div>
+                <div className="text-xs text-muted-foreground font-medium">Full Manager</div>
               </div>
 
               {/* Explicitly Added Staff */}
               {accessList.map((member) => (
-                <div key={member.user_id} className="p-3 flex items-center justify-between hover:bg-slate-900/40">
+                <div key={member.user_id} className="p-3 flex items-center justify-between hover:bg-card/40">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center font-semibold text-xs uppercase">
+                    <div className="w-8 h-8 rounded-full bg-primary/15 text-primary border border-primary/30 flex items-center justify-center font-semibold text-xs uppercase">
                       {(member.name || member.email || 'U')[0]}
                     </div>
                     <div>
                       <div className="text-sm font-medium text-slate-200">{member.name || member.email}</div>
-                      <div className="text-xs text-slate-400">{member.email}</div>
+                      <div className="text-xs text-muted-foreground">{member.email}</div>
                     </div>
                   </div>
 
@@ -324,10 +324,10 @@ export default function RoomAccessModal({
                         if (val) handleRoleChange(member.user_id, val as 'viewer' | 'editor');
                       }}
                     >
-                      <SelectTrigger className="h-8 w-28 bg-slate-900 border-slate-700 text-xs">
+                      <SelectTrigger className="h-8 w-28 bg-card border-slate-700 text-xs">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
+                      <SelectContent className="bg-card border-border text-slate-200">
                         <SelectItem value="editor">Editor</SelectItem>
                         <SelectItem value="viewer">Viewer</SelectItem>
                       </SelectContent>
@@ -354,10 +354,10 @@ export default function RoomAccessModal({
             {/* Add Member Row */}
             <div className="flex items-center gap-2 pt-1">
               <Select value={selectedStaffId} onValueChange={(val) => setSelectedStaffId(val || '')}>
-                <SelectTrigger className="flex-1 bg-slate-950 border-slate-800 text-slate-200 text-xs h-9">
+                <SelectTrigger className="flex-1 bg-background border-border text-slate-200 text-xs h-9">
                   <SelectValue placeholder="Add colleague from organization..." />
                 </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
+                <SelectContent className="bg-card border-border text-slate-200">
                   {availableStaff.length === 0 ? (
                     <div className="p-2 text-xs text-slate-500 text-center">All active staff already added</div>
                   ) : (
@@ -376,10 +376,10 @@ export default function RoomAccessModal({
                   if (val) setSelectedRole(val as 'viewer' | 'editor');
                 }}
               >
-                <SelectTrigger className="w-28 bg-slate-950 border-slate-800 text-slate-200 text-xs h-9">
+                <SelectTrigger className="w-28 bg-background border-border text-slate-200 text-xs h-9">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
+                <SelectContent className="bg-card border-border text-slate-200">
                   <SelectItem value="editor">Editor</SelectItem>
                   <SelectItem value="viewer">Viewer</SelectItem>
                 </SelectContent>
@@ -391,7 +391,7 @@ export default function RoomAccessModal({
                 size="sm"
                 onClick={handleAddMember}
                 disabled={!selectedStaffId}
-                className="h-9 px-3 gap-1.5 bg-indigo-600/20 text-indigo-300 border-indigo-500/30 hover:bg-indigo-600/30"
+                className="h-9 px-3 gap-1.5 bg-primary/15 text-primary border-primary/30 hover:bg-primary/25"
               >
                 <UserPlus className="w-3.5 h-3.5" /> Add
               </Button>
@@ -399,16 +399,16 @@ export default function RoomAccessModal({
           </div>
 
           {/* Share Links */}
-          <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="pt-2 border-t border-border/80 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={() => copyToClipboard(getInternalLink(), false)}
-                className="text-xs text-slate-300 hover:text-white gap-1.5 h-8 border border-slate-800"
+                className="text-xs text-foreground/85 hover:text-white gap-1.5 h-8 border border-border"
               >
-                {copiedInternal ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+                {copiedInternal ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground" />}
                 Copy Internal Link
               </Button>
 
@@ -436,7 +436,7 @@ export default function RoomAccessModal({
             size="sm"
             onClick={handleSave}
             disabled={saving}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white gap-1.5"
+            className="bg-primary text-primary-foreground hover:bg-primary-hover text-white gap-1.5"
           >
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
             Save & Update Access
