@@ -1,7 +1,9 @@
 """Orodruin Global OSINT & Intelligence API endpoints for OctaOS."""
+import os
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -9,6 +11,7 @@ from app.api.deps import get_current_user, get_db
 from app.services.orodruin_intel import OrodruinIntelService
 
 router = APIRouter()
+ORODRUIN_API_URL = os.getenv("ORODRUIN_API_URL", "http://127.0.0.1:8001").rstrip("/")
 
 
 class AnalyzeIntelRequest(BaseModel):
@@ -75,3 +78,21 @@ async def get_map_overlay(
                 },
             })
     return {"type": "FeatureCollection", "features": features}
+
+
+@router.get("/proxy/{path:path}")
+async def proxy_orodruin_get(
+    path: str,
+    request: Request,
+    current_user=Depends(get_current_user),
+):
+    """Authenticated bridge to Orodruin's 41 OSINT endpoints (/api/*)."""
+    clean_path = path.lstrip("/")
+    target = f"{ORODRUIN_API_URL}/api/{clean_path}"
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        try:
+            resp = await client.get(target, params=dict(request.query_params))
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail=f"Orodruin service unavailable at {target}: {exc}") from exc

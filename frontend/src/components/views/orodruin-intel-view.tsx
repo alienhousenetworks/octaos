@@ -30,9 +30,11 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
   const [companyName, setCompanyName] = useState('');
   const [signals, setSignals] = useState<OsintSignal[]>([]);
   const [analysis, setAnalysis] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'intel' | 'globe'>('intel');
   const [loadingSignals, setLoadingSignals] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const orodruinUiUrl = process.env.NEXT_PUBLIC_ORODRUIN_URL || 'http://localhost:5174';
 
   const loadSignals = async () => {
     setLoadingSignals(true);
@@ -101,6 +103,45 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
         </div>
       )}
 
+      <div className="flex items-center gap-2 border-b border-border pb-3">
+        <Button
+          type="button"
+          size="sm"
+          variant={activeTab === 'intel' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('intel')}
+        >
+          <Radar className="size-4" />
+          Intelligence &amp; Strategy
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={activeTab === 'globe' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('globe')}
+        >
+          <Globe2 className="size-4" />
+          Orodruin 3D Globe &amp; Actor Graph
+        </Button>
+        <a
+          href={orodruinUiUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+        >
+          Open standalone <ExternalLink className="size-3.5" />
+        </a>
+      </div>
+
+      {activeTab === 'globe' ? (
+        <div className="overflow-hidden rounded-lg border border-border bg-card">
+          <iframe
+            src={orodruinUiUrl}
+            title="Orodruin 3D Globe and Actor Graph"
+            className="h-[72vh] w-full border-0"
+          />
+        </div>
+      ) : (
+        <>
       <form onSubmit={runAnalysis} className="grid gap-3 rounded-lg border border-border bg-card p-4 md:grid-cols-[1.2fr_1fr_1fr_auto]">
         <Input
           placeholder="Market topic or industry (e.g. cloud security)"
@@ -194,6 +235,8 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
           </div>
         </section>
       </div>
+        </>
+      )}
     </div>
   );
 }
