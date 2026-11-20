@@ -1877,6 +1877,7 @@ class ToolRegistry:
             ("orodruin.cables", "Fetch TeleGeography global submarine cable GeoJSON.", {"type": "object", "properties": {"limit": {"type": "integer", "default": 60}}}, self._exec_orodruin_cables),
             ("orodruin.satellites", "Fetch CelesTrak active orbital stations.", {"type": "object", "properties": {"limit": {"type": "integer", "default": 30}}}, self._exec_orodruin_satellites),
             ("orodruin.area_intel", "Run unified area intelligence briefing (weather + air quality) for lat/lon.", {"type": "object", "required": ["lat", "lon"], "properties": {"lat": {"type": "number"}, "lon": {"type": "number"}}}, self._exec_orodruin_area_intel),
+            ("orodruin.find_leads", "Use deep browser/web search + OSINT to discover evidence-backed company leads and optionally save to CRM.", {"type": "object", "required": ["query"], "properties": {"query": {"type": "string"}, "industry": {"type": "string"}, "geography": {"type": "string"}, "count": {"type": "integer", "default": 8}, "save_to_crm": {"type": "boolean", "default": False}}}, self._exec_orodruin_find_leads),
         ]:
             self.register(
                 ToolDefinition(
@@ -1990,6 +1991,18 @@ class ToolRegistry:
     async def _exec_orodruin_area_intel(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
         from app.services.orodruin_intel import OrodruinIntelService
         return await OrodruinIntelService().area_intel(float(args["lat"]), float(args["lon"]))
+
+    async def _exec_orodruin_find_leads(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().find_company_leads(
+            db,
+            tenant_id,
+            query=str(args["query"]),
+            industry=args.get("industry"),
+            geography=args.get("geography"),
+            count=int(args.get("count") or 8),
+            save_to_crm=bool(args.get("save_to_crm", False)),
+        )
 
 
 tool_registry = ToolRegistry()

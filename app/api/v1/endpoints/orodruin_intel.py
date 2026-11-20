@@ -237,3 +237,30 @@ async def get_satellites(limit: int = Query(default=40, ge=1, le=100), current_u
 @router.get("/area-intel")
 async def get_area_intel(lat: float = Query(...), lon: float = Query(...), current_user=Depends(get_current_user)):
     return await OrodruinIntelService().area_intel(lat, lon)
+
+
+class FindLeadsRequest(BaseModel):
+    query: str = Field(min_length=2, max_length=300)
+    industry: Optional[str] = None
+    geography: Optional[str] = None
+    buyer_roles: Optional[str] = None
+    count: int = Field(default=8, ge=1, le=20)
+    save_to_crm: bool = False
+
+
+@router.post("/find-leads")
+async def find_company_leads(
+    payload: FindLeadsRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return await OrodruinIntelService().find_company_leads(
+        db,
+        str(current_user.tenant_id),
+        query=payload.query,
+        industry=payload.industry,
+        geography=payload.geography,
+        buyer_roles=payload.buyer_roles,
+        count=payload.count,
+        save_to_crm=payload.save_to_crm,
+    )

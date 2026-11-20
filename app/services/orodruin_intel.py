@@ -423,18 +423,164 @@ class OrodruinIntelService:
                 pass
         return {"tile_url": None, "time": None}
 
-    async def deep_search(self, db: Session, tenant_id: str, query: str, count: int = 8) -> dict[str, Any]:
-        """Run OctaOS EnterpriseWebResearchService + GDELT fallback for deep browser/web research."""
+    async def deep_search(
+        self,
+        db: Session,
+        tenant_id: str,
+        query: str,
+        count: int = 8,
+        geography: Optional[list[str]] = None,
+        industries: Optional[list[str]] = None,
+        buyer_roles: Optional[list[str]] = None,
+    ) -> dict[str, Any]:
+        """Run OctaOS EnterpriseWebResearchService (deep browser/web search) + GDELT fallback."""
         try:
             from app.services.research.enterprise_web import EnterpriseWebResearchService
+
             svc = EnterpriseWebResearchService(db, tenant_id)
-            if hasattr(svc, "search"):
-                res = await svc.search(query=query, count=count)
-                return {"engine": "enterprise_web_research", "query": query, "results": res}
+            batch = await svc.run(
+                query=query,
+                count=count,
+                geography=geography,
+                industries=industries,
+                buyer_roles=buyer_roles,
+            )
+            records = []
+            for rec in getattr(batch, "records", []) or []:
+                records.append({
+                    "source": getattr(rec, "provider", None) or "web_research",
+                    "title": getattr(rec, "title", None) or getattr(rec, "company_name", None) or "Web Result",
+                    "url": getattr(rec, "original_url", None) or "",
+                    "snippet": getattr(rec, "snippet", None) or "",
+                    "company_name": getattr(rec, "company_name", None),
+                    "company_domain": getattr(rec, "company_domain", None),
+                    "published_at": getattr(rec, "published_at", None),
+                })
+            if records:
+                return {
+                    "engine": "enterprise_web_research",
+                    "query": query,
+                    "report": getattr(batch, "report", ""),
+                    "results": records,
+                }
         except Exception:
             pass
         feed = await self.fetch_signals(topic=query, limit=count)
-        return {"engine": "gdelt_osint_fallback", "query": query, "results": feed["signals"]}
+        return {"engine": "gdelt_osint_fallback", "query": query, "report": "", "results": feed["signals"]}
+
+    async def find_company_leads(
+        self,
+        db: Session,
+        tenant_id: str,
+        *,
+        query: str,
+        industry: Optional[str] = None,
+        geography: Optional[str] = None,
+        buyer_roles: Optional[str] = None,
+        count: int = 8,
+        save_to_crm: bool = False,
+    ) -> dict[str, Any]:
+        """Use deep browser/web search + Orodruin OSINT + LLMGateway to discover company leads."""
+        from app.services.learning_loop import LearningLoop
+        from app.services.llm_gateway import LLMGateway
+
+        loop = LearningLoop(db, tenant_id)
+        decision_id = loop.record_decision(
+            agent_name="orodruin_lead_finder",
+            task_type="deep_search_leads",
+            strategy_used="deep_browser_osint_v1",
+            prompt_version="v1",
+            confidence_score=0.78,
+            context_features={"query": query, "industry": industry, "geography": geography},
+        )
+
+        geo_list = [g.strip() for g in geography.split(",") if g.strip()] if geography else None
+        ind_list = [i.strip() for i in industry.split(",") if i.strip()] if industry else None
+        role_list = [r.strip() for r in buyer_roles.split(",") if r.strip()] if buyer_roles else None
+
+        search_res = await self.deep_search(
+            db,
+            tenant_id,
+            query=query,
+            count=count,
+            geography=geo_list,
+            industries=ind_list,
+            buyer_roles=role_list,
+        )
+        osint_feed = await self.fetch_signals(topic=query, region=geography, limit=6)
+        raw_items = (search_res.get("results") or []) + (osint_feed.get("signals") or [])
+
+        leads: list[dict[str, Any]] = []
+        seen_names: set[str] = set()
+        for item in raw_items:
+            cname = item.get("company_name") or item.get("domain") or item.get("title", "")[:80]
+            if not cname or cname.lower() in seen_names:
+                continue
+            seen_names.add(cname.lower())
+            leads.append({
+                "company_name": cname,
+                "domain": item.get("company_domain") or item.get("domain"),
+                "industry": industry or "General",
+                "location": geography or item.get("country") or "Global",
+                "opportunity": item.get("snippet") or item.get("title") or f"Signal matching {query}",
+                "source_url": item.get("url") or "",
+                "source_engine": item.get("source") or search_res.get("engine"),
+                "contact_verified": False,
+                "contact_email": None,  # Never fabricate unverified emails
+            })
+            if len(leads) >= count:
+                break
+
+        saved_ids: list[str] = []
+        if save_to_crm and leads:
+            try:
+                from app.models import verticals as vmodels
+                for ld in leads:
+                    row = vmodels.Lead(
+                        tenant_id=tenant_id,
+                        name=ld["company_name"][:120],
+                        company=ld["company_name"][:120],
+                        source=f"orodruin:{ld['source_engine']}",
+                        status="new",
+                        notes=f"Opportunity: {ld['opportunity']}\nSource: {ld['source_url']}",
+                    )
+                    db.add(row)
+                    db.flush()
+                    saved_ids.append(str(row.id))
+                db.commit()
+            except Exception:
+                db.rollback()
+
+        summary = ""
+        gateway = LLMGateway(db, tenant_id)
+        if gateway.has_configured_provider() and leads:
+            try:
+                summary = await gateway.complete(
+                    prompt=(
+                        f"Summarize why these {len(leads)} discovered companies are strong leads for '{query}' "
+                        f"and suggest the best outreach angle (do not invent emails):\n"
+                        + "\n".join(f"- {l['company_name']}: {l['opportunity']} ({l['source_url']})" for l in leads[:6])
+                    )
+                )
+            except Exception:
+                summary = ""
+
+        loop.record_outcome_and_update(
+            decision_id=decision_id,
+            result_status="success" if leads else "partial",
+            behavioral_signals={"leads_found": len(leads), "saved_to_crm": len(saved_ids)},
+            quality_score=85.0 if leads else 45.0,
+        )
+
+        return {
+            "decision_id": decision_id,
+            "engine": search_res.get("engine"),
+            "query": query,
+            "count": len(leads),
+            "saved_to_crm_count": len(saved_ids),
+            "leads": leads,
+            "ai_summary": summary,
+        }
 
 
     async def fetch_weather(self, lat: float, lon: float) -> dict[str, Any]:

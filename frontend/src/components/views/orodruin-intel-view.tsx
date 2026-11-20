@@ -105,6 +105,10 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
   const [graph, setGraph] = useState<{ nodes: any[]; edges: any[] }>({ nodes: [], edges: [] });
   const [analysis, setAnalysis] = useState<string>('');
   const [deepResults, setDeepResults] = useState<any[]>([]);
+  const [foundLeads, setFoundLeads] = useState<any[]>([]);
+  const [leadSummary, setLeadSummary] = useState<string>('');
+  const [saveToCrm, setSaveToCrm] = useState(false);
+  const [findingLeads, setFindingLeads] = useState(false);
   const [markets, setMarkets] = useState<Record<string, any> | null>(null);
   const [predictions, setPredictions] = useState<any[]>([]);
   const [ransomware, setRansomware] = useState<any[]>([]);
@@ -325,14 +329,27 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
     e.preventDefault();
     if (!deepQuery.trim()) return;
     setDeepSearching(true);
+    setFindingLeads(true);
     try {
-      const res = await fetchWithAuth(`${API_URL}/orodruin/deep-search?q=${encodeURIComponent(deepQuery.trim())}`);
+      const res = await fetchWithAuth(`${API_URL}/orodruin/find-leads`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: deepQuery.trim(),
+          geography: region.trim() || undefined,
+          save_to_crm: saveToCrm,
+          count: 8,
+        }),
+      });
       if (res.ok) {
         const d = await res.json();
-        setDeepResults(Array.isArray(d.results) ? d.results : []);
+        setFoundLeads(Array.isArray(d.leads) ? d.leads : []);
+        setDeepResults(Array.isArray(d.leads) ? d.leads : []);
+        setLeadSummary(d.ai_summary || '');
       }
     } finally {
       setDeepSearching(false);
+      setFindingLeads(false);
     }
   };
 
@@ -536,13 +553,47 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
 
       {activeTab === 'intel' && (
         <div className="space-y-5">
-          <form onSubmit={runDeepSearch} className="flex gap-2 rounded-lg border border-border bg-card p-3">
-            <Input placeholder="Deep web & browser search (companies, trends, competitors)..." value={deepQuery} onChange={(e) => setDeepQuery(e.target.value)} />
-            <Button type="submit" disabled={deepSearching}>
+          <form onSubmit={runDeepSearch} className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-3">
+            <Input
+              className="flex-1 min-w-[240px]"
+              placeholder="Deep browser search for company leads (e.g. B2B cybersecurity startups hiring CISO)..."
+              value={deepQuery}
+              onChange={(e) => setDeepQuery(e.target.value)}
+            />
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground px-2">
+              <input type="checkbox" checked={saveToCrm} onChange={(e) => setSaveToCrm(e.target.checked)} />
+              Save to CRM
+            </label>
+            <Button type="submit" disabled={deepSearching || findingLeads}>
               {deepSearching ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
-              Deep Search
+              Find Company Leads
             </Button>
           </form>
+
+          {foundLeads.length > 0 && (
+            <section className="rounded-lg border border-border bg-card p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-heading text-sm font-semibold">Discovered Company Leads ({foundLeads.length})</h3>
+                {leadSummary && <span className="text-xs text-info">AI Summary Attached</span>}
+              </div>
+              {leadSummary && <p className="text-xs leading-5 text-muted-foreground whitespace-pre-wrap">{leadSummary}</p>}
+              <div className="divide-y divide-border rounded-md border border-border bg-background">
+                {foundLeads.map((ld, i) => (
+                  <div key={i} className="flex items-start justify-between gap-3 p-3 text-xs">
+                    <div>
+                      <div className="font-semibold text-foreground">{ld.company_name}</div>
+                      <div className="mt-0.5 text-muted-foreground">{ld.opportunity}</div>
+                    </div>
+                    {ld.source_url && (
+                      <a href={ld.source_url} target="_blank" rel="noreferrer" className="shrink-0 text-info hover:underline">
+                        Source
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <div className="grid gap-6 lg:grid-cols-2">
             <section className="rounded-lg border border-border bg-card">
