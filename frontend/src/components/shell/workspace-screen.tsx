@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import DashboardView from '@/components/views/dashboard-view';
+import OrodruinIntelView from '@/components/views/orodruin-intel-view';
 import UniversalAssistantView from '@/components/views/universal-assistant-view';
 import KnowledgeView from '@/components/views/knowledge-view';
 import CampaignsView from '@/components/views/campaigns-view';
@@ -154,6 +155,9 @@ export default function WorkspaceScreen() {
         handleRejectPost={workspace.handleRejectPost}
       />
     );
+  }
+  if (pathname === '/app/intelligence') {
+    return <OrodruinIntelView API_URL={workspace.apiUrl} fetchWithAuth={workspace.fetchWithAuth} />;
   }
   if (pathname === '/app/agents') {
     return (

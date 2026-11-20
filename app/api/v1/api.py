@@ -9,10 +9,11 @@ from app.api.v1.endpoints import (
     data_collection,
     automation_nodes, automation_documents,
     hr_people, hr_workforce, hr_copilot, hr_enterprise, hr_compensation_read,
-    sales_crm, sales_inbox, sales_platform, sales_inbound_webhooks,
+    sales_crm, sales_inbox, sales_platform,
     integrations, rbac, heygen, autonomous_work, buffer_oauth, workforce_events,
     research, unified_email, plugins,
     controller_replies, external_agents,
+    agents_stream, orodruin_intel,
 )
 
 
@@ -20,6 +21,7 @@ from app.api.v1.orchestrator import router as orchestrator_router
 from app.api.v1.data_intelligence import router as data_intelligence_router
 
 api_router = APIRouter()
+api_router.include_router(agents_stream.router, prefix="/agents", tags=["agents-stream"])
 api_router.include_router(rooms.router, prefix="/rooms", tags=["section-rooms"])
 api_router.include_router(tenants.router, prefix="/tenants", tags=["tenants"])
 api_router.include_router(leads.router, prefix="/leads", tags=["leads"])
@@ -42,7 +44,6 @@ api_router.include_router(hr_workflow.router, prefix="/hr/workflows", tags=["hr-
 api_router.include_router(candidate_portal.router, prefix="/public/candidate-portal", tags=["candidate-portal"])
 api_router.include_router(coordination.router, prefix="/coordination", tags=["coordination"])
 api_router.include_router(ceo.router, prefix="/ceo", tags=["ceo"])
-api_router.include_router(ceo_v5.router, prefix="/ceo", tags=["ceo-v5"])
 api_router.include_router(google.router, prefix="/google", tags=["google"])
 api_router.include_router(meta_oauth.router, prefix="/meta", tags=["meta-oauth"])
 api_router.include_router(linkedin_oauth.router, prefix="/linkedin", tags=["linkedin-oauth"])
@@ -53,7 +54,6 @@ api_router.include_router(videos.router, prefix="/videos", tags=["videos"])
 api_router.include_router(enterprise.router, prefix="/enterprise", tags=["enterprise"])
 api_router.include_router(manager.router, prefix="/manager", tags=["manager"])
 api_router.include_router(federated_learning.router, prefix="/learning", tags=["federated-learning"])
-api_router.include_router(orchestrator_router, prefix="/octa", tags=["octa-orchestrator"])
 # The assistant calls /orchestrator/execute. The router already carries the
 # /orchestrator prefix, so this mount is /api/v1/orchestrator/execute.
 api_router.include_router(orchestrator_router, tags=["orchestrator"])
@@ -65,10 +65,6 @@ api_router.include_router(sales_os.router, prefix="/sales-os", tags=["sales-os"]
 api_router.include_router(sales_crm.router, prefix="/sales-crm", tags=["sales-crm"])
 api_router.include_router(sales_inbox.router, prefix="/sales-inbox", tags=["sales-inbox"])
 api_router.include_router(sales_platform.router, prefix="/sales-os", tags=["sales-platform"])
-# Dedicated real-estate and property-oriented field-sales routers are intentionally
-# not registered in the industry-neutral product surface. Historical models and
-# migrations remain for data compatibility until a separately tested migration.
-api_router.include_router(sales_inbound_webhooks.router, prefix="/sales-os", tags=["sales-inbound-webhooks"])
 api_router.include_router(automations.router, prefix="/automations", tags=["automations"])
 api_router.include_router(schedules.router, prefix="/schedules", tags=["schedules"])
 api_router.include_router(knowledge_connectors.router, prefix="/knowledge/connectors", tags=["knowledge-connectors"])
@@ -86,4 +82,4 @@ api_router.include_router(unified_email.router, prefix="/unified-mail", tags=["u
 api_router.include_router(plugins.router, prefix="/plugin", tags=["universal-plugins"])
 api_router.include_router(controller_replies.router, prefix="/controller", tags=["controller-replies"])
 api_router.include_router(external_agents.router, prefix="/integrations/external-agents", tags=["external-agents"])
-
+api_router.include_router(orodruin_intel.router, prefix="/orodruin", tags=["orodruin-intelligence"])

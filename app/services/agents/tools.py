@@ -1,10 +1,22 @@
+import asyncio
 import ipaddress
+import logging
 import socket
 import urllib.parse
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 import httpx
 from sqlalchemy.orm import Session
 from app.services.runtime_governance.tool_policy import action_fingerprint, authorize_tool_call
+
+logger = logging.getLogger(__name__)
+
+SECTION_TOOL_PREFIXES: Dict[str, str] = {
+    "lead.": "sales",
+    "ticket.": "support",
+    "post.": "marketing",
+    "campaign.": "marketing",
+    "applicant.": "hr",
+}
 
 
 class ToolDefinition:
@@ -20,6 +32,7 @@ class ToolDefinition:
         approval_required: bool = False,
         rate_limit_per_minute: int = 60,
         timeout_seconds: int = 30,
+        handler: Optional[Callable] = None,
     ):
         self.name = name
         self.description = description
@@ -31,10 +44,35 @@ class ToolDefinition:
         self.approval_required = approval_required
         self.rate_limit_per_minute = rate_limit_per_minute
         self.timeout_seconds = timeout_seconds
+        self.handler = handler
 
 
 class SSRFProtectionError(Exception):
     pass
+
+
+def _is_private_or_local_address(ip_obj: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Handle DNS64/NAT64 answers without weakening private-network checks.
+
+    Some CI and dual-stack networks return public IPv4 destinations as a
+    ``64:ff9b::/96`` IPv6 synthesis address. Python correctly marks that
+    well-known translation prefix as reserved, but the embedded IPv4 address
+    is the address that determines whether the destination is safe.
+    """
+
+    if isinstance(ip_obj, ipaddress.IPv6Address):
+        if ip_obj.ipv4_mapped is not None:
+            ip_obj = ip_obj.ipv4_mapped
+        elif ip_obj in ipaddress.IPv6Network("64:ff9b::/96"):
+            ip_obj = ipaddress.IPv4Address(ip_obj.packed[-4:])
+
+    return (
+        ip_obj.is_private
+        or ip_obj.is_loopback
+        or ip_obj.is_link_local
+        or ip_obj.is_multicast
+        or ip_obj.is_reserved
+    )
 
 
 def validate_outbound_url(url_str: str) -> str:
@@ -52,13 +90,7 @@ def validate_outbound_url(url_str: str) -> str:
         for entry in addr_info:
             ip_str = entry[4][0]
             ip_obj = ipaddress.ip_address(ip_str)
-            if (
-                ip_obj.is_private
-                or ip_obj.is_loopback
-                or ip_obj.is_link_local
-                or ip_obj.is_multicast
-                or ip_obj.is_reserved
-            ):
+            if _is_private_or_local_address(ip_obj):
                 raise SSRFProtectionError(f"Access to private/local network address {ip_str} is forbidden.")
     except socket.gaierror:
         # DNS resolution failure
@@ -70,10 +102,14 @@ def validate_outbound_url(url_str: str) -> str:
 class ToolRegistry:
     def __init__(self):
         self._tools: Dict[str, ToolDefinition] = {}
+        self._handlers: Dict[str, Callable] = {}
         self._register_default_tools()
 
-    def register(self, tool: ToolDefinition):
+    def register(self, tool: ToolDefinition, handler: Optional[Callable] = None):
         self._tools[tool.name] = tool
+        assigned_handler = handler or tool.handler
+        if assigned_handler:
+            self._handlers[tool.name] = assigned_handler
 
     def get(self, name: str) -> Optional[ToolDefinition]:
         return self._tools.get(name)
@@ -189,71 +225,75 @@ class ToolRegistry:
         if not decision.allowed:
             raise PermissionError(decision.reason)
 
-        # Dispatch based on tool name
-        if name == "web_search":
-            return await self._exec_web_search(payload, db, tenant_id)
-        elif name == "email.send":
-            return await self._exec_email_send(payload, db, tenant_id)
-        elif name.startswith("lead."):
-            from app.services.agents.section_registry import section_registry
-            return await section_registry.execute_action("sales", name, tenant_id, payload, db)
-        elif name.startswith("ticket."):
-            from app.services.agents.section_registry import section_registry
-            return await section_registry.execute_action("support", name, tenant_id, payload, db)
-        elif name.startswith("campaign.") or name.startswith("post."):
-            from app.services.agents.section_registry import section_registry
-            return await section_registry.execute_action("marketing", name, tenant_id, payload, db)
-        elif name.startswith("applicant."):
-            from app.services.agents.section_registry import section_registry
-            return await section_registry.execute_action("hr", name, tenant_id, payload, db)
-        elif name == "webhook_post":
-            return await self._exec_webhook_post(payload)
-        elif name == "external_agent.send_command":
-            return await self._exec_external_agent_send_command(payload, db, tenant_id, context)
-        elif name == "knowledge.search":
-            return await self._exec_knowledge_search(payload, db, tenant_id)
-        elif name == "knowledge.search_sources":
-            return await self._exec_knowledge_search_sources(payload, db, tenant_id, context)
-        elif name == "knowledge.describe_source":
-            return await self._exec_knowledge_describe_source(payload, db, tenant_id, context)
-        elif name == "knowledge.live_fetch":
-            return await self._exec_knowledge_live_fetch(payload, db, tenant_id, context)
-        elif name == "knowledge.get_execution_status":
-            return await self._exec_knowledge_get_execution_status(payload, db, tenant_id, context)
-        elif name == "agent.consult":
-            return await self._exec_agent_consult(payload, db, tenant_id, context)
-        elif name == "app.connector_action":
-            return await self._exec_app_connector_action(payload, db, tenant_id, context)
-        else:
-            raise NotImplementedError(f"Tool '{name}' execution handler not implemented.")
+        # Direct handler dispatch if registered on tool or registry
+        handler = tool.handler or self._handlers.get(name)
+        if handler:
+            return await handler(payload=payload, db=db, tenant_id=tenant_id, context=context)
 
-    async def _exec_web_search(self, payload: Dict[str, Any], db: Session, tenant_id: str) -> Dict[str, Any]:
+        # Dynamic section tool dispatch (e.g. lead.*, ticket.*, post.*, campaign.*, applicant.*)
+        for prefix, section in SECTION_TOOL_PREFIXES.items():
+            if name.startswith(prefix):
+                from app.services.agents.section_registry import section_registry
+                return await section_registry.execute_action(section, name, tenant_id, payload, db)
+
+        # Dynamic browser kernel tool dispatch
+        if name == "restart_browser" or (name or "").startswith("agent_browser_"):
+            from app.services.agents.kernel.browser_session import run_browser_tool
+            return await run_browser_tool(name, payload, tenant_id, context)
+
+        raise NotImplementedError(f"Tool '{name}' execution handler not implemented.")
+
+    async def _exec_web_search(
+        self,
+        payload: Dict[str, Any],
+        db: Session = None,
+        tenant_id: str = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         query = payload.get("query", "").strip()
         if not query:
             return {"results": [], "query": query, "message": "Empty query."}
         from app.services.research import EnterpriseWebResearchService
 
         count = max(1, min(int(payload.get("count", 10) or 10), 100))
-        batch = await EnterpriseWebResearchService(db, tenant_id).run(
-            query,
-            count=count,
-            freshness=payload.get("freshness") or payload.get("freshness_window") or "14_days",
-            geography=payload.get("geography"),
-            industries=payload.get("industries"),
-            buyer_roles=payload.get("buyer_roles"),
-            exclusions=payload.get("exclusions"),
-            seed_urls=payload.get("seed_urls"),
-        )
-        summary = EnterpriseWebResearchService.summarize(batch, count=count)
-        return {
-            "query": query,
-            "provider": "enterprise_web_research",
-            "results": summary["contacts"],
-            "extras": summary["extras"],
-            "methods": summary["methods"],
-            "report": summary["report"],
-            "status": batch.status,
-        }
+        try:
+            batch = await asyncio.wait_for(
+                EnterpriseWebResearchService(db, tenant_id).run(
+                    query,
+                    count=count,
+                    freshness=payload.get("freshness") or payload.get("freshness_window") or "14_days",
+                    geography=payload.get("geography"),
+                    industries=payload.get("industries"),
+                    buyer_roles=payload.get("buyer_roles"),
+                    exclusions=payload.get("exclusions"),
+                    seed_urls=payload.get("seed_urls"),
+                ),
+                # The loop stops a tool at 70s. Leave room for that outer wait.
+                timeout=55.0,
+            )
+            summary = EnterpriseWebResearchService.summarize(batch, count=count)
+            return {
+                "query": query,
+                "provider": "enterprise_web_research",
+                "results": summary["contacts"],
+                "extras": summary["extras"],
+                "methods": summary["methods"],
+                "report": summary["report"],
+                "status": batch.status,
+            }
+        except Exception as search_err:
+            logger.warning("Live web search timed out or failed (%s). No leads were invented.", search_err)
+            return {
+                "success": False,
+                "query": query,
+                "provider": "enterprise_web_research",
+                "results": [],
+                "extras": [],
+                "methods": [],
+                "status": "failed",
+                "error": str(search_err),
+                "message": "The live search did not return companies. No leads were invented.",
+            }
 
     async def _exec_agent_consult(
         self,
@@ -286,19 +326,175 @@ class ToolRegistry:
                 "prompt": task,
                 "depth": current_depth + 1,
                 "caller_agent": caller_slug,
+                "assignment_mode": "consult",
+                **({"connector_tools": ctx["connector_tools"]} if ctx.get("connector_tools") is not None else {}),
+                **({"connector_scopes": ctx["connector_scopes"]} if ctx.get("connector_scopes") is not None else {}),
+                **({"task_id": ctx["task_id"]} if ctx.get("task_id") else {}),
             },
             db=db,
             tenant_id=tenant_id,
             dry_run=False,
         )
+        child_status = res.get("status")
         return {
             "target_agent": target_slug,
-            "status": "completed",
+            "mode": "consult",
+            "status": "completed" if child_status == "succeeded" else (child_status or "failed"),
+            "outcome": "done" if child_status == "succeeded" else "provider_error",
             "response": res.get("output", ""),
             "tool_calls": len(res.get("tool_calls") or []),
         }
 
-    async def _exec_email_send(self, payload: Dict[str, Any], db: Session, tenant_id: str) -> Dict[str, Any]:
+    async def _exec_agent_notify(
+        self,
+        payload: Dict[str, Any],
+        db: Session,
+        tenant_id: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Record a notice. Notify does not run tools or treat the model text as done."""
+        message = str(payload.get("message") or payload.get("task") or "").strip()
+        if not message:
+            raise ValueError("Missing 'message' in agent.notify payload.")
+        ctx = context or {}
+        task_id = ctx.get("task_id")
+        recorded = False
+        if task_id:
+            from app.models.autonomous_work import AutonomousTask, AutonomousTaskEvent
+            from app.services.agents.kernel.assignment import stamp_assignment
+            import uuid
+            task = db.query(AutonomousTask).filter_by(id=task_id, tenant_id=tenant_id).first()
+            if task is not None:
+                stamp_assignment(task, mode="notify", status="completed", outcome="done", depth=int(ctx.get("depth") or 0))
+                db.add(AutonomousTaskEvent(
+                    id=str(uuid.uuid4()),
+                    task_id=task.id,
+                    tenant_id=tenant_id,
+                    actor_type="agent",
+                    actor_id=str(ctx.get("agent_slug") or ctx.get("agent_id") or ""),
+                    event_type="notify",
+                    message=message,
+                    payload={"mode": "notify", "outcome": "done"},
+                ))
+                db.commit()
+                recorded = True
+        return {
+            "mode": "notify",
+            "status": "completed",
+            "outcome": "done",
+            "recorded": recorded,
+            "message": message,
+        }
+
+    async def _exec_agent_delegate(
+        self,
+        payload: Dict[str, Any],
+        db: Session,
+        tenant_id: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        import uuid
+        from app.models.autonomous_work import AutonomousTask
+        from app.services.agents.kernel.assignment import MAX_DELEGATION_DEPTH, stamp_assignment
+        from app.services.agents.work_graph.engine import WorkGraphEngine
+        target_agent = str(payload.get("target_agent") or "").strip().lower()
+        title = str(payload.get("title") or "Delegated Task").strip()
+        task_desc = str(payload.get("task") or payload.get("goal") or "").strip()
+        department = str(payload.get("department") or "operations").strip().lower()
+        acceptance_criteria = payload.get("acceptance_criteria") or []
+
+        if not target_agent or not task_desc:
+            raise ValueError("Missing 'target_agent' or 'task' in agent.delegate payload.")
+
+        ctx = context or {}
+        parent_task_id = ctx.get("task_id")
+        created_by_id = ctx.get("user_id") or "system"
+        current_depth = int(ctx.get("depth") or 0)
+        if current_depth >= MAX_DELEGATION_DEPTH:
+            raise ValueError(f"Maximum delegation depth ({MAX_DELEGATION_DEPTH}) reached.")
+
+        # Create child autonomous task
+        child_task = AutonomousTask(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            created_by_id=created_by_id,
+            parent_task_id=parent_task_id,
+            title=title,
+            goal=task_desc,
+            department=department,
+            assigned_agent_slug=target_agent,
+            status="planned",
+            acceptance_criteria=acceptance_criteria,
+            dependencies=[],
+            context=dict(ctx),
+        )
+        stamp_assignment(
+            child_task,
+            mode="work",
+            status="queued",
+            depth=current_depth + 1,
+            parent_id=parent_task_id,
+        )
+        db.add(child_task)
+        db.commit()
+
+        # Execute subtask with verification
+        res = await WorkGraphEngine.execute_subtask(db, tenant_id, child_task.id)
+        return {
+            "task_id": child_task.id,
+            "target_agent": target_agent,
+            "status": res.get("status"),
+            "verification_status": res.get("verification_status"),
+            "output": res.get("output"),
+            "score": res.get("score"),
+            "success": res.get("success", False),
+        }
+
+    async def _exec_work_graph_create(
+        self,
+        payload: Dict[str, Any],
+        db: Session,
+        tenant_id: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        from app.services.agents.work_graph.engine import WorkGraphEngine
+        title = str(payload.get("title") or "Company Project").strip()
+        goal = str(payload.get("goal") or title).strip()
+        subtasks = payload.get("subtasks") or []
+        department = str(payload.get("department") or "executive").strip().lower()
+        agent_slug = str(payload.get("assigned_agent") or "chief-of-staff").strip().lower()
+
+        ctx = context or {}
+        created_by_id = ctx.get("user_id") or "system"
+
+        root_task = WorkGraphEngine.create_graph(
+            db=db,
+            tenant_id=tenant_id,
+            created_by_id=created_by_id,
+            title=title,
+            goal=goal,
+            department=department,
+            assigned_agent_slug=agent_slug,
+            subtasks=subtasks,
+            context=ctx,
+        )
+
+        return {
+            "root_task_id": root_task.id,
+            "title": root_task.title,
+            "department": root_task.department,
+            "subtask_count": len(subtasks),
+            "status": root_task.status,
+            "message": f"Durable work graph '{title}' created with {len(subtasks)} planned subtasks.",
+        }
+
+    async def _exec_email_send(
+        self,
+        payload: Dict[str, Any],
+        db: Session = None,
+        tenant_id: str = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         from app.services.email.sender import send_email
 
         to_email = payload.get("to") or payload.get("email")
@@ -319,7 +515,13 @@ class ToolRegistry:
             "message": "Email provider confirmed delivery request." if sent else "Email was not sent; provider configuration or delivery failed.",
         }
 
-    async def _exec_webhook_post(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def _exec_webhook_post(
+        self,
+        payload: Dict[str, Any],
+        db: Session = None,
+        tenant_id: str = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         url = payload.get("url")
         data = payload.get("data", {})
         if not url:
@@ -391,7 +593,13 @@ class ToolRegistry:
             "status": cmd.status,
         }
 
-    async def _exec_knowledge_search(self, payload: Dict[str, Any], db: Session, tenant_id: str) -> Dict[str, Any]:
+    async def _exec_knowledge_search(
+        self,
+        payload: Dict[str, Any],
+        db: Session = None,
+        tenant_id: str = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         from app.models.agents import KnowledgeDocument
 
         query_text = payload.get("query", "").lower()
@@ -558,7 +766,35 @@ class ToolRegistry:
         if not app_name:
             return {"success": False, "message": "Missing 'app' in app.connector_action payload."}
 
+        from app.services.agents.kernel.connector_grants import connector_action_allowed
+        granted, reason = connector_action_allowed(
+            app_name,
+            operation,
+            action_name,
+            connector_tools=(context or {}).get("connector_tools"),
+            connector_scopes=(context or {}).get("connector_scopes"),
+        )
+        if not granted:
+            return {"success": False, "status": "denied", "error": reason}
+
         conn = check_app_connector(db, tenant_id, app_name)
+        social_apps = ("instagram", "facebook", "linkedin", "twitter", "x", "tiktok", "buffer")
+        if not conn.get("connected") and conn.get("app") in social_apps:
+            from app.services.social.publish_helpers import resolve_buffer_channel_id
+
+            platform = str(conn.get("app") or "")
+            if platform == "buffer":
+                platform = str(params.get("platform") or "")
+            if platform:
+                channel_id = await resolve_buffer_channel_id(db, tenant_id, platform)
+                if channel_id:
+                    conn = {
+                        **conn,
+                        "connected": True,
+                        "source": "buffer",
+                        "buffer_channel_id": channel_id,
+                        "missing_reason": None,
+                    }
         if not conn.get("connected"):
             return {
                 "success": False,
@@ -669,6 +905,36 @@ class ToolRegistry:
             "message": f"{conn['label']} is connected and ready.",
         }
 
+    async def _exec_memory(
+        self,
+        payload: Dict[str, Any],
+        db: Session,
+        tenant_id: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Hermes persistent curated memory operation: add, patch, or remove."""
+        from app.services.agents.memory.memory_store import TenantMemoryStore
+        store = TenantMemoryStore(db=db, tenant_id=tenant_id)
+        action = payload.get("action", "add")
+        target = payload.get("target", "memory")
+        content = payload.get("content")
+        old_text = payload.get("old_text")
+        return store.execute_action(action=action, target=target, content=content, old_text=old_text)
+
+    async def _exec_session_search(
+        self,
+        payload: Dict[str, Any],
+        db: Session,
+        tenant_id: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Hermes cross-session conversational recall search."""
+        from app.services.agents.memory.session_history import search_session_history
+        query = payload.get("query")
+        session_id = payload.get("session_id")
+        limit = int(payload.get("limit", 5) or 5)
+        return search_session_history(db=db, tenant_id=tenant_id, query=query, session_id=session_id, limit=limit)
+
     def _register_default_tools(self):
         # 1. web_search (External READ, low risk)
         self.register(
@@ -707,6 +973,7 @@ class ToolRegistry:
                 risk_level="LOW",
                 side_effect="READ",
                 approval_required=False,
+                handler=self._exec_web_search,
             )
         )
 
@@ -729,6 +996,7 @@ class ToolRegistry:
                 risk_level="HIGH",
                 side_effect="WRITE",
                 approval_required=True,
+                handler=self._exec_email_send,
             )
         )
 
@@ -818,6 +1086,7 @@ class ToolRegistry:
                 risk_level="LOW",
                 side_effect="READ",
                 approval_required=False,
+                handler=self._exec_knowledge_search,
             )
         )
 
@@ -840,6 +1109,7 @@ class ToolRegistry:
                 risk_level="HIGH",
                 side_effect="WRITE",
                 approval_required=True,
+                handler=self._exec_webhook_post,
             )
         )
 
@@ -871,6 +1141,7 @@ class ToolRegistry:
                 risk_level="MEDIUM",
                 side_effect="WRITE",
                 approval_required=False,
+                handler=self._exec_external_agent_send_command,
             )
         )
 
@@ -891,6 +1162,7 @@ class ToolRegistry:
                 risk_level="LOW",
                 side_effect="READ",
                 approval_required=False,
+                handler=self._exec_knowledge_search_sources,
             )
         )
 
@@ -911,6 +1183,7 @@ class ToolRegistry:
                 risk_level="LOW",
                 side_effect="READ",
                 approval_required=False,
+                handler=self._exec_knowledge_describe_source,
             )
         )
 
@@ -934,6 +1207,7 @@ class ToolRegistry:
                 side_effect="READ",
                 approval_required=False,
                 timeout_seconds=15,
+                handler=self._exec_knowledge_live_fetch,
             )
         )
 
@@ -954,6 +1228,7 @@ class ToolRegistry:
                 risk_level="LOW",
                 side_effect="READ",
                 approval_required=False,
+                handler=self._exec_knowledge_get_execution_status,
             )
         )
 
@@ -989,6 +1264,90 @@ class ToolRegistry:
                 side_effect="READ",
                 approval_required=False,
                 timeout_seconds=60,
+                handler=self._exec_agent_consult,
+            )
+        )
+
+        # 12b. agent.delegate (Hierarchical Task Delegation & Durable Subtask Spawning)
+        self.register(
+            ToolDefinition(
+                name="agent.delegate",
+                description="Delegates a structured subtask to a specialist employee. Spawns an independently verified subtask with clear acceptance criteria and reports verified outcomes back to the delegating manager.",
+                input_schema={
+                    "type": "object",
+                    "required": ["target_agent", "title", "task"],
+                    "properties": {
+                        "target_agent": {"type": "string", "description": "Specialist agent slug, e.g. 'sales_manager', 'marketing_copywriter', 'support_agent', 'research_analyst'"},
+                        "title": {"type": "string", "description": "Concise title of the delegated work item"},
+                        "task": {"type": "string", "description": "Specific, actionable instructions and expectations for the specialist"},
+                        "department": {"type": "string", "description": "Department domain ('sales', 'marketing', 'support', 'hr', 'finance', 'operations')"},
+                        "acceptance_criteria": {"type": "array", "items": {"type": "string"}, "description": "Measurable criteria the deliverable must fulfill before completion"},
+                    },
+                },
+                output_schema={
+                    "type": "object",
+                    "properties": {
+                        "task_id": {"type": "string"},
+                        "status": {"type": "string"},
+                        "verification_status": {"type": "string"},
+                        "output": {"type": "string"},
+                        "score": {"type": "number"},
+                    },
+                },
+                required_scopes=[],
+                risk_level="MEDIUM",
+                side_effect="WRITE",
+                approval_required=False,
+                timeout_seconds=120,
+                handler=self._exec_agent_delegate,
+            )
+        )
+
+        # 12c. work_graph.create (Durable Multi-Department Project Decomposition)
+        self.register(
+            ToolDefinition(
+                name="work_graph.create",
+                description="Creates a durable multi-department project plan with milestones, dependencies, and assigned AI employees.",
+                input_schema={
+                    "type": "object",
+                    "required": ["title", "goal", "subtasks"],
+                    "properties": {
+                        "title": {"type": "string", "description": "Overall project title"},
+                        "goal": {"type": "string", "description": "High-level company objective"},
+                        "department": {"type": "string", "description": "Owning department (default 'executive')"},
+                        "assigned_agent": {"type": "string", "description": "Coordinating manager slug (default 'chief-of-staff')"},
+                        "subtasks": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["title", "assigned_agent_slug"],
+                                "properties": {
+                                    "title": {"type": "string"},
+                                    "goal": {"type": "string"},
+                                    "department": {"type": "string"},
+                                    "assigned_agent_slug": {"type": "string"},
+                                    "acceptance_criteria": {"type": "array", "items": {"type": "string"}},
+                                    "dependencies": {"type": "array", "items": {"type": "string"}},
+                                },
+                            },
+                        },
+                    },
+                },
+                output_schema={
+                    "type": "object",
+                    "properties": {
+                        "root_task_id": {"type": "string"},
+                        "title": {"type": "string"},
+                        "subtask_count": {"type": "integer"},
+                        "status": {"type": "string"},
+                    },
+                },
+                required_scopes=[],
+                risk_level="MEDIUM",
+                side_effect="WRITE",
+                approval_required=False,
+                timeout_seconds=30,
+                handler=self._exec_work_graph_create,
             )
         )
 
@@ -1211,8 +1570,146 @@ class ToolRegistry:
                 risk_level="MEDIUM",
                 side_effect="WRITE",
                 approval_required=False,
+                handler=self._exec_app_connector_action,
             )
         )
+
+        # 21. memory (Hermes Persistent Curated Memory)
+        self.register(
+            ToolDefinition(
+                name="memory",
+                description=(
+                    "Persistently remembers or updates key facts, user preferences, instructions, and lessons learned across sessions. "
+                    "Use action 'add' to record a new fact, 'patch' to edit an existing entry via old_text substring, or 'remove' to drop outdated entries. "
+                    "Target 'user' is for user profile/preferences; target 'memory' is for agent personal notes/company facts/environment conventions."
+                ),
+                input_schema={
+                    "type": "object",
+                    "required": ["action"],
+                    "properties": {
+                        "action": {"type": "string", "enum": ["add", "patch", "remove"], "description": "Memory operation to perform"},
+                        "target": {"type": "string", "enum": ["memory", "user"], "default": "memory", "description": "Whether this is agent personal notes ('memory') or user profile ('user')"},
+                        "content": {"type": "string", "description": "The information to remember (required for 'add' and 'patch')"},
+                        "old_text": {"type": "string", "description": "Unique substring matching the entry to update or remove (required for 'patch' and 'remove')"},
+                    },
+                },
+                output_schema={
+                    "type": "object",
+                    "properties": {
+                        "success": {"type": "boolean"},
+                        "message": {"type": "string"},
+                        "capacity": {"type": "object"},
+                    },
+                },
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="WRITE",
+                approval_required=False,
+                handler=self._exec_memory,
+            )
+        )
+
+        # 22. session_search (Hermes Cross-Session Conversation Recall)
+        self.register(
+            ToolDefinition(
+                name="session_search",
+                description=(
+                    "Searches past conversation sessions and previous talks using fast keyword search. "
+                    "Use this whenever the user asks 'do you remember what we talked about', refers to past decisions, "
+                    "or when you need context from prior conversations."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Keyword terms to search across past conversation transcripts"},
+                        "session_id": {"type": "string", "description": "Optional specific session ID to inspect"},
+                        "limit": {"type": "integer", "default": 5, "description": "Maximum number of historical turns to retrieve"},
+                    },
+                },
+                output_schema={
+                    "type": "object",
+                    "properties": {
+                        "success": {"type": "boolean"},
+                        "count": {"type": "integer"},
+                        "matches": {"type": "array"},
+                    },
+                },
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_session_search,
+            )
+        )
+        self.register(
+            ToolDefinition(
+                name="agent.notify",
+                description="Records a notice for a person or another employee. Does not call tools or change business data.",
+                input_schema={
+                    "type": "object",
+                    "required": ["message"],
+                    "properties": {"message": {"type": "string"}},
+                },
+                output_schema={"type": "object", "properties": {"recorded": {"type": "boolean"}, "outcome": {"type": "string"}}},
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_agent_notify,
+            )
+        )
+        from app.services.agents.kernel.browser_session import register_browser_tools
+        register_browser_tools(self)
+
+        self.register(
+            ToolDefinition(
+                name="orodruin.signals",
+                description="Fetch live global OSINT signals (GDELT news, USGS earthquakes, NASA EONET hazards) for a topic or region.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "topic": {"type": "string", "default": "technology"},
+                        "region": {"type": "string"},
+                        "limit": {"type": "integer", "default": 8},
+                    },
+                },
+                output_schema={"type": "object"},
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_orodruin_signals,
+            )
+        )
+        self.register(
+            ToolDefinition(
+                name="orodruin.geolocate_ip",
+                description="Geolocate an IP address (city, country, ISP/ASN) using OSINT geolocation.",
+                input_schema={
+                    "type": "object",
+                    "required": ["ip"],
+                    "properties": {"ip": {"type": "string"}},
+                },
+                output_schema={"type": "object"},
+                required_scopes=[],
+                risk_level="LOW",
+                side_effect="READ",
+                approval_required=False,
+                handler=self._exec_orodruin_geolocate,
+            )
+        )
+
+    async def _exec_orodruin_signals(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().fetch_signals(
+            topic=str(args.get("topic") or "technology"),
+            region=args.get("region"),
+            limit=int(args.get("limit") or 8),
+        )
+
+    async def _exec_orodruin_geolocate(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().geolocate_ip(str(args["ip"]))
 
 
 tool_registry = ToolRegistry()

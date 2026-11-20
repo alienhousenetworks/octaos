@@ -54,6 +54,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'assistant', name: 'AI Assistant', href: '/app/assistant', icon: Bot, section: 'assistant', keywords: 'chat assistant natural language orchestrator bots work' },
       { id: 'research', name: 'Search Intelligence', href: '/app/research', icon: Search, section: 'assistant', keywords: 'deep research web search sources citations evidence monitoring competitor intelligence' },
+      { id: 'intelligence', name: 'Global Intelligence', href: '/app/intelligence', icon: Radar, section: 'assistant', keywords: 'orodruin osint global signals map trends leads strategy' },
       { id: 'dashboard', name: 'Overview', href: '/app/home', icon: BarChart3, section: 'dashboard', keywords: 'dashboard operating birdseye analytics metrics charts classic' },
       { id: 'approvals', name: 'Approvals', href: '/app/approvals', icon: CheckCheck, section: 'system', keywords: 'hitl review queue' },
       { id: 'knowledge', name: 'Knowledge', href: '/app/knowledge', icon: FileText, section: 'knowledge', keywords: 'documents rag' },
