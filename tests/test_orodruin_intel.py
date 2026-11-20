@@ -18,6 +18,16 @@ def test_orodruin_tools_registered():
         "orodruin.flights",
         "orodruin.disasters",
         "orodruin.deep_search",
+        "orodruin.weather",
+        "orodruin.air_quality",
+        "orodruin.space_weather",
+        "orodruin.geocode",
+        "orodruin.route",
+        "orodruin.breaches",
+        "orodruin.news",
+        "orodruin.cables",
+        "orodruin.satellites",
+        "orodruin.area_intel",
     ]
     for name in expected:
         assert tool_registry.get(name) is not None, f"Missing tool: {name}"

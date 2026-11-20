@@ -435,3 +435,125 @@ class OrodruinIntelService:
             pass
         feed = await self.fetch_signals(topic=query, limit=count)
         return {"engine": "gdelt_osint_fallback", "query": query, "results": feed["signals"]}
+
+
+    async def fetch_weather(self, lat: float, lon: float) -> dict[str, Any]:
+        """Open-Meteo current weather (free, no key)."""
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            r = await client.get(
+                "https://api.open-meteo.com/v1/forecast",
+                params={"latitude": lat, "longitude": lon, "current_weather": "true"},
+            )
+            r.raise_for_status()
+            return r.json()
+
+    async def fetch_air_quality(self, lat: float, lon: float) -> dict[str, Any]:
+        """Open-Meteo air quality (PM2.5, PM10, NO2, CO, O3 — free, no key)."""
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            r = await client.get(
+                "https://air-quality-api.open-meteo.com/v1/air-quality",
+                params={"latitude": lat, "longitude": lon, "current": "pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,ozone"},
+            )
+            r.raise_for_status()
+            return r.json()
+
+    async def fetch_space_weather(self) -> dict[str, Any]:
+        """NOAA SWPC planetary Kp index & solar flux (free, no key)."""
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            r = await client.get("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json")
+            r.raise_for_status()
+            rows = r.json()
+            latest = rows[-1] if isinstance(rows, list) and len(rows) > 1 else []
+            return {"latest": latest, "count": len(rows) if isinstance(rows, list) else 0}
+
+    async def geocode(self, q: str, limit: int = 5) -> list[dict[str, Any]]:
+        """Nominatim OpenStreetMap geocoding."""
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            r = await client.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": q, "format": "json", "limit": limit},
+                headers={"User-Agent": "OctaOS-Intelligence/1.0"},
+            )
+            r.raise_for_status()
+            return [
+                {"display_name": x.get("display_name"), "lat": float(x["lat"]), "lon": float(x["lon"])}
+                for x in (r.json() if isinstance(r.json(), list) else [])
+            ]
+
+    async def route(self, from_lat: float, from_lon: float, to_lat: float, to_lon: float) -> dict[str, Any]:
+        """OSRM driving route."""
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            r = await client.get(
+                f"https://router.project-osrm.org/route/v1/driving/{from_lon},{from_lat};{to_lon},{to_lat}",
+                params={"overview": "full", "geometries": "geojson"},
+            )
+            r.raise_for_status()
+            data = r.json()
+            routes = data.get("routes") or []
+            if not routes:
+                return {"error": "No route found"}
+            return {"distance_m": routes[0].get("distance"), "duration_s": routes[0].get("duration"), "geometry": routes[0].get("geometry")}
+
+    async def fetch_breaches(self, limit: int = 12) -> list[dict[str, Any]]:
+        """Have I Been Pwned public breach catalog."""
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            r = await client.get("https://haveibeenpwned.com/api/v3/breaches", headers={"User-Agent": "OctaOS-Intelligence/1.0"})
+            if not r.is_success:
+                return []
+            items = sorted(r.json(), key=lambda x: x.get("BreachDate", ""), reverse=True)[:limit]
+            return [{"name": b.get("Name"), "domain": b.get("Domain"), "date": b.get("BreachDate"), "pwn_count": b.get("PwnCount")} for b in items]
+
+    async def fetch_news_rss(self, limit: int = 15) -> list[dict[str, Any]]:
+        """Public RSS world/tech news feeds."""
+        feeds = [
+            ("BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"),
+            ("Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml"),
+        ]
+        items: list[dict[str, Any]] = []
+        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+            for src, url in feeds:
+                try:
+                    r = await client.get(url)
+                    if not r.is_success:
+                        continue
+                    for m in re.findall(r"<item>(.*?)</item>", r.text, flags=re.DOTALL)[: limit // 2]:
+                        t = re.search(r"<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</title>", m, flags=re.DOTALL)
+                        l = re.search(r"<link>(.*?)</link>", m, flags=re.DOTALL)
+                        items.append({
+                            "source": src,
+                            "title": " ".join(t.group(1).split()) if t else "News",
+                            "url": l.group(1).strip() if l else "",
+                        })
+                except Exception:
+                    pass
+        return items[:limit]
+
+    async def fetch_submarine_cables(self, limit: int = 80) -> dict[str, Any]:
+        """TeleGeography global submarine cable systems."""
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                r = await client.get("https://www.submarinecablemap.com/api/v3/cable/cable-geo.json")
+                if r.is_success:
+                    feats = (r.json().get("features") or [])[:limit]
+                    return {"type": "FeatureCollection", "count": len(feats), "features": feats}
+            except Exception:
+                pass
+        return {"type": "FeatureCollection", "count": 0, "features": []}
+
+    async def fetch_satellites(self, limit: int = 40) -> dict[str, Any]:
+        """CelesTrak active stations TLE catalog."""
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                r = await client.get("https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=json")
+                if r.is_success:
+                    rows = (r.json() if isinstance(r.json(), list) else [])[:limit]
+                    return {"count": len(rows), "satellites": [{"name": x.get("OBJECT_NAME"), "norad_id": x.get("NORAD_CAT_ID"), "inclination": x.get("INCLINATION")} for x in rows]}
+            except Exception:
+                pass
+        return {"count": 0, "satellites": []}
+
+    async def area_intel(self, lat: float, lon: float) -> dict[str, Any]:
+        """Unified area briefing: weather + air quality + nearby signals."""
+        wx = await self.fetch_weather(lat, lon)
+        aq = await self.fetch_air_quality(lat, lon)
+        return {"lat": lat, "lon": lon, "weather": wx.get("current_weather"), "air_quality": aq.get("current")}

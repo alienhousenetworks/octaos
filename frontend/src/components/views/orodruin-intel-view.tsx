@@ -80,7 +80,12 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
   const [companyName, setCompanyName] = useState('');
   const [deepQuery, setDeepQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'map' | 'intel' | 'cameras' | 'graph' | 'feeds'>('map');
-  const [basemap, setBasemap] = useState<'dark' | 'streets' | 'satellite'>('dark');
+  const [basemap, setBasemap] = useState<'dark' | 'streets' | 'satellite' | 'globe'>('dark');
+  const [placeQuery, setPlaceQuery] = useState('');
+  const [areaBrief, setAreaBrief] = useState<any | null>(null);
+  const [cables, setCables] = useState<any[]>([]);
+  const [newsRss, setNewsRss] = useState<any[]>([]);
+  const [breaches, setBreaches] = useState<any[]>([]);
 
   const [layers, setLayers] = useState({
     signals: true,
@@ -88,6 +93,7 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
     flights: false,
     disasters: true,
     radar: false,
+    cables: false,
   });
 
   const [signals, setSignals] = useState<OsintSignal[]>([]);
@@ -186,7 +192,7 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
         sources: {
           basemap: {
             type: 'raster',
-            tiles: BASEMAPS[basemap].tiles,
+            tiles: BASEMAPS[basemap === 'globe' ? 'dark' : basemap].tiles,
             tileSize: 256,
           },
         },
@@ -194,6 +200,25 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
       },
       center: [0, 28],
       zoom: 1.8,
+    });
+
+    if (basemap === 'globe') {
+      map.once('style.load', () => {
+        try {
+          (map as any).setProjection({ type: 'globe' });
+        } catch {
+          // fallback to mercator if unsupported
+        }
+      });
+    }
+
+    map.on('click', async (e) => {
+      try {
+        const res = await fetchWithAuth(`${API_URL}/orodruin/area-intel?lat=${e.lngLat.lat.toFixed(4)}&lon=${e.lngLat.lng.toFixed(4)}`);
+        if (res.ok) setAreaBrief(await res.json());
+      } catch {
+        // non-blocking
+      }
     });
 
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
@@ -395,22 +420,55 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
               })}
             </div>
             <div className="flex items-center gap-1">
-              {(['dark', 'streets', 'satellite'] as const).map((b) => (
+              {(['dark', 'streets', 'satellite', 'globe'] as const).map((b) => (
                 <button
                   key={b}
                   type="button"
                   onClick={() => setBasemap(b)}
                   className={`rounded border px-2 py-1 ${basemap === b ? 'border-info/50 bg-info/15 text-info' : 'border-border text-muted-foreground'}`}
                 >
-                  {BASEMAPS[b].label}
+                  {b === 'globe' ? '3D Globe' : BASEMAPS[b].label}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
-            <div className="overflow-hidden rounded-lg border border-border bg-card">
-              <div ref={mapContainerRef} className="h-[520px] w-full" />
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Jump to city, country, or address (Nominatim geocoder)..."
+                  value={placeQuery}
+                  onChange={(e) => setPlaceQuery(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    if (placeQuery.trim().length < 2) return;
+                    const r = await fetchWithAuth(`${API_URL}/orodruin/geocode?q=${encodeURIComponent(placeQuery.trim())}`);
+                    if (r.ok) {
+                      const list = (await r.json()).results || [];
+                      if (list[0] && mapRef.current) {
+                        mapRef.current.flyTo({ center: [list[0].lon, list[0].lat], zoom: 9 });
+                      }
+                    }
+                  }}
+                >
+                  <MapPin className="size-4" />
+                  Locate
+                </Button>
+              </div>
+              <div className="overflow-hidden rounded-lg border border-border bg-card">
+                <div ref={mapContainerRef} className="h-[520px] w-full" />
+              </div>
+              {areaBrief && (
+                <div className="rounded-lg border border-border bg-card px-4 py-2.5 text-xs flex flex-wrap items-center gap-4">
+                  <span className="font-mono text-info">Area Intel ({areaBrief.lat}, {areaBrief.lon})</span>
+                  {areaBrief.weather && <span>Temp: {areaBrief.weather.temperature}°C · Wind: {areaBrief.weather.windspeed} km/h</span>}
+                  {areaBrief.air_quality && <span>PM2.5: {areaBrief.air_quality.pm2_5} · NO₂: {areaBrief.air_quality.nitrogen_dioxide}</span>}
+                </div>
+              )}
             </div>
             <div className="rounded-lg border border-border bg-card flex flex-col max-h-[520px]">
               <div className="border-b border-border px-4 py-3 text-sm font-semibold">

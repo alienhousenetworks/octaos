@@ -1866,6 +1866,31 @@ class ToolRegistry:
                 handler=self._exec_orodruin_deep_search,
             )
         )
+        for tname, tdesc, tschema, thandler in [
+            ("orodruin.weather", "Get live weather for coordinates (Open-Meteo).", {"type": "object", "required": ["lat", "lon"], "properties": {"lat": {"type": "number"}, "lon": {"type": "number"}}}, self._exec_orodruin_weather),
+            ("orodruin.air_quality", "Get live air quality (PM2.5, NO2, CO, O3) for coordinates.", {"type": "object", "required": ["lat", "lon"], "properties": {"lat": {"type": "number"}, "lon": {"type": "number"}}}, self._exec_orodruin_aq),
+            ("orodruin.space_weather", "Get NOAA SWPC planetary Kp index & space weather.", {"type": "object", "properties": {}}, self._exec_orodruin_spacewx),
+            ("orodruin.geocode", "Geocode a place or address into lat/lon coordinates.", {"type": "object", "required": ["query"], "properties": {"query": {"type": "string"}}}, self._exec_orodruin_geocode),
+            ("orodruin.route", "Compute a driving route between two lat/lon coordinates.", {"type": "object", "required": ["from_lat", "from_lon", "to_lat", "to_lon"], "properties": {"from_lat": {"type": "number"}, "from_lon": {"type": "number"}, "to_lat": {"type": "number"}, "to_lon": {"type": "number"}}}, self._exec_orodruin_route),
+            ("orodruin.breaches", "List recent public data breaches (Have I Been Pwned).", {"type": "object", "properties": {"limit": {"type": "integer", "default": 10}}}, self._exec_orodruin_breaches),
+            ("orodruin.news", "Fetch live world RSS news headlines.", {"type": "object", "properties": {"limit": {"type": "integer", "default": 12}}}, self._exec_orodruin_news),
+            ("orodruin.cables", "Fetch TeleGeography global submarine cable GeoJSON.", {"type": "object", "properties": {"limit": {"type": "integer", "default": 60}}}, self._exec_orodruin_cables),
+            ("orodruin.satellites", "Fetch CelesTrak active orbital stations.", {"type": "object", "properties": {"limit": {"type": "integer", "default": 30}}}, self._exec_orodruin_satellites),
+            ("orodruin.area_intel", "Run unified area intelligence briefing (weather + air quality) for lat/lon.", {"type": "object", "required": ["lat", "lon"], "properties": {"lat": {"type": "number"}, "lon": {"type": "number"}}}, self._exec_orodruin_area_intel),
+        ]:
+            self.register(
+                ToolDefinition(
+                    name=tname,
+                    description=tdesc,
+                    input_schema=tschema,
+                    output_schema={"type": "object"},
+                    required_scopes=[],
+                    risk_level="LOW",
+                    side_effect="READ",
+                    approval_required=False,
+                    handler=thandler,
+                )
+            )
 
     async def _exec_orodruin_signals(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
         from app.services.orodruin_intel import OrodruinIntelService
@@ -1925,6 +1950,46 @@ class ToolRegistry:
     async def _exec_orodruin_deep_search(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
         from app.services.orodruin_intel import OrodruinIntelService
         return await OrodruinIntelService().deep_search(db, tenant_id, str(args["query"]), count=int(args.get("count") or 8))
+
+    async def _exec_orodruin_weather(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().fetch_weather(float(args["lat"]), float(args["lon"]))
+
+    async def _exec_orodruin_aq(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().fetch_air_quality(float(args["lat"]), float(args["lon"]))
+
+    async def _exec_orodruin_spacewx(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().fetch_space_weather()
+
+    async def _exec_orodruin_geocode(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return {"results": await OrodruinIntelService().geocode(str(args["query"]))}
+
+    async def _exec_orodruin_route(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().route(float(args["from_lat"]), float(args["from_lon"]), float(args["to_lat"]), float(args["to_lon"]))
+
+    async def _exec_orodruin_breaches(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return {"items": await OrodruinIntelService().fetch_breaches(limit=int(args.get("limit") or 10))}
+
+    async def _exec_orodruin_news(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return {"items": await OrodruinIntelService().fetch_news_rss(limit=int(args.get("limit") or 12))}
+
+    async def _exec_orodruin_cables(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().fetch_submarine_cables(limit=int(args.get("limit") or 60))
+
+    async def _exec_orodruin_satellites(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().fetch_satellites(limit=int(args.get("limit") or 30))
+
+    async def _exec_orodruin_area_intel(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().area_intel(float(args["lat"]), float(args["lon"]))
 
 
 tool_registry = ToolRegistry()

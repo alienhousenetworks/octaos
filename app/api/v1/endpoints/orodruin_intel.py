@@ -181,3 +181,59 @@ async def deep_web_search(
     current_user=Depends(get_current_user),
 ):
     return await OrodruinIntelService().deep_search(db, str(current_user.tenant_id), q, count=count)
+
+
+@router.get("/weather")
+async def get_weather(lat: float = Query(...), lon: float = Query(...), current_user=Depends(get_current_user)):
+    return await OrodruinIntelService().fetch_weather(lat, lon)
+
+
+@router.get("/airquality")
+async def get_air_quality(lat: float = Query(...), lon: float = Query(...), current_user=Depends(get_current_user)):
+    return await OrodruinIntelService().fetch_air_quality(lat, lon)
+
+
+@router.get("/spaceweather")
+async def get_space_weather(current_user=Depends(get_current_user)):
+    return await OrodruinIntelService().fetch_space_weather()
+
+
+@router.get("/geocode")
+async def geocode_place(q: str = Query(min_length=2), limit: int = Query(default=5, ge=1, le=10), current_user=Depends(get_current_user)):
+    return {"results": await OrodruinIntelService().geocode(q, limit=limit)}
+
+
+@router.get("/route")
+async def route_between(
+    from_lat: float = Query(...),
+    from_lon: float = Query(...),
+    to_lat: float = Query(...),
+    to_lon: float = Query(...),
+    current_user=Depends(get_current_user),
+):
+    return await OrodruinIntelService().route(from_lat, from_lon, to_lat, to_lon)
+
+
+@router.get("/breaches")
+async def get_breaches(limit: int = Query(default=12, ge=1, le=30), current_user=Depends(get_current_user)):
+    return {"items": await OrodruinIntelService().fetch_breaches(limit=limit)}
+
+
+@router.get("/news")
+async def get_news_rss(limit: int = Query(default=15, ge=1, le=30), current_user=Depends(get_current_user)):
+    return {"items": await OrodruinIntelService().fetch_news_rss(limit=limit)}
+
+
+@router.get("/cables")
+async def get_submarine_cables(limit: int = Query(default=80, ge=1, le=200), current_user=Depends(get_current_user)):
+    return await OrodruinIntelService().fetch_submarine_cables(limit=limit)
+
+
+@router.get("/satellites")
+async def get_satellites(limit: int = Query(default=40, ge=1, le=100), current_user=Depends(get_current_user)):
+    return await OrodruinIntelService().fetch_satellites(limit=limit)
+
+
+@router.get("/area-intel")
+async def get_area_intel(lat: float = Query(...), lon: float = Query(...), current_user=Depends(get_current_user)):
+    return await OrodruinIntelService().area_intel(lat, lon)
