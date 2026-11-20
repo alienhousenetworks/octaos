@@ -1878,6 +1878,7 @@ class ToolRegistry:
             ("orodruin.satellites", "Fetch CelesTrak active orbital stations.", {"type": "object", "properties": {"limit": {"type": "integer", "default": 30}}}, self._exec_orodruin_satellites),
             ("orodruin.area_intel", "Run unified area intelligence briefing (weather + air quality) for lat/lon.", {"type": "object", "required": ["lat", "lon"], "properties": {"lat": {"type": "number"}, "lon": {"type": "number"}}}, self._exec_orodruin_area_intel),
             ("orodruin.find_leads", "Use deep browser/web search + OSINT to discover evidence-backed company leads and optionally save to CRM.", {"type": "object", "required": ["query"], "properties": {"query": {"type": "string"}, "industry": {"type": "string"}, "geography": {"type": "string"}, "count": {"type": "integer", "default": 8}, "save_to_crm": {"type": "boolean", "default": False}}}, self._exec_orodruin_find_leads),
+            ("orodruin.site_report", "Analyze tenant-registered sites, cameras, and production feeds with local weather/hazards to generate an AI operational report.", {"type": "object", "properties": {"site_id": {"type": "string"}, "focus": {"type": "string"}}}, self._exec_orodruin_site_report),
         ]:
             self.register(
                 ToolDefinition(
@@ -2002,6 +2003,15 @@ class ToolRegistry:
             geography=args.get("geography"),
             count=int(args.get("count") or 8),
             save_to_crm=bool(args.get("save_to_crm", False)),
+        )
+
+    async def _exec_orodruin_site_report(self, db: Session, tenant_id: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.orodruin_intel import OrodruinIntelService
+        return await OrodruinIntelService().generate_site_report(
+            db,
+            tenant_id,
+            site_id=args.get("site_id"),
+            focus=args.get("focus"),
         )
 
 

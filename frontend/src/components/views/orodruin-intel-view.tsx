@@ -79,7 +79,15 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
   const [region, setRegion] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [deepQuery, setDeepQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'map' | 'intel' | 'cameras' | 'graph' | 'feeds'>('map');
+  const [activeTab, setActiveTab] = useState<'map' | 'intel' | 'cameras' | 'sites' | 'graph' | 'feeds'>('map');
+  const [tenantSites, setTenantSites] = useState<any[]>([]);
+  const [siteName, setSiteName] = useState('');
+  const [siteIndustry, setSiteIndustry] = useState('real_estate');
+  const [siteCamUrl, setSiteCamUrl] = useState('');
+  const [siteLat, setSiteLat] = useState('');
+  const [siteLon, setSiteLon] = useState('');
+  const [siteReport, setSiteReport] = useState('');
+  const [generatingSiteReport, setGeneratingSiteReport] = useState(false);
   const [basemap, setBasemap] = useState<'dark' | 'streets' | 'satellite' | 'globe'>('dark');
   const [placeQuery, setPlaceQuery] = useState('');
   const [areaBrief, setAreaBrief] = useState<any | null>(null);
@@ -157,14 +165,16 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
 
   const loadSideFeeds = async () => {
     try {
-      const [mRes, pRes, rRes] = await Promise.all([
+      const [mRes, pRes, rRes, sRes] = await Promise.all([
         fetchWithAuth(`${API_URL}/orodruin/markets`),
         fetchWithAuth(`${API_URL}/orodruin/prediction?limit=6`),
         fetchWithAuth(`${API_URL}/orodruin/ransomware?limit=8`),
+        fetchWithAuth(`${API_URL}/orodruin/sites`),
       ]);
       if (mRes.ok) setMarkets(await mRes.json());
       if (pRes.ok) setPredictions((await pRes.json()).items || []);
       if (rRes.ok) setRansomware((await rRes.json()).items || []);
+      if (sRes.ok) setTenantSites((await sRes.json()).items || []);
     } catch {
       // non-blocking
     }
@@ -392,6 +402,7 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
       <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
         {[
           { id: 'map', label: 'Global Map & Layers', icon: Globe2 },
+          { id: 'sites', label: `My Sites & Telemetry (${tenantSites.length})`, icon: MapPin },
           { id: 'cameras', label: `Live Cameras (${cameras.length})`, icon: Camera },
           { id: 'intel', label: 'Deep Search & Strategy', icon: Sparkles },
           { id: 'graph', label: 'Actor Graph', icon: Network },
@@ -525,6 +536,97 @@ export default function OrodruinIntelView({ API_URL, fetchWithAuth }: OrodruinIn
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'sites' && (
+        <div className="space-y-5">
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!siteName.trim()) return;
+              const r = await fetchWithAuth(`${API_URL}/orodruin/sites`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  name: siteName.trim(),
+                  industry: siteIndustry,
+                  camera_url: siteCamUrl.trim() || undefined,
+                  lat: siteLat ? parseFloat(siteLat) : undefined,
+                  lon: siteLon ? parseFloat(siteLon) : undefined,
+                }),
+              });
+              if (r.ok) {
+                setSiteName('');
+                setSiteCamUrl('');
+                void loadSideFeeds();
+              }
+            }}
+            className="grid gap-2 rounded-lg border border-border bg-card p-4 md:grid-cols-[1.2fr_0.9fr_1.3fr_0.6fr_0.6fr_auto]"
+          >
+            <Input placeholder="Site / Plant name (e.g. Austin Tower Site A)" value={siteName} onChange={(e) => setSiteName(e.target.value)} />
+            <Input placeholder="Industry (real_estate, manufacturing)" value={siteIndustry} onChange={(e) => setSiteIndustry(e.target.value)} />
+            <Input placeholder="Site Camera / Telemetry URL (optional)" value={siteCamUrl} onChange={(e) => setSiteCamUrl(e.target.value)} />
+            <Input placeholder="Lat" value={siteLat} onChange={(e) => setSiteLat(e.target.value)} />
+            <Input placeholder="Lon" value={siteLon} onChange={(e) => setSiteLon(e.target.value)} />
+            <Button type="submit">Add Site</Button>
+          </form>
+
+          <div className="grid gap-5 lg:grid-cols-2">
+            <section className="rounded-lg border border-border bg-card p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-heading text-sm font-semibold">Registered Sites &amp; Feeds</h3>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={generatingSiteReport}
+                  onClick={async () => {
+                    setGeneratingSiteReport(true);
+                    try {
+                      const r = await fetchWithAuth(`${API_URL}/orodruin/site-report`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({}),
+                      });
+                      if (r.ok) setSiteReport((await r.json()).report || '');
+                    } finally {
+                      setGeneratingSiteReport(false);
+                    }
+                  }}
+                >
+                  {generatingSiteReport ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                  Generate AI Site Report
+                </Button>
+              </div>
+              {tenantSites.length === 0 ? (
+                <EmptyState title="No sites registered yet" description="Add a real estate site camera, factory floor, or warehouse to monitor and generate AI operational reports." />
+              ) : (
+                <div className="divide-y divide-border rounded-md border border-border bg-background">
+                  {tenantSites.map((s) => (
+                    <div key={s.id} className="p-3 text-xs flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold text-foreground">{s.name}</div>
+                        <div className="text-muted-foreground font-mono">{s.industry} {s.lat != null ? `· ${s.lat}, ${s.lon}` : ''}</div>
+                      </div>
+                      {s.camera_url && (
+                        <Button type="button" size="sm" variant="outline" onClick={() => setSelectedCamera({ id: s.id, title: s.name, source: s.industry, image: s.camera_url, mp4: s.camera_url.endsWith('.mp4') ? s.camera_url : null })}>
+                          View Feed
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+            <section className="rounded-lg border border-border bg-card p-4">
+              <h3 className="mb-3 font-heading text-sm font-semibold">AI Operational &amp; Site Report</h3>
+              {siteReport ? (
+                <div className="whitespace-pre-wrap text-sm leading-6 text-foreground/90">{siteReport}</div>
+              ) : (
+                <EmptyState title="No site report generated yet" description="Click Generate AI Site Report to analyze your sites, cameras, local weather, and operational risks." />
+              )}
+            </section>
           </div>
         </div>
       )}

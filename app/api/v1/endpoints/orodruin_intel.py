@@ -264,3 +264,52 @@ async def find_company_leads(
         count=payload.count,
         save_to_crm=payload.save_to_crm,
     )
+
+
+class RegisterSiteRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=255)
+    industry: str = "general"
+    site_type: str = "facility"
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    camera_url: Optional[str] = None
+    telemetry_url: Optional[str] = None
+    metrics: dict = Field(default_factory=dict)
+    notes: Optional[str] = None
+
+
+class SiteReportRequest(BaseModel):
+    site_id: Optional[str] = None
+    focus: Optional[str] = None
+
+
+@router.get("/sites")
+def list_tenant_sites(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    return {"items": OrodruinIntelService().list_sites(db, str(current_user.tenant_id))}
+
+
+@router.post("/sites")
+def register_tenant_site(
+    payload: RegisterSiteRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return OrodruinIntelService().register_site(
+        db,
+        str(current_user.tenant_id),
+        **payload.model_dump(),
+    )
+
+
+@router.post("/site-report")
+async def generate_site_report(
+    payload: SiteReportRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return await OrodruinIntelService().generate_site_report(
+        db,
+        str(current_user.tenant_id),
+        site_id=payload.site_id,
+        focus=payload.focus,
+    )

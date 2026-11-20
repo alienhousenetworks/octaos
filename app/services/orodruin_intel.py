@@ -703,3 +703,138 @@ class OrodruinIntelService:
         wx = await self.fetch_weather(lat, lon)
         aq = await self.fetch_air_quality(lat, lon)
         return {"lat": lat, "lon": lon, "weather": wx.get("current_weather"), "air_quality": aq.get("current")}
+
+
+    def _ensure_site_table(self, db: Session) -> None:
+        from app.models.site_asset import TenantSiteAsset
+        TenantSiteAsset.__table__.create(bind=db.get_bind(), checkfirst=True)
+
+    def register_site(
+        self,
+        db: Session,
+        tenant_id: str,
+        *,
+        name: str,
+        industry: str = "general",
+        site_type: str = "facility",
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+        camera_url: Optional[str] = None,
+        telemetry_url: Optional[str] = None,
+        metrics: Optional[dict[str, Any]] = None,
+        notes: Optional[str] = None,
+    ) -> dict[str, Any]:
+        from app.models.site_asset import TenantSiteAsset
+
+        self._ensure_site_table(db)
+        site = TenantSiteAsset(
+            tenant_id=tenant_id,
+            name=name,
+            industry=industry,
+            site_type=site_type,
+            lat=lat,
+            lon=lon,
+            camera_url=camera_url,
+            telemetry_url=telemetry_url,
+            metrics_json=metrics or {},
+            notes=notes,
+        )
+        db.add(site)
+        db.commit()
+        db.refresh(site)
+        return {
+            "id": site.id,
+            "name": site.name,
+            "industry": site.industry,
+            "site_type": site.site_type,
+            "lat": site.lat,
+            "lon": site.lon,
+            "camera_url": site.camera_url,
+            "telemetry_url": site.telemetry_url,
+            "metrics": site.metrics_json,
+        }
+
+    def list_sites(self, db: Session, tenant_id: str) -> list[dict[str, Any]]:
+        from app.models.site_asset import TenantSiteAsset
+
+        self._ensure_site_table(db)
+        rows = db.query(TenantSiteAsset).filter(TenantSiteAsset.tenant_id == tenant_id).all()
+        return [
+            {
+                "id": s.id,
+                "name": s.name,
+                "industry": s.industry,
+                "site_type": s.site_type,
+                "lat": s.lat,
+                "lon": s.lon,
+                "camera_url": s.camera_url,
+                "telemetry_url": s.telemetry_url,
+                "metrics": s.metrics_json,
+                "notes": s.notes,
+            }
+            for s in rows
+        ]
+
+    async def generate_site_report(
+        self,
+        db: Session,
+        tenant_id: str,
+        *,
+        site_id: Optional[str] = None,
+        focus: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Generate an AI operational/site intelligence report combining tenant sites, cameras, weather, and hazards."""
+        from app.services.learning_loop import LearningLoop
+        from app.services.llm_gateway import LLMGateway
+
+        sites = self.list_sites(db, tenant_id)
+        if site_id:
+            sites = [s for s in sites if s["id"] == site_id]
+
+        loop = LearningLoop(db, tenant_id)
+        decision_id = loop.record_decision(
+            agent_name="orodruin_site_analyst",
+            task_type="site_operations_report",
+            strategy_used="site_telemetry_fusion_v1",
+            prompt_version="v1",
+            confidence_score=0.82,
+            context_features={"site_count": len(sites), "focus": focus},
+        )
+
+        site_contexts = []
+        for s in sites[:5]:
+            env = {}
+            if s.get("lat") is not None and s.get("lon") is not None:
+                try:
+                    env = await self.area_intel(float(s["lat"]), float(s["lon"]))
+                except Exception:
+                    env = {}
+            site_contexts.append({"site": s, "environment": env})
+
+        gateway = LLMGateway(db, tenant_id)
+        if gateway.has_configured_provider() and site_contexts:
+            prompt = (
+                f"You are OctaOS Site & Operations Intelligence.\nFocus: {focus or 'Operational status, risks, and recommendations'}\n"
+                f"Tenant Sites & Live Telemetry:\n{site_contexts}\n\n"
+                "Provide a concise executive report covering:\n"
+                "1. Site / Production Status Summary\n"
+                "2. Weather, Hazard, or Supply-Chain Risks\n"
+                "3. Recommended Actions for Operations, Sales, or Maintenance Teams"
+            )
+            try:
+                report = await gateway.complete(prompt=prompt)
+            except Exception as exc:
+                report = f"AI report unavailable ({exc}). Site telemetry is attached."
+        elif not site_contexts:
+            report = "No tenant sites registered yet. Add a site, camera, or production feed to generate an AI operational report."
+        else:
+            report = f"Collected telemetry for {len(site_contexts)} site(s). Configure an AI provider in Integrations for full narrative synthesis."
+
+        loop.record_outcome_and_update(
+            decision_id=decision_id,
+            result_status="success" if site_contexts else "partial",
+            behavioral_signals={"sites_analyzed": len(site_contexts)},
+            quality_score=88.0 if site_contexts else 50.0,
+        )
+
+        return {"decision_id": decision_id, "sites_analyzed": len(site_contexts), "report": report, "sites": site_contexts}
