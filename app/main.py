@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, Response
 
 from app.api.v1.api import api_router
+from app.api.mcp_transport import router as mcp_transport_router
 from app.api.v2.api import api_router as api_router_v2
 from app.api.v1.endpoints.plugins import root_router as plugins_root_router
 from app.core.config import settings
@@ -35,6 +36,7 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(mcp_transport_router, prefix="/mcp")
 app.include_router(api_router_v2, prefix="/api/v2")
 app.include_router(plugins_root_router)
 

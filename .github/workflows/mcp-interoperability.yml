@@ -1,0 +1,53 @@
+name: MCP interoperability regression tests
+
+on:
+  pull_request:
+    paths:
+      - "app/api/mcp_transport.py"
+      - "app/api/v1/endpoints/mcp.py"
+      - "app/main.py"
+      - "app/services/mcp/**"
+      - "tests/mcp/**"
+      - ".env.example"
+      - ".github/workflows/mcp-interoperability.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcp-interoperability-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mcp-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      DEV: "true"
+      ENVIRONMENT: "test"
+      SECRET_KEY: "test-only-secret-key-32-characters-minimum"
+      SQLALCHEMY_DATABASE_URI: "sqlite:///./test_mcp_interoperability.db"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Compile MCP implementation
+        run: |
+          python -m compileall -q \
+            app/api/mcp_transport.py \
+            app/api/v1/endpoints/mcp.py \
+            app/services/mcp
+      - name: Run MCP interoperability regressions
+        run: |
+          pytest -q \
+            tests/mcp/test_api_endpoints.py \
+            tests/mcp/test_dynamic_mcp.py \
+            tests/mcp/test_external_mcp_config.py \
+            tests/mcp/test_external_mcp_interoperability.py
